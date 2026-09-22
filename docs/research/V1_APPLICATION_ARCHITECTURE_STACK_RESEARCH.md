@@ -7,18 +7,18 @@
 
 ## Executive answer
 
-AppT V1 is genuinely viable with more than one application-stack family, but it is **not** viable as a purely framework-managed, web-only, or “Expo Go” application. The decisive capability is a small, testable, platform-aware control seam that can perform LAN discovery, direct TCP/WebSocket/TLS work, Samsung pairing and token persistence, lifecycle-aware reconnect, Wake-on-LAN where supported, and secure storage without sending TV commands through a backend.
+AppT V1 is genuinely viable with more than one application-stack family, but it is **not** viable as a package-only, WebView-only, or “Expo Go” application with no platform integration. The decisive capability is a small, testable control seam that can perform LAN discovery, direct TCP/WebSocket/TLS work, Samsung pairing and token persistence, lifecycle-aware reconnect, Wake-on-LAN where supported, and secure storage without sending TV commands through a backend. The control seam may be shared-runtime, native, shared-core/native-transport, or hybrid; the evidence has not selected its owner.
 
 The viable families are therefore conditional:
 
 - **Fully native Swift plus Kotlin/Jetpack** can reach every required OS API directly, at the cost of duplicated UI/domain integration and two native codebases.
 - **Kotlin Multiplatform with native iOS and Android integration** can share protocol/domain/data logic while retaining native escape hatches. Compose Multiplatform can share UI, but native UI remains an equally valid KMP shape and keeps more phone-specific behavior direct.
-- **React Native in a native-capable application** can work if the Samsung control path is implemented and tested as native modules or a native/shared core, not assumed to be JavaScript-only. Current React Native has a production New Architecture and first-party WebSocket support, but the native module, lifecycle, build, and device-test surface remains material.
-- **Expo** is viable only as a custom development-build/CNG/native-project setup. Expo Go and a managed-only interpretation are not sufficient for AppT’s multicast entitlements, platform network controls, secure storage policy, Samsung-specific transport, and lifecycle work.
-- **Flutter** can work with a native plugin boundary or a shared native protocol core. Dart sockets and WebSockets are useful, but platform permission prompts, multicast behavior, secure storage, lifecycle, and unsolicited background events still require platform-specific handling.
-- **.NET MAUI** is technically viable through platform code, handlers, and native APIs, but this report found less AppT-specific evidence around the unusual Samsung/iOS LAN and lifecycle seam than for the other candidates. It should remain a conditional candidate, not be discarded or assumed.
-- **Capacitor/Ionic or another WebView-first stack** is technically possible only when the critical control implementation is native. A WebView-only control path has the weakest fit for deterministic foreground lifecycle, low-level LAN discovery, secure transport identity, and native phone behavior.
-- **A shared Rust/C++ protocol core with native UIs** is a serious architecture family rather than a UI framework. It can reduce duplicated wire-protocol logic while leaving discovery, secure storage, lifecycle, haptics, accessibility, keyboard, and buttons native. It adds FFI, toolchain, and debugging complexity.
+- **React Native in a native-capable application** can work with direct JavaScript networking where the runtime supports it, a native module/plugin, a shared core, or a hybrid. Current React Native has a production New Architecture and first-party WebSocket support, but the bridge/runtime lifecycle, build, and device-test surface remains material. The evidence does not establish who should own a long-lived control session.
+- **Expo** is viable only as a custom development-build/CNG/native-project setup. Expo Go and a managed-only interpretation are not sufficient for AppT’s multicast entitlements, platform network controls, secure storage policy, Samsung-specific transport, and lifecycle work; the required native configuration does not by itself decide session ownership.
+- **Flutter** can use Dart sockets/WebSockets, platform plugins, a shared core, or a hybrid. Permission prompts, multicast behavior, secure storage, lifecycle, and unsolicited background events still require platform-specific handling. A native plugin is a platform seam, not proof that the protocol session must live there.
+- **.NET MAUI** is technically viable through shared .NET code plus platform code, handlers, and native APIs, but this report found less AppT-specific evidence around the unusual Samsung/iOS LAN and lifecycle seam than for the other candidates. It should remain a conditional candidate, not be discarded or assumed.
+- **Capacitor/Ionic or another WebView-first stack** is technically possible with platform plugins or another native integration for OS-required seams. A WebView-only control path has the weakest fit for deterministic foreground lifecycle, low-level LAN discovery, secure transport identity, and native phone behavior; whether a plugin, shared runtime, or hybrid should own the control session remains unverified.
+- **A shared Rust/C++ protocol core with native UIs** remains a research hypothesis, not a supported recommendation. It could reduce duplicated wire-protocol logic while leaving discovery, secure storage, lifecycle, haptics, accessibility, keyboard, and buttons in platform integration, but this report has not established equivalent evidence for FFI, TLS/trust callbacks, secure-storage boundaries, lifecycle, testing, packaging, or UI/accessibility integration.
 
 No family can remove the largest unresolved risks:
 
@@ -28,7 +28,7 @@ No family can remove the largest unresolved risks:
 4. iOS multicast/broadcast discovery has privacy controls and a restricted entitlement, while iOS does not provide a general-purpose persistent background LAN session for a normal consumer remote.
 5. The requirement that iPhone physical volume buttons control TV volume is a product/platform release risk. Apple documents that only the user can directly set system volume, and App Store guideline 2.5.9 says apps that alter standard Volume Up/Down switch behavior will be rejected. A framework choice cannot make that requirement safe; it needs a narrowly scoped native experiment and, if confirmed, a product decision or Apple-approved interpretation.
 
-**Non-binding conclusion:** the next discovery step should test the Samsung and phone-platform seams first, then compare the cost of placing those seams behind each candidate’s native escape hatch. This report deliberately does not choose a winner, create an ADR, add dependencies, or prescribe implementation.
+**Non-binding conclusion:** the next discovery step should test the Samsung and phone-platform seams first, then compare shared-runtime, native, shared-core/native-transport, and hybrid session placements within each credible candidate. This report deliberately does not choose a winner, create an ADR, add dependencies, or prescribe implementation.
 
 ## 1. How to read this report
 
@@ -56,6 +56,15 @@ This is architecture/stack research, not an implementation plan. It does not:
 - modify [`docs/PRODUCT.md`](../PRODUCT.md);
 - claim that any Samsung model range is supported;
 - claim that current Samsung Smart View SDK materials constitute a current generic remote-control contract.
+
+### Platform seams versus session ownership
+
+The report distinguishes two questions that were previously too easy to conflate:
+
+1. **Platform-required work:** OS permission prompts and declarations, iOS multicast entitlements, Android local-network controls, lifecycle notifications, secure-storage APIs, haptics, accessibility, keyboard/input integration, hardware-button policy, and platform-specific TLS configuration. These require platform integration even when most application code is shared.
+2. **Session placement:** discovery orchestration, transport objects, pairing/token state, command serialization, reconnect state, and event/state-machine ownership. These may technically live in a shared runtime, a native implementation, a shared Rust/C++/other core, or a hybrid arrangement that combines them. The current evidence does **not** establish which placement is most reliable for AppT.
+
+A native escape hatch proves that a candidate can reach a platform API; it does not prove that a complete Samsung session must run in native code. The comparison matrix and Experiment 9 therefore treat session placement as an empirical architecture question. Lifecycle and security warnings remain real: whichever layer owns a session must tolerate suspension, cancellation, identity changes, secret isolation, and event loss.
 
 ## 2. Product and project constraints that drive the comparison
 
@@ -106,11 +115,11 @@ The approved product definition makes the control seam more important than the a
 
 ### 3.3 Standards-based building blocks
 
-- **mDNS:** Multicast DNS is specified by [RFC 6762](https://www.rfc-editor.org/rfc/rfc6762.html). It uses link-local multicast and is subject to network filtering and mobile-OS privacy/power rules.
-- **DNS-SD/Bonjour:** DNS-Based Service Discovery is specified by [RFC 6763](https://www.rfc-editor.org/rfc/rfc6763.html). It can advertise a service while allowing address/TXT records to change; it is not an identity proof by itself.
-- **SSDP/UPnP:** SSDP is part of the UPnP Device Architecture family. It is a UDP multicast/broadcast discovery mechanism and is commonly deployed by consumer devices, but it can be disabled or filtered by access points, guest networks, and VLANs. AppT should treat discovered metadata as a candidate, not an authenticated TV identity.
-- **WebSocket:** The wire protocol is standardized by [RFC 6455](https://www.rfc-editor.org/rfc/rfc6455.html). A compliant WebSocket client can still fail on a TV-specific handshake, endpoint, message schema, or authentication behavior.
-- **TLS:** TLS 1.3 is specified by [RFC 8446](https://www.rfc-editor.org/rfc/rfc8446.html). TLS encryption and certificate identity verification are separate questions; accepting an encrypted connection while skipping identity verification is not equivalent to secure peer authentication.
+- **mDNS:** Multicast DNS is specified by [RFC 6762](https://www.rfc-editor.org/rfc/rfc6762.html). It uses link-local multicast and is subject to network filtering and mobile-OS privacy/power rules. [S08]
+- **DNS-SD/Bonjour:** DNS-Based Service Discovery is specified by [RFC 6763](https://www.rfc-editor.org/rfc/rfc6763.html). It can advertise a service while allowing address/TXT records to change; it is not an identity proof by itself. [S09]
+- **SSDP/UPnP:** SSDP is part of the UPnP Device Architecture family. It is a UDP multicast/broadcast discovery mechanism and is commonly deployed by consumer devices, but it can be disabled or filtered by access points, guest networks, and VLANs. AppT should treat discovered metadata as a candidate, not an authenticated TV identity. [S10]
+- **WebSocket:** The wire protocol is standardized by [RFC 6455](https://www.rfc-editor.org/rfc/rfc6455.html). A compliant WebSocket client can still fail on a TV-specific handshake, endpoint, message schema, or authentication behavior. [S11]
+- **TLS:** TLS 1.3 is specified by [RFC 8446](https://www.rfc-editor.org/rfc/rfc8446.html). TLS encryption and certificate identity verification are separate questions; accepting an encrypted connection while skipping identity verification is not equivalent to secure peer authentication. [S12]
 - **Wake-on-LAN:** The Ethernet “magic packet” convention is widely implemented but is not a guarantee that a sleeping TV, Wi-Fi chipset, access point, or subnet will wake. Samsung’s own WoW material confirms that wake depends on prior discovery/connection and TV behavior for the documented SDK path. [S04]
 
 ### 3.4 Unofficial and reverse-engineered Samsung evidence
@@ -160,13 +169,72 @@ That model is an architectural hypothesis for research, not a selected implement
 3. **Persist a local TV identity separately from the IP.** A last-known IP is a hint. A MAC, device identifier, certificate/public-key fingerprint, and observed model/firmware tuple may contribute to identity, but each is subject to availability and change. Identity verification must fail closed where possible.
 4. **Treat tokens as password-equivalent local secrets.** Store per-phone, per-TV, never in account-sync payloads or ordinary logs. Rotate/update only after a verified pairing response.
 5. **Do not copy unsafe TLS workarounds.** The community’s `CERT_NONE`/`rejectUnauthorized: false` patterns are evidence of a practical problem, not an acceptable AppT security policy. The exact TV certificate and a scoped pinning strategy are experiment gates.
-6. **Expect foreground recovery.** The phone should close/recreate sockets after lifecycle transitions and re-resolve the TV after network changes. Persistent background control is not a baseline assumption on iOS and is battery/policy-sensitive on Android.
-7. **Keep Samsung protocol code behind one adapter boundary.** This contains undocumented changes and makes later ecosystems less likely to leak Samsung-specific names into the product/UI model.
+6. **Expect foreground recovery.** The control implementation must close/recreate or otherwise recover sessions after lifecycle transitions and re-resolve the TV after network changes. Persistent background control is not a baseline assumption on iOS and is battery/policy-sensitive on Android. Whether recovery is implemented in shared code, native code, or a hybrid is an experiment question.
+7. **Keep Samsung protocol code behind one adapter boundary.** This contains undocumented changes and makes later ecosystems less likely to leak Samsung-specific names into the product/UI model; it does not dictate where the adapter session is hosted.
 
-## 4. Mobile operating-system constraints independent of frameworks
+## 4. Multi-ecosystem architecture stress test
 
-### 4.1 iPhone / iOS
+The Samsung-first findings were checked against Roku, LG webOS, and Android/Google TV before treating any seam as general. The table uses **F** for current first-party documentation, **A** for an official source that is old or not a current public third-party contract, **E** for maintained implementation/empirical evidence, and **U** for unresolved or not established. A protocol being observable is not permission to ship it.
 
+| Dimension | Samsung Smart TV | Roku TV / player | LG webOS TV | Android / Google TV |
+|---|---|---|---|---|
+| **Discovery** | mDNS/SSDP, cached identity, and device-info/HTTP probes appear across official historical material and maintained integrations; exact current cohort behavior is mixed. **A/E** [S03] [S06] [U03] | SSDP discovery is part of the current External Control Protocol (ECP) documentation. **F** [V01] | SSDP discovery is documented empirically by Home Assistant and maintained clients; LG’s current developer material points external-device developers to Connect SDK rather than publishing a current SSAP remote reference. **F/E** [V02] [V03] [V04] | Service discovery and local endpoints are implemented by maintained Android TV Remote Protocol clients/integrations; current public third-party API status remains uncertain. **E** [V07] [V08] |
+| **Pairing / authentication** | TV approval/token flows vary; legacy/encrypted/PIN/session alternatives are reported for some cohorts. **E/U** [U01] [U03] [U04] | Current ECP documentation describes an on-device “Control by mobile apps” setting and command gating, not a general cryptographic pairing ceremony. **F** [V01] | TV prompt/client-key pairing is reported by maintained clients; official LG material does not establish SSAP as a current generic public remote API. **E/U** [V02] [V04] [V05] | AOSP contains an older Polo pairing flow; maintained current clients report PIN pairing followed by certificate-based TLS. **A/E** [V06] [V07] |
+| **Transport** | JSON WebSocket/WSS families commonly reported on 8001/8002, plus legacy paths and cohort-specific behavior. **E/U** [U01] [U03] | HTTP ECP on port 8060 with REST-like query, keypress, launch, and text endpoints. **F** [V01] | SSAP WebSocket/WSS; maintained implementations report WS 3000 and WSS 3001/fallback variation. **E/U** [V04] [V05] | TLS/protobuf Remote Protocol v2; maintained implementation reports pairing/control ports 6467/6466. **E** [V07] |
+| **Secret shape** | Opaque approval token for modern flows; some cohorts use session/PIN/encrypted material. Treat as phone-local opaque secret. **E/U** [U01] [U04] | No ECP credential shape is established by the current page; the documented gate is device policy/configuration. Do not invent a token model. **F/U** [V01] | Client key/secret returned or stored after prompt pairing. **E** [V03] [V04] | Client certificate/private key plus pairing secret/material in maintained clients; exact current platform contract remains uncertain. **A/E** [V06] [V07] |
+| **Capability discovery** | Device info, advertised key/application support, and observed responses vary by model/firmware; capability detection is mandatory. **A/E** [S01] [S02] [U03] | `/query/device-info`, `/query/apps`, active-app and feature fields expose device/app capabilities. **F** [V01] | SSAP responses, endpoint results, subscriptions, and device UUID/client behavior provide capability evidence; optional features vary. **E** [V03] [V04] | Feature flags/current app/volume and protocol messages are exposed by maintained implementations; do not equate feature flags with every model’s behavior. **E** [V07] [V08] |
+| **App launch** | Community/maintainer evidence reports application/channel operations, but support varies and is not a current Samsung generic contract. **E/U** [U01] [U03] | ECP documents app listing and launch by app ID, subject to current policy/device settings. **F** [V01] | Community SSAP clients implement launcher/app operations; official current support is not established. **E/U** [V04] [V05] | Maintained Remote Protocol clients implement app links/launch identifiers; public current API status is uncertain. **E/U** [V07] [V08] |
+| **Text / pointer input** | Remote keys are better evidenced; text, touchpad, and hold semantics vary by TV/app/context. **E/U** [S01] [S02] [U01] | ECP documents keypress and `Lit_` text input; no general pointer protocol is established in the cited current page. **F/U** [V01] | Maintained clients report text/IME and a specialized pointer socket, with endpoint/firmware differences. **E** [V04] [V05] | Maintained clients report IME/text and voice features; no general pointer/touchpad primitive is established. **E/U** [V07] |
+| **Power / wake** | Power-off and historical WoW/WoWLAN are reported, but wake depends on cohort, settings, network, and identity. **A/E/U** [S04] [U03] | ECP power keys/flags are documented; reliable wake from sleep is not a universal ECP guarantee in the cited page. **F/U** [V01] | Power operations and WoL are implemented by community clients; Home Assistant treats wake as separate and documents limitations. **E** [V03] [V04] | Power/volume operations are implemented while reachable; a universal Wake-on-LAN guarantee is not established. **E/U** [V07] [V08] |
+| **Identity / identity change** | Model/device metadata, MACs, tokens, and any TLS identity do not form one proven current identity policy across cohorts. **U** [U01] [U04] | Serial/UDN/device metadata are available, but current ECP HTTP documentation does not establish cryptographic peer identity or fail-closed identity-change behavior. **F/U** [V01] | Home Assistant uses device UUID for unique identity; community certificate/TOFU behavior is not equivalent to per-TV authenticated identity. **E/U** [V03] [V04] | Pairing/server certificates provide a stronger identity candidate, but current protocol/client validation and a product pinning policy remain unresolved. **A/E/U** [V06] [V07] |
+| **State / events** | WebSocket events and integration polling/feedback are reported, but event coverage is cohort/app-specific. **E/U** [U01] [U03] | Current ECP is query/command HTTP; no generic persistent event stream is established in the cited page. **F/U** [V01] | SSAP subscriptions/pushed state and coordinator polling/reconnect are observed. **E** [V03] [V04] | Remote Protocol callbacks/state messages are implemented by maintained clients; coverage is protocol/device dependent. **E** [V07] [V08] |
+
+### 4.1 What generalizes, and what does not
+
+The stress test supports a small set of **architecture questions**, not a universal wire interface:
+
+- Each ecosystem needs an adapter boundary with discovery evidence, pairing state, transport/session behavior, capability evidence, command mapping, lifecycle/reconnect, diagnostics, and an explicit wake result.
+- A product-level capability model can expose only demonstrated features such as `keyPress`, `textInput`, `pointer`, `appLaunch`, `power`, `wake`, `stateEvents`, and `identityProtected`. Each capability needs an evidence/status value; transport connectivity alone is not capability evidence.
+- Pairing, secret shape, transport, app IDs/links, pointer semantics, power/wake, and event delivery are **not** safely universalized. A normalized intent such as “send key” can exist above adapters, but the protocol details and availability remain ecosystem-specific.
+- “TV identity” is not one portable type. A serial/UDN, UUID, client key, opaque token, and TLS/server certificate answer different questions. The product must not claim identity-change protection unless the adapter has a persistent identity that can be checked and a fail-closed behavior.
+- A shared host can still be useful, but the host must tolerate request/response HTTP, long-lived WebSocket, TLS/protobuf, vendor prompts, push subscriptions, polling, and no-event transports. The table does not select whether that host lives in shared runtime, native code, a shared core, or a hybrid.
+
+**Architecture hypothesis result:** Samsung-specific seams still make sense as research boundaries after removing Samsung assumptions, but a concrete platform-hosted session service does not generalize. Roku’s current policy is especially important: ECP is technically rich but the current official documentation says commands from third-party/mobile platforms are not permitted and many devices require the user setting. Roku is therefore a vendor-policy/release gate, not a ready universal-adapter target. [V01]
+
+### 4.2 Empirical architecture evidence from Home Assistant
+
+Home Assistant is evidence about how a maintained multi-vendor integration handles heterogeneity, not an AppT design prescription. Its current `samsungtv`, `roku`, `webostv`, and `androidtv_remote` directories are separate integrations with vendor-specific config flows, transports/coordinators, diagnostics, and capability-specific entities/services. [V03] [V08] [V09] [U05]
+
+Observed patterns worth carrying into research:
+
+- **LG webOS:** SSDP/config-flow discovery, a stored `client_secret`, a device UUID used as a stable integration identity, reconnect/polling through a coordinator, pushed state where available, optional media/switch/notification entities, and Wake-on-LAN as a separate best-effort action. [V03]
+- **Roku:** ECP HTTP discovery/queries, device/app capability reads, coordinator-style refresh, and command/media entities that are bounded by the device’s available endpoints and settings. [V09]
+- **Android/Google TV:** a separate integration and config flow around the Android TV Remote Service/maintained protocol client, with app/deep-link launch, remote controls, optional IME, and explicit limitations. [V08]
+- **Samsung:** a separate integration with Samsung-specific pairing/transport/diagnostics rather than pretending that all TVs share the same session behavior. [U05] [V10]
+
+This is useful empirical decomposition: a normalized product host can coexist with vendor-specific pairing, transports, coordinators, diagnostics, and optional features. It does **not** prove that Home Assistant’s coordinator, its server-side lifetime, or its entity model is appropriate for a foreground phone app, and it does not settle coordinator/session placement for AppT.
+
+KDE Connect is an optional comparison rather than a TV dependency: its protocol separates discovery, capability advertisement, explicit pairing, TLS/device identity, and restrictions on packets before pairing. It reinforces the value of an explicit trust/capability state machine, but its implementation license is not permission to copy code and its daemon/device model differs from AppT. [V11]
+
+### 4.3 Credential shape, identity, and feature honesty
+
+| Ecosystem | Observed credential shape | Persistent identity evidence | Fail-closed conclusion for AppT research |
+|---|---|---|---|
+| Samsung | Modern opaque approval/token material; legacy cohorts may use encrypted/PIN/session material. | Uneven device metadata, MAC, token, and TV certificate evidence; no single current cross-cohort identity contract. | Require fail-closed behavior where a persistent identity can be established; otherwise mark identity protection unresolved and do not imply it. |
+| Roku | Current ECP source does not establish a cryptographic pairing secret. | Serial/UDN/device metadata are useful matching hints, not documented authenticated peer identity. | Do not claim identity-change protection from ECP metadata; vendor-policy eligibility is a separate release gate. |
+| LG webOS | Prompt/client key or `client_secret` stored by maintained integrations. | Device UUID is a useful integration identity; community certificate/TOFU behavior does not prove per-TV authenticity. | Bind and reject changes only where the evidence supports it; otherwise surface identity protection as unresolved. |
+| Android/Google TV | Client certificate/private key plus pairing secret/material in maintained protocol clients. | Server certificate and pairing identity are promising, but current public third-party status and product pinning policy remain unresolved. | Preserve explicit identity-change fail-closed behavior as a requirement; validate the certificate/pairing binding before claiming it. |
+
+Feature honesty rules for every adapter:
+
+1. Do not show a control because a protocol library has a method. Show it only after the current device/session provides evidence that the command or event is supported.
+2. `connected`, `paired`, `identityProtected`, `textInput`, `pointer`, `appLaunch`, `wake`, and `stateEvents` are separate states. `connected` must not imply the others.
+3. Treat “unknown,” “unsupported,” “temporarily unavailable,” “permission denied,” “vendor policy blocked,” and “identity changed” as distinct outcomes where the adapter can observe them.
+4. Diagnostics should record protocol family/version, discovery source, permission state, pairing method, secret **type** (never value), identity evidence/fingerprint status, capability evidence, last successful event/command class, and network/lifecycle transitions. Redact IP/MAC/TV identifiers from ordinary logs unless an explicit support export requires them.
+5. If a protocol supplies only a weak/non-specific identity, the UI and diagnostics must say that identity protection is unresolved rather than silently applying a TOFU or serial-number guarantee.
+
+## 5. Mobile operating-system constraints independent of frameworks
+### 5.1 iPhone / iOS
 #### Local network permission and discovery
 
 Apple describes iOS local-network privacy as a user-controlled permission for discovering and communicating with devices on the immediate network. Apple recommends Bonjour/DNS-SD through Network.framework for normal service discovery, requires declared Bonjour service types and a reason string, and says custom multicast/broadcast protocols on physical devices require the restricted `com.apple.developer.networking.multicast` entitlement and Apple approval. [S23] [S24]
@@ -205,10 +273,9 @@ Apple App Review guideline 2.5.9 states that apps altering or disabling standard
 
 UIKit provides native text fields and input methods; Core Haptics provides custom transient/continuous patterns; Apple’s VoiceOver guidance requires labels, hints, grouping, state descriptions, and actual VoiceOver audits. [S35] [S36]
 
-**Inference:** all candidate frameworks can invoke these capabilities, but native Swift provides the shortest path to exact behavior. A shared UI must be tested with VoiceOver, Dynamic Type, system text input, haptics disabled/enabled, and one-handed layout on physical devices.
+**Inference:** all candidate frameworks can invoke these capabilities through their platform integration, but direct native controls provide a useful baseline for exact behavior. A shared UI must be tested with VoiceOver, Dynamic Type, system text input, haptics disabled/enabled, and one-handed layout on physical devices; this does not decide where the TV session belongs.
 
-### 4.2 Android
-
+### 5.2 Android
 #### Local network access and future permission enforcement
 
 Android’s current local-network protection documentation says raw sockets, mDNS, SSDP, `NsdManager`, TCP, UDP unicast, multicast, and broadcast to/from local addresses are all in scope. It describes Android 16 as an opt-in preparation phase and Android 17 (API 37) as mandatory for apps targeting API 37 or higher, with a new `ACCESS_LOCAL_NETWORK` runtime permission. It also describes a system-mediated `NsdManager` picker for a specific service, while complex IoT/home-automation use cases generally need broad local-network permission. [S13]
@@ -239,10 +306,9 @@ Android Keystore keeps key material difficult to extract, can use secure hardwar
 
 Android’s `KeyEvent` API models hardware key/button events and includes volume key codes; Android’s keyboard guidance says hardware key events can be handled in an Activity, while soft IMEs are not guaranteed to produce key events. [S21A] [S21B]
 
-**Inference:** Android foreground handling of volume keys is technically plausible, but consuming or suppressing system volume behavior, Samsung One UI behavior, media sessions, accessibility services, and lock-screen/background cases requires device testing. It should not be generalized from an emulator or one Pixel device. Android text fields/IME, haptic feedback, TalkBack semantics, and large touch targets have direct native support; Compose/View choices affect polish but not feasibility.
+**Inference:** Android foreground handling of volume keys is technically plausible, but consuming or suppressing system volume behavior, Samsung One UI behavior, media sessions, accessibility services, and lock-screen/background cases requires device testing. It should not be generalized from an emulator or one Pixel device. Android text fields/IME, haptic feedback, TalkBack semantics, and large touch targets have direct platform support; Compose/View choices affect polish but not feasibility. [S22]
 
-## 5. Logical seams to preserve regardless of stack
-
+## 6. Logical seams to preserve regardless of stack
 The following seams are research hypotheses that let a chosen UI/runtime vary without moving secrets or Samsung quirks into the wrong layer:
 
 1. **Product/UI layer** — onboarding, friendly device cards, remote modes, favourites, capability-based presentation, accessibility, haptics preference, volume-button preference, and account screens.
@@ -260,14 +326,19 @@ The following seams are research hypotheses that let a chosen UI/runtime vary wi
 
 These seams are not an architecture decision. They identify what a candidate must be able to represent and test.
 
-## 6. Candidate families
+## 7. Candidate families
+The families below are compared as ways to deliver the product and its platform seams. None is assigned a session owner in advance. A native API, plugin, or source set may implement an OS-required seam while discovery, transport, pairing, and state remain shared; conversely, a shared runtime may prove sufficient for a given protocol. That distinction must be measured on devices.
+
+### Native-development evidence baseline
+
+Native development receives the same evidence treatment as cross-platform candidates. Apple’s current app-development material documents Xcode, SwiftUI/UIKit, accessibility, state/lifecycle, persistence, and error handling; XCTest documents unit, performance, UI, asynchronous, and device-oriented testing. Android’s current Compose course documents Android Studio, Kotlin, device/emulator execution, state, and unit testing; Android testing guidance documents local and instrumented tests. The NDK documents C/C++ through CMake/Gradle/JNI. These sources establish available toolchains and test surfaces, not that native code is a product fit, that native sessions are more reliable, or that Samsung’s undocumented protocol is supported. [S60] [S61] [S62] [S63] [S64] [S65]
 
 ### A. Fully native Swift + Kotlin/Jetpack
 
-Two platform applications share product vocabulary and protocol specifications, but implement OS integrations natively. Samsung control can use Swift Network.framework/URLSession or carefully scoped lower-level APIs on iOS and Kotlin/Java networking/Android APIs on Android. Secure storage, lifecycle, keyboard, accessibility, haptics, and volume behavior are direct.
+Two platform applications share product vocabulary, protocol specifications, fixtures, and capability rules, while implementing UI and OS integrations natively. Samsung control can use Swift Network.framework/URLSession or carefully scoped lower-level APIs on iOS and Kotlin/Java networking/Android APIs on Android. Secure storage, lifecycle, keyboard, accessibility, haptics, and volume behavior are directly available.
 
-**Strength:** least abstraction at the reliability-critical seam.  
-**Cost:** duplicated UI/domain glue, two release toolchains, and a higher risk that adapter behavior diverges unless the protocol/capability contract and fixtures are shared.
+**Strength:** the most direct platform-development baseline and the clearest way to isolate OS policy from product code.
+**Cost:** duplicated UI/domain glue, two release toolchains, and a risk that adapter behavior diverges unless protocol/capability contracts and traces are shared. Direct platform access does not prove that a platform-owned session is more reliable or that the resulting product is a better fit.
 
 ### B. Kotlin Multiplatform; native UI or Compose Multiplatform UI
 
@@ -275,8 +346,8 @@ KMP can share domain, serialization, state machines, protocol logic, and parts o
 
 Ktor supplies multiplatform clients with platform-specific engines; the engine table shows Android/OkHttp or Android options and Darwin/NSURLSession on Apple platforms, with different WebSocket/TLS capabilities. [S52]
 
-**Strength:** a natural shared-core/native-shell split without a JavaScript bridge; strong fit if the team can operate Kotlin/Native and Swift interop.  
-**Cost:** Gradle/Xcode/Swift boundary, Kotlin-to-Swift API ergonomics, native platform source sets, Compose iOS accessibility/interop validation, and build/test complexity. Shared code does not remove platform-specific discovery, entitlement, secure storage, or lifecycle work.
+**Strength:** a credible shared-domain/protocol option without a JavaScript bridge, while allowing platform-specific seams or a native UI.
+**Cost:** Gradle/Xcode/Swift boundary, Kotlin-to-Swift API ergonomics, platform source sets, Compose iOS accessibility/interop validation, and build/test complexity. KMP’s common/platform test model is available, but it does not replace XCTest/JUnit and physical-device validation. Shared code does not remove platform-specific discovery, entitlement, secure storage, or lifecycle work, and the report has not established whether the session belongs in common or platform code. [S53]
 
 ### C. React Native (native-capable/bare)
 
@@ -284,83 +355,87 @@ React Native shares UI and JavaScript/TypeScript application logic while exposin
 
 React Native documents WebSocket support and `AppState` foreground/background notifications. [S37] [S39]
 
-**Strength:** broad product/UI ecosystem, fast iteration, native modules/JSI/TurboModules, and a mature cross-platform model.  
-**Cost:** the reliability seam crosses JS/native/runtime boundaries; protocol work must not depend on JS being alive while suspended; native modules, entitlements, secure storage semantics, and Android/iOS lifecycle must be maintained and device-tested. The New Architecture reduces old bridge concerns but does not make native OS behavior cross-platform.
+**Strength:** broad product/UI ecosystem, fast iteration, and several possible control placements: direct JS networking, native modules/JSI, a shared core, or a hybrid.
+**Cost:** the control seam crosses JS/native/runtime boundaries; tests must show whether a JS-owned session survives the required lifecycle or whether another placement is safer. Native modules, entitlements, secure storage semantics, and Android/iOS lifecycle still require maintenance and device validation. The New Architecture reduces old bridge concerns but does not make OS behavior cross-platform.
 
 ### D. Expo (React Native distribution/tooling family)
 
 Expo SDK 57 is documented as the latest stable reference and pins a specific React Native version (the observed table pairs SDK 57 with RN 0.86), while RN itself has moved to 0.87. Expo releases three times a year and aligns to one RN version per SDK. [S41]
 
-Expo explicitly says Expo Go cannot use third-party libraries requiring custom native code and recommends development builds for production-grade work. CNG/prebuild/config plugins can add native code and configuration, but direct native changes can be overwritten unless represented through the supported module/config mechanism. [S42] [S43]
+Expo says Expo Go cannot use third-party libraries requiring custom native code and recommends development builds for production-grade work. CNG/prebuild/config plugins can add native code and configuration, but direct native changes can be overwritten unless represented through the supported module/config mechanism. [S42] [S43]
 
-**Strength:** useful React Native workflow, native module API, development builds, config plugins, and release tooling.  
-**Cost:** version pinning and config-generation surface are additional maintenance seams. AppT cannot use an Expo Go-only workflow. The Samsung control module, iOS multicast entitlement, local-network usage description, Android local-network permission, certificate configuration, and any lifecycle integration must be represented in native modules/config plugins and validated in custom builds.
+**Strength:** useful React Native workflow, native module API, development builds, config plugins, and release tooling.
+**Cost:** version pinning and config generation are additional maintenance seams. AppT cannot use an Expo Go-only workflow. The Samsung control module, iOS multicast entitlement, local-network usage description, Android local-network permission, certificate configuration, and lifecycle integration must be represented in native modules/config plugins and validated in custom builds; this requirement does not predetermine session ownership.
 
 ### E. Flutter
 
-Flutter renders its own UI and uses Dart for application logic. It supports sockets/WebSockets through Dart packages and platform channels/plugins for native APIs. Flutter documents asynchronous MethodChannel/Pigeon boundaries, platform-side background task queues, and the fact that platform channel calls are serialized messages. [S44] [S45]
+Flutter renders its own UI and uses Dart for application logic. It supports sockets/WebSockets through Dart packages and platform channels/plugins for native APIs. Flutter documents asynchronous MethodChannel/Pigeon boundaries, platform-side background task queues, and serialized platform-channel messages. [S44] [S45]
 
-Flutter’s current documentation includes an Android local-network-permission guide specifically warning that Dart sockets cannot display the Android runtime permission prompt and that permission must be requested before opening a local socket. It also documents that background isolates cannot receive unsolicited host-platform messages in the general case. [S46] [S47]
+Flutter’s current documentation includes an Android local-network-permission guide warning that Dart sockets cannot display the Android runtime permission prompt and that permission must be requested before opening a local socket. It also documents that background isolates cannot receive unsolicited host-platform messages in the general case. [S46] [S47]
 
 Flutter 3.47 is a current 2026 stable release and has ongoing iOS lifecycle/toolchain changes; its release notes/blog emphasize native integration and platform migration work. [S48]
 
-**Strength:** high UI consistency, strong widget testing, direct Dart sockets for some work, and a clear plugin/native escape hatch.  
-**Cost:** platform channels/serialization and isolate/lifecycle behavior can become part of the control path; iOS native permission/entitlement and certificate handling still need plugins; text input, VoiceOver/TalkBack, haptics, and OS-specific controls require real-device validation. A native plugin or shared native core should own the Samsung session if control reliability is primary.
+**Strength:** high UI consistency, widget testing, direct Dart sockets for some work, and a clear plugin/native escape hatch.
+**Cost:** platform channels/serialization and isolate/lifecycle behavior can become part of the control path; iOS permission/entitlement and certificate handling still need platform integration; text input, VoiceOver/TalkBack, haptics, and OS-specific controls need real-device validation. Dart-owned, plugin-owned, shared-core, and hybrid session models all remain candidates.
 
 ### F. .NET MAUI
 
-Microsoft documents .NET MAUI as a C#/XAML framework for Android, iOS, macOS, and Windows with direct access to platform APIs, handlers, platform source, and native app packaging. It provides cross-platform connectivity and secure-storage abstractions, while still requiring platform-specific setup and handling platform differences such as Android backup behavior. [S55] [S56]
+Microsoft documents .NET MAUI as a C#/XAML framework for Android, iOS, macOS, and Windows with direct access to platform APIs, handlers, platform source, and native app packaging. It provides cross-platform connectivity and secure-storage abstractions, while still requiring platform-specific setup and handling differences such as Android backup behavior. [S55] [S56]
 
-**Strength:** native-capable C# stack, shared business logic/UI, platform access, and mature .NET testing/tooling.  
-**Cost:** AppT-specific evidence for Samsung LAN discovery, local-network entitlement/permission details, WSS trust pinning, and lifecycle behavior is thinner in this research. The abstraction must be checked rather than assumed to cover SSDP/mDNS, raw sockets, WoL, and hardware buttons. A team without current .NET/iOS expertise would carry an additional staffing risk.
+**Strength:** native-capable C# stack, shared business logic/UI, platform access, and mature .NET testing/tooling.
+**Cost:** AppT-specific evidence for Samsung LAN discovery, local-network entitlement/permission details, WSS trust pinning, and lifecycle behavior is thinner in this research. The abstraction must be checked rather than assumed to cover SSDP/mDNS, raw sockets, WoL, and hardware buttons. A team without current .NET/iOS expertise would carry an additional staffing risk; neither this gap nor the native APIs selects session ownership.
 
 ### G. Capacitor/Ionic or WebView-first hybrid
 
 Capacitor builds a web UI into native iOS/Android projects and exposes native functionality through plugins. Its documentation says developers are encouraged to write Swift/Java/Kotlin custom native code and compile through Xcode/Android Studio; current v8 is active with iOS 15+/Android 7+ minimums. [S57] [S58] [S59]
 
-**Strength:** web UI ecosystem, fast iteration, fully open native project, and straightforward custom plugin escape hatches.  
-**Cost:** a WebView is another process/runtime boundary for the primary remote UI and event flow. Local LAN permissions, low-level discovery, TLS identity, background/lifecycle, keyboard, haptics, and secure storage must cross plugins. A native plugin can make it technically viable, but then the core reliability case is native while the WebView mainly supplies UI.
+**Strength:** web UI ecosystem, fast iteration, open native projects, and straightforward custom plugin escape hatches.
+**Cost:** a WebView adds a process/runtime boundary for UI and event flow. Local LAN permissions, low-level discovery, TLS identity, background/lifecycle, keyboard, haptics, and secure storage must cross plugins. A plugin may own the session, or a WebView/shared runtime may be sufficient for some adapters; the latter is higher risk and must be tested rather than assumed impossible.
 
 ### H. Shared Rust/C++ protocol core with native UI shells
 
-A portable protocol/state library can share parsing, command serialization, adapter state machines, redaction rules, and test fixtures. Swift/Kotlin/native shells own discovery APIs, secure storage, permissions, lifecycle, haptics, accessibility, text input, and OS-specific volume behavior.
+A portable protocol/state library could share parsing, command serialization, adapter state machines, redaction rules, and test fixtures. Swift/Kotlin/native shells could expose discovery APIs, secure storage, permissions, lifecycle, haptics, accessibility, text input, and OS-specific volume behavior.
 
-**Strength:** isolates the most deterministic, cross-platform logic without forcing UI or lifecycle through a cross-platform runtime.  
-**Cost:** FFI bindings, memory/concurrency ownership, build and symbol packaging, debugging across languages, and native platform duplication. It is a candidate architecture pattern that can complement native, React Native, Flutter, or .NET UI rather than a replacement for them.
+**Status:** research hypothesis only. This report has not established equivalent evidence for FFI, memory/concurrency ownership, TLS/trust callbacks, secure-storage boundaries, lifecycle, testing, packaging, debugging, or UI/accessibility integration. Android’s NDK documents C/C++ packaging through CMake/Gradle/JNI, and Rust’s official material documents WebAssembly interoperation, but neither establishes that a shared native control core is the right AppT architecture. [S60] [S61]
 
-## 7. Common comparison matrix
+**Potential strength:** protocol logic could be centralized if the interoperability and operational costs are justified.
+**Potential cost:** specialized toolchains, symbol packaging, FFI failure modes, debugging across languages, and another boundary for secrets/events. It is not assigned a higher confidence than native or shared-runtime alternatives.
 
-The matrix uses `Direct` for a platform capability available without a framework-specific native escape hatch, `Native seam` when the family can support it but the implementation belongs in Swift/Kotlin/native code, `Conditional` when feasibility depends on a custom plugin/core and more testing, and `Risk` for a material unresolved burden. The labels are comparative observations, not weighted scores or a ranking.
+## 8. Common comparison matrix
+This matrix separates **OS-required platform work** from the unresolved question of **who owns a TV session**. `Shared-runtime feasible` means the work is technically plausible in the candidate’s shared language/runtime; it does not mean that lifecycle, permission, or reliability has been demonstrated. `Evidence quality` describes this research, not production readiness.
 
-| Criterion | Native Swift + Kotlin | React Native | Expo | Flutter | KMP / Compose Multiplatform | .NET MAUI | Capacitor/WebView | Shared Rust/C++ core + native UI |
-|---|---|---|---|---|---|---|---|---|
-| **LAN discovery** | **Direct.** Network.framework, Bonjour, BSD/UDP/TCP, Android NSD/raw sockets can be selected per platform. | **Native seam.** JS can coordinate results, but discovery should live in native modules with explicit permission/lifecycle events. | **Native seam + config.** Custom module and config plugin/development build required; Expo Go is insufficient. | **Native seam.** Dart can perform some sockets, but native permission and discovery plugins are still needed. | **Native seam.** Common discovery state/DTOs; actual iOS/Android mechanisms in source sets/native shells. | **Native seam.** Platform code/handlers can expose discovery; verify APIs and packaging. | **Native plugin.** WebView cannot be trusted as the discovery authority; native plugin required. | **Best split.** Native shells discover; core consumes normalized candidates. |
-| **SSDP / mDNS / multicast / broadcast** | **Direct but permission-sensitive.** iOS restricted multicast entitlement for custom multicast/broadcast; Android current/future local-network rules and multicast lock/NSD behavior. | **Native seam.** JS libraries do not bypass OS entitlements or permissions. | **Native seam/config plugin.** Entitlements and manifests must be generated and audited. | **Native seam.** Dart multicast may work only after native permission/entitlement setup; Samsung SSDP needs real-device tests. | **Native seam.** Common interfaces, platform implementations. | **Native seam.** Abstractions do not remove iOS/Android permission differences. | **Native plugin.** Browser/WebView multicast is not a viable baseline. | **Do not put raw multicast in the shared core.** Pass sockets/candidates across a narrow interface. |
-| **Direct TCP/WebSocket/TLS** | **Direct.** First-party APIs and native trust configuration. | **JS WebSocket exists; native module recommended for TLS/cert identity and long-lived session.** | **Same as RN, plus custom native build/config.** | **Dart WebSocket exists; native plugin for trust policy and lifecycle-sensitive session is prudent.** | **Ktor/common or native engines; platform engine differences must be tested.** | **.NET sockets/WebSockets plus native handlers; certificate policy needs explicit audit.** | **Native plugin should own it; browser WebSocket semantics are a poor control authority.** | **Strong for framing/parser, but socket/TLS object and trust callback should remain platform-owned.** |
-| **Samsung pairing / tokens / WSS** | **Direct control of state machine and secure store.** | **Native TurboModule/JSI or native service should own token and session; never ordinary JS logs/storage.** | **Custom Expo module and build; no Expo Go path.** | **Native plugin or carefully isolated Dart service; bridge event semantics need testing.** | **Good shared state machine; platform secure storage and trust callbacks remain actual implementations.** | **Shared service possible; Android/iOS secure storage and TLS callbacks require platform code.** | **Plugin owns token/session; WebView must receive only redacted state.** | **Good shared protocol/token state if secret never crosses logs/unsafe FFI; store remains native.** |
-| **Reconnection / IP changes** | **Direct; explicit scene/activity/network callbacks and address re-resolution.** | **Native session emits state to AppState/UI; JS must tolerate suspension/recreation.** | **Same plus CNG/module lifecycle configuration.** | **App lifecycle plus plugin callbacks; isolates/event streams need care.** | **Shared state machine with native lifecycle adapters; KMP coroutine cancellation/Swift exposure need tests.** | **Lifecycle services/handlers; verify background and process restoration.** | **WebView lifecycle adds another suspension/reload failure mode; native plugin should reconnect.** | **Core can define idempotent state transitions; native shells trigger them.** |
-| **WoL / WoW / MAC handling** | **Direct UDP/native packet path and secure local persistence.** | **Native module for broadcast/unicast and Android/iOS permissions; JS only requests wake.** | **Custom native module/config; no managed-only assumption.** | **Dart UDP can send packets, but TV/network/permission behavior is native-tested.** | **Common packet/decision logic; platform interface for interface/broadcast policy.** | **C# UDP plus platform-specific network details.** | **Native plugin required.** | **Core can create magic packet; native shell chooses interface, destination, and permission policy.** |
-| **iOS lifecycle / local-network permission** | **Direct and clearest.** | **Native modules/AppState; exact scene/permission behavior must be owned/tested natively.** | **Config/plugin correctness adds risk; custom dev build required.** | **Plugin/runner integration; Dart lifecycle is not a substitute for scene delegate behavior.** | **Native iOS shell/source set; shared code must not assume background execution.** | **Platform-specific lifecycle and entitlements; verify current iOS templates.** | **WebView/bridge lifecycle adds complexity; native plugin must survive reload and foreground.** | **Native shell owns all iOS policy; core is agnostic.** |
-| **Android lifecycle / local-network permission** | **Direct.** NSD, multicast locks, API 36 opt-in/API 37 permission, Doze, foreground-service choices. | **Native module/activity/service; JS AppState is notification, not OS authority.** | **Same plus manifest/config plugin and SDK pinning.** | **Native permission plugin before Dart sockets; background isolate limits matter.** | **Android source set/native shell; common code receives capability/permission results.** | **Android platform code/permissions; validate MAUI lifecycle callbacks.** | **Native plugin/manifest; WebView inherits host permission state.** | **Native shell owns permission and sockets; core receives events.** |
-| **Secure storage** | **Direct Keychain/Keystore.** | **Native module or audited secure-storage library; module API must preserve accessibility/backup semantics.** | **Expo package/custom module may help, but audit implementation and config.** | **Plugin backed by Keychain/Keystore; audit package and backup behavior.** | **expect/actual/native storage; good separation but more APIs to maintain.** | **ISecureStorage exists; inspect Android backup and iOS keychain policy.** | **Native plugin, not Web Storage.** | **Native store only; never put secret material in the shared core’s ordinary state.** |
-| **Local-first / account-sync boundary** | **Direct and explicit.** Separate local DB/secure store from account DTOs. | **Good if state/store layers are disciplined; JS persistence can accidentally leak secrets.** | **Same; Expo services must not become hidden command path.** | **Good state architecture; keep token in plugin/native store.** | **Natural shared domain/data layer; expose non-secret sync models separately from secure actuals.** | **Good shared C# domain; platform storage boundary still required.** | **Web storage is unsuitable for tokens; native plugin boundary mandatory.** | **Excellent for pure non-secret domain/sync models; native app owns secret storage.** |
-| **Native OS integrations** | **Direct.** | **Native modules/components; more surface area and bridge/event testing.** | **Custom modules/config plugins; strongest native access only outside Expo Go.** | **Platform plugins/channels; bridge serialization and lifecycle.** | **Direct iOS/Android interop in native source sets; Compose interop available.** | **Handlers/platform code; direct APIs available.** | **Plugins; very explicit bridge boundary.** | **Native shell by design.** |
-| **Haptics** | **Direct Core Haptics/UIKit/Android haptic APIs.** | **Mature native modules; exact behavior still device-tested.** | **Expo haptics plus native escape hatch; custom native may be needed for policy.** | **Plugins/system feedback; device variance.** | **Native actuals or Compose APIs; test iOS interop.** | **Essentials/platform APIs; exact effect needs device testing.** | **Plugin; Web Haptics is not enough for native reliability.** | **Native UI owns feedback.** |
-| **Accessibility** | **Direct VoiceOver/TalkBack semantics and platform UI controls.** | **Good cross-platform semantics, but custom remote/touchpad controls need native audits.** | **Same RN semantics plus custom native components.** | **Flutter semantics are strong but must audit VoiceOver/TalkBack and custom gesture controls.** | **Native UI has strongest baseline; Compose iOS semantics are stable but still need audits and interop tests.** | **Native-backed controls/handlers; test both screen readers.** | **Web accessibility plus WebView/native accessibility boundaries; highest custom-control audit burden.** | **Native shells own semantics.** |
-| **Physical volume buttons** | **Android foreground path plausible; iOS is a public-API/App Review risk.** | **Android native module; iOS cannot be made safe by RN.** | **Same, with custom native code; Expo does not change Apple policy.** | **Platform plugin; same iOS product blocker.** | **Platform-specific; same iOS product blocker.** | **Platform-specific; same iOS product blocker.** | **Plugin; same iOS product blocker.** | **Native shell; same iOS product blocker.** |
-| **Keyboard / Samsung text input** | **Direct native input and Samsung-specific command adapter.** | **TextInput is good, but Samsung command encoding/session stays native.** | **Same with custom module.** | **TextField/IME good, but platform plugin for TV text wire format.** | **Native UI or Compose text fields; shared state mapping possible.** | **Native-backed Entry/Editor; adapter still platform-aware.** | **Web input works for phone UI, but TV text command must cross plugin.** | **Core handles wire encoding; native UI/IME owns text collection.** |
-| **Reliability / determinism** | **Fewest runtime boundaries; duplicated logic can drift.** | **Viable only when native control service is authoritative; JS UI cannot be session authority.** | **Viable custom build; extra release/config layer.** | **Viable with native plugin; channel/isolate boundaries need failure tests.** | **Strong shared state/protocol potential; Kotlin/Native/Swift boundary is a reliability surface.** | **Viable with platform code; less AppT evidence.** | **Weakest if WebView owns control; acceptable if native plugin owns all critical path.** | **Strong deterministic core plus native policy; FFI itself must be tested.** |
-| **Testing model** | **XCTest + Android unit/instrumentation/UI tests; real iPhone/Android/TV matrix.** | **JS unit/component/E2E plus native XCTest/instrumentation and real device tests.** | **Same plus custom dev/release builds, prebuild/config tests.** | **Dart unit/widget/integration plus native plugin tests and real device tests.** | **commonTest plus platform tests, XCTest/JUnit, and native UI/device tests. [S53]** | **.NET unit/UI plus platform tests; native device matrix.** | **Web tests plus plugin native tests and Xcode/Android device tests.** | **Core protocol/property/fuzz tests plus native integration/TV tests.** |
-| **Build/release complexity** | **Two native toolchains and duplicated app setup.** | **Node/Metro/Hermes + CocoaPods/Gradle/Xcode/Android; native modules increase complexity.** | **SDK/RN pinning, CNG/prebuild/config plugins, EAS or native builds; Expo Go cannot represent release.** | **Flutter/Dart SDK + generated native projects + Xcode/Gradle plugins.** | **Gradle/Kotlin/Native + Xcode + Swift interop; Compose version matrix if shared UI.** | **.NET SDK + Android/Xcode/Apple signing; AOT and native bindings.** | **Web bundler + Capacitor sync + Xcode/Android Studio + plugin versions.** | **Native builds plus Rust/C++ toolchains/FFI packaging.** |
-| **Native escape hatches** | **The baseline, not an escape hatch.** | **TurboModules/Fabric/JSI and native projects.** | **Expo Modules API, config plugins, prebuild, custom dev builds.** | **Platform channels, FFI, platform views/native projects.** | **expect/actual, Objective-C interop, UIKit/SwiftUI/Android interop.** | **Handlers, partial classes, `Platforms/*`, direct APIs.** | **Swift/Java/Kotlin plugins and open native projects.** | **Native shell is the primary surface.** |
-| **Maintainability** | **Protocol correctness duplicated unless fixtures/specs are shared.** | **Large ecosystem, but native module/New Architecture compatibility and JS/native ownership must be managed.** | **Expo cadence can simplify common packages but pins RN and adds CNG/config maintenance.** | **Single UI/runtime but plugin ecosystem and native integration versions need stewardship.** | **Shared logic reduces drift; KMP/Compose/Gradle/Xcode version coordination is nontrivial.** | **Single language/domain possible; cross-platform ecosystem and Apple edge cases need team expertise.** | **Web ecosystem fast; native plugins become a parallel mobile platform codebase.** | **Protocol logic centralization reduces drift; FFI/build ownership is specialized.** |
-| **Future TV adapters** | **Strong boundary if adapter contracts/specs are shared; adapter code duplicated by platform.** | **Good if adapters are native/domain modules, not UI-specific JS.** | **Same as RN; module publishing/config overhead.** | **Good if adapter service is behind a Dart/native interface.** | **Strong shared adapter/state model with platform actuals.** | **Good shared C# adapter abstractions; platform implementations.** | **Good only with native plugin adapter layer.** | **Strong common adapter/protocol core, native discovery hooks.** |
-| **App Store / permission risk** | **Lowest framework-specific risk; still subject to iOS volume, multicast, background, and Samsung terms.** | **Framework does not change Apple/Android policy; native modules must declare honestly.** | **Expo Go/custom build distinction and generated entitlements must be documented/audited.** | **Same platform policy; plugin manifests and privacy declarations need review.** | **Shared/native code still ships as an ordinary iOS app; no policy exemption.** | **Same; inspect generated app metadata.** | **WebView does not avoid native review; custom plugins make behavior explicit.** | **Native shells carry the policy burden directly.** |
+### 8.1 Platform work, shared-runtime feasibility, and session ownership
+| Candidate family | OS-required platform work | Shared-runtime feasibility | Native escape-hatch availability | Session ownership status | Evidence quality | Real-device validation status |
+|---|---|---|---|---|---|---|
+| **Swift + Kotlin/Jetpack** | Direct access to iOS/Android permission, multicast/NSD, lifecycle, secure storage, haptics, accessibility, keyboard, and packaging APIs. | Shared protocol fixtures/specifications are possible; UI/domain sharing is optional rather than inherent. | Native implementation is the baseline. | **Unresolved.** Native, shared service/library, or hybrid ownership can still be compared; direct APIs do not prove native ownership is best. | High for platform APIs; low for AppT/Samsung outcome until tested. | No AppT TV/phone cohort has been run. |
+| **Kotlin Multiplatform** | iOS/Android source sets or shells handle entitlements, permissions, lifecycle, secure storage, and OS UI. | Strong candidate for common domain, protocol, capability, and possibly transport/session code; engine/TLS differences require tests. | Objective-C/Swift interop, `expect`/`actual`, UIKit/SwiftUI and Android interop. | **Unresolved.** Common session, platform transport, or hybrid remain plausible. | High framework/platform documentation; medium AppT integration evidence. | No AppT device validation. |
+| **React Native** | Native project/modules handle entitlements, manifests, permission prompts, lifecycle, secure storage, and any raw discovery API. | JS WebSocket/HTTP and state coordination are technically plausible; multicast/UDP/library and suspension behavior need tests. | Native modules, TurboModules/JSI, native components, custom iOS/Android projects. | **Unresolved.** JS-owned, native-module-owned, shared-core, and hybrid models are all open. | High framework API evidence; low AppT reliability evidence. | No AppT device validation. |
+| **Expo custom build** | Same as React Native plus CNG/prebuild/config-plugin and SDK/RN pinning discipline; Expo Go is insufficient. | Shared JS work remains plausible for supported transports; custom-build lifecycle and networking need tests. | Development builds, Expo Modules API, config plugins, generated native projects. | **Unresolved.** Custom native configuration is required, but it does not choose session owner. | High for workflow limits; low AppT outcome evidence. | No AppT device validation. |
+| **Flutter** | Runner/plugins handle Android permission prompts, iOS entitlements, lifecycle, secure storage, haptics, accessibility, and native packaging. | Dart sockets/WebSockets and common state are plausible; unsolicited events/isolate behavior and multicast need tests. | Platform channels, Pigeon, FFI, platform views, open native projects. | **Unresolved.** Dart, plugin, shared-core, or hybrid ownership remain candidates. | High framework evidence; medium platform-seam evidence; low AppT outcome evidence. | No AppT device validation. |
+| **.NET MAUI** | `Platforms/*`, handlers, manifests, entitlements, lifecycle, secure storage, and native packaging remain required. | Shared C# domain/network code is plausible; raw discovery, WSS identity, and lifecycle need a focused check. | Handlers, partial classes, platform APIs, native projects. | **Unresolved.** Shared C#, native, or hybrid session placement is open. | High general framework evidence; thinner AppT-specific evidence. | No AppT device validation. |
+| **Capacitor/WebView** | Native iOS/Android projects/plugins handle permissions, discovery, lifecycle, secure storage, haptics, keyboard, and packaging. | HTTP/WebSocket-like work in the WebView is technically possible; raw LAN, trust identity, suspension, and event delivery are higher-risk. | Swift/Java/Kotlin plugins and open native projects. | **Unresolved.** Plugin-owned, WebView/shared-runtime, or hybrid models require comparison; WebView-only is not a credible baseline. | High plugin/native-project evidence; low AppT control evidence. | No AppT device validation. |
+| **Rust/C++ shared core** | Native shells handle all OS policy and user-facing integration; FFI packaging and callbacks are additional platform work. | Common parsing/state/transport logic is technically plausible, but this report has not established equivalent operational evidence. | FFI/JNI/Objective-C or C++ interop and native shells. | **Unresolved.** Shared core with native transport, core-owned transport, or hybrid are hypotheses. | **Low for AppT:** research hypothesis; no evidence parity with native/shared-runtime alternatives. | No AppT device validation. |
 
-## 8. Candidate-family observations by required concern
+**Reading rule:** “native escape hatch available” does not determine where a session should run. Conversely, a shared-runtime row is not a promise that the runtime survives every lifecycle state. The missing evidence is exactly what Experiment 9 measures.
 
-### 8.1 LAN discovery is the main cross-platform trap
+### 8.2 Reliability-critical concern comparison
+| Concern | Native baseline | Shared-runtime possibility | Native/plugin/core hybrid possibility | Current research judgment |
+|---|---|---|---|---|
+| **LAN discovery** | First-party Network.framework/Bonjour, Android NSD/raw sockets, and platform permission APIs are directly available. | JS/Dart/Kotlin/C# can coordinate or perform supported sockets; multicast/broadcast, permission prompts, and address changes still need platform integration. | Native layer can discover and pass candidates/permission state to common code; a shared core should not assume raw multicast. | Keep discovery as an explicit coordinator. Compare where it runs rather than assigning it to native by default. |
+| **SSDP/mDNS/multicast/broadcast** | Direct but entitlement/permission-sensitive. | Runtime libraries may support some sockets; they cannot bypass iOS multicast entitlement or Android local-network policy. | Platform transport/discovery wrapper with common candidate model is plausible. | OS seam is known; session/discovery ownership remains empirical. |
+| **Direct TCP/WebSocket/TLS** | Direct APIs and native trust callbacks. | WebSocket/HTTP are technically available in RN, Dart, KMP/Ktor, .NET, and WebView contexts, subject to runtime limits. | Shared serializer/state plus native socket/trust callback is plausible; native TLS does not imply native state-machine ownership. | Test system trust, scoped identity/pinning, cancellation, and event delivery for each placement. |
+| **Samsung pairing/tokens** | State machine and Keychain/Keystore can be implemented directly. | Shared code can represent approval/token transitions; secrets must never enter ordinary runtime persistence/logs. | Native secure store plus shared adapter state is plausible; a native module may expose opaque handles only. | Pairing shape is Samsung/protocol evidence, not a framework decision. |
+| **Reconnect/IP changes** | Scene/activity/network callbacks are direct. | Shared state machines can be idempotent; JS/AppState, Dart isolates, Kotlin coroutines, and .NET lifecycle callbacks need device tests. | Native lifecycle notification can drive common reconnect logic; persistent native session is not proven necessary. | Require explicit Reconnecting/IdentityChanged/PairingRequired states. |
+| **Wake / Wake-on-LAN** | Raw packet/interface and platform networking are available, subject to network behavior. | Dart/ Kotlin/.NET or libraries may send packets; RN/WebView support is runtime/library-dependent. | Native interface selection plus common capability result is plausible. | Treat wake as adapter capability and best effort; never advertise from transport availability alone. |
+| **Secure storage** | Keychain/Keystore are direct. | Shared code can request an abstraction but should not implement the OS vault or place secrets in JS/Dart/Web storage. | Native vault with opaque secret handle/bridge is plausible; audit backup/migration semantics. | This is an OS-required seam, not evidence for session ownership. |
+| **iOS/Android lifecycle** | Direct scene/activity callbacks and policy controls. | Runtime lifecycle notifications are useful but may arrive late or not preserve a socket/isolate. | Native callback can trigger a common state machine or native transport; both require tests. | No persistent background control assumption. |
+| **Text/pointer/keyboard** | Native phone text/IME/accessibility plus adapter-specific TV wire format. | Shared UI and event models are possible; TV pointer/text semantics remain ecosystem-specific. | Native input collection plus shared command mapping is plausible. | Capability-gate `textInput`/`pointer`; do not infer from phone keyboard availability. |
+| **Accessibility/haptics** | Direct platform semantics/effects. | Cross-platform widgets can provide semantics but custom remote controls need audits. | Native components can be wrapped while state remains shared. | Native UX evidence and control-session evidence are separate acceptance gates. |
+| **Account/local boundary** | Easy to separate secure vault, local DB, and account DTOs, but still requires discipline. | Any runtime can leak secrets through persistence, debugging, or sync if types are not separated. | Common non-secret profile plus native secure store is plausible. | Test redaction, independent pairing, backup/restore, and backend outage; no secrets sync. |
 
+## 9. Candidate-family observations by required concern
+
+### 9.1 LAN discovery is the main cross-platform trap
 The existence of a socket API in every candidate is not the same as equivalent discovery behavior:
 
 - iOS custom multicast/broadcast may require a restricted entitlement that needs Apple approval; Bonjour declarations and a user-facing local-network reason are still required. [S23] [S24]
@@ -370,8 +445,7 @@ The existence of a socket API in every candidate is not the same as equivalent d
 
 **Implication:** discovery should be an explicit platform seam in every candidate. It should report permission state, network scope, candidate source, confidence, and cancellation, not just return a list of IP addresses.
 
-### 8.2 Samsung WSS security can dominate the stack decision
-
+### 9.2 Samsung WSS security can dominate the stack decision
 The community’s ability to connect with `wss://` is not proof that a platform’s default TLS verifier can authenticate the TV. Some community clients disable verification, while AppT explicitly prohibits a global bypass. The following must be answered experimentally:
 
 - What certificate chain/identity does each Samsung cohort present?
@@ -382,8 +456,7 @@ The community’s ability to connect with `wss://` is not proof that a platform�
 
 A framework that offers a “trust all certificates” flag is not a solution; it is a red flag for AppT’s security requirements.
 
-### 8.3 Local-first and account sync are easy to violate accidentally
-
+### 9.3 Local-first and account sync are easy to violate accidentally
 All families can implement local-first behavior, but shared JavaScript/Dart/C#/Kotlin state stores make it easy to pass one large “TV profile” object to sync. The profile must be divided explicitly:
 
 - **Synchronizable:** friendly name, favourites, non-secret preferences, control layout/rearrangement, and other approved non-secret data.
@@ -392,8 +465,7 @@ All families can implement local-first behavior, but shared JavaScript/Dart/C#/K
 
 Secure storage wrappers are not automatically equivalent. Apple Keychain accessibility/migration and Android Keystore/backup behavior must be chosen and tested. [S20] [S29] [S30] [S56]
 
-### 8.4 Native controls matter even when UI is shared
-
+### 9.4 Platform-native controls matter even when UI is shared
 A remote is an interaction-heavy application with custom directional/touchpad controls, one-handed layout, haptic feedback, keyboard input, screen-reader state, scalable text, and possibly hardware button integration. Shared UI can reduce duplication, but it must not hide:
 
 - whether a custom control exposes correct accessibility role/name/value/actions;
@@ -404,72 +476,67 @@ A remote is an interaction-heavy application with custom directional/touchpad co
 
 The last point is a platform/product gate, not a framework feature comparison.
 
-## 9. Viability assessment without selecting a stack
-
-### 9.1 Unconditional vs conditional viability
-
+## 10. Viability assessment without selecting a stack
+### 10.1 Unconditional vs conditional viability
 No candidate is unconditionally accepted because Samsung behavior and the iPhone volume requirement are not resolved. The following is the useful discovery classification:
 
 | Family | Current viability posture | Conditions that must be demonstrated |
 |---|---|---|
-| Fully native Swift + Kotlin | **Viable candidate** | Samsung adapter and TLS identity work on target cohorts; duplicate platform code remains maintainable; iPhone volume requirement is resolved or removed/changed. |
-| KMP with native UI | **Viable candidate** | Shared protocol/state code works on real devices; Swift interop and secure storage/lifecycle boundaries remain understandable to both teams; Compose is optional, not required. |
+| Fully native Swift + Kotlin | **Viable candidate / baseline** | Samsung adapter and TLS identity work on target cohorts; duplicate platform code remains maintainable; iPhone volume requirement is resolved or removed/changed. Direct APIs are a baseline advantage, not proof of native session ownership. |
+| KMP with native UI | **Viable candidate** | Shared protocol/state code and any selected session placement work on real devices; Swift interop and secure storage/lifecycle boundaries remain understandable to both teams. |
 | KMP with Compose UI | **Viable candidate with UI validation** | VoiceOver/TalkBack, text input, haptics, touchpad gestures, and scene/activity lifecycle pass physical-device tests; native interop remains available. |
-| React Native bare/native-capable | **Viable candidate with native control seam** | Samsung session, secure storage, discovery, permissions, and lifecycle are native-authoritative; New Architecture modules and build/test process are stable. |
-| Expo custom development build/CNG | **Viable candidate with higher configuration burden** | No reliance on Expo Go; entitlements/manifests/config plugins are deterministic; native module can own the Samsung seam; SDK/RN cadence is acceptable. |
-| Flutter with native plugin | **Viable candidate with plugin boundary** | Local-network prompts occur before Dart sockets; plugin owns trust/lifecycle/unsolicited events; accessibility and keyboard pass device tests. |
-| .NET MAUI | **Conditional viable candidate** | A focused spike confirms SSDP/mDNS/raw sockets, WSS trust, secure storage, lifecycle, and device packaging on the target iPhone/Android range. |
-| Capacitor/WebView-first | **Conditional viable candidate** | Native plugin owns all reliability-critical work; WebView is only a UI client; reload/suspension/permission behavior is acceptable; no token enters Web storage. |
-| Rust/C++ shared core plus native UI | **Viable architecture family** | FFI/build/debugging cost is justified; core/native ownership and secret boundaries are explicit; all OS behavior remains native. |
+| React Native bare/native-capable | **Viable candidate with control-placement experiment** | The team compares JS/shared, native-module, shared-core, and hybrid session placements; secure storage, discovery, permissions, lifecycle, and New Architecture modules are stable on devices. |
+| Expo custom development build/CNG | **Viable candidate with higher configuration burden** | No reliance on Expo Go; entitlements/manifests/config plugins are deterministic; at least one session placement works in custom builds; SDK/RN cadence is acceptable. |
+| Flutter | **Viable candidate with control-placement experiment** | Dart/plugin/shared-core/hybrid placements are compared; local-network permission precedes sockets; accessibility, keyboard, lifecycle, and trust policy pass device tests. |
+| .NET MAUI | **Conditional viable candidate** | A focused check confirms SSDP/mDNS/raw sockets, WSS identity handling, secure storage, lifecycle, and device packaging on the target iPhone/Android range. |
+| Capacitor/WebView-first | **Conditional viable candidate** | A native plugin or another explicit integration handles OS-required work; WebView/shared-runtime and plugin/hybrid session behavior is measured; reload/suspension/permission behavior is acceptable; no token enters Web storage. |
+| Rust/C++ shared core plus native UI | **Research hypothesis, not yet a viability classification** | Equivalent evidence is needed for FFI, TLS/trust callbacks, secret boundaries, lifecycle, testing, packaging, debugging, and UI/accessibility integration. It must compete fairly with native and shared-runtime alternatives. |
 
 This is not a ranking. It says which candidates deserve a focused validation path and which assumptions would make them nonviable.
 
-### 9.2 What would make a family nonviable
-
+### 10.2 What would make a family nonviable
 Regardless of label, a candidate should be rejected for V1 if its normal shape requires any of the following:
 
 - backend/public internet in the ordinary TV command path;
 - pairing tokens in account sync, JavaScript/Web storage, ordinary preferences, or ordinary logs;
 - global TLS certificate-verification bypass;
 - a background service/connection that cannot meet iOS or Android policy expectations;
-- UI/runtime code that cannot expose a reliable native escape hatch for discovery, secure storage, lifecycle, and Samsung transport;
-- an Expo Go/WebView-only path for a capability that requires custom native code;
+- a UI/runtime arrangement that cannot expose or reliably test the platform-required discovery, secure-storage, lifecycle, and Samsung-transport seams;
+- an Expo Go/WebView-only path for a capability that requires custom native integration;
 - a hard-coded Samsung model/year matrix without observed capability detection;
 - an untested assumption that physical iPhone volume buttons can be repurposed for TV commands;
 - an inability to run real iPhone + Android + Samsung TV tests in CI/lab or a disciplined manual matrix.
 
-## 10. Reliability and maintainability risks by family
-
+## 11. Reliability and maintainability risks by family
 ### Native
 
 The central risk is duplication: two adapter implementations can disagree on command timing, key names, token refresh, or capability mapping. Mitigations are platform-independent fixtures, a shared protocol specification, recorded/redacted device traces, and contract tests. The benefit is that failures are close to the platform API and easier to reason about.
 
 ### React Native / Expo
 
-The central risks are ownership and build surface: which side owns the session, how native event streams are delivered after JS reload/suspension, whether every module supports the current New Architecture, and whether generated/native configuration remains deterministic. React Native’s current architecture and native module systems are credible, but they do not eliminate these responsibilities. Expo makes custom native work possible, but the correct mental model is “React Native app with generated/custom native projects,” not “managed JavaScript with no native maintenance.” [S38] [S42] [S43]
+The central risks are session-placement evidence and build surface: how a shared-runtime, native-module, shared-core, or hybrid session behaves after JS reload/suspension; whether every module supports the current New Architecture; and whether generated/native configuration remains deterministic. React Native’s architecture and native module systems are credible, but they do not answer those questions. Expo makes custom native work possible, but the correct mental model is “React Native app with generated/custom native projects,” not “managed JavaScript with no platform maintenance.” [S38] [S42] [S43]
 
 ### Flutter
 
-The central risks are channel boundaries, background/isolate semantics, and custom-platform UI behavior. A socket held in Dart may be technically correct in the foreground and still fail when the host lifecycle, permission, or background event delivery changes. A plugin can solve this, but then plugin/native code becomes the reliability authority. [S44] [S46]
+The central risks are channel boundaries, background/isolate semantics, and custom-platform UI behavior. A socket held in Dart may be technically correct in the foreground and still fail when host lifecycle, permission, or background event delivery changes; a plugin or shared core may have a different trade-off. No placement is promoted until the same failure/recovery tests are run for each candidate. [S44] [S46]
 
 ### KMP / Compose
 
-The central risks are version/build coordination and Swift-facing APIs. KMP’s native binary model is attractive for a shared protocol/domain core, but teams must understand Objective-C-mediated interoperability, suspend/Flow exposure, Kotlin/Native compilation, and platform-specific source sets. Compose Multiplatform’s iOS stability is a positive signal, not proof that every AppT custom control is as accessible or platform-native as UIKit/SwiftUI. [S49] [S50] [S51] [S54]
+The central risks are version/build coordination and Swift-facing APIs. KMP’s native binary model is attractive for shared protocol/domain/session experiments, but teams must understand Objective-C-mediated interoperability, suspend/Flow exposure, Kotlin/Native compilation, and platform-specific source sets. Compose Multiplatform’s iOS stability is a positive signal, not proof that every AppT custom control is as accessible or platform-native as UIKit/SwiftUI. [S49] [S50] [S51] [S54]
 
 ### .NET MAUI
 
-The central risk is evidence gap rather than a known hard blocker: AppT needs raw local discovery, WSS identity handling, Samsung protocol-specific behavior, and high-quality custom remote controls. MAUI’s direct platform access means these may be implementable, but the project should not treat its cross-platform abstractions as proof until a focused integration check passes. [S55] [S56]
+The central risk is evidence gap rather than a known hard blocker: AppT needs raw local discovery, WSS identity handling, Samsung protocol-specific behavior, and high-quality custom remote controls. MAUI’s platform access means these may be implementable, but the project should not treat its abstractions or a particular session placement as proven until a focused integration check passes. [S55] [S56]
 
 ### Capacitor
 
-The central risk is false simplicity. Building the remote UI is easy; building a reliable native control service and then making a WebView a safe client of it is the real application. If the team already owns Swift/Kotlin plugins, the WebView saves less in the highest-risk area and adds another lifecycle/reload boundary. [S57] [S58]
+The central risk is false simplicity. Building the remote UI is easy; deciding whether WebView/shared-runtime, plugin, or hybrid code can deliver reliable control and safe secret/event boundaries is the real application. Plugins may reduce OS-seam uncertainty but add another lifecycle/reload boundary and do not automatically prove that a plugin should own every session. [S57] [S58]
 
 ### Shared native core
 
-The central risk is specialized complexity. Rust/C++ can make the protocol state machine and fixtures consistent, but it cannot abstract away iOS local-network entitlements, Android local-network permissions, secure storage, haptics, accessibility, scene/activity lifecycle, or App Review. It is most useful when the wire protocol and state machine are the duplication hotspot, not when the primary problem is UI.
+The central risk is specialized complexity. Rust/C++ could make protocol state and fixtures consistent, but the current report has not substantiated FFI, trust callbacks, secret boundaries, lifecycle, testing, packaging, or UI/accessibility integration at parity with the other choices. It cannot abstract away iOS local-network entitlements, Android local-network permissions, secure storage, haptics, accessibility, scene/activity lifecycle, or App Review. It remains a hypothesis to test, not an implied reliability solution.
 
-## 11. Unresolved questions
-
+## 12. Unresolved questions
 ### Samsung and protocol
 
 1. Which Samsung cohorts are within the intended V1 test/support envelope, and what minimum set of real TV models is representative?
@@ -501,8 +568,7 @@ The central risk is specialized complexity. Rust/C++ can make the protocol state
 21. How will redacted traces and deterministic simulated-TV fixtures be versioned without collecting behavioral analytics or raw household data?
 22. What is the minimum reliability bar for pairing success, command latency, reconnect recovery, and wake success, given that the product has no public setup-time SLA yet?
 
-## 12. Weak, stale, or contradictory evidence
-
+## 13. Weak, stale, or contradictory evidence
 1. **Official vs current:** Samsung’s strongest official sender material is historical Smart View SDK documentation. The current download page lists recent package artifacts, but the conceptual sender docs still focus on TV applications and do not publish a generic current remote contract. This is useful evidence with low guarantee strength for AppT’s exact use case. [S03] [S04] [S05]
 2. **Community port disagreement:** community code reports both 8001 and 8002, different token/popup behavior, and insecure-certificate workarounds. The convergence proves a useful family of observed behavior, not a stable protocol contract. [U01] [U03] [U06] [U07]
 3. **Generational contradictions:** OpenHAB’s broad “pre-2016 legacy / post-2016 WebSocket” guidance is contradicted by current Home Assistant reports of a 2016 K-series encrypted fallback and current authorization timeouts. Both should be retained as evidence that model/firmware capability detection is required, not as a single truth table. [U03] [U04]
@@ -511,9 +577,13 @@ The central risk is specialized complexity. Rust/C++ can make the protocol state
 6. **Framework vendor claims:** React Native, Flutter, KMP, Expo, MAUI, and Capacitor documentation establishes platform access and supported mechanisms. None of it proves AppT’s Samsung reliability, real-device latency, App Store approval, or protocol compatibility. Those are experiment results.
 7. **Volume-button sources:** Apple’s public documentation and App Review text are stronger than community workarounds. Private API, hidden view hierarchy, silent-audio, or system-volume tricks are not acceptable evidence for a public V1. [S32] [S33] [S34]
 8. **Historical repositories:** Some Samsung repositories are old and tested on one device. They are useful reverse-engineering records, not current support matrices. [U06] [U07]
+9. **Roku policy versus protocol:** The current official ECP page documents a technically rich interface but also says third-party/mobile-platform commands are not permitted and that device settings gate control. The scope, eligibility, and release interpretation need vendor/legal confirmation; this is not merely an adapter coding gap. [V01]
+10. **LG public-contract gap:** Current LG developer pages/forum material did not provide a formal public SSAP remote reference; port, certificate, pointer, and client-key details come from maintained community implementations and Home Assistant. These are useful empirical evidence but not LG support guarantees. [V02] [V03] [V04] [V05]
+11. **Android/Google TV age/status gap:** AOSP’s accessible Polo repository is an older implementation/message source, while current Remote Protocol v2 behavior comes from maintained reverse-engineered code and integrations. The attempted AOSP README path was unavailable, no current public third-party remote contract was established, and no AppT device validation exists. [V06] [V07] [V08]
+12. **Home Assistant transfer gap:** Its vendor-specific coordinators/config flows demonstrate empirical decomposition, but Home Assistant is a long-running server/integration host rather than a foreground phone app. It does not settle AppT session placement or lifecycle behavior. [V03] [V08] [V09]
+13. **Source-register provenance:** Current pages were rechecked on 2026-09-22; no unverified commit/hash is asserted for maintained implementations. The Compose Multiplatform page currently reports 1.12.1, so an older 1.12.0 snapshot should not be carried forward. [S54]
 
-## 13. Proposed risk-reducing experiments
-
+## 14. Proposed risk-reducing experiments
 These are deliberately narrow investigations for a later prototype/validation phase. They are not authorization to add a disposable prototype in this discovery change.
 
 ### Experiment 1 — Samsung cohort/protocol matrix
@@ -590,18 +660,38 @@ These are deliberately narrow investigations for a later prototype/validation ph
 **Pass evidence:** local control continues during backend outage; server rejects secret-shaped fields; restore behavior follows a documented policy.  
 **Fail evidence:** token appears in account payloads, backups, normal logs, analytics, or a shared JS/Dart/Web storage area.
 
-### Experiment 9 — Focused candidate integration comparison
+### Experiment 9 — Session-placement comparison
 
-**Question:** Does a chosen cross-platform candidate reduce product work without weakening the control seam?
+**Question:** For the same adapter, device cohort, UI workload, and failure conditions, which session placement gives AppT the best measured reliability and maintainability without assuming that a platform escape hatch must own the session?
 
-**Scope:** After Experiments 1–4 identify real native requirements, build the smallest non-production integration for two candidates plus a native baseline. It should exercise discovery permission, secure pairing storage, WSS identity policy, one key command, reconnect on resume, accessibility label/state, haptic toggle, and redacted failure reporting. It must use custom native builds and physical devices.
+**Models to compare:**
 
-**Measure:** build/rebuild time, number of native files/configuration points, crash/error observability, command latency/jitter, reconnect correctness, test isolation, and upgrade friction.  
-**Pass evidence:** a candidate can expose the native seam without hidden global state or unsafe TLS.  
-**Fail evidence:** control depends on a UI runtime being alive, native configuration is not reproducible, or the team cannot test the candidate on both platforms.
+1. **Native-owned:** platform code owns discovery orchestration, pairing/token state, transport, command serialization, reconnect state, and event/state machine. Shared code receives product-level state/events only.
+2. **Shared-runtime-owned:** the selected shared runtime owns discovery/session state, transport, serialization, reconnect, and events where its APIs permit it. Native code supplies OS-required permission, entitlement, secure-storage, lifecycle, and other seams.
+3. **Shared-core/native-transport:** a shared core owns protocol/state/serialization; native platform code owns sockets/TLS/trust callbacks, OS lifecycle hooks, and secure storage, with a narrow FFI boundary.
+4. **Hybrid:** ownership is split intentionally—for example, a shared domain/adapter state machine with platform transport and secure storage, or a shared transport with platform lifecycle/recovery. The boundary, event loss behavior, and secret flow must be explicit rather than accidental.
 
-## 14. Provisional discovery criteria for a later architecture decision
+These are comparison models, not four recommendations. “Native transport” in model 3 is not the same claim as “native-owned session” in model 1.
 
+**Scope:** After the Samsung cohort and discovery/TLS experiments identify a reproducible target, exercise equivalent minimal flows on physical iPhone and Android devices: discovery and permission, pairing/token storage, one key command, one unsupported capability, reconnect after resume/network/IP change, identity change, cancellation, redacted diagnostics, and (where supported) an unsolicited state event. Use the same adapter fixtures and UI workload. A deterministic simulated TV may precede physical testing, but cannot be the pass gate.
+
+**Measure for every model:**
+
+- pairing completion and re-pair rate by cohort;
+- command latency/jitter, ordering, cancellation, duplicate/lost-command rate, and behavior after TV/network failure;
+- lifecycle recovery after background, lock, suspension, force-quit, and process/runtime reload;
+- event delivery/reconciliation and explicit `Unknown`/`Reconnecting`/`IdentityChanged` states;
+- TLS identity verification, fail-closed behavior, secret exposure across FFI/bridges/logs/backups, and account-boundary tests;
+- discovery time, permission-denied/revoked behavior, IP-change recovery, battery/memory impact, crash/error observability, test isolation, build reproducibility, and upgrade friction;
+- amount and location of platform code, but never treat more or less native code as a reliability result by itself.
+
+**Pass evidence:** a model completes the same test matrix with no global TLS bypass, no secret leakage, no silent identity change, bounded recovery, honest capability presentation, and diagnostics that distinguish unsupported, unavailable, permission-denied, and identity-changed outcomes. The result must include physical-device traces/metrics and the reason a boundary was selected.
+
+**Fail evidence:** a model loses or duplicates commands without reconciliation, requires the UI/runtime to remain alive contrary to platform behavior, cannot observe a necessary lifecycle/permission event, leaks secret material, silently accepts identity changes, or makes a capability appear supported without evidence. A failed model is not proof that another model owns all sessions; it narrows the evidence.
+
+This experiment is a later validation plan, not authorization to add a prototype, native module, dependency, or application code in this discovery change.
+
+## 15. Provisional discovery criteria for a later architecture decision
 A later architecture decision should not be based on “most code shared.” It should record evidence for:
 
 1. **Samsung reality:** tested model/firmware cohorts, supported capabilities, legacy fallback, pairing/token state, and current vendor/terms review status.
@@ -614,22 +704,22 @@ A later architecture decision should not be based on “most code shared.” It 
 8. **Future adapters:** adapter isolation, capability model, test fixture strategy, and ability to add a second ecosystem without rewriting the UI/control state model.
 9. **Engineering economics:** native expertise, build/release complexity, real-device lab access, upgrade cadence, and expected maintenance over Samsung firmware changes.
 
-## 15. Current non-binding findings
+## 16. Current non-binding findings
 
 - **Finding A — the hard part is not generic UI.** Samsung capability discovery, local transport, pairing, identity, reconnect, wake, lifecycle, secure storage, and native phone behavior are the architecture drivers.
-- **Finding B — every credible cross-platform option needs a native seam.** React Native/Expo, Flutter, .NET MAUI, and Capacitor remain possible, but only if the critical control path is explicitly native or a carefully bounded shared core.
-- **Finding C — KMP is a distinct option, not the same trade as a UI bridge.** KMP can share protocol/domain code while retaining native UI and OS integrations; Compose Multiplatform adds UI sharing but also adds an accessibility/interop validation burden.
-- **Finding D — native is the baseline, not automatically the winner.** It minimizes abstraction at the reliability seam but duplicates platform logic and can allow adapter behavior to drift.
-- **Finding E — Expo is a workflow choice, not permission to avoid native work.** A custom development build/CNG path can be viable; an Expo Go-only interpretation cannot.
+- **Finding B — every credible cross-platform option needs platform integration, not a predetermined session owner.** React Native/Expo, Flutter, .NET MAUI, and Capacitor remain possible if they can expose and test the required OS seams. Shared-runtime, native, shared-core/native-transport, and hybrid session placements remain open.
+- **Finding C — KMP is a distinct option, not the same trade as a UI bridge.** KMP can share protocol/domain code and possibly session code while retaining native UI and OS integrations; Compose Multiplatform adds UI sharing but also adds an accessibility/interop validation burden.
+- **Finding D — native development is the baseline, not automatically the winner.** It provides direct platform APIs and a useful control comparison, but duplicates platform logic and does not prove native session ownership, cross-platform product fit, or lower total reliability risk.
+- **Finding E — Expo is a workflow choice, not permission to avoid platform work.** A custom development build/CNG path can be viable; an Expo Go-only interpretation cannot.
 - **Finding F — Samsung support must be capability-led.** Official Samsung key guidance, historical SDK material, and community failures all point away from a fixed year/model list.
 - **Finding G — no backend in the command path is compatible with every candidate.** It must be enforced by module boundaries and tests, not only by product prose.
 - **Finding H — iPhone volume buttons are a product release gate.** There is no architecture selection that makes Apple’s public API and App Review guidance disappear.
-- **Finding I — a second ecosystem should be an adapter test, not a reason to abstract every detail now.** The useful early seam is a small capability/command contract plus a Samsung adapter, not a speculative universal protocol.
+- **Finding I — multi-ecosystem evidence validates adapter boundaries, not a universal protocol.** Roku’s vendor-policy restriction, LG’s pairing/push/pointer differences, Android TV’s certificate/protobuf family, and Samsung’s cohort variation require feature honesty and ecosystem-specific evidence.
+- **Finding J — Rust/C++ is a research hypothesis.** It should not outrank native or shared-runtime options until FFI, TLS/trust, secret, lifecycle, packaging, testing, and accessibility evidence is comparable.
 
-These findings do not select a stack and do not move the repository out of discovery.
+These findings do not select a stack, a session owner, or a final universal interface, and do not move the repository out of discovery.
 
-## 16. Source register
-
+## 17. Source register
 **Access context:** web sources below were consulted on 2026-09-22 UTC. “Current” means the page content observed on that date; historical/archive sources are labeled as such. GitHub source claims should be checked against the cited commit/branch before reuse.
 
 ### Product and project sources
@@ -646,7 +736,7 @@ These findings do not select a stack and do not move the repository out of disco
 - **[S05]** Samsung Developer, “Download,” Smart View package versions/release notes and historical 2015 discovery issue, current page observed 2026-09-22. <https://developer.samsung.com/smarttv/develop/extension-libraries/smart-view-sdk/download.html>
 - **[S06]** Samsung Developer, “Debugging,” local TV device-info/debug endpoint, current page observed 2026-09-22. <https://developer.samsung.com/smarttv/develop/extension-libraries/smart-view-sdk/receiver-apps/debugging.html>
 - **[S07]** Samsung Developer, “API References,” legacy platform/API archive, historical page observed 2026-09-22. <https://developer.samsung.com/smarttv/legacy/api-references.html>
-- **[U01]** xchwarze, `samsung-tv-ws-api`, current repository README/structure; latest observed commit `e48d6377faede37db1f034d726a079b9d8034fac`, version 3.0.6, 2026-09-11. Unofficial maintained implementation. <https://github.com/xchwarze/samsung-tv-ws-api>
+- **[U01]** xchwarze, `samsung-tv-ws-api`, current repository README/structure and maintained implementation, version 3.0.6 observed during the September 2026 review. The report does not assert an unverified commit hash; this remains unofficial evidence. <https://github.com/xchwarze/samsung-tv-ws-api>
 - **[U02]** xchwarze, `samsung-tv-ws-api` command documentation, ports/token/remote workflow, repository document observed 2026-09-22. Unofficial. <https://github.com/xchwarze/samsung-tv-ws-api/blob/master/COMMANDS.md>
 - **[U03]** openHAB, “Samsung TV Binding,” UPnP discovery, legacy/WebSocket protocols, ports, approval/token/MAC and model-dependent channel behavior, current docs observed 2026-09-22. Community integration. <https://www.openhab.org/addons/bindings/samsungtv/>
 - **[U04]** Home Assistant, Samsung TV issue/pull-request reports, K-series encrypted fallback and recent authorization/timeout behavior, issue/P.R. reports observed 2026-09-22. Community real-device evidence; not vendor documentation. <https://github.com/home-assistant/core/issues/177252> and <https://github.com/home-assistant/core/pull/180619>
@@ -661,6 +751,20 @@ These findings do not select a stack and do not move the repository out of disco
 - **[S10]** Open Connectivity Foundation, UPnP Device Architecture resources, SSDP/UPnP specification family, accessed 2026-09-22. <https://openconnectivity.org/developer/specifications/upnp-resources/upnp-device-architecture-documents>
 - **[S11]** IETF, RFC 6455, “The WebSocket Protocol,” standards document. <https://www.rfc-editor.org/rfc/rfc6455.html>
 - **[S12]** IETF, RFC 8446, “The Transport Layer Security (TLS) Protocol Version 1.3,” standards document. <https://www.rfc-editor.org/rfc/rfc8446.html>
+
+### Multi-ecosystem vendor and implementation sources
+
+- **[V01]** Roku Developer, “External Control Protocol,” current ECP documentation observed 2026-09-22: SSDP discovery, HTTP/8060, device/app/capability queries, keypress/text/app launch, power fields, the “Control by mobile apps” setting, and the current third-party/mobile command restriction. First-party but vendor-policy-sensitive. <https://developer.roku.com/dev/docs/external-control-api>
+- **[V02]** LG webOS TV Developer, home/references pages and official developer forum response observed 2026-09-22; current forum guidance directs external-device connection to Connect SDK, while no formal public SSAP remote reference was located. First-party/current context. <https://webostv.developer.lge.com/>; <https://webostv.developer.lge.com/develop/references>; <https://forum.webostv.developer.lge.com/t/connecting-mobile-apps-to-lg-webos-tv/3082>
+- **[V03]** Home Assistant, “LG webOS TV,” current integration documentation observed 2026-09-22: Connect Apps, SSDP/config-flow pairing, client secret, UUID identity, pushed state, optional features, coordinator behavior, and Wake-on-LAN limitations. Empirical maintained integration. <https://www.home-assistant.io/integrations/webostv/>
+- **[V04]** hobbyquaker, `lgtv2`, maintained community implementation README observed 2026-09-22: SSAP, WS/WSS 3000/3001 variation, prompt/client-key pairing, subscriptions, pointer socket, app/power operations, WoL, and certificate/TOFU considerations. Reverse-engineered/community evidence. <https://github.com/hobbyquaker/lgtv2/blob/master/README.md>
+- **[V05]** griches, `lgtvremote-cli`, and chros73, `bscpylgtv`, maintained community implementations observed 2026-09-22: LG pairing, SSAP operations, pointer/input and adapter capability evidence. Not vendor-supported API evidence. <https://github.com/griches/lgtvremote-cli>; <https://github.com/chros73/bscpylgtv>
+- **[V06]** Android Open Source Project, `google-tv-pairing-protocol` repository and `proto/polo.proto`, repository state on `refs/heads/main` observed 2026-09-22. Official AOSP source for an older Polo pairing implementation/message definitions; it does not establish a current public third-party remote API. <https://android.googlesource.com/platform/external/google-tv-pairing-protocol/+/refs/heads/main/>; <https://android.googlesource.com/platform/external/google-tv-pairing-protocol/+/refs/heads/main/proto/polo.proto>
+- **[V07]** tronikos, `androidtvremote2`, maintained community implementation `pairing.py`/`remote.py` observed 2026-09-22: certificate/PIN pairing, protobuf Remote Protocol v2, ports 6466/6467, feature flags, app links, IME/voice, power/volume, and state callbacks. Reverse-engineered/community evidence. <https://github.com/tronikos/androidtvremote2/blob/main/src/androidtvremote2/pairing.py>; <https://github.com/tronikos/androidtvremote2/blob/main/src/androidtvremote2/remote.py>
+- **[V08]** Home Assistant, “Android TV Remote,” current docs and `androidtv_remote` integration tree observed 2026-09-22: Android TV Remote Service dependency, discovery/config flow, app/deep-link launch, optional IME, diagnostics, and capability limitations. Empirical maintained integration. <https://www.home-assistant.io/integrations/androidtv_remote/>; <https://github.com/home-assistant/core/tree/dev/homeassistant/components/androidtv_remote>
+- **[V09]** Home Assistant, current `roku`, `webostv`, and related vendor integration directories observed 2026-09-22: separate config flows, coordinators/transports, diagnostics, and capability-specific entities. Empirical architecture evidence, not an AppT prescription. <https://github.com/home-assistant/core/tree/dev/homeassistant/components/roku>; <https://github.com/home-assistant/core/tree/dev/homeassistant/components/webostv>
+- **[V10]** Home Assistant, `samsungtv` integration directory and maintained vendor-specific code observed 2026-09-22. Empirical Samsung pairing/transport/diagnostics evidence; not a current Samsung contract. <https://github.com/home-assistant/core/tree/dev/homeassistant/components/samsungtv>
+- **[V11]** KDE Connect protocol reference and device implementation observed 2026-09-22: discovery, capabilities, explicit pairing, TLS/device identity, and pre-pairing packet restrictions. Optional comparative evidence; do not copy implementation code or treat its license as permission. <https://invent.kde.org/network/kdeconnect-meta/-/blob/master/protocol.md>; <https://invent.kde.org/network/kdeconnect-kde/-/blob/master/core/device.cpp>
 
 ### Android sources
 
@@ -712,13 +816,39 @@ These findings do not select a stack and do not move the repository out of disco
 - **[S51]** Kotlin Multiplatform, “KMP for iOS,” native/shared-code model and Swift integration, last modified 2026-08-05, observed 2026-09-22. <https://kotlinlang.org/docs/multiplatform/kmp-for-ios.html>
 - **[S52]** Ktor, “Client engines,” multiplatform Android/Darwin/CIO/WebSocket capability matrix, Ktor 3.6.0 docs observed 2026-09-22. <https://ktor.io/docs/client-engines.html>
 - **[S53]** Kotlin Multiplatform, “Test your multiplatform app,” common/platform test model, observed 2026-09-22. <https://kotlinlang.org/docs/multiplatform/multiplatform-run-tests.html>
-- **[S54]** Kotlin Multiplatform, “Compatibility and versions,” Compose Multiplatform 1.12.1 platform/compiler/version information, last modified 2026-09-22, observed 2026-09-22. <https://kotlinlang.org/docs/multiplatform/compose-compatibility-and-versioning.html>
+- **[S54]** Kotlin Multiplatform, “Compatibility and versions,” live recheck reports Compose Multiplatform **1.12.1** (not the earlier review snapshot’s 1.12.0), with platform/compiler/version information; last modified and observed 2026-09-22. No unverified commit/hash is asserted. <https://kotlinlang.org/docs/multiplatform/compose-compatibility-and-versioning.html>
 - **[S55]** Microsoft Learn, “What is .NET MAUI?,” native-capable C#/XAML cross-platform model, .NET MAUI 10 docs observed 2026-09-22. <https://learn.microsoft.com/en-us/dotnet/maui/what-is-maui?view=net-maui-10.0>
 - **[S56]** Microsoft Learn, “Secure storage,” `ISecureStorage`, Android backup and iOS keychain platform differences, .NET MAUI 10 docs observed 2026-09-22. <https://learn.microsoft.com/en-us/dotnet/maui/platform-integration/storage/secure-storage?view=net-maui-10.0&tabs=android>
 - **[S57]** Capacitor, “Development Workflow,” native project/build/plugin model, current v8 docs observed 2026-09-22. <https://capacitorjs.com/docs/basics/workflow>
 - **[S58]** Capacitor, “Custom Native Android Code” and “Custom Native iOS Code,” plugin escape hatches, current v8 docs observed 2026-09-22. <https://capacitorjs.com/docs/android/custom-code> and <https://capacitorjs.com/docs/ios/custom-code>
 - **[S59]** Capacitor, “App Development Support Policy,” v8 active support and minimum platform/toolchain table, observed 2026-09-22. <https://capacitorjs.com/docs/main/reference/support-policy>
+- **[S60]** Android Developers, “Get started with the NDK,” C/C++ with Android Studio, CMake/Gradle, JNI, packaging, and native debugging, current page observed 2026-09-22. <https://developer.android.com/ndk/guides>
+- **[S61]** Rust, “WebAssembly,” official Rust/Wasm interoperation and binding overview, current page observed 2026-09-22. This is general interoperation evidence, not proof of AppT FFI suitability. <https://rust-lang.org/what/wasm/>
+- **[S62]** Apple Developer, “App Dev Tutorials,” current Xcode/SwiftUI/UIKit, accessibility, state/lifecycle, persistence, and error-handling training observed 2026-09-22. <https://developer.apple.com/tutorials/app-dev-training>
+- **[S63]** Apple Developer, “XCTest,” unit, performance, UI, asynchronous, and accessibility-oriented test framework documentation observed 2026-09-22. <https://developer.apple.com/documentation/xctest>
+- **[S64]** Android Developers, “Android Basics with Compose,” current Android Studio/Kotlin/Compose, device/emulator, state, and unit-test training observed 2026-09-22. <https://developer.android.com/courses/android-basics-compose/course>
+- **[S65]** Android Developers, “Test apps on Android,” local/instrumented/UI testing guidance observed 2026-09-22. <https://developer.android.com/training/testing>
 
-## 17. Completion state
+## 18. Harvest Matrix provenance boundary
 
-This report records research and bounded next investigations only. It does not claim an architecture decision, stack selection, implementation plan, or production readiness. The project remains in the **discovery** phase. The next durable decision should be made only after the Samsung protocol/TLS, iOS discovery/volume, and lifecycle experiments produce evidence strong enough to compare the candidates against AppT’s reliability requirement.
+Harvest Matrix history is treated as a stale, different product concept. Only the following leads were independently rechecked for this report and retained as evidence, with their limits stated above:
+
+- Samsung official key/capability and historical Smart View material, plus current maintained Samsung integrations and reverse-engineered clients.
+- Roku’s current official ECP documentation: technically useful discovery/capability evidence, but its current third-party/mobile command restriction makes vendor eligibility a release gate.
+- LG’s current developer pages/forum context plus maintained `lgtv2`, other community clients, and Home Assistant evidence for SSDP, client-key pairing, SSAP push, pointer input, app operations, and wake limitations.
+- AOSP’s accessible older Google TV pairing repository/protobuf definitions plus maintained `androidtvremote2` and Home Assistant evidence for current-looking certificate/protobuf behavior; current public third-party API status remains unresolved.
+- Home Assistant’s separate vendor integrations as empirical evidence for adapter-specific config flows, coordinators/transports, diagnostics, and capability-specific features—not as an AppT architecture decision.
+- The live Compose Multiplatform compatibility page, rechecked 2026-09-22, which reports 1.12.1.
+
+The following Harvest assumptions are explicitly rejected and were not imported into this report or the canonical product/project-state files:
+
+- Android-only delivery or Android-first as a settled architecture rather than the approved reliability fallback;
+- Kotlin/Compose preselection, a settled ADR, or any predetermined application stack;
+- IR, `ConsumerIrManager`, dongles, learned codes, or mirroring as assumed control architecture;
+- no account/backend, F-Droid, paid monetization, ads, or any other product/business constraint not present in the approved AppT sources;
+- predetermined licensing, crash-reporter/ACRA, telemetry, or analytics decisions;
+- a predetermined “no listening socket” rule, native session authority, or any other implementation decision presented as settled;
+- treating a third-party license as permission to copy implementation code, or treating community code as vendor authorization.
+
+## 19. Completion state
+This report records research and bounded next investigations only. It does not claim an architecture decision, stack selection, implementation plan, or production readiness. The project remains in the **discovery** phase. The next durable decision should be made only after Samsung protocol/TLS, iOS discovery/volume, lifecycle/session-placement, multi-ecosystem eligibility, and real-device experiments produce evidence strong enough to compare the candidates against AppT’s reliability requirement.
