@@ -37,35 +37,44 @@ Architecture and application-stack selection occur after product definition and 
 
 Normal TV control is local-first.
 
-Once a television is paired, AppT's backend or the public internet must not be required for that television to continue functioning as a remote.
+Before an account exists, AppT lets the user reach one successful local-control session so compatibility is demonstrated before sign-in or payment.
 
-Previously working local control continues during AppT service or internet outages.
+After account creation, a seven-day trial provides full use. The trial has a server-authoritative expiry, but an active remote session is not interrupted when that time passes. Once the known trial expiry has passed, the next remote entry requires an online entitlement check or purchase.
+
+After a lifetime entitlement has been validated, paired-TV control remains available offline indefinitely. AppT does not require periodic backend contact to keep a paid customer's local remote working.
+
+Outside the licensing gate above, previously working local control continues during AppT service or public-internet outages.
 
 ## Accounts
 
-An AppT account is part of the product.
+An AppT customer account exists for a deliberately narrow purpose:
 
-The account synchronizes non-secret user data such as:
+- authenticate the customer;
+- store the customer's chosen username;
+- track seven-day trial eligibility and expiry;
+- hold the customer's lifetime AppT license entitlement.
 
-- friendly television names;
-- favourites;
-- preferences and settings.
+The account is **not** a television or personalization profile.
 
-TV pairing secrets and device credentials remain local to each phone.
+AppT does not sync or store television identities, friendly television names, favourites, remote layouts, preferences, last-used television, pairing state, pairing credentials, diagnostic history, or remote-use history in the customer account/backend.
 
-Different household phones pair with televisions independently rather than sharing pairing credentials through AppT's backend.
+TV pairing, remembered televisions, television names, favourites, remote arrangement, and settings remain device-local. A second phone signed into the same customer account receives the customer's username and license entitlement, but it pairs and configures televisions independently.
+
+Google sign-in is the primary account path. A verified Google identity creates or signs into the AppT customer account without a separate registration form. Email/password remains a fallback. A Google display name may be suggested as the initial username, but the user may edit it. AppT does not copy unrelated Google profile data into the customer account.
 
 First-run prioritizes demonstrating product value before account creation:
 
-**Welcome → discovery → pairing/control → account creation.**
+**Welcome → discovery → pairing/control → account creation → seven-day trial.**
 
-Account requirements must not prevent the user from reaching the first successful local-control experience. Sign-in is required for continued/full product use and synchronization features, not as a prerequisite for the first successful remote session.
+Account requirements must not prevent the user from reaching the first successful local-control experience. The first successful command does not interrupt that active remote session. After that active remote session ends, the next remote entry requires an AppT account.
 
-After the first successful control, AppT does not interrupt the active remote session with account creation. The user may finish that remote session. Once that session ends, the next attempt to enter a remote-control session requires sign-in.
+The seven-day trial begins from a server timestamp when the account first activates its trial. Trial abuse prevention may use privacy-minimized, pseudonymous eligibility signals derived from the verified email identity and this Android device, plus Play Integrity for authenticity checks. Raw television or behavioral data is never part of trial eligibility.
 
-If a phone that has already synchronized one account signs in to a different AppT account, AppT requires explicit confirmation before switching. The previous account's synchronized friendly names, favourites, tombstones, and synchronized preferences are not merged into the new account and are removed from the phone's account-scoped local state before the new account is loaded. Device-local television pairing credentials and security identity remain on the phone. A locally paired television with no metadata in the new account remains controllable and uses a neutral or freshly discovered television name until the new account supplies or the user creates account-scoped metadata.
+Creating another account or reinstalling AppT does not grant another trial when the same verified email identity or recognized device has already consumed one. A customer who is not trial-eligible may still sign in, restore a lifetime entitlement, or purchase one.
 
-Removing a television from the synchronized account does not remotely unpair other phones. Shared non-secret television metadata and related favourites may be removed by synchronization, but every phone's pairing credentials remain local. Only an explicit local forget action unpairs that television on that phone.
+Deleting an AppT account permanently deletes the account and account-held username/trial/license records subject to required transaction/legal retention. Device-local television pairing and personalization remain on the phone because they do not belong to the account. The user may separately forget televisions or clear app data.
+
+Signing out or switching accounts does not erase, merge, upload, or replace local television/personalization data. Account identity and license state are separate from the phone's local remote state.
 
 ## Samsung-first strategy
 
@@ -75,9 +84,11 @@ V1 does not predeclare a fixed supported Samsung year range. Discovery may ident
 
 Compatibility is capability-driven rather than based purely on model assumptions.
 
-Where AppT encounters an unfamiliar or unsupported television, it may automatically identify and probe likely protocols, but it does not send functional remote-control commands until the user explicitly chooses to try experimental control.
+Where AppT encounters an unfamiliar or unsupported television, production V1 may identify and safely probe enough to classify support, but it does not offer consumer experimental functional control on a non-adopted protocol.
 
-If experimental control fails, AppT offers a **Request Support** flow. Sending device or protocol diagnostics is an explicit user choice, and submitted information is appropriately redacted.
+Internal/debug engineering builds may exercise bounded experimental protocol implementations for research. Those experiments are not a production user mode and do not weaken production trust or safety rules.
+
+An unsupported production television can offer a **Request Support** flow. Sending device or protocol diagnostics is an explicit user choice, and submitted information is appropriately redacted.
 
 ## Discovery and setup
 
@@ -123,7 +134,7 @@ Phone-native behavior includes:
 
 Everyday controls remain prominent. Less frequently used capabilities can live behind secondary surfaces.
 
-Simple favourites and control rearrangement are appropriate for V1. A full remote-layout designer is not required.
+Simple favourites and control rearrangement are appropriate for V1. Favourites and secondary-control order are per television and device-local. Interaction preferences such as haptics, physical volume-button behavior, and preferred navigation mode are device-wide and device-local. A full remote-layout designer is not required.
 
 One-handed use is a first-class design requirement.
 
@@ -183,11 +194,15 @@ Neither feature should distort the core remote-control product.
 
 ## Business model
 
-V1 launches free.
+V1 uses a **seven-day free trial per eligible customer/device**, followed by a **one-time lifetime AppT license fee** for continued use.
 
-There is no advertising and no required paid tier or subscription at launch.
+There is no advertising and no subscription.
 
-Long-term monetization can be reconsidered after the product demonstrates real value.
+On Android, the lifetime unlock is purchased as a Google Play one-time non-consumable product. After AppT validates the purchase, the lifetime entitlement is associated with the AppT customer account so it can be restored on another supported Android device after sign-in.
+
+The entitlement model should remain conceptually vendor-neutral for a future iPhone implementation, but V1 does not promise that an Android purchase unlocks a future iOS version.
+
+A customer with a validated lifetime entitlement keeps local remote control offline indefinitely; licensing infrastructure must not become a recurring dependency for paid local control.
 
 ## Product name
 
