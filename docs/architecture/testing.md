@@ -101,7 +101,10 @@ These names are the contract. Implementation may split them, not drop the assert
 | `staleWriteDoesNotOverwrite` | An older tuple does not replace a newer live record. Rules deny the update |
 | `workerSubmitsStoredTuple` | The worker writes the persisted `updatedAt`, `revision`, and `originDeviceId`. It does not stamp a new tuple at push time |
 | `preferenceMutationWritesMetadata` | The preference value and `prefmeta` commit in one edit. The worker does not create that tuple later |
-| `remoteTombstoneDoesNotForget` | A winning remote television tombstone does not call `forget`. The secret file remains |
+| `firstSessionGateEndsWithActiveRemote` | First `Accepted` does not interrupt the exempt active remote; after that holder closes, the next remote entry without a user does not call `SamsungTvs.open` |
+| `accountSwitchDoesNotLeakOldMetadata` | Confirmed different-uid switch clears prior account names/favourites/synced preferences without uploading them to the new uid |
+| `accountSwitchPreservesPairing` | Confirmed different-uid switch leaves Samsung secret/private records intact and a remembered TV remains locally controllable |
+| `remoteTombstoneDoesNotForget` | A winning remote television tombstone removes account-scoped TV metadata/favourites, does not call `forget`, and leaves the secret file intact |
 | `freshInstallDoesNotWipeCloud` | Empty local store pulls and pushes no tombstones |
 | `forgetRemovesSecret` | After `Forgotten`, the secret file is gone and a second `forget` still returns `Forgotten` |
 | `holdCancellationReleases` | Cancelled `Hold` still writes release |
