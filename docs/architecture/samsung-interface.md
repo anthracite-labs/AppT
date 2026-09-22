@@ -36,7 +36,7 @@ data class DiscoveredTv(
     val id: TvId,
     val name: String,
     val remembered: Boolean,
-    val correlatable: Boolean,
+    val stableIdentity: Boolean,
     val availability: ControlAvailability,
 )
 
@@ -151,7 +151,7 @@ data class RedactedEvent(
 )
 ```
 
-`TvId`, `AppId`, and `RemoteKey` are opaque to callers. Callers do not parse `TvId` for a MAC, address, or protocol generation. `correlatable` is the flag sync uses; see [data.md](data.md).
+`TvId`, `AppId`, and `RemoteKey` are opaque to callers. Callers do not parse `TvId` for a MAC, address, or protocol generation. `stableIdentity` tells the caller whether the television supplied this identity (so the same television keeps the same `TvId` across scans, rediscovery, and this phone's data being repaired) or whether the id was minted on this phone for a television that exposes none; see [discovery.md](discovery.md) and [data.md](data.md).
 
 No caller-facing type contains an address, MAC, token, certificate, Wi-Fi name, or raw payload.
 
@@ -222,7 +222,7 @@ Deletes pairing material, security identity, and samsung-private device records 
 
 ### `rememberedIds`
 
-Ids for which samsung-private records exist. `app` uses this at startup to retry `forget` for ids whose `localUnpairPending` flag is set. It is not a UI list, and it is not a list of remote tombstones. See [data.md](data.md).
+Ids for which samsung-private records exist. `app` uses this at startup to retry `forget` for ids whose `forgetPending` flag is set. It is not a UI list. See [data.md](data.md).
 
 ### `redactedDiagnostics`
 
@@ -277,7 +277,7 @@ Malformed television traffic is handled inside the module. Callers see the sessi
 - Main-safe. Snapshot updates are observable on the main dispatcher.
 - While `Ready`, a command write starts on the open socket. Target: no handshake and no cloud call on that path.
 - Write timeout is internal. Callers see `Accepted` or `Rejected` without a caller-supplied deadline.
-- `command` does not wait on diagnostics, Room sync, or Firebase.
+- `command` does not wait on diagnostics, local storage, licensing, or Firebase.
 - Diagnostics inside the module are enqueue-and-forget. A full diagnostic buffer drops events. It does not block `command`.
 
 ## Invariants
@@ -296,8 +296,8 @@ Malformed television traffic is handled inside the module. Callers see the sessi
 ## What callers owe the module
 
 - Do not call `discover` or `open` before the permission gate is granted, except to handle `LocalNetworkDenied` if a race loses the grant.
-- Do not call `open` when the account gate forbids continued use. The module will still work; the gate is app policy so a cloud outage cannot be enforced inside `samsung`. See [sync.md](sync.md).
-- Do not call `forget` because a remote television tombstone won. `forget` is only for a local user unpair, retried while `localUnpairPending` is set. See [sync.md](sync.md) and [data.md](data.md).
+- Do not call `open` when the account gate forbids continued use. The module will still work; the gate is app policy, so it cannot be enforced inside `samsung`. See [sync.md](sync.md).
+- Do not call `forget` because a list row disappeared. `forget` is only for a local user unpair, retried while `forgetPending` is set on a hidden row. Nothing arrives from a network source that could ask for a forget. See [data.md](data.md).
 - Do not log `TvCommand.InsertText.text`, discovery names in crash reports, or `redactedDiagnostics` fields plus extra identifiers.
 - Do not add a second Samsung client beside this interface.
 

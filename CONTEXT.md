@@ -48,6 +48,18 @@ _Avoid_: Subscription, recurring plan
 The durable customer right to continued AppT use after an authoritative one-time purchase has been validated.
 _Avoid_: Subscription, premium tier
 
+**Entitlement Backend**:
+AppT's narrow service for authentication linkage, Username, Trial state, trial eligibility markers, purchase binding, and Lifetime Entitlement. It is not a television or personalization store and holds no behavioral data.
+_Avoid_: TV backend, sync service, user profile service
+
+**Provisional Entitlement**:
+A short, non-renewable temporary local unlock granted when Google Play reports a completed purchase but AppT's backend cannot validate it yet. It is replaced by an authoritative result and never outlives its target window.
+_Avoid_: Pending purchase, trial extension, grace licence
+
+**Trial Eligibility Marker**:
+A pseudonymous, server-keyed record used only to decide whether an email identity or a device has already consumed a Trial. It contains no Username, raw email, television data, personalization, or usage history.
+_Avoid_: Device record, user identifier, fingerprint
+
 **Forget this TV**:
 The consumer action that removes this phone's local relationship with one remembered television, including its pairing and television personalization.
 _Avoid_: Remove from account, cloud delete

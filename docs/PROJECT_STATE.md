@@ -17,18 +17,18 @@ Phase: `architecture`
 
 ## Current objective
 
-Objective: `Complete the second architecture round, now including a dedicated UI/UX architecture track: information architecture, screen/state models, remote interaction design, onboarding, account/trial/purchase surfaces, accessibility, recovery, visual-system rules, plus remaining security/backend/lifecycle/reliability/migration closure.`
+Objective: `The architecture closure round (GitHub Issue #19) is complete. The remaining work is human review and explicit acceptance of the closed map. No implementation slice is authorized or dispatched.`
 
 Success condition: `Every material product/architecture decision is explicit, the detailed docs are internally consistent with docs/PRODUCT.md, docs/ARCHITECTURE.md, CONTEXT.md, and docs/HARVEST.md, the superseded TV-sync model is fully removed, and the human explicitly approves leaving architecture.`
 
 ## Active work
 
-Primary: `Architecture closure work order #19 is compiled and ready for Arena: complete frontend, licensing/backend, security, lifecycle/network, reliability, migrations, tests, release, and slice-map reconciliation. No implementation slice is active or dispatched.`
+Primary: `Architecture closure Issue #19 is executed on branch arena/01a0cb3f-appt from base commit 20b4d1ea5e837986d953b804ceb7cb9f6f0ec117. The detailed map in docs/architecture/ is internally consistent, the superseded TV-personalization sync model is removed, and implementation slices S01-S16 are defined. No implementation slice is active or dispatched.`
 
 Secondary:
 
-- Reconcile all detailed docs that still contain the superseded Firestore TV-personalization sync model.
-- Add the missing presentation/navigation, threat-model, backend-environment, Android lifecycle/network, reliability/performance, and persisted-format migration architecture.
+- Human review and explicit acceptance of the closure PR is the next gate.
+- Provider facts recorded as needs validation in docs/architecture/README.md must be confirmed during implementation.
 - Focused Samsung vendor-terms/legal review remains a pre-release gate, not an architecture blocker.
 
 ## Current decisions
@@ -86,36 +86,33 @@ Secondary:
 - `Portrait phone is the primary reference, but V1 responds correctly to rotation, landscape, foldables and tablets without a separate tablet product.`
 - `Accessibility floor includes 48dp minimum targets, scalable text, TalkBack semantics/status announcements, no color-only meaning, gesture alternatives, strong contrast, reduced-motion respect, and safe destructive-action treatment.`
 - `The known human UI/UX decision frontier is closed; remaining frontend work is technical architecture synthesis unless a real contradiction surfaces.`
+- `Architecture closure: the entitlement backend is Firebase Cloud Functions (2nd gen) with a server-only Firestore datastore, Secret Manager marker keys, a Cloud KMS proof-signing key, and Play RTDN over Pub/Sub; the Android client has no Firestore dependency.`
+- `Development, internal, and production Firebase/Cloud/Play environments are separated; production credentials never enter the repository.`
+- `AppT application data is excluded from Android backup and device transfer, so a new phone starts its remote state clean.`
+- `The implementation route is the rebuilt sixteen-slice map in docs/architecture/slices.md, which replaces the old S01-S15 route and contains no television-sync slice.`
 - `Phase transition to implementation requires explicit human approval.`
 
 ## Blockers / Unknowns
 
-- Exact entitlement backend/service and datastore shape.
-- Google Play purchase binding, restore identity, validation-outage, and integrity-failure semantics.
-- Offline paid-entitlement cache/token representation and tamper model.
-- Anti-abuse keyed-identifier rotation and backend/legal retention implementation.
-- Dev/test/production Firebase, Play Billing, Play Integrity, and backend environment separation.
-- Compile the settled UI/UX decisions into explicit presentation/navigation state contracts, responsive rules, Compose ownership, restoration behavior, and accessibility verification.
-- Formal threat model/trust boundaries for LAN control plus account/licensing infrastructure.
-- Android network/lifecycle architecture across Wi-Fi/Ethernet changes, VPNs, screen/background/process transitions, and Doze.
-- Internal reliability/performance budgets and benchmark gates.
-- Secret/private-record migration, key rotation, corruption, and app-upgrade strategy.
-- Detailed data/modules/flows/testing/release/slices docs still need reconciliation after the privacy pivot.
+- Human acceptance of the architecture closure is outstanding; the repository must stay in `Phase: architecture` until it is explicit.
+- Provider facts listed as needs validation in `docs/architecture/README.md` (Play RTDN shapes, Developer API method, `purchaseType`, Play Integrity verdicts, Android ID stability, Crashlytics opt-in and deletion semantics, KMS/JWKS rotation, email-alias normalization, contrast tooling) must be confirmed during implementation.
 - Final AppT source-license decision remains required before public distribution.
 - Focused Samsung vendor-terms/legal review must be completed before public release.
+- Physical-device evidence is required to tune the reliability targets in `docs/architecture/reliability.md`.
 
 ## Recent change
 
-- `Compiled GitHub Issue #19 as the architecture-only Arena work order to close all remaining technical architecture gaps and rebuild the implementation slice map; implementation remains unauthorized.`
+- `Executed the architecture closure: removed the superseded TV-personalization sync model from every live document, added presentation, lifecycle, reliability, security, and environment architecture, settled the account/trial/purchase/entitlement backend design, and rebuilt the implementation route as sixteen vertical slices. docs/architecture/ is internally consistent and ready for human review; implementation remains unauthorized.`
 
 ## Relevant canonical references
 
 - `docs/PRODUCT.md — approved product definition, including privacy-first account/trial/license behavior.`
-- `CONTEXT.md — canonical AppT domain language.`
+- `CONTEXT.md — canonical AppT domain language, including Entitlement Backend, Provisional Entitlement, and Trial Eligibility Marker.`
 - `docs/ARCHITECTURE.md — accepted technical baseline as revised by settled architecture decisions.`
-- `docs/architecture/README.md — detailed architecture map and reconciliation status.`
-- `docs/architecture/sync.md — current account/trial/entitlement architecture and remaining technical questions.`
-- `docs/architecture/ui-ux.md — settled product-surface architecture and frontend technical closure requirements.`
+- `docs/architecture/README.md — detailed architecture map, settled-decision ownership, invariant pointers, and the needs-validation register.`
+- `docs/architecture/sync.md — account, trial, purchase, and entitlement architecture (file name is historical).`
+- `docs/architecture/presentation.md — routes, screen state contracts, restoration, responsive rules, tokens, accessibility.`
+- `docs/architecture/slices.md — the S01–S16 implementation route.`
 - `docs/HARVEST.md — harvested research disposition: ADOPT / HARVEST / REJECT.`
 - `GitHub Issue #19 — architecture-only Arena work order for technical closure and slice-map rebuild.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
@@ -124,10 +121,10 @@ Secondary:
 
 ## Next
 
-`Run architecture closure Issue #19 in Arena, then review its pull request against the canonical product/domain/architecture/UI decisions. Do not dispatch implementation.`
+`Review the architecture closure pull request against the canonical product/domain/architecture/UI decisions, then explicitly accept or reject the architecture map. Do not dispatch implementation.`
 
 ## After that
 
-1. `Arena executes Issue #19 and returns an architecture-only pull request.`
-2. `Review and reconcile that PR against PRODUCT, ARCHITECTURE, CONTEXT, HARVEST, PROJECT_STATE, and UI/UX decisions.`
-3. `Only explicit human approval can move the project to implementation; then compile implementation slices one at a time from the accepted slice map.`
+1. `Human review of the architecture closure pull request, including the needs-validation register and the S01–S16 route.`
+2. `Record explicit acceptance or the required changes; the repository stays in Phase: architecture until acceptance.`
+3. `After explicit approval, compile implementation slices one at a time from docs/architecture/slices.md through the Arena dispatch contract.`

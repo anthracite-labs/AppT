@@ -50,7 +50,7 @@ Focus events from the television are an internal optimization. `samsung` may use
 
 ## Pointer and navigation choice
 
-When `pointer` is true, `app` offers both directional keys and touchpad. The choice is the synced preference `NavigationMode`, default `Directional`. See [data.md](data.md). When `pointer` is false, the toggle is absent and directional keys are used.
+When `pointer` is true, `app` offers both directional keys and touchpad. The choice is the device-local Interaction Preference `NavigationMode`, default `Directional`. See [data.md](data.md) and [presentation.md](presentation.md). When `pointer` is false, the toggle is absent and directional keys are used.
 
 `app` samples the touchpad and sends `PointerMove` and `PointerClick`. Gesture recognition stays in `app`. Wire mouse frames stay in `samsung`.
 
@@ -62,7 +62,7 @@ While the remote surface is started, `volumeButtonsControlTv` is true (the defau
 
 Haptics default on, subtle, and can be disabled. The preference is `hapticsEnabled`. Haptics fire on accepted local press, not after a round trip, so a cloud or television delay cannot lag the tactile response. Haptics are skipped when the user setting is off or the system asks for reduced touch feedback.
 
-Both preferences sync. See [sync.md](sync.md).
+Both preferences are device-wide and device-local. They are never account data and never leave the phone. See [data.md](data.md).
 
 ## What V1 does not command
 

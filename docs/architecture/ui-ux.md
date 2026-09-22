@@ -291,18 +291,24 @@ These are architecture requirements for every shipped product surface:
 
 ## UI/UX decision status
 
-The known human UI/UX decision frontier is closed.
+The known human UI/UX decision frontier is closed, and the technical synthesis of these decisions is complete.
 
-Technical architecture still needs to turn these decisions into:
+| Technical concern | Owning file |
+|---|---|
+| Route graph, launch routing, back behavior | [presentation.md](presentation.md#route-graph) |
+| Screen and UI-state contracts per surface | [presentation.md](presentation.md#screen-and-ui-state-contracts) |
+| Compose/ViewModel state ownership and observation rules | [presentation.md](presentation.md#composition-rules) |
+| Process-death restoration | [presentation.md](presentation.md#process-death-restoration) |
+| Rotation, foldable, tablet, and window-size behavior | [presentation.md](presentation.md#rotation-window-size-foldables-and-tablets) |
+| Thumb-first zone geometry | [presentation.md](presentation.md#thumb-first-zones) |
+| Design-token categories and binding floors | [presentation.md](presentation.md#design-tokens) |
+| Accessibility contracts and verification hooks | [presentation.md](presentation.md#accessibility-contracts-and-verification-hooks) |
+| Favourites, apps, and edit-mode behavior | [presentation.md](presentation.md#favourites-apps-and-edit-mode) |
+| Error and licensing presentation matrix | [presentation.md](presentation.md#error-and-state-presentation-matrix) |
+| Lifecycle and network transitions that preserve a Remote | [lifecycle.md](lifecycle.md) |
+| Internal performance targets for the Remote surface | [reliability.md](reliability.md) |
 
-- explicit screen and UI-state contracts;
-- navigation/back-stack/process-restoration behavior;
-- design tokens and responsive layout rules;
-- Compose state ownership and ViewModel seams;
-- accessibility test contracts;
-- end-to-end interaction/state diagrams.
+Where those files and this one disagree about what the user sees, this file wins; where they disagree about how it is built, they win. Neither is an invitation to reopen the product decisions above unless a real contradiction is discovered.
 
-Those are technical architecture tasks, not invitations to reopen the product decisions above unless a real contradiction is discovered.
-
-Implementation remains unauthorized until the remaining technical architecture is completed, reviewed, and the human explicitly exits architecture.
+Implementation remains unauthorized until the human explicitly exits architecture.
 

@@ -113,10 +113,10 @@ The `app` module does not construct raw Samsung WebSocket payloads, raw `KEY_*` 
 - Trial eligibility is constrained by privacy-minimized pseudonymous signals derived from the verified email identity and Android device, plus a random AppT install identifier. Raw television or behavioral data is not part of anti-abuse state.
 - Use **Play Integrity** for authenticity/fraud checks at appropriate entitlement actions, not as a device-tracking or behavioral system.
 - On Android, the lifetime unlock is a **Google Play one-time non-consumable product**.
-- Purchase validation must be authoritative before lifetime entitlement is granted; the exact backend deployment/service shape is finalized in the detailed architecture round.
+- Purchase validation must be authoritative before lifetime entitlement is granted. The backend is the AppT entitlement service on Firebase Cloud Functions with a server-only Firestore datastore, reached over validated HTTPS endpoints; the Android client has no Firestore dependency. See `docs/architecture/sync.md`.
 - A validated lifetime entitlement is associated with the AppT account and can be restored after sign-in on another supported Android device.
 - The entitlement model stays conceptually vendor-neutral for future iOS, but Android purchase portability to iOS is not promised.
-- Account deletion removes account-held username/trial/license data subject to required transaction/legal retention and does not delete device-local TV pairing or personalization.
+- Account deletion removes account-held username/trial/license data subject to required transaction/legal retention and does not delete device-local TV pairing or personalization. Only pseudonymous trial-eligibility markers and the minimum purchase-binding record survive deletion, and neither contains television, personalization, or behavioral data.
 - Signing out or changing accounts does not alter local television/personalization data.
 
 ## Local personalization and licensing gate
@@ -134,7 +134,7 @@ The `app` module does not construct raw Samsung WebSocket payloads, raw `KEY_*` 
 ## Diagnostics and privacy
 
 - V1 has no behavioral analytics.
-- Crash reporting: **Firebase Crashlytics**, configured without behavioral Analytics, plus a bounded/redacted local diagnostic log/export path.
+- Cloud crash reporting is **opt-in**: **Firebase Crashlytics** is configured without behavioral Analytics, collection is disabled until the user explicitly enables it, and a bounded/redacted local diagnostic log/export path always remains available.
 - Logs and reports must exclude pairing credentials, Wi-Fi names, local IP addresses, directly identifying TV data, sensitive command/text contents, and other secrets.
 - More detailed diagnostics require explicit user action.
 - Diagnostics must not sit in the TV-control critical path.
@@ -161,6 +161,7 @@ Use the highest useful seam and test external behavior rather than internal impl
 - Release artifact: Android App Bundle.
 - Production signing uses Google Play App Signing.
 - Releases move through Internal testing before deliberate promotion; production rollout is staged.
+- Development, internal, and production Firebase/Cloud, Play Billing, Play Integrity, and backend environments are separated, and production credentials never enter the repository. See `docs/architecture/release.md`.
 - Use a Gradle version catalog.
 - Pin dependency versions; no production `+` ranges or snapshots.
 - Enable dependency locking and dependency verification where practical.
@@ -189,4 +190,4 @@ These are binding unless deliberately changed by a later architecture decision:
 
 Implementation-ready detail lives in `docs/architecture/`. Start at `docs/architecture/README.md`. That directory elaborates this baseline. It does not replace it. If an elaboration conflicts with this file, this file wins until a later architecture decision changes it.
 
-The detailed map is accepted when it remains consistent with this baseline and `docs/PRODUCT.md`. Any future missing decision that could materially change product or architecture intent must still be surfaced rather than invented. The previous TV-personalization sync model is superseded: the current architecture round must replace the old sync elaboration with the privacy-first account/trial/entitlement design and update presentation, backend, security, lifecycle, performance, and migration architecture before phase exit.
+The detailed map is accepted when it remains consistent with this baseline and `docs/PRODUCT.md`. Any future missing decision that could materially change product or architecture intent must still be surfaced rather than invented. The previous TV-personalization sync model is superseded and has been removed from every live document; the map now carries the privacy-first account/trial/entitlement design plus presentation, backend, security, lifecycle, reliability, environment, and migration architecture. Remaining before phase exit: human review and explicit approval.

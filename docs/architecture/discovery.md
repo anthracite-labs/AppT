@@ -72,16 +72,16 @@ On API 29 through the T-extension where the platform does not manage multicast f
 
 | Source | Trust | Use |
 |---|---|---|
-| Protocol UUID from device-info `id` / `duid` / `udn`, after normalizing to a bare lowercase UUID | Stable correlation key when present and unchanged | `TvId` for correlatable televisions. Same television yields the same `TvId` on every phone. |
+| Protocol UUID from device-info `id` / `duid` / `udn`, after normalizing to a bare lowercase UUID | Stable correlation key when present and unchanged | `TvId` for televisions with a stable identity. The same television keeps the same `TvId` across scans, process death, and a repaired data store, because the id comes from the television rather than from this phone. |
 | TLS SPKI pin | Security identity for 8002, not a scan key | Fail-closed compare at connect. See [connection.md](connection.md). |
 | MAC | Wake only, and only when it is a real MAC for the interface we reached | Never a `TvId`. Wifi and Ethernet MACs may differ. |
 | IP address | Untrusted. Changes. | Last-address cache inside `samsung` only. Refreshed when a confirmed identity is seen at a new address. |
 | Television name | Display default only | Not an identity. User rename wins. See [data.md](data.md). |
 | Model, year, firmware | Not an identity and not a capability table | Model and firmware may appear in a user-confirmed export. They never unlock controls. |
 
-Normalization: strip a leading `uuid:`, lowercase, require a canonical UUID. That bare UUID is the `TvId` value when correlatable. `correlatable` is true only then.
+Normalization: strip a leading `uuid:`, lowercase, require a canonical UUID. That bare UUID is the `TvId` value when the television supplies one. `DiscoveredTv.stableIdentity` is true only then.
 
-If a confirmed television exposes no stable UUID, mint a device-local `TvId`, set `correlatable` false, and do not sync that television. The next scan may not reunite it with a synced name. That is accepted. Do not fall back to syncing the MAC so that correlation can succeed.
+If a confirmed television exposes no stable UUID, mint a device-local `TvId` and set `stableIdentity` false. Nothing about that television leaves the phone in any case, because no television data leaves the phone, but the caller is told the id is this phone's invention: after a data repair or a reinstall the same television cannot be recognized again, so the user may need to add it once more. Do not fall back to using the MAC as an identity to make correlation look better.
 
 `Found.remembered` is true when a samsung-private record exists for the `TvId`.
 
@@ -89,7 +89,7 @@ If a confirmed television exposes no stable UUID, mint a device-local `TvId`, se
 
 Within one scan, candidates that normalize to the same UUID are one television. Merge their addresses; keep a single card.
 
-Across scans and process death, a correlatable UUID maps to the same `TvId`. Two televisions that share a display name and have different UUIDs stay two cards. Do not merge on name. Do not disambiguate cards with IP addresses. Renaming after the user selects a television is the remedy for identical names.
+Across scans and process death, a television-supplied UUID maps to the same `TvId`. Two televisions that share a display name and have different UUIDs stay two cards. Do not merge on name. Do not disambiguate cards with IP addresses. Renaming after the user selects a television is the remedy for identical names.
 
 What a later scan may update internally: last address, MAC for the interface just seen, display name proposal. What it must not update: a user-edited friendly name, a saved token, a saved SPKI pin.
 

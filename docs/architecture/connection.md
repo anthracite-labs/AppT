@@ -2,7 +2,7 @@
 
 Caller-facing operations are `open`, `retryApproval`, `confirmRepair`, `wake`, and `command` in [samsung-interface.md](samsung-interface.md). This file is the session machine behind them.
 
-Local control after pairing does not call Firebase, does not check App Check, and does not wait for sync. A cloud outage leaves this machine unchanged.
+Local control after pairing does not call Firebase, does not check App Check, and does not wait for licensing or account checks. A cloud outage leaves this machine unchanged.
 
 ## Session
 

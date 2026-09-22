@@ -46,13 +46,13 @@ The harvested package is evidence and pattern input, not current product truth. 
 | One Gradle module per future TV brand from day one | **REJECT** | Start with lean `app` + `samsung`; add modules when real implementations exist. |
 | Full Clean Architecture layer/module tree from day one | **REJECT** | Avoid speculative `domain/data/usecase/repository` layering without demonstrated pressure. |
 | Android + iOS simultaneous V1 implementation | **REJECT** | Current delivery decision is native Android first; iOS is deferred and will be designed natively later. |
-| Fully local app with no backend/account/cloud sync | **REJECT** | Superseded by `docs/PRODUCT.md`: AppT has an account and non-secret sync, while TV control remains local-first. |
-| Cloud sync of TV pairing credentials | **REJECT** | Pairing secrets remain local to each phone. |
-| File export/import as the replacement for account sync | **REJECT** | May be useful later, but it does not replace the accepted account/sync product model. |
-| One-time premium IAP + donations as V1 monetization | **REJECT** | Superseded by product decision: V1 launches free with no required paid tier/subscription. |
+| Fully local app with no backend/account/cloud sync | **REJECT** | Superseded by `docs/PRODUCT.md`: AppT has a minimal Customer Account and licensing backend, while TV control remains local-first and television/personalization data never leaves the phone. |
+| Cloud sync of TV pairing credentials | **REJECT** | Pairing secrets remain local to each phone, and no television, personalization, or preference data is synchronized at all. |
+| File export/import as the replacement for account sync | **REJECT** | May be useful later for transfer, but it does not replace the accepted Customer Account and licensing model, and there is no television-data synchronization for it to replace. |
+| One-time premium IAP + donations as V1 monetization | **REJECT** as harvested (a free app with optional one-time premium IAP and donations) | Superseded by the current product decision: a seven-day trial followed by a required, Play-verified one-time Lifetime Entitlement, with no subscriptions, no advertising, and no donations. |
 | Advertising SDKs | **REJECT** | Explicitly outside V1 product model. |
-| ACRA + self-hosted opt-in crash reporting as the chosen implementation | **REJECT** | Current architecture chooses Crashlytics without behavioral Analytics plus redacted local diagnostics/export. The harvested privacy/redaction principles still apply. |
-| Firebase Crashlytics categorically disallowed | **REJECT** | Superseded by the accepted diagnostics decision; Crashlytics is permitted under strict data-minimization/redaction rules. |
+| ACRA + self-hosted opt-in crash reporting as the chosen implementation | **REJECT** | Current architecture chooses opt-in Crashlytics without behavioral Analytics plus always-redacted local diagnostics and explicit export. The harvested privacy/redaction principles still apply. |
+| Firebase Crashlytics categorically disallowed | **REJECT** | Superseded by the accepted diagnostics decision; Crashlytics is permitted only after explicit user opt-in and only under strict data-minimization/redaction rules. |
 | F-Droid/GitHub distribution as a committed V1 channel | **HARVEST** | Reproducibility is adopted; additional distribution channels are not committed by current product/architecture decisions. |
 | Proprietary control-path blobs such as Whisperlink | **REJECT** | Avoid opaque/proprietary dependencies in the TV-control path when an open/documented implementation path is available. |
 | Open/unauthenticated MJPEG server or equivalent mirroring listener | **REJECT** | Security anti-pattern; not part of V1. |
@@ -70,7 +70,7 @@ The attached package included nine ADRs written for an earlier product concept. 
 | ADR-0004 IR honesty | **HARVEST** for future IR scope |
 | ADR-0005 Flipper-IRDB/import/learn | **HARVEST** for future IR scope |
 | ADR-0006 pairing/secrets/Keystore | **ADOPT** |
-| ADR-0007 one-time premium monetization | **REJECT** for V1 |
+| ADR-0007 one-time premium monetization | **REJECT** as written (it paired premium IAP with donations in a free app); the current product decision is a Play-verified one-time Lifetime Entitlement after a seven-day trial |
 | ADR-0008 omit mirroring from V1; secure it if later | **ADOPT** |
 | ADR-0009 ACRA/self-hosted crash reporting | **REJECT** as implementation choice; retain its data-minimization intent |
 
