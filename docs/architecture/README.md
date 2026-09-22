@@ -73,10 +73,14 @@ Clean-room reimplementation is the one HARVEST practice used while building V1 p
 
 No REJECT row is reintroduced. Diagnostic share is not file-sync. Crashlytics is the accepted reporter, not ACRA. There is no `TvAdapter`, no per-brand module, no iOS runtime, no credential sync, no ads, no listening mirror, and no F-Droid commitment.
 
-## Unresolved decisions
+## Settled account and pairing semantics
 
-Different-account sign-in on a phone that already has local data is not decided. Holding behavior and the exact decision needed are in [sync.md](sync.md). Do not invent merge, replace, or wipe behavior for that case.
+The owning product decisions are in `docs/PRODUCT.md`; [sync.md](sync.md) makes them executable:
 
-Whether deleting a television on one signed-in phone also unpairs other phones is not decided. Pairing may stay strictly local, with only non-secret synced state removed, or other phones may unpair. Holding behavior does not delete device-local pairing secrets. The exact decision is in [sync.md](sync.md). Do not choose it.
+- the first successful command does not interrupt the active first remote session; after that session ends, the next remote entry requires sign-in;
+- switching to a different account requires explicit confirmation, replaces account-scoped non-secret local state instead of merging it, and preserves device-local pairing material;
+- synchronized television deletion removes shared non-secret metadata but never remotely unpairs another phone; only an explicit local forget removes that phone's pairing.
+
+There are no remaining human account/pairing decisions blocking the implementation slice map.
 
 Pre-existing and not blockers for this map: Samsung vendor-terms review before public release, and confirmation of the final source license before public distribution. The repository contains an MIT `LICENSE` file; `docs/HARVEST.md` still treats the final license as undecided. This map does not choose it.
