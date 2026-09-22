@@ -23,7 +23,7 @@ Success condition: `Every material product/architecture decision is explicit, th
 
 ## Active work
 
-Primary: `Technical architecture closure and reconciliation across frontend, licensing/backend, security, lifecycle/network, reliability, migrations, tests, release, and slices. No implementation slice is active or dispatched.`
+Primary: `Architecture closure work order #19 is compiled and ready for Arena: complete frontend, licensing/backend, security, lifecycle/network, reliability, migrations, tests, release, and slice-map reconciliation. No implementation slice is active or dispatched.`
 
 Secondary:
 
@@ -106,7 +106,7 @@ Secondary:
 
 ## Recent change
 
-- `Closed the known human UI/UX decision frontier: thumb-first Remote zoning, minimal TV cards, compact favourites/apps, explicit gesture rules, responsive Android layouts, and accessibility/visual-system floor are now settled.`
+- `Compiled GitHub Issue #19 as the architecture-only Arena work order to close all remaining technical architecture gaps and rebuild the implementation slice map; implementation remains unauthorized.`
 
 ## Relevant canonical references
 
@@ -117,16 +117,17 @@ Secondary:
 - `docs/architecture/sync.md — current account/trial/entitlement architecture and remaining technical questions.`
 - `docs/architecture/ui-ux.md — settled product-surface architecture and frontend technical closure requirements.`
 - `docs/HARVEST.md — harvested research disposition: ADOPT / HARVEST / REJECT.`
+- `GitHub Issue #19 — architecture-only Arena work order for technical closure and slice-map rebuild.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
 - `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
 - `AGENTS.md — repository operating entry point.`
 
 ## Next
 
-`Compile and reconcile the remaining technical architecture; no further human product questioning is expected unless the technical review exposes a material contradiction. Do not dispatch implementation.`
+`Run architecture closure Issue #19 in Arena, then review its pull request against the canonical product/domain/architecture/UI decisions. Do not dispatch implementation.`
 
 ## After that
 
-1. `Compile one architecture-only work order covering the remaining technical closure without reopening settled product decisions.`
-2. `Review and reconcile the resulting architecture map against PRODUCT, ARCHITECTURE, CONTEXT, HARVEST, and UI/UX decisions.`
-3. `Only explicit human approval can move the project to implementation.`
+1. `Arena executes Issue #19 and returns an architecture-only pull request.`
+2. `Review and reconcile that PR against PRODUCT, ARCHITECTURE, CONTEXT, HARVEST, PROJECT_STATE, and UI/UX decisions.`
+3. `Only explicit human approval can move the project to implementation; then compile implementation slices one at a time from the accepted slice map.`
