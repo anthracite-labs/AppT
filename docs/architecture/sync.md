@@ -67,7 +67,7 @@ Do not use television identifiers, LAN addresses, TV names, remote commands, fav
 
 Do not expose raw anti-abuse source identifiers as general profile fields.
 
-Play Integrity may be evaluated at trial activation and purchase/restore validation to establish app/device authenticity and abuse risk. It is not a tracking identifier and is not retained as behavioral history.
+Play Integrity may be evaluated at trial activation and purchase/restore validation to establish app/device authenticity and abuse risk. Use it proportionally: genuine app/install integrity is required for trial activation and new purchase processing; weaker device-integrity signals may deny a free trial or trigger stricter checks, but do not by themselves revoke an already validated lifetime entitlement or block a legitimate restore supported by authoritative purchase evidence. It is not a tracking identifier and is not retained as behavioral history.
 
 Pseudonymous email/device trial-used markers may survive ordinary account deletion for as long as the free-trial program exists. They must not contain username, raw email, television data, personalization, diagnostics, or behavioral history. Key rotation and the exact backend record shape remain technical architecture work.
 
@@ -75,7 +75,7 @@ Pseudonymous email/device trial-used markers may survive ordinary account deleti
 
 Android V1 uses a Google Play one-time non-consumable product.
 
-A purchase does not become a lifetime AppT entitlement merely because the client reports success. Authoritative purchase validation is required before granting the account entitlement.
+A purchase does not become a lifetime AppT entitlement merely because the client reports success. Authoritative purchase validation is required before granting the account entitlement. The first authoritative association binds that purchase to one Customer Account and it is not freely movable among unrelated accounts.
 
 Once a lifetime entitlement has been validated and cached on the phone:
 
@@ -84,7 +84,7 @@ Once a lifetime entitlement has been validated and cached on the phone:
 - signing out does not erase TV pairing or local personalization;
 - signing back into the entitled account restores the account entitlement on another supported Android device.
 
-Network failure never removes a previously validated entitlement. If the backend later obtains an explicit authoritative refunded/revoked purchase result while online, apply that revocation on the next remote entry; do not interrupt an already active remote.
+Network failure never removes a previously validated entitlement. If Google Play reports a genuine `PURCHASED` transaction but AppT's authoritative validator is temporarily unavailable, the client may grant a short, non-renewable provisional entitlement (architecture target: 24 hours) while validation retries. A validator rejection ends provisional access on the next remote entry, never mid-session. If the backend later obtains an explicit authoritative refunded/revoked purchase result while online, apply that revocation on the next remote entry; do not interrupt an already active remote.
 
 V1 has no paid-device registry or fixed device cap. Any supported Android device legitimately signed into the entitled customer account may restore the entitlement.
 
@@ -94,7 +94,7 @@ Future iOS may map a platform purchase to the same conceptual lifetime entitleme
 
 ## Account switching
 
-Changing the signed-in AppT account changes only account identity, username, trial/license state, and entitlement UI.
+Changing the signed-in AppT account changes only account identity, username, trial/license state, and entitlement UI. Explicit sign-out requires sign-in again before the next new remote entry, even when a lifetime entitlement had previously been cached; an already active remote session is allowed to finish.
 
 It does not clear or replace Room TV data, DataStore remote preferences, Samsung-private device records, or pairing secrets.
 
@@ -128,6 +128,8 @@ It does not receive:
 
 That phone discovers, pairs, names, and customizes TVs independently.
 
+A trial follows the Customer Account across phones with the original server-authoritative expiry. Signing into the trial account on another phone does not reset the seven days. That participating device is also marked as having consumed a trial.
+
 ## Account and entitlement lifecycle
 
 ```mermaid
@@ -157,6 +159,6 @@ Before this map is implementation-ready, resolve and record:
 - dev/test/production backend and Firebase/Play environment separation;
 - account deletion retention requirements;
 - threat model and trust boundaries for account/licensing infrastructure;
-- presentation state/navigation for account, trial countdown/expiry, purchase, restore, offline paid use, and backend failure.
+- presentation state/navigation for account, trial countdown/expiry, low-pressure purchase/restore, offline paid use, provisional purchase validation, sign-out, and backend failure.
 
 No implementation slice may recreate the removed TV-personalization sync model.
