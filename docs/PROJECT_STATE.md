@@ -17,53 +17,57 @@ Phase: `architecture`
 
 ## Current objective
 
-Objective: `Define the V1 application architecture and stack from AppT's approved product constraints, without preselecting a framework or runtime.`
+Objective: `Complete the V1 architecture map from the accepted Android/Samsung-first baseline so implementation can later be dispatched in vertical, verifiable slices.`
 
-Success condition: `An evidence-backed architecture decision compares viable approaches against AppT's Samsung-control, local-first, security, account-sync, reliability, and cross-platform requirements, then records the selected direction and its trade-offs.`
+Success condition: `Canonical architecture documents define the application/Samsung seams, state machines, data and sync ownership, security rules, testing/release structure, and an end-to-end implementation slice map without reopening settled product decisions or inventing material new architecture intent.`
 
 ## Active work
 
-Primary: `V1 application architecture and stack definition`
+Primary: `End-to-end V1 architecture mapping and implementation-slice design from the accepted baseline.`
 
 Secondary:
 
-- Samsung control integration constraints relevant to the application architecture.
-- Account/sync boundary design, preserving device-local pairing credentials and offline local control.
+- Samsung discovery, pairing, identity, capability, protocol, and reconnect details.
+- Account/sync schema and security rules while preserving local-first control and device-local pairing secrets.
 - Focused Samsung vendor-terms/legal review remains a pre-release gate, not an architecture blocker.
 
 ## Current decisions
 
-- `Product discovery is complete; docs/PRODUCT.md is the approved product definition and the canonical input to architecture.`
-- `AppT is a Universal TV Remote for ordinary consumers — docs/PRODUCT.md`
-- `Samsung Smart TVs are the first intentionally targeted ecosystem; other TVs may be experimentally probed with explicit user consent before functional commands — docs/PRODUCT.md`
-- `Android and iPhone are V1 targets when architecture can support both without compromising reliability; Android-first is an acceptable fallback — docs/PRODUCT.md`
-- `TV control is local-first and continues when AppT services or internet access are unavailable — docs/PRODUCT.md`
-- `An account is part of the product, but first successful local control is not gated by sign-in; account sync excludes pairing secrets — docs/PRODUCT.md`
-- `V1 is free, with no advertising, behavioral usage analytics, or required paid tier/subscription — docs/PRODUCT.md`
+- `Product discovery is complete; docs/PRODUCT.md is the approved product definition.`
+- `The accepted V1 technical baseline is recorded in docs/ARCHITECTURE.md.`
+- `Android-native is first; Kotlin + Compose + ViewModel/Coroutines/StateFlow; iOS is deferred and not an Android architecture constraint.`
+- `Start with lean app + samsung modules; the Samsung implementation is deep and a universal TV seam waits for ecosystem #2.`
+- `Room is local truth; Firebase Authentication + Cloud Firestore provide account/non-secret sync; pairing secrets never sync.`
+- `The harvest-matrix research has been reconciled explicitly in docs/HARVEST.md using ADOPT / HARVEST / REJECT.`
+- `Implementation must later be dispatched in vertical slices after the architecture map is accepted.`
 
 ## Blockers / Unknowns
 
-- Which application architecture and stack best satisfy Samsung discovery/control, TLS/security, secure credential storage, app lifecycle, reliability, and cross-platform requirements.
-- Exact Samsung protocol/device-generation behavior that AppT will support in V1.
-- Final account/backend architecture and synchronization model.
+- Concrete `app` ↔ `samsung` interface and Samsung discovery/pairing/connection/capability state models.
+- Exact Samsung protocol/device-generation behavior and persistent identity behavior that V1 will support.
+- Concrete Room/DataStore/Keystore ownership model and Firestore schema, sync/version/deletion strategy, and Security Rules.
+- Final AppT source-license decision is not required to complete the V1 runtime architecture but must be resolved before public distribution if it affects dependency/provenance choices.
 - Focused Samsung vendor-terms/legal review must be completed before public release.
 
 ## Recent change
 
-- `Product discovery completed with docs/PRODUCT.md approved; the project advanced to architecture.`
+- `The 24 architecture choices and the harvest/adopt/reject register were promoted into canonical architecture inputs; the next architecture task is detailed end-to-end mapping rather than further stack selection.`
 
 ## Relevant canonical references
 
 - `docs/PRODUCT.md — approved AppT product definition and product constraints.`
+- `docs/ARCHITECTURE.md — accepted V1 architecture baseline and invariants.`
+- `docs/HARVEST.md — harvested research disposition: ADOPT / HARVEST / REJECT.`
 - `.agents/CAPABILITIES.md — routing for planning, architecture, implementation, and review work.`
+- `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
 - `AGENTS.md — repository operating entry point.`
 
 ## Next
 
-`Define and select the V1 application architecture and stack from the approved product constraints and Samsung-first control requirements, recording the decision and trade-offs in the appropriate canonical architecture artifact.`
+`Dispatch one Arena architecture-mapping Issue to turn the accepted baseline into an implementation-ready end-to-end architecture and vertical slice map, resolving routine technical gaps within the decided boundaries and surfacing any material missing decision as a blocker.`
 
 ## After that
 
-1. `Design the Samsung integration boundary and account/local-data seams from the accepted product and architecture decisions.`
-2. `Formalize decided implementation work for dispatch only after those boundaries are settled.`
-3. `Move into implementation when the architecture and implementation boundaries are sufficiently decided.`
+1. `Review the Arena architecture PR against docs/PRODUCT.md, docs/ARCHITECTURE.md, docs/HARVEST.md, and codebase-design principles.`
+2. `Accept the completed architecture map and move the project to implementation only when the remaining material architecture gaps are closed.`
+3. `Dispatch implementation as small vertical slices with explicit seams, acceptance criteria, verification, and dependencies.`
