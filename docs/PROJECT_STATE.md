@@ -68,6 +68,17 @@ Secondary:
 - `TV/personalization state is excluded from Android backup/device transfer; a new phone starts its remote state clean.`
 - `The same seven-day trial follows the account across phones with the original expiry; participating devices are marked as trial-consumed.`
 - `Trial/purchase UX is low-pressure and never interrupts an active remote session.`
+- `UI/UX architecture is now a dedicated architecture track; docs/architecture/ui-ux.md owns the product-surface map.`
+- `Visual direction combines a friendly consumer-facing mascot/brand layer with a premium restrained dark-first everyday remote theme.`
+- `The everyday Remote has no persistent bottom navigation; the remote remains the dominant surface.`
+- `Remote customization is fixed core + reorderable/favouritable secondary controls; core muscle-memory controls keep stable placement.`
+- `When supported, D-pad and Touchpad switch in-place within the central navigation surface.`
+- `TV switching from Remote uses the current-TV affordance and a remembered-TV bottom sheet with Add TV; swipe-between-TVs is rejected.`
+- `Onboarding is one concise Welcome screen with brand/mascot personality, privacy/local-control reassurance, then local-network explanation and bounded discovery.`
+- `Pairing is a dedicated focused state that directs the user to approve AppT on the television and transitions directly into Remote on success.`
+- `Account/trial/purchase uses full-screen continuation/gate surfaces outside active Remote; during trial payment UX is low-pressure and does not dominate the remote.`
+- `Settings is one conventional grouped screen; contextual actions may deep-link into it.`
+- `Failure UX stays in context and presents the next useful recovery action; modal/full-screen interruption is reserved for genuinely blocking states.`
 - `Phase transition to implementation requires explicit human approval.`
 
 ## Blockers / Unknowns
@@ -104,7 +115,7 @@ Secondary:
 
 ## Next
 
-`Resolve the UI/UX architecture choices, then move to technical architecture closure; do not dispatch implementation.`
+`Resolve the final UI/UX frontier (control zoning, TV cards, favourites/apps, gestures, responsiveness, accessibility/visual-system constraints), then move to technical architecture closure; do not dispatch implementation.`
 
 ## After that
 
