@@ -581,7 +581,7 @@ The central risk is specialized complexity. Rust/C++ could make protocol state a
 10. **LG public-contract gap:** Current LG developer pages/forum material did not provide a formal public SSAP remote reference; port, certificate, pointer, and client-key details come from maintained community implementations and Home Assistant. These are useful empirical evidence but not LG support guarantees. [V02] [V03] [V04] [V05]
 11. **Android/Google TV age/status gap:** AOSP’s accessible Polo repository is an older implementation/message source, while current Remote Protocol v2 behavior comes from maintained reverse-engineered code and integrations. The attempted AOSP README path was unavailable, no current public third-party remote contract was established, and no AppT device validation exists. [V06] [V07] [V08]
 12. **Home Assistant transfer gap:** Its vendor-specific coordinators/config flows demonstrate empirical decomposition, but Home Assistant is a long-running server/integration host rather than a foreground phone app. It does not settle AppT session placement or lifecycle behavior. [V03] [V08] [V09]
-13. **Source-register provenance:** Current pages were rechecked on 2026-09-22; no unverified commit/hash is asserted for maintained implementations. The Compose Multiplatform page currently reports 1.12.1, so an older 1.12.0 snapshot should not be carried forward. [S54]
+13. **Source-register provenance:** Current pages were rechecked on 2026-09-22; no unverified commit/hash is asserted for maintained implementations. The correction-time Compose Multiplatform page reports 1.12.1, and the official release list now marks 1.12.1 as latest; 1.12.0 is the preceding stable release and 1.13.0-alpha01 is prerelease. The earlier 1.12.0 verification was therefore superseded by the official 1.12.1 release rather than contradicted by a second current page. [S54] [S66]
 
 ## 14. Proposed risk-reducing experiments
 These are deliberately narrow investigations for a later prototype/validation phase. They are not authorization to add a disposable prototype in this discovery change.
@@ -816,7 +816,7 @@ These findings do not select a stack, a session owner, or a final universal inte
 - **[S51]** Kotlin Multiplatform, “KMP for iOS,” native/shared-code model and Swift integration, last modified 2026-08-05, observed 2026-09-22. <https://kotlinlang.org/docs/multiplatform/kmp-for-ios.html>
 - **[S52]** Ktor, “Client engines,” multiplatform Android/Darwin/CIO/WebSocket capability matrix, Ktor 3.6.0 docs observed 2026-09-22. <https://ktor.io/docs/client-engines.html>
 - **[S53]** Kotlin Multiplatform, “Test your multiplatform app,” common/platform test model, observed 2026-09-22. <https://kotlinlang.org/docs/multiplatform/multiplatform-run-tests.html>
-- **[S54]** Kotlin Multiplatform, “Compatibility and versions,” live recheck reports Compose Multiplatform **1.12.1** (not the earlier review snapshot’s 1.12.0), with platform/compiler/version information; last modified and observed 2026-09-22. No unverified commit/hash is asserted. <https://kotlinlang.org/docs/multiplatform/compose-compatibility-and-versioning.html>
+- **[S54]** Kotlin Multiplatform, “Compatibility and versions,” correction-time recheck reports Compose Multiplatform **1.12.1**, with platform/compiler/version information; page last modified and observed 2026-09-22. The earlier independent 1.12.0 observation was made before the current 1.12.1 release; no unverified commit/hash is asserted. <https://kotlinlang.org/docs/multiplatform/compose-compatibility-and-versioning.html>
 - **[S55]** Microsoft Learn, “What is .NET MAUI?,” native-capable C#/XAML cross-platform model, .NET MAUI 10 docs observed 2026-09-22. <https://learn.microsoft.com/en-us/dotnet/maui/what-is-maui?view=net-maui-10.0>
 - **[S56]** Microsoft Learn, “Secure storage,” `ISecureStorage`, Android backup and iOS keychain platform differences, .NET MAUI 10 docs observed 2026-09-22. <https://learn.microsoft.com/en-us/dotnet/maui/platform-integration/storage/secure-storage?view=net-maui-10.0&tabs=android>
 - **[S57]** Capacitor, “Development Workflow,” native project/build/plugin model, current v8 docs observed 2026-09-22. <https://capacitorjs.com/docs/basics/workflow>
@@ -828,6 +828,7 @@ These findings do not select a stack, a session owner, or a final universal inte
 - **[S63]** Apple Developer, “XCTest,” unit, performance, UI, asynchronous, and accessibility-oriented test framework documentation observed 2026-09-22. <https://developer.apple.com/documentation/xctest>
 - **[S64]** Android Developers, “Android Basics with Compose,” current Android Studio/Kotlin/Compose, device/emulator, state, and unit-test training observed 2026-09-22. <https://developer.android.com/courses/android-basics-compose/course>
 - **[S65]** Android Developers, “Test apps on Android,” local/instrumented/UI testing guidance observed 2026-09-22. <https://developer.android.com/training/testing>
+- **[S66]** JetBrains, official `compose-multiplatform` GitHub releases listing, correction-time recheck observed 2026-09-22: 1.12.1 marked **Latest** and released 22 September 2026; 1.12.0 released 25 August 2026; 1.13.0-alpha01 marked **Pre-release**. First-party release provenance. <https://github.com/JetBrains/compose-multiplatform/releases>
 
 ## 18. Harvest Matrix provenance boundary
 
@@ -838,7 +839,7 @@ Harvest Matrix history is treated as a stale, different product concept. Only th
 - LG’s current developer pages/forum context plus maintained `lgtv2`, other community clients, and Home Assistant evidence for SSDP, client-key pairing, SSAP push, pointer input, app operations, and wake limitations.
 - AOSP’s accessible older Google TV pairing repository/protobuf definitions plus maintained `androidtvremote2` and Home Assistant evidence for current-looking certificate/protobuf behavior; current public third-party API status remains unresolved.
 - Home Assistant’s separate vendor integrations as empirical evidence for adapter-specific config flows, coordinators/transports, diagnostics, and capability-specific features—not as an AppT architecture decision.
-- The live Compose Multiplatform compatibility page, rechecked 2026-09-22, which reports 1.12.1.
+- The live Compose Multiplatform compatibility page and official release listing, rechecked 2026-09-22: 1.12.1 is the current/latest release; 1.12.0 is the preceding stable release and 1.13.0-alpha01 is prerelease. [S54] [S66]
 
 The following Harvest assumptions are explicitly rejected and were not imported into this report or the canonical product/project-state files:
 
