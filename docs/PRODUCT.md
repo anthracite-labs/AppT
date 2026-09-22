@@ -58,7 +58,7 @@ The account is **not** a television or personalization profile.
 
 AppT does not sync or store television identities, friendly television names, favourites, remote layouts, preferences, last-used television, pairing state, pairing credentials, diagnostic history, or remote-use history in the customer account/backend.
 
-TV pairing, remembered televisions, television names, favourites, remote arrangement, and settings remain device-local. A second phone signed into the same customer account receives the customer's username and license entitlement, but it pairs and configures televisions independently.
+TV pairing, remembered televisions, television names, favourites, remote arrangement, and settings remain device-local. They are excluded from Android cloud backup and device-to-device restoration so a new phone starts its remote state clean. A second phone signed into the same customer account receives the customer's username and license entitlement, but it pairs and configures televisions independently.
 
 Google sign-in is the primary account path. A verified Google identity creates or signs into the AppT customer account without a separate registration form. Email/password remains a fallback, but its email address must be verified before that account can activate a free trial. A Google display name may be suggested as the initial username, but the user may edit it. The username is a non-unique display name, not a login identifier or public handle. AppT does not copy unrelated Google profile data into the customer account.
 
@@ -68,13 +68,13 @@ First-run prioritizes demonstrating product value before account creation:
 
 Account requirements must not prevent the user from reaching the first successful local-control experience. The first successful command does not interrupt that active remote session. After that active remote session ends, the next remote entry requires an AppT account.
 
-The seven-day trial begins from a server timestamp when the account first activates its trial. Trial abuse prevention may use privacy-minimized, pseudonymous eligibility signals derived from the verified email identity and this Android device, plus Play Integrity for authenticity checks. Raw television or behavioral data is never part of trial eligibility.
+The seven-day trial begins from a server timestamp when the account first activates its trial. The same trial follows that account to another phone with the original expiry; signing in on another phone does not create a new seven-day window. A participating phone is also marked as having consumed a trial so it cannot later be used to create a second trial through another account. Trial abuse prevention may use privacy-minimized, pseudonymous eligibility signals derived from the verified email identity and this Android device, plus Play Integrity for authenticity checks. Raw television or behavioral data is never part of trial eligibility.
 
 Creating another account or reinstalling AppT does not grant another trial when the same verified email identity or recognized Android device has already consumed one. One Android device receives one AppT trial total unless support explicitly clears an abuse marker for a legitimate exceptional case such as a second-hand device. V1 does not depend on Play Integrity Device Recall. A customer who is not trial-eligible may still sign in, restore a lifetime entitlement, or purchase one.
 
 Deleting an AppT account permanently deletes the account and ordinary account-held username/trial/license profile records subject to required transaction/legal retention. Minimal pseudonymous "trial already used" eligibility markers may remain for as long as AppT operates the free-trial program so account deletion cannot be used to reset trial eligibility. Those markers contain no username, raw email, TV data, personalization, or usage history. Device-local television pairing and personalization remain on the phone because they do not belong to the account. The user may separately forget televisions or clear app data.
 
-Signing out or switching accounts does not erase, merge, upload, or replace local television/personalization data. Account identity and license state are separate from the phone's local remote state.
+Signing out or switching accounts does not erase, merge, upload, or replace local television/personalization data. Account identity and license state are separate from the phone's local remote state. Explicit sign-out ends licensed access for new remote entries until the customer signs in again, but it does not delete the locally cached entitlement proof, TVs, pairing, or personalization, and it never interrupts an already active remote session.
 
 ## Samsung-first strategy
 
@@ -174,6 +174,8 @@ The exact Samsung protocol and vendor-terms position receives focused legal/vend
 
 V1 has **no behavioral usage analytics**.
 
+Cloud crash reporting is opt-in rather than automatic. AppT always keeps a bounded, already-redacted local diagnostic buffer. A customer may explicitly enable anonymous crash reporting in Settings or explicitly share a redacted Request Support report. Crash data must not be tied to username, account id, email, television id, network identifiers, command/text content, or another persistent user identifier.
+
 Privacy-safe crash and error reporting is acceptable when it excludes sensitive information such as:
 
 - pairing credentials;
@@ -198,11 +200,13 @@ V1 uses a **seven-day free trial per eligible customer/device**, followed by a *
 
 There is no advertising and no subscription.
 
-On Android, the lifetime unlock is purchased as a Google Play one-time non-consumable product. After AppT validates the purchase, the lifetime entitlement is associated with the AppT customer account so it can be restored on another supported Android device after sign-in. V1 has no paid-device roster or fixed device cap.
+Trial/purchase UX is low-pressure: show the exact remaining trial time in account/settings surfaces, do not interrupt remote control with purchase prompts, allow at most a lightweight reminder near expiry, and after expiry gate the next remote entry with clear **Buy once** and **Restore purchase** actions. No artificial urgency, repeated nags, or subscription-style dark patterns.
+
+On Android, the lifetime unlock is purchased as a Google Play one-time non-consumable product. After AppT validates the purchase, the lifetime entitlement is associated with one AppT Customer Account so it can be restored on another supported Android device after sign-in. A purchase is not freely movable between unrelated AppT accounts. V1 has no paid-device roster or fixed device cap.
 
 The entitlement model should remain conceptually vendor-neutral for a future iPhone implementation, but V1 does not promise that an Android purchase unlocks a future iOS version.
 
-A customer with a validated lifetime entitlement keeps local remote control offline indefinitely; licensing infrastructure must not become a recurring dependency for paid local control. Network failure never removes a previously validated entitlement. If AppT later receives an authoritative refunded/revoked result while online, that revocation applies on the next remote entry and does not interrupt an already active remote session. Deleting an AppT account does not destroy the underlying Google Play purchase: a legitimate purchaser may use Restore Purchase after recreating/signing into the appropriate AppT identity.
+A customer with a validated lifetime entitlement keeps local remote control offline indefinitely; licensing infrastructure must not become a recurring dependency for paid local control. If Google Play reports a genuine purchase but AppT's authoritative validator is temporarily unavailable, AppT may grant a short non-renewable provisional entitlement while retrying validation so a paying customer is not blocked by AppT infrastructure. Network failure never removes a previously validated entitlement. If AppT later receives an authoritative refunded/revoked result while online, that revocation applies on the next remote entry and does not interrupt an already active remote session. Deleting an AppT account does not destroy the underlying Google Play purchase: a legitimate purchaser may use Restore Purchase after recreating/signing into the appropriate AppT identity.
 
 ## Product name
 

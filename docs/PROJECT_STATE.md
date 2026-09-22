@@ -17,13 +17,13 @@ Phase: `architecture`
 
 ## Current objective
 
-Objective: `Complete the second architecture round: reconcile the privacy-first licensing model, product/domain architecture, presentation/navigation, security, backend deployment, lifecycle/network behavior, reliability budgets, and persisted-format migration before any implementation transition.`
+Objective: `Complete the second architecture round, now including a dedicated UI/UX architecture track: information architecture, screen/state models, remote interaction design, onboarding, account/trial/purchase surfaces, accessibility, recovery, visual-system rules, plus remaining security/backend/lifecycle/reliability/migration closure.`
 
 Success condition: `Every material product/architecture decision is explicit, the detailed docs are internally consistent with docs/PRODUCT.md, docs/ARCHITECTURE.md, CONTEXT.md, and docs/HARVEST.md, the superseded TV-sync model is fully removed, and the human explicitly approves leaving architecture.`
 
 ## Active work
 
-Primary: `Human decision tree for the remaining architecture frontier, followed by technical architecture closure. No implementation slice is active or dispatched.`
+Primary: `UI/UX architecture decision tree, followed by technical architecture closure. No implementation slice is active or dispatched.`
 
 Secondary:
 
@@ -60,6 +60,14 @@ Secondary:
 - `Forget this TV is the consumer action that removes this phone's local pairing and TV personalization only.`
 - `Favourites/secondary-control order are per-TV and local; haptics, physical volume-button behavior, and preferred navigation mode are device-wide and local.`
 - `The previous Firestore TV-personalization sync architecture is superseded and must not reappear in implementation.`
+- `Explicit sign-out requires sign-in again before a new remote entry; active remote sessions are not interrupted.`
+- `One Google Play lifetime purchase binds to one Customer Account; it is not freely transferable among unrelated AppT accounts.`
+- `A genuine Play purchase may receive a short non-renewable provisional entitlement if AppT validation infrastructure is temporarily unavailable.`
+- `Play Integrity is used proportionally for anti-abuse and authenticity, not as a blanket paid-entitlement confiscation mechanism.`
+- `Cloud crash reporting is opt-in; local redacted diagnostics always remain available.`
+- `TV/personalization state is excluded from Android backup/device transfer; a new phone starts its remote state clean.`
+- `The same seven-day trial follows the account across phones with the original expiry; participating devices are marked as trial-consumed.`
+- `Trial/purchase UX is low-pressure and never interrupts an active remote session.`
 - `Phase transition to implementation requires explicit human approval.`
 
 ## Blockers / Unknowns
@@ -69,7 +77,7 @@ Secondary:
 - Offline paid-entitlement cache/token representation and tamper model.
 - Anti-abuse keyed-identifier rotation and backend/legal retention implementation.
 - Dev/test/production Firebase, Play Billing, Play Integrity, and backend environment separation.
-- Complete presentation/navigation state architecture for remote-first launch, trial/account/purchase/restore, failures, process death, and recovery.
+- Complete UI/UX and presentation/navigation architecture for remote-first launch, onboarding, remote layout, TV switching, settings, trial/account/purchase/restore, failures, process death, accessibility, and recovery.
 - Formal threat model/trust boundaries for LAN control plus account/licensing infrastructure.
 - Android network/lifecycle architecture across Wi-Fi/Ethernet changes, VPNs, screen/background/process transitions, and Doze.
 - Internal reliability/performance budgets and benchmark gates.
@@ -96,7 +104,7 @@ Secondary:
 
 ## Next
 
-`Resolve the eight remaining human architecture choices, then move to technical architecture closure; do not dispatch implementation.`
+`Resolve the UI/UX architecture choices, then move to technical architecture closure; do not dispatch implementation.`
 
 ## After that
 
