@@ -118,6 +118,8 @@ The last-used television normally reopens automatically, with reconnection occur
 
 Changes to local IP addresses are handled through rediscovery rather than requiring users to manage addresses manually.
 
+Remembered-TV surfaces use friendly names and ordinary-language states such as Ready, Connecting, Offline, or Needs pairing. Technical network/protocol identifiers are never part of the ordinary TV list.
+
 ## Remote experience
 
 The remote should be immediately recognizable but designed for a phone rather than visually copying a physical remote. After setup AppT is remote-first: normal launch attempts to reopen the last-used television rather than landing on a dashboard.
@@ -136,9 +138,9 @@ Everyday controls remain prominent and keep stable positions for muscle memory. 
 
 Simple favourites and control rearrangement are appropriate for V1. Favourites and secondary-control order are per television and device-local. Interaction preferences such as haptics, physical volume-button behavior, and preferred navigation mode are device-wide and device-local. A full remote-layout designer is not required.
 
-One-handed use is a first-class design requirement. The everyday Remote does not carry persistent bottom navigation; television switching and secondary destinations use compact, contextual affordances so the control surface retains the screen.
+One-handed use is a first-class design requirement. The everyday Remote does not carry persistent bottom navigation; television switching and secondary destinations use compact, contextual affordances so the control surface retains the screen. High-frequency controls occupy the thumb-friendly central/lower region, while power is deliberately isolated toward the top to reduce accidental activation.
 
-Accessibility is first-class, including screen-reader support, scalable text, strong contrast, large touch targets, and clear labels.
+Accessibility is first-class, including screen-reader support, scalable text without clipping/overlap, strong contrast, interactive targets of at least 48dp, clear labels/roles/state announcements, no color-only meaning, alternatives for gesture interactions, and respect for reduced-motion preferences.
 
 ## Applications and shortcuts
 
@@ -146,7 +148,7 @@ When the television exposes installed or launchable applications, AppT discovers
 
 AppT may also provide curated familiar shortcuts such as major streaming services, but only when it has confirmed that the corresponding application is actually launchable on the connected television.
 
-Users can favourite or rearrange these shortcuts.
+Users can favourite or rearrange these shortcuts. Remote exposes only a compact favourite subset; a fuller secondary surface contains the rest of the confirmed launchable apps and secondary controls.
 
 Dead or knowingly unavailable app buttons are not presented.
 

@@ -185,15 +185,124 @@ Examples:
 
 Use a full-screen blocking state only when continuing the current flow is genuinely impossible.
 
-## Open UI/UX frontier
+## Control zoning and one-handed reach
 
-The remaining human decisions are:
+Portrait phone is the primary reference.
 
-- exact control zoning and thumb-reach model;
-- television card/list visual information;
-- favourites/apps surface behavior;
-- gesture rules;
-- phone orientation / large-screen responsiveness;
-- accessibility and visual-system constraints that need product-level choices.
+The everyday control surface is **thumb-first**:
 
-Implementation remains unauthorized until this frontier and the remaining technical architecture are closed and the human explicitly exits architecture.
+- current TV, lightweight status, TV switch, Settings, and power occupy the upper region;
+- power is spatially isolated from high-frequency controls to reduce accidental activation;
+- the primary navigation surface occupies the central/lower thumb zone;
+- high-frequency Back, Home, Mute, Volume, and Channel controls remain comfortably reachable around or below that zone;
+- favourite shortcuts must not push the navigation surface out of comfortable one-handed reach.
+
+Do not preserve a traditional physical-remote ordering when doing so harms phone ergonomics.
+
+Main remote controls should generally exceed the minimum touch-target size where screen space allows.
+
+## Remembered television presentation
+
+Ordinary TV cards/list rows show only consumer-relevant information:
+
+- friendly name as the dominant label;
+- ordinary-language state such as **Ready**, **Connecting**, **Offline**, or **Needs pairing**;
+- subtle current/last-used indication where useful;
+- optional television/manufacturer icon.
+
+Model/firmware details may exist in a secondary management/details surface when useful for support.
+
+Never show IP address, port, UUID, MAC, protocol generation, certificate information, or pairing token in ordinary TV lists.
+
+## Favourites, apps, and secondary controls
+
+Remote may show a compact favourite shelf close to, but not at the expense of, the primary navigation zone.
+
+The shelf contains a deliberately small immediately visible set of:
+
+- favourite launchable apps;
+- favourite secondary controls.
+
+A **More** action opens the fuller supported apps/controls surface.
+
+Applications appear only when live capability evidence says they are launchable.
+
+Reordering is an explicit editing interaction: long-press or an **Edit** action may enter reorder mode, then drag changes order. Ordinary Remote interaction does not treat accidental drags as customization.
+
+Installed/supported but non-favourited applications remain available from the fuller secondary surface rather than all being placed on Remote.
+
+## Gestures
+
+Gestures are accelerators for visible capabilities, never the sole route to an action.
+
+Allowed examples:
+
+- tap/swipe inside explicit Touchpad mode;
+- long-press when a control visibly supports a hold command;
+- drag while explicit Edit mode is active;
+- normal Android system back gesture.
+
+Do not use:
+
+- horizontal swipe to switch televisions;
+- secret edge gestures;
+- shake actions;
+- gesture-only settings or destructive actions.
+
+Accessibility alternatives must exist for every gesture-based operation.
+
+## Responsive behavior
+
+Portrait phone is the primary design reference, but V1 must behave correctly in:
+
+- phone landscape;
+- foldable/windowed layouts;
+- tablets and other wider Android windows.
+
+Do not lock the Remote to portrait.
+
+Do not create a separate tablet product architecture for V1.
+
+On wider layouts:
+
+- preserve sensible control dimensions rather than stretching controls to fill width;
+- use added width for spacing or secondary two-column content when helpful;
+- keep primary navigation and high-frequency controls visually dominant and reachable;
+- preserve the same semantic control ordering across size classes where practical.
+
+Rotation/window-size changes preserve the current Active Remote, selected television, navigation mode, edit state where safe, and other transient interaction state rather than reopening/pairing the TV.
+
+## Accessibility and visual-system floor
+
+These are architecture requirements for every shipped product surface:
+
+- interactive targets are at least **48dp**; primary Remote controls should be larger where practical;
+- Android font scaling must not clip, overlap, hide, or make essential controls unreachable;
+- every interactive element has meaningful TalkBack naming, role, state, and action semantics;
+- connection, pairing, and recovery status changes are announced without creating repeated speech interruption;
+- color is never the only carrier of state or meaning;
+- text/control contrast remains strong in dark and light/system appearances;
+- haptics supplement visible/semantic feedback and are never the only confirmation;
+- motion respects the relevant Android/system reduced-motion setting or removes nonessential motion when such a preference is active;
+- mascot/decorative animation is never required to understand a state or complete a flow and is exposed appropriately as decorative or meaningfully described;
+- destructive actions such as **Forget this TV**, sign out, and account deletion are visually distinct and receive confirmation appropriate to their consequence;
+- Power remains spatially isolated from dense/high-frequency controls;
+- focus/semantic traversal follows the visual/task order rather than layout implementation accidents.
+
+## UI/UX decision status
+
+The known human UI/UX decision frontier is closed.
+
+Technical architecture still needs to turn these decisions into:
+
+- explicit screen and UI-state contracts;
+- navigation/back-stack/process-restoration behavior;
+- design tokens and responsive layout rules;
+- Compose state ownership and ViewModel seams;
+- accessibility test contracts;
+- end-to-end interaction/state diagrams.
+
+Those are technical architecture tasks, not invitations to reopen the product decisions above unless a real contradiction is discovered.
+
+Implementation remains unauthorized until the remaining technical architecture is completed, reviewed, and the human explicitly exits architecture.
+
