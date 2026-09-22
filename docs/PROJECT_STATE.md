@@ -23,7 +23,7 @@ Success condition: `Every material product/architecture decision is explicit, th
 
 ## Active work
 
-Primary: `UI/UX architecture decision tree, followed by technical architecture closure. No implementation slice is active or dispatched.`
+Primary: `Technical architecture closure and reconciliation across frontend, licensing/backend, security, lifecycle/network, reliability, migrations, tests, release, and slices. No implementation slice is active or dispatched.`
 
 Secondary:
 
@@ -79,6 +79,13 @@ Secondary:
 - `Account/trial/purchase uses full-screen continuation/gate surfaces outside active Remote; during trial payment UX is low-pressure and does not dominate the remote.`
 - `Settings is one conventional grouped screen; contextual actions may deep-link into it.`
 - `Failure UX stays in context and presents the next useful recovery action; modal/full-screen interruption is reserved for genuinely blocking states.`
+- `Remote layout is thumb-first: primary navigation/high-frequency controls occupy the central/lower reach zone; power/status/TV chrome live above, with power isolated against accidental activation.`
+- `Remembered-TV cards remain consumer-minimal: friendly name + ordinary-language state; technical identifiers stay out of normal UI.`
+- `A compact favourites shelf exposes a small set of favourite apps/secondary controls; More opens the complete supported secondary surface.`
+- `Gestures accelerate visible actions but are never the sole way to perform them; no hidden TV-switch or secret gestures.`
+- `Portrait phone is the primary reference, but V1 responds correctly to rotation, landscape, foldables and tablets without a separate tablet product.`
+- `Accessibility floor includes 48dp minimum targets, scalable text, TalkBack semantics/status announcements, no color-only meaning, gesture alternatives, strong contrast, reduced-motion respect, and safe destructive-action treatment.`
+- `The known human UI/UX decision frontier is closed; remaining frontend work is technical architecture synthesis unless a real contradiction surfaces.`
 - `Phase transition to implementation requires explicit human approval.`
 
 ## Blockers / Unknowns
@@ -88,7 +95,7 @@ Secondary:
 - Offline paid-entitlement cache/token representation and tamper model.
 - Anti-abuse keyed-identifier rotation and backend/legal retention implementation.
 - Dev/test/production Firebase, Play Billing, Play Integrity, and backend environment separation.
-- Complete UI/UX and presentation/navigation architecture for remote-first launch, onboarding, remote layout, TV switching, settings, trial/account/purchase/restore, failures, process death, accessibility, and recovery.
+- Compile the settled UI/UX decisions into explicit presentation/navigation state contracts, responsive rules, Compose ownership, restoration behavior, and accessibility verification.
 - Formal threat model/trust boundaries for LAN control plus account/licensing infrastructure.
 - Android network/lifecycle architecture across Wi-Fi/Ethernet changes, VPNs, screen/background/process transitions, and Doze.
 - Internal reliability/performance budgets and benchmark gates.
@@ -99,7 +106,7 @@ Secondary:
 
 ## Recent change
 
-- `Replaced the cloud TV-personalization model with a privacy-first Customer Account: username + seven-day trial + one-time lifetime entitlement only. Added canonical domain language and marked the detailed architecture map under revision.`
+- `Closed the known human UI/UX decision frontier: thumb-first Remote zoning, minimal TV cards, compact favourites/apps, explicit gesture rules, responsive Android layouts, and accessibility/visual-system floor are now settled.`
 
 ## Relevant canonical references
 
@@ -108,6 +115,7 @@ Secondary:
 - `docs/ARCHITECTURE.md — accepted technical baseline as revised by settled architecture decisions.`
 - `docs/architecture/README.md — detailed architecture map and reconciliation status.`
 - `docs/architecture/sync.md — current account/trial/entitlement architecture and remaining technical questions.`
+- `docs/architecture/ui-ux.md — settled product-surface architecture and frontend technical closure requirements.`
 - `docs/HARVEST.md — harvested research disposition: ADOPT / HARVEST / REJECT.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
 - `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
@@ -115,10 +123,10 @@ Secondary:
 
 ## Next
 
-`Resolve the final UI/UX frontier (control zoning, TV cards, favourites/apps, gestures, responsiveness, accessibility/visual-system constraints), then move to technical architecture closure; do not dispatch implementation.`
+`Compile and reconcile the remaining technical architecture; no further human product questioning is expected unless the technical review exposes a material contradiction. Do not dispatch implementation.`
 
 ## After that
 
-1. `Record the remaining human decisions in their owning canonical files.`
-2. `Dispatch one architecture-only Arena work order to reconcile and complete the technical architecture map, if no human decisions remain unresolved.`
-3. `Review the completed architecture map; only explicit human approval can move the project to implementation.`
+1. `Compile one architecture-only work order covering the remaining technical closure without reopening settled product decisions.`
+2. `Review and reconcile the resulting architecture map against PRODUCT, ARCHITECTURE, CONTEXT, HARVEST, and UI/UX decisions.`
+3. `Only explicit human approval can move the project to implementation.`
