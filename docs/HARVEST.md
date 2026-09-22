@@ -17,7 +17,7 @@ The harvested package is evidence and pattern input, not current product truth. 
 | Harvested idea | AppT status | Current disposition |
 |---|---|---|
 | Samsung Tizen WebSocket control with TV-side approval/token | **ADOPT** | Samsung is the first intentionally targeted ecosystem. Reimplement protocol behavior inside the deep `samsung` module; persist secrets with Keystore-backed protection. |
-| SSDP / mDNS / native LAN discovery | **ADOPT** | Use bounded discovery behind the application local-network permission gate. Exact Samsung discovery probes remain detailed architecture work. |
+| SSDP / mDNS / native LAN discovery | **ADOPT** | Use bounded discovery behind the application local-network permission gate. Probe set and identity rules are in `docs/architecture/discovery.md`. |
 | Wake-on-LAN for TVs where appropriate | **ADOPT** | Generic Samsung network wake may be attempted where appropriate; capability/result determines UX. |
 | Bounded, visible discovery rather than continuous background scanning | **ADOPT** | First-run auto-discovery plus explicit rescans/rediscovery; no continuous discovery telemetry. |
 | Capability-driven remote UI | **ADOPT** | Connected TV is the source of truth; knowingly unavailable controls are not shown. |
@@ -40,7 +40,7 @@ The harvested package is evidence and pattern input, not current product truth. 
 | Fire TV via network ADB | **HARVEST** | Potential advanced/future path; user-friction/security implications require a later product decision. |
 | Chromecast / CASTV2 / DLNA casting | **HARVEST** | Casting may ship later but is not a launch blocker. |
 | ScreenStream-style authenticated mirroring | **HARVEST** | Retain only as a future secure pattern if mirroring is deliberately added. |
-| Public device-support matrix and adapter health/status views | **HARVEST** | Useful reliability/support patterns; exact product surface remains to be mapped. |
+| Public device-support matrix and adapter health/status views | **HARVEST** | Not a V1 product surface. Internal physical-matrix notes live in `docs/architecture/testing.md` and do not promote this idea. |
 | Apache-2.0 clean-room reimplementation of protocol knowledge | **HARVEST** | Sensible licensing/provenance pattern, but AppT's final source license is not decided here. Do not copy incompatible reference code. |
 | One universal `TvAdapter` interface now | **REJECT** | Premature with one ecosystem. Build Samsung cleanly; design the universal seam when ecosystem #2 exists. |
 | One Gradle module per future TV brand from day one | **REJECT** | Start with lean `app` + `samsung`; add modules when real implementations exist. |

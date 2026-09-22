@@ -61,6 +61,12 @@ First-run prioritizes demonstrating product value before account creation:
 
 Account requirements must not prevent the user from reaching the first successful local-control experience. Sign-in is required for continued/full product use and synchronization features, not as a prerequisite for the first successful remote session.
 
+After the first successful control, AppT does not interrupt the active remote session with account creation. The user may finish that remote session. Once that session ends, the next attempt to enter a remote-control session requires sign-in.
+
+If a phone that has already synchronized one account signs in to a different AppT account, AppT requires explicit confirmation before switching. The previous account's synchronized friendly names, favourites, tombstones, and synchronized preferences are not merged into the new account and are removed from the phone's account-scoped local state before the new account is loaded. Device-local television pairing credentials and security identity remain on the phone. A locally paired television with no metadata in the new account remains controllable and uses a neutral or freshly discovered television name until the new account supplies or the user creates account-scoped metadata.
+
+Removing a television from the synchronized account does not remotely unpair other phones. Shared non-secret television metadata and related favourites may be removed by synchronization, but every phone's pairing credentials remain local. Only an explicit local forget action unpairs that television on that phone.
+
 ## Samsung-first strategy
 
 AppT begins with Samsung Smart TVs.

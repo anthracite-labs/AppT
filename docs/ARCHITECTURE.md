@@ -38,7 +38,7 @@ Do not pre-create a forest of `domain`, `data`, `usecase`, `repository`, or per-
 
 The Samsung implementation is a **deep module**: a small interface hides protocol complexity and concentrates Samsung knowledge.
 
-The application may ask the Samsung module to perform operations such as discovery, pairing, connection, command execution, capability inspection, and disconnection, and may observe device/session state. Exact interface types are architecture work still to be mapped.
+The application may ask the Samsung module to perform operations such as discovery, pairing, connection, command execution, capability inspection, and disconnection, and may observe device/session state. The caller-facing types are `SamsungTvs` and `RemoteSession`, specified in `docs/architecture/samsung-interface.md`.
 
 The module owns:
 
@@ -105,6 +105,8 @@ The `app` module does not construct raw Samsung WebSocket payloads, raw `KEY_*` 
 - Backend: **Firebase Authentication + Cloud Firestore**.
 - V1 sign-in methods: **Google sign-in + email/password fallback**.
 - First successful local control is not gated by account creation.
+- The first successful command does not interrupt that active first remote session; after the session ends, the next remote entry requires sign-in.
+- Switching to a different account requires explicit confirmation. Account-scoped names, favourites, tombstones, and synchronized preferences are replaced rather than merged; device-local pairing/security material remains.
 - The TV-control path does not depend on Firebase, AppT backend availability, or public internet availability.
 
 ## Sync model
@@ -115,7 +117,9 @@ The `app` module does not construct raw Samsung WebSocket payloads, raw `KEY_*` 
 - A dedicated sync implementation exchanges an explicit whitelist of non-secret data with Firestore.
 - Deferred/retryable synchronization work uses WorkManager where appropriate.
 - Firestore is not a competing local application datastore.
-- Conflict policy is **last committed write wins per small record**, with deletion handling designed so deletions synchronize rather than resurrect stale data.
+- Conflict policy is **last committed write wins per small record**, with compare-before-write semantics so stale clients cannot overwrite newer live records or tombstones.
+- Synchronized television deletion removes account-scoped non-secret metadata but does not remotely unpair another phone.
+- Only an explicit local forget removes pairing material from that phone.
 - TV pairing credentials and device secrets are never synchronized.
 
 ## Diagnostics and privacy
@@ -137,7 +141,7 @@ Use the highest useful seam and test external behavior rather than internal impl
 - Instrumented tests where Android behavior is materially involved, including Keystore, permissions, lifecycle, and platform networking integration.
 - Compose UI tests for critical user flows.
 - A small physical Samsung-TV acceptance matrix before release.
-- The Samsung module interface is the primary high-value test surface once its concrete shape is mapped.
+- The Samsung module interface is the primary high-value test surface. Its concrete shape is `docs/architecture/samsung-interface.md`.
 
 ## CI, release, and supply chain
 
@@ -171,21 +175,8 @@ These are binding unless deliberately changed by a later architecture decision:
 9. **Room is local truth; cloud sync is secondary and non-secret.**
 10. **No behavioral analytics.**
 
-## Detailed architecture work still required
+## Elaboration
 
-The architecture phase is not complete until these decided directions are mapped into implementation-ready detail:
+Implementation-ready detail lives in `docs/architecture/`. Start at `docs/architecture/README.md`. That directory elaborates this baseline. It does not replace it. If an elaboration conflicts with this file, this file wins until a later architecture decision changes it.
 
-- concrete `app` ↔ `samsung` interface and state model;
-- Samsung discovery strategy and device identity model;
-- Samsung pairing, token, TLS/security-identity, and reconnect state machines;
-- capability representation and typed command model;
-- Room entities, DataStore keys, Keystore secret records, and ownership rules;
-- Firebase Auth flow, Firestore schema, sync whitelist, deletion/version strategy, and Security Rules;
-- diagnostics/redaction model;
-- package/module dependency direction and Hilt composition roots;
-- protocol fixture strategy and physical-device test matrix;
-- CI/release/supply-chain checks;
-- end-to-end architecture diagrams and sequence/state diagrams;
-- implementation slicing that preserves vertical, verifiable progress.
-
-If detailed mapping exposes a missing decision that could materially change product or architecture intent, stop and surface it rather than choosing on behalf of the human.
+The detailed map is accepted when it remains consistent with this baseline and `docs/PRODUCT.md`. Any future missing decision that could materially change product or architecture intent must still be surfaced rather than invented. The account-gate timing, different-account switch behavior, and cross-device pairing semantics are settled in `docs/PRODUCT.md` and elaborated in `docs/architecture/sync.md`.
