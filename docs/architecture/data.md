@@ -51,6 +51,8 @@ Database file: `appt.db` in the application database directory. Version 1. Expor
 
 ### `TvProfile`
 
+`TvProfile` and `Favourite` are account-scoped non-secret application state. They are not the source of pairing truth. A remembered Samsung pairing may exist without a live `TvProfile` after an account switch or a synchronized deletion.
+
 | Column | Sync | Notes |
 |---|---|---|
 | `tvId` TEXT PK | yes, document id | Opaque correlation id |
@@ -121,11 +123,12 @@ Room mutations follow the same rule. The DAO write that changes a name, a favour
 ## Ownership rules
 
 - `app` writes Room and DataStore first. UI collects those flows.
-- `samsung` writes secrets and samsung-private files. `app` never reads them.
+- `samsung` writes secrets and samsung-private files. `app` never reads pairing material.
 - Remember: user selects a controllable card → `app` inserts `TvProfile` with its sync tuple → `open`. Secret appears only after approval.
-- Local forget, requested on this phone: one Room transaction sets `localUnpairPending`, `deletedAt`, and the rest of the sync tuple together. Then `app` calls `forget` and retries on `Failed`. After `Forgotten`, clear `localUnpairPending`. The tombstone stays. Startup calls `forget` only for ids that still have `localUnpairPending` and are still in `rememberedIds()`. A second `forget` is safe.
-- A television tombstone that arrives from sync does not call `forget`, does not set `localUnpairPending`, and does not delete pairing material. Holding behavior is in [sync.md](sync.md).
-- The local list keeps a television when this phone has pairing material for it and `localUnpairPending` is false, even if the winning synced record is a tombstone. That is holding, not the product meaning of delete. A local unpair is hidden because the user on this phone forgot it.
+- Local forget, requested on this phone: one Room transaction sets `localUnpairPending`, `deletedAt`, and the rest of the sync tuple together and tombstones related account-scoped favourites. Then `app` calls `forget` and retries on `Failed`. After `Forgotten`, clear `localUnpairPending`. The tombstone stays for sync. Startup calls `forget` only for ids that still have `localUnpairPending` and are still in `rememberedIds()`. A second `forget` is safe.
+- A television tombstone that arrives from sync removes the live account-scoped `TvProfile` presentation and related favourites but does not call `forget`, set `localUnpairPending`, or delete pairing material.
+- The remembered-TV list is the union of live account profiles and local remembered Samsung ids. If an id is locally paired but has no live account profile, it remains controllable and is presented with a neutral `Samsung TV` label or a freshly discovered television-reported name. A tombstoned account friendly name and its favourites are not shown.
+- Confirmed account switch: clear the previous account's Room sync state, tombstones, favourites, and pending sync flags without creating new tombstones; reset the three synchronized preferences and their `prefmeta.` state to defaults without marking them pending; preserve all Samsung secret/private files and device-local DataStore keys; then load the new account. See [sync.md](sync.md).
 - Non-correlatable televisions can be named locally and must not be uploaded.
 
 ## Secret lifecycle
