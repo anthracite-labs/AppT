@@ -23,11 +23,12 @@ Success condition: `An evidence-backed architecture decision compares viable app
 
 ## Active work
 
-Primary: `Application architecture and stack discovery`
+Primary: `Architecture research synthesis and evidence-gap closure`
 
 Secondary:
 
 - Samsung control integration constraints relevant to stack selection.
+- Empirical validation needs for discovery, TLS/device identity, lifecycle/reconnection, and session-placement models.
 - Account/sync boundary design, preserving device-local pairing credentials and offline local control.
 - Focused Samsung vendor-terms/legal review remains a pre-release gate, not an architecture blocker.
 
@@ -39,30 +40,34 @@ Secondary:
 - `TV control is local-first and continues when AppT services or internet access are unavailable — docs/PRODUCT.md`
 - `An account is part of the product, but first successful local control is not gated by sign-in; account sync excludes pairing secrets — docs/PRODUCT.md`
 - `V1 is free, with no advertising, behavioral usage analytics, or required paid tier/subscription — docs/PRODUCT.md`
+- `The merged V1 architecture/stack research is non-binding evidence; no framework, runtime, or session-ownership model has been selected — docs/research/V1_APPLICATION_ARCHITECTURE_STACK_RESEARCH.md`
 
 ## Blockers / Unknowns
 
 - Which application architecture and stack best satisfy Samsung discovery/control, TLS/security, secure credential storage, app lifecycle, reliability, and cross-platform requirements.
+- Which remaining architecture questions require physical-device prototypes rather than further documentation research.
 - Exact Samsung protocol/device-generation behavior that AppT will support in V1.
+- Whether Samsung secure transport exposes a persistent identity that AppT can verify without a global certificate-verification bypass.
 - Final account/backend architecture and synchronization model.
 - Focused Samsung vendor-terms/legal review must be completed before public release.
 
 ## Recent change
 
-- `Architecture discovery was reset to a stack-neutral first-principles pass.`
+- `Merged PR #4, establishing the stack-neutral V1 architecture/stack research baseline with Samsung-first evidence, cross-platform comparison, multi-ecosystem stress testing, and explicit unresolved prototype questions.`
 
 ## Relevant canonical references
 
 - `docs/PRODUCT.md — approved AppT product definition and product constraints.`
+- `docs/research/V1_APPLICATION_ARCHITECTURE_STACK_RESEARCH.md — merged non-binding architecture/stack research baseline.`
 - `.agents/CAPABILITIES.md — routing for planning, architecture, implementation, and review work.`
 - `AGENTS.md — repository operating entry point.`
 
 ## Next
 
-`Research and compare viable V1 architecture and stack approaches from the approved product constraints and Samsung-first control requirements, without assuming a preferred framework.`
+`Synthesize and independently verify the merged research, then identify the minimum unresolved questions that require targeted prototypes before selecting the V1 architecture and stack.`
 
 ## After that
 
-1. `Record the architecture/stack decision and move the project into architecture when the discovery evidence is sufficient.`
-2. `Design the Samsung integration boundary and account/local-data seams from the accepted product and architecture decisions.`
-3. `Formalize decided implementation work for dispatch only after those boundaries are settled.`
+1. `Run only the targeted physical-device/protocol experiments that materially differentiate viable architecture choices.`
+2. `Record the architecture/stack decision and move the project into architecture when the evidence is sufficient.`
+3. `Design the Samsung integration boundary and account/local-data seams from the accepted product and architecture decisions.`
