@@ -202,7 +202,3 @@ The defining qualities are:
 - strong accessibility;
 - sensible security and privacy;
 - a foundation capable of expanding beyond the first Samsung implementation into a genuinely universal television remote.
-
-## Reference provenance
-
-Greenfield4's `docs/PRODUCT.md` and `docs/research/` were used as reference material during AppT product-definition discovery. They are evidence and precedent only. AppT inherits no Greenfield4 requirement unless it is explicitly recorded in this document.
