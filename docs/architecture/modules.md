@@ -136,9 +136,11 @@ V1 is a single process. No `android:process`, no foreground service, no boot rec
 `app` owns an `ActiveRemote` holder:
 
 - `open` when the remote surface starts and the account gate allows it.
+- If that open occurs before `firstControlAchieved` with no signed-in user, the holder owns the first-session account exemption for the lifetime of that same `ActiveRemote`.
 - Pass a scope owned by `ActiveRemote`, not the destination ViewModel scope, so leaving the screen does not cancel the grace window.
 - Call `close` 15 seconds after the remote surface stops, unless it started again.
-- The 15 seconds covers rotation, a share sheet, and a transient pause. It is app policy, not a parameter of `SamsungTvs`.
+- The 15 seconds covers rotation, a share sheet, and a transient pause; returning inside it is the same exempt session rather than a new remote entry.
+- Once the exempt holder closes after first success, the next remote entry requires sign-in before a new `open`.
 - Cancelling the session does not delete secrets.
 
 The permission gate and the account gate live in `app`. `samsung` never launches permission UI and never reads Firebase Auth. Gate rules are in [discovery.md](discovery.md) and [sync.md](sync.md).
