@@ -6,7 +6,7 @@ Owning files: reconnect in [connection.md](connection.md), secrets in [data.md](
 
 ## First run to first control
 
-Firebase is not a participant. Account creation is introduced after the first successful local-control session. This path observes that session as `Accepted`, which means the command was written to the open session, not that the television visibly acted. The gate does not turn that result into a cold-start rule or a next-navigation rule. See [sync.md](sync.md).
+Firebase is not a participant in the first control path. This path observes first success as `Accepted`, which means the command was written to the open session, not that the television visibly acted. That same active remote remains exempt from sign-in until its `ActiveRemote` session ends; the next remote entry requires sign-in. See [sync.md](sync.md).
 
 The product list names discovery before the permission sentence. The baseline orders them as explanation, then local-network access, then automatic discovery. This sequence follows the baseline.
 
