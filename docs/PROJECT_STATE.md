@@ -49,7 +49,7 @@ Secondary:
 
 ## Recent change
 
-- `Architecture discovery was reset to a stack-neutral first-principles pass; prior candidate-led research was not adopted as project evidence.`
+- `Architecture discovery was reset to a stack-neutral first-principles pass.`
 
 ## Relevant canonical references
 
