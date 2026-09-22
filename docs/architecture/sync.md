@@ -22,11 +22,9 @@ Signing out, switching accounts, deleting an account, restoring a license on ano
 
 Primary path: Google sign-in through Android Credential Manager and Firebase Authentication.
 
-Fallback: email/password.
+Fallback: email/password. The fallback email must be verified before the account can activate a free trial.
 
-Google sign-in creates or signs into the AppT customer identity without a separate registration form. A Google display name may be offered as the initial username, but the username is editable. AppT does not copy profile photos, contacts, birthday, or unrelated Google profile fields into its account data.
-
-The exact verification requirement for email/password trial eligibility is still part of the current architecture decision round; do not invent it in implementation.
+Google sign-in creates or signs into the AppT customer identity without a separate registration form. A Google display name may be offered as the initial username, but the username is editable and need not be globally unique. It is display data only, not a login identifier or public handle. AppT does not copy profile photos, contacts, birthday, or unrelated Google profile fields into its account data.
 
 ## First control and account gate
 
@@ -53,7 +51,7 @@ When the known trial expiry has passed:
 - if no lifetime entitlement exists, present the one-time purchase path;
 - a backend outage must not be misrepresented as a TV failure.
 
-Creating another account or reinstalling AppT does not grant another trial when the same verified email identity or recognized Android device has already consumed one.
+Creating another account or reinstalling AppT does not grant another trial when the same verified email identity or recognized Android device has already consumed one. One recognized Android device receives one AppT trial total unless support explicitly clears the pseudonymous abuse marker for a legitimate exceptional case such as a second-hand device. V1 does not require Play Integrity Device Recall.
 
 ## Trial anti-abuse and privacy
 
@@ -71,7 +69,7 @@ Do not expose raw anti-abuse source identifiers as general profile fields.
 
 Play Integrity may be evaluated at trial activation and purchase/restore validation to establish app/device authenticity and abuse risk. It is not a tracking identifier and is not retained as behavioral history.
 
-The exact retention, keyed-identifier rotation, and backend record shape remain to be finalized in the privacy/backend architecture pass.
+Pseudonymous email/device trial-used markers may survive ordinary account deletion for as long as the free-trial program exists. They must not contain username, raw email, television data, personalization, diagnostics, or behavioral history. Key rotation and the exact backend record shape remain technical architecture work.
 
 ## Lifetime entitlement
 
@@ -86,7 +84,11 @@ Once a lifetime entitlement has been validated and cached on the phone:
 - signing out does not erase TV pairing or local personalization;
 - signing back into the entitled account restores the account entitlement on another supported Android device.
 
-The exact server validation service, durable entitlement record, local signed/cache representation, revocation/fraud handling, and environment/deployment topology are unresolved technical architecture work. Do not delegate those choices to implementation.
+Network failure never removes a previously validated entitlement. If the backend later obtains an explicit authoritative refunded/revoked purchase result while online, apply that revocation on the next remote entry; do not interrupt an already active remote.
+
+V1 has no paid-device registry or fixed device cap. Any supported Android device legitimately signed into the entitled customer account may restore the entitlement.
+
+The exact server validation service, durable entitlement record, local signed/cache representation, authoritative purchase-to-account binding, and environment/deployment topology remain unresolved technical architecture work. Do not delegate those choices to implementation.
 
 Future iOS may map a platform purchase to the same conceptual lifetime entitlement, but Android purchase portability to iOS is not promised by V1.
 
@@ -100,13 +102,15 @@ There is no account-data merge because television/personalization data does not 
 
 ## Account deletion
 
-Deleting the AppT account permanently removes the account and account-held username/trial/license records, subject to transaction/legal retention requirements that must be documented in the backend/privacy architecture.
+Deleting the AppT account permanently removes ordinary account-held username/trial/license profile records, subject to transaction/legal retention requirements that must be documented in the backend/privacy architecture. The minimum pseudonymous trial-used markers may remain under the trial-abuse rule above.
 
 Device-local TV pairing and local personalization remain on the phone.
 
 The user may separately choose **Forget this TV** to remove one phone's local pairing, or clear AppT's local storage through platform/app controls.
 
 If account deletion occurs while a local remote session is already active, do not make the command path depend on the deletion network request. After that active session ends, normal account/trial/license gating applies.
+
+Deleting an AppT account does not erase a Google Play purchase. A legitimate purchaser may later use Restore Purchase after recreating/signing into the appropriate AppT identity, subject to authoritative purchase validation.
 
 ## Multi-phone behavior
 
@@ -145,12 +149,11 @@ stateDiagram-v2
 
 Before this map is implementation-ready, resolve and record:
 
-- email/password verification semantics for trial eligibility;
 - entitlement backend/service and datastore shape;
 - authoritative Google Play purchase validation and restore flow;
 - local offline entitlement representation and tamper model;
-- refund/revocation/fraud semantics without making paid local control depend on routine online checks;
-- anti-abuse keyed-identifier retention and rotation;
+- purchase-to-account binding and restore identity after account deletion;
+- anti-abuse keyed-identifier rotation;
 - dev/test/production backend and Firebase/Play environment separation;
 - account deletion retention requirements;
 - threat model and trust boundaries for account/licensing infrastructure;

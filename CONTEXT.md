@@ -33,8 +33,12 @@ The currently active local-control experience for one television on this phone.
 _Avoid_: Account session
 
 **Customer Account**:
-The minimal AppT identity used only for username, trial state, and lifetime license entitlement. It does not own television, pairing, personalization, diagnostics, or behavioral data.
+The minimal AppT identity used only for display username, trial state, and lifetime license entitlement. It does not own television, pairing, personalization, diagnostics, or behavioral data.
 _Avoid_: User profile, TV account
+
+**Username**:
+An editable, non-unique display name attached to a Customer Account. It is not a login identifier, public handle, or social identity.
+_Avoid_: Handle, account id, login name
 
 **Trial**:
 The seven-day period during which an eligible Customer Account may use AppT fully before a lifetime entitlement is required.

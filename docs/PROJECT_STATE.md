@@ -45,9 +45,16 @@ Secondary:
 - `Google sign-in through Credential Manager is primary; email/password is fallback. Google display name may seed an editable username, but unrelated profile data is not copied into AppT.`
 - `First successful local-control session remains available before account creation; after that active session ends, account access is required.`
 - `Eligible accounts receive a seven-day full-use trial from a server-authoritative activation timestamp.`
+- `Email/password fallback accounts must verify their email before activating a free trial; Google identities use the provider-verified identity.`
+- `Username is an editable, non-unique display name only; it is not a login identifier or public handle.`
+- `One recognized Android device receives one AppT trial total unless support explicitly clears a pseudonymous abuse marker for a legitimate exceptional case; V1 does not depend on Play Integrity Device Recall.`
 - `Trial abuse protection uses privacy-minimized pseudonymous eligibility signals derived from verified email/device context plus Play Integrity, not TV or behavioral data.`
 - `Android lifetime unlock is a Google Play one-time non-consumable product; authoritative purchase validation grants an account-level lifetime entitlement.`
 - `A validated lifetime entitlement keeps paid local control available offline indefinitely without periodic backend revalidation.`
+- `Network failure never removes a validated entitlement; an authoritative refunded/revoked result applies on the next remote entry and never interrupts an already active remote.`
+- `V1 has no paid-device roster or fixed device cap.`
+- `Deleting an AppT account does not destroy the underlying Google Play purchase; a legitimate purchaser may later restore it through authoritative validation.`
+- `Minimal pseudonymous trial-used markers may survive account deletion for as long as the trial program exists; they contain no username, raw email, TV data, personalization, diagnostics, or usage history.`
 - `Trial expiry does not interrupt an active remote; after known expiry, the next remote entry requires online entitlement validation or purchase.`
 - `Signing out, switching accounts, or deleting an account does not erase/merge/upload/replace local TV pairing or personalization.`
 - `Forget this TV is the consumer action that removes this phone's local pairing and TV personalization only.`
@@ -57,11 +64,10 @@ Secondary:
 
 ## Blockers / Unknowns
 
-- Email/password verification semantics for seven-day trial eligibility.
 - Exact entitlement backend/service and datastore shape.
-- Google Play purchase verification, restore, refund/revocation, and fraud semantics.
+- Google Play purchase binding, restore identity, validation-outage, and integrity-failure semantics.
 - Offline paid-entitlement cache/token representation and tamper model.
-- Anti-abuse keyed-identifier retention/rotation and account-deletion retention.
+- Anti-abuse keyed-identifier rotation and backend/legal retention implementation.
 - Dev/test/production Firebase, Play Billing, Play Integrity, and backend environment separation.
 - Complete presentation/navigation state architecture for remote-first launch, trial/account/purchase/restore, failures, process death, and recovery.
 - Formal threat model/trust boundaries for LAN control plus account/licensing infrastructure.
@@ -90,7 +96,7 @@ Secondary:
 
 ## Next
 
-`Continue the human architecture decision tree for licensing/privacy/presentation semantics; do not dispatch implementation.`
+`Resolve the eight remaining human architecture choices, then move to technical architecture closure; do not dispatch implementation.`
 
 ## After that
 
