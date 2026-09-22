@@ -58,7 +58,7 @@ The account is **not** a television or personalization profile.
 
 AppT does not sync or store television identities, friendly television names, favourites, remote layouts, preferences, last-used television, pairing state, pairing credentials, diagnostic history, or remote-use history in the customer account/backend.
 
-TV pairing, remembered televisions, television names, favourites, remote arrangement, and settings remain device-local. A second phone signed into the same customer account receives the customer's username and license entitlement, but it pairs and configures televisions independently.
+TV pairing, remembered televisions, television names, favourites, remote arrangement, and settings remain device-local. They are excluded from Android cloud backup and device-to-device restoration so a new phone starts its remote state clean. A second phone signed into the same customer account receives the customer's username and license entitlement, but it pairs and configures televisions independently.
 
 Google sign-in is the primary account path. A verified Google identity creates or signs into the AppT customer account without a separate registration form. Email/password remains a fallback, but its email address must be verified before that account can activate a free trial. A Google display name may be suggested as the initial username, but the user may edit it. The username is a non-unique display name, not a login identifier or public handle. AppT does not copy unrelated Google profile data into the customer account.
 
