@@ -23,13 +23,12 @@ Success condition: `An evidence-backed architecture decision compares viable app
 
 ## Active work
 
-Primary: `Targeted physical-device architecture gates identified by the independent verification pass`
+Primary: `Application architecture and stack discovery`
 
 Secondary:
 
-- Gate A: Samsung transport, pairing, token behavior, TLS/device identity, and fail-closed reconnect on representative physical TVs.
-- Gate B: physical iPhone/Android discovery, local-network permission, network-change, and lifecycle/reconnect behavior.
-- Gate C: minimum session-placement comparison after Gates A and B establish a reproducible Samsung/platform baseline.
+- Samsung control integration constraints relevant to stack selection.
+- Account/sync boundary design, preserving device-local pairing credentials and offline local control.
 - Focused Samsung vendor-terms/legal review remains a pre-release gate, not an architecture blocker.
 
 ## Current decisions
@@ -40,37 +39,30 @@ Secondary:
 - `TV control is local-first and continues when AppT services or internet access are unavailable — docs/PRODUCT.md`
 - `An account is part of the product, but first successful local control is not gated by sign-in; account sync excludes pairing secrets — docs/PRODUCT.md`
 - `V1 is free, with no advertising, behavioral usage analytics, or required paid tier/subscription — docs/PRODUCT.md`
-- `The merged V1 architecture/stack research is non-binding evidence; no framework, runtime, or session-ownership model has been selected — docs/research/V1_APPLICATION_ARCHITECTURE_STACK_RESEARCH.md`
-- `Independent verification confirmed the architecture-critical platform constraints and reduced the first decision-blocking experiment set to Gates A-C; wake, text/pointer breadth, account restore, broad cohort coverage, and iPhone hardware-volume resolution are later validation/product gates — docs/research/V1_ARCHITECTURE_DECISION_GAP_ANALYSIS.md`
 
 ## Blockers / Unknowns
 
-- Which Samsung local-control path works repeatably on representative physical TVs, including pairing/token flow and secure transport identity without a global certificate-verification bypass.
-- Which discovery/reconnect strategy works on physical iPhone and Android devices under current local-network permission, entitlement, network-change, suspension, and resume behavior.
-- Which session-placement boundary gives the best measured reliability and maintainability once the Samsung/platform baseline is reproducible.
-- Exact Samsung protocol/device-generation behavior that AppT will ultimately support in V1 beyond the initial architecture-validation cohort.
+- Which application architecture and stack best satisfy Samsung discovery/control, TLS/security, secure credential storage, app lifecycle, reliability, and cross-platform requirements.
+- Exact Samsung protocol/device-generation behavior that AppT will support in V1.
 - Final account/backend architecture and synchronization model.
-- The iPhone hardware-volume requirement remains a separate product/App Review gate and should not determine stack selection.
 - Focused Samsung vendor-terms/legal review must be completed before public release.
 
 ## Recent change
 
-- `Completed an independent verification pass against current Apple, Android, Samsung, and framework primary documentation; added docs/research/V1_ARCHITECTURE_DECISION_GAP_ANALYSIS.md and reduced the immediate architecture evidence plan to Samsung/security, physical discovery/lifecycle, and session-placement gates.`
+- `Architecture discovery was reset to a stack-neutral first-principles pass.`
 
 ## Relevant canonical references
 
 - `docs/PRODUCT.md — approved AppT product definition and product constraints.`
-- `docs/research/V1_APPLICATION_ARCHITECTURE_STACK_RESEARCH.md — merged non-binding architecture/stack research baseline.`
-- `docs/research/V1_ARCHITECTURE_DECISION_GAP_ANALYSIS.md — independently verified synthesis and minimum architecture evidence gates.`
 - `.agents/CAPABILITIES.md — routing for planning, architecture, implementation, and review work.`
 - `AGENTS.md — repository operating entry point.`
 
 ## Next
 
-`Prepare and run the Gate A + Gate B physical-device baseline: characterize Samsung transport/pairing/TLS identity and real iPhone/Android discovery, permission, network-change, suspension, and reconnect behavior without introducing a production stack decision.`
+`Research and compare viable V1 architecture and stack approaches from the approved product constraints and Samsung-first control requirements, without assuming a preferred framework.`
 
 ## After that
 
-1. `Use the measured baseline to choose and run the minimum Gate C session-placement comparison rather than a broad framework shootout.`
-2. `Record the architecture/stack decision and move the project into architecture when the evidence is sufficient.`
-3. `Design the Samsung integration boundary and account/local-data seams from the accepted product and architecture decisions.`
+1. `Record the architecture/stack decision and move the project into architecture when the discovery evidence is sufficient.`
+2. `Design the Samsung integration boundary and account/local-data seams from the accepted product and architecture decisions.`
+3. `Formalize decided implementation work for dispatch only after those boundaries are settled.`
