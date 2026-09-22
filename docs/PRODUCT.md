@@ -16,7 +16,7 @@ V1 begins with **Samsung Smart TVs**. Other televisions may be discovered and ex
 
 Reliability is the primary product constraint.
 
-Premium visual quality, accessibility, and a polished phone-native experience are major priorities, but they must not compromise dependable control.
+Premium visual quality, accessibility, and a polished phone-native experience are major priorities, but they must not compromise dependable control. AppT has a friendly consumer-facing brand personality and may use a mascot in onboarding, support, and other low-frequency moments; the everyday remote surface itself is premium, restrained, dark-first, and utility-focused.
 
 Broad compatibility and feature count come after reliable everyday operation.
 
@@ -120,7 +120,7 @@ Changes to local IP addresses are handled through rediscovery rather than requir
 
 ## Remote experience
 
-The remote should be immediately recognizable but designed for a phone rather than visually copying a physical remote.
+The remote should be immediately recognizable but designed for a phone rather than visually copying a physical remote. After setup AppT is remote-first: normal launch attempts to reopen the last-used television rather than landing on a dashboard.
 
 Controls are capability-driven.
 
@@ -132,11 +132,11 @@ Phone-native behavior includes:
 - physical phone volume buttons controlling TV volume while the remote is active, with an option to disable this behavior;
 - the normal phone keyboard for supported TV text input.
 
-Everyday controls remain prominent. Less frequently used capabilities can live behind secondary surfaces.
+Everyday controls remain prominent and keep stable positions for muscle memory. Less frequently used capabilities can live behind secondary surfaces and may be favourited/reordered. The core remote is not a fully free-form layout designer.
 
 Simple favourites and control rearrangement are appropriate for V1. Favourites and secondary-control order are per television and device-local. Interaction preferences such as haptics, physical volume-button behavior, and preferred navigation mode are device-wide and device-local. A full remote-layout designer is not required.
 
-One-handed use is a first-class design requirement.
+One-handed use is a first-class design requirement. The everyday Remote does not carry persistent bottom navigation; television switching and secondary destinations use compact, contextual affordances so the control surface retains the screen.
 
 Accessibility is first-class, including screen-reader support, scalable text, strong contrast, large touch targets, and clear labels.
 
