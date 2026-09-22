@@ -108,7 +108,7 @@ These names are the contract. Implementation may split them, not drop the assert
 
 Room migrations, once a second schema version exists, run as instrumented or Robolectric migration tests. Destructive fallback is a test failure if it is present in production source.
 
-Compose coverage for V1 flows: welcome to explanation to cards; card has no IP text; approval state; one command; reconnecting status is not a dialog; rejected key disappears; account requirement is not applied before the first `Accepted`. That `Accepted` is a socket write, not visible television action. Coverage does not encode a cold-start-only or next-route-only account rule.
+Compose coverage for V1 flows: welcome to explanation to cards; card has no IP text; approval state; one command; reconnecting status is not a dialog; rejected key disappears; account requirement is not applied before the first `Accepted`. That `Accepted` is a socket write, not visible television action. The same exempt `ActiveRemote` remains usable until it closes; the next remote entry without a Firebase user routes to Account before `SamsungTvs.open`.
 
 ## Physical acceptance matrix
 
