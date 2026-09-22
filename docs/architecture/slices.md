@@ -12,7 +12,7 @@ External gates, not slices: Samsung vendor-terms review before public production
 
 ## Definition of V1-ready
 
-V1-ready for public production means S01 through S15 are accepted, the different-account holding behavior and the cross-device unpair holding behavior are still in force or a later slice has implemented those human decisions, and the two external gates have been passed. S14 can put a build on the internal track before S15. Public promotion waits for S15.
+V1-ready for public production means S01 through S15 are accepted and the two external gates have been passed. The account-switch, post-first-session account gate, and pairing-local cross-device deletion semantics are settled product behavior and are implemented in S10/S11. S14 can put a build on the internal track before S15. Public promotion waits for S15.
 
 ## Sequence
 
@@ -176,31 +176,31 @@ Not in this slice: sync of favourites (local until S11), DIAL launch.
 
 ## S10 — Account after first control
 
-Observable outcome: the first successful local-control session is not blocked on sign-in. After that success, continued/full use and sync require a local Firebase user. This slice does not define that requirement as the next cold start, the next navigation, or an interrupt of the remote. Google and email/password both work. Sign-out keeps secrets and does not delete televisions. With a cached user and Firebase unreachable, a command still succeeds.
+Observable outcome: the first successful local-control session is not blocked on sign-in. The first `Accepted` marks that milestone but does not interrupt the active remote. When that `ActiveRemote` session ends, the next remote entry requires sign-in. Google and email/password both work. Sign-out keeps secrets and does not delete televisions. With a cached user and Firebase unreachable, a command still succeeds.
 
-Seams: account gate, Credential Manager, Firebase Auth. Read [sync.md](sync.md).
+Seams: account gate, `ActiveRemote` first-session exemption, Credential Manager, Firebase Auth. Read [sync.md](sync.md).
 
 Depends on: S03, S07.
 
-Acceptance: Compose test reaches `Accepted` with `currentUser` null before `firstControlAchieved`; that `Accepted` is asserted as a socket write, not as visible television action; no skip-forever control; the test does not encode a second-launch-only or next-route-only account rule; after `firstControlAchieved`, sync does not run without a local user; sign-out then sign-in of the same test user restores the list without re-pairing; airplane-mode test with a cached user still commands on the LAN fixture; auth errors do not clear a cached user; password reset email can be sent.
+Acceptance: Compose test reaches `Accepted` with `currentUser` null on the first-session-exempt remote; that `Accepted` is asserted as a socket write, not as visible television action; the same active remote remains usable after `firstControlAchieved` becomes true; rotation/share-sheet grace does not create a new session; after the exempt `ActiveRemote` closes, a new remote entry with no user routes to Account and does not call `SamsungTvs.open`; process death after first success also requires sign-in on the next remote entry; no skip-forever control; sign-out preserves pairing material; airplane-mode test with a cached user still commands on the LAN fixture; auth errors do not clear a cached user; password reset email can be sent.
 
-Verification: Compose tests with fake auth where possible; one instrumented test against a Firebase test project or emulator for Google is not required if Credential Manager is covered by a fake and email/password is covered against the Auth emulator.
+Verification: Compose tests with fake auth where possible; lifecycle test for the exempt-session boundary; one instrumented test against a Firebase test project or emulator for Google is not required if Credential Manager is covered by a fake and email/password is covered against the Auth emulator.
 
-Not in this slice: Firestore writes, different-account product behavior beyond the holding screen if a second uid is injected.
+Not in this slice: Firestore record synchronization or migration of account-scoped sync data between different uids.
 
 ## S11 — Sync non-secret data
 
-Observable outcome: names, favourites, and the three preferences sync for one account. A second phone shows the synced name before it pairs and cannot command until it pairs locally. Airplane mode on the public internet does not stop a LAN command. A different uid hits the holding behavior and uploads nothing.
+Observable outcome: names, favourites, and the three preferences sync for one account. A second phone shows the synced name before it pairs and cannot command until it pairs locally. Airplane mode on the public internet does not stop a LAN command. Switching to a different account requires explicit confirmation and never imports the previous account's personalization. A television removed on one phone loses shared metadata on the others but does not remotely unpair them.
 
-Seams: sync worker, `SyncRecord`, Security Rules, tombstones. Read [sync.md](sync.md) and [data.md](data.md).
+Seams: sync worker, `SyncRecord`, Security Rules, tombstones, account-switch reset. Read [sync.md](sync.md) and [data.md](data.md).
 
 Depends on: S10, S09.
 
-Acceptance: Room write is visible before the worker runs; the value and its version tuple commit together; the worker submits that stored tuple and does not restamp it; each record is compared with the current remote version inside a transaction before write; a stale tuple is denied by rules and does not overwrite a newer live record or a newer tombstone; worker failure does not change session state; fresh-install pull does not push tombstones; tombstone does not resurrect; a winning remote television tombstone does not call `forget` and does not delete a secret; secret field write is denied by rules; cross-user read is denied; hard delete is denied; non-correlatable television is not uploaded; different-uid test uploads nothing and deletes no secret; Firestore persistence is off; no snapshot listener in source.
+Acceptance: Room write is visible before the worker runs; the value and its version tuple commit together; the worker submits that stored tuple and does not restamp it; each record is compared with the current remote version inside a transaction before write; a stale tuple is denied by rules and does not overwrite a newer live record or a newer tombstone; worker failure does not change session state; fresh-install pull does not push tombstones; tombstone does not resurrect; a winning remote television tombstone removes account-scoped name/favourites but does not call `forget` or delete a secret; a paired television with no live account profile remains controllable under a neutral/freshly discovered name; local explicit forget deletes this phone's secret and publishes the non-secret tombstone; different-uid sign-in pauses sync and asks for confirmation; cancelling signs out the new uid with old local account state untouched; confirming clears old account sync state without emitting tombstones, resets synced preferences without pending writes, preserves pairing/private Samsung data, switches `lastSyncedUid`, and pulls the new account before any new upload; old friendly names/favourites never appear in the new account; secret field write is denied by rules; cross-user read is denied; hard delete is denied; non-correlatable television is not uploaded; Firestore persistence is off; no snapshot listener in source.
 
-Verification: unit tests for merge and the apply algorithm; Firestore rules tests; one instrumented or emulator test of two clients; Gradle/source check for snapshot listeners.
+Verification: unit tests for merge, account-switch reset, and the apply algorithm; Firestore rules tests; one instrumented or emulator test of two clients plus two uids; Gradle/source check for snapshot listeners.
 
-Not in this slice: choosing the different-account product behavior. Holding behavior only.
+Not in this slice: multi-profile UI or sharing pairing credentials through the cloud.
 
 ## S12 — Crashes and redacted export
 
