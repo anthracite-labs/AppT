@@ -28,11 +28,10 @@ Technical networking and protocol details stay out of the normal user experience
 
 AppT targets **Android and iPhone for V1** when the selected architecture can support both without materially compromising reliability.
 
-React Native and Expo are candidates for investigation, not accepted architecture decisions.
 
 If simultaneous cross-platform delivery would compromise core product quality or require unreasonable platform compromises, AppT may fall back to an Android-first launch.
 
-Architecture and application-stack selection occur after product definition.
+Architecture and application-stack selection occur after product definition and are not predetermined by the product requirements.
 
 ## Local-first control
 
