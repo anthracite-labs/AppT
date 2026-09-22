@@ -17,9 +17,9 @@ Phase: `discovery`
 
 ## Current objective
 
-Objective: `Determine the V1 application architecture and stack, beginning with React Native / Expo feasibility against AppT's Samsung-control, local-first, security, account-sync, and cross-platform requirements.`
+Objective: `Determine the V1 application architecture and stack from AppT's approved product constraints, without preselecting a framework or runtime.`
 
-Success condition: `An evidence-backed architecture decision identifies whether React Native / Expo can deliver the required Android and iPhone experience without compromising reliable Samsung control; if not, an alternative direction is selected with the trade-offs recorded.`
+Success condition: `An evidence-backed architecture decision compares viable approaches against AppT's Samsung-control, local-first, security, account-sync, reliability, and cross-platform requirements, then records the selected direction and its trade-offs.`
 
 ## Active work
 
@@ -36,32 +36,30 @@ Secondary:
 - `AppT is a Universal TV Remote for ordinary consumers — docs/PRODUCT.md`
 - `Samsung Smart TVs are the first intentionally targeted ecosystem; other TVs may be experimentally probed with explicit user consent before functional commands — docs/PRODUCT.md`
 - `Android and iPhone are V1 targets when architecture can support both without compromising reliability; Android-first is an acceptable fallback — docs/PRODUCT.md`
-- `React Native / Expo is a candidate to research, not an accepted stack — docs/PRODUCT.md`
 - `TV control is local-first and continues when AppT services or internet access are unavailable — docs/PRODUCT.md`
 - `An account is part of the product, but first successful local control is not gated by sign-in; account sync excludes pairing secrets — docs/PRODUCT.md`
 - `V1 is free, with no advertising, behavioral usage analytics, or required paid tier/subscription — docs/PRODUCT.md`
 
 ## Blockers / Unknowns
 
-- Whether React Native / Expo can satisfy Samsung discovery/control, TLS/security, secure credential storage, app lifecycle, and cross-platform requirements without unacceptable native complexity.
+- Which application architecture and stack best satisfy Samsung discovery/control, TLS/security, secure credential storage, app lifecycle, reliability, and cross-platform requirements.
 - Exact Samsung protocol/device-generation behavior that AppT will support in V1.
 - Final account/backend architecture and synchronization model.
 - Focused Samsung vendor-terms/legal review must be completed before public release.
 
 ## Recent change
 
-- `Product definition approved and recorded in docs/PRODUCT.md; project advanced from setup to discovery.`
+- `Architecture discovery was reset to a stack-neutral first-principles pass; prior candidate-led research was not adopted as project evidence.`
 
 ## Relevant canonical references
 
 - `docs/PRODUCT.md — approved AppT product definition and product constraints.`
 - `.agents/CAPABILITIES.md — routing for planning, architecture, implementation, and review work.`
 - `AGENTS.md — repository operating entry point.`
-- `anthracite-labs/Greenfield4/docs/PRODUCT.md and docs/research/ — reference evidence only; not AppT requirements unless adopted in docs/PRODUCT.md.`
 
 ## Next
 
-`Research the V1 stack, starting with React Native / Expo feasibility against the approved product constraints and Samsung-first control requirements.`
+`Research and compare viable V1 architecture and stack approaches from the approved product constraints and Samsung-first control requirements, without assuming a preferred framework.`
 
 ## After that
 
