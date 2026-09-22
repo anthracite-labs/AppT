@@ -126,7 +126,7 @@ enum class PreferenceKey { HapticsEnabled, VolumeButtonsControlTv, NavigationMod
 
 `schema` is 1. A pulled record with any other schema is not applied. Local data is left as it is. A redacted diagnostic `sync.unknownSchema` is recorded.
 
-Non-correlatable television rows are not uploaded and not created from a remote record the phone cannot match. Preferences and favourites for a television the phone does not have remain in Room but are hidden until that television is known locally, so a pull cannot invent a controllable card. Hiding those unsynced-until-known favourites is not the cross-device unpair decision.
+Non-correlatable television rows are not uploaded and not created from a remote record the phone cannot match. Preferences and favourites for a television the phone does not have remain in Room but are hidden until that television is known locally, so a pull cannot invent a controllable card. A winning television tombstone removes the account-scoped name and related favourites; a separate remembered pairing may still surface the television under the neutral/freshly discovered local fallback.
 
 `TvId` derived from the protocol UUID is the correlation key inside the user's private Firestore. It is how a friendly name attaches to the same television on another phone. It is not shown in the UI and is excluded from Crashlytics and export. MAC and IP are not the correlation key.
 
