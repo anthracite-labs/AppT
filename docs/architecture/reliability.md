@@ -11,6 +11,8 @@ Reference device class for all targets: a mid-tier 2023-or-later Android phone (
 
 ## Launch and setup
 
+The measurement harness lives in the **test-only `:macrobenchmark` module** described in [modules.md](modules.md#shape). Without that module the Macrobenchmark targets below cannot run, which is why it exists even though the production shape is two modules.
+
 | Target | p50 | p95 | Notes | Verification |
 |---|---|---|---|---|
 | Cold start to first frame of the resolved start destination | 500 ms | 1200 ms | No backend wait before first frame; launch routing is synchronous over local state | Macrobenchmark `StartupTimingMetric` |
@@ -69,7 +71,7 @@ Reference device class for all targets: a mid-tier 2023-or-later Android phone (
 | Active-session network energy | keepalive 20 s while retained only | Budget reported per physical device rather than promised | Battery historian |
 | Apk size contribution of the Firebase/Play stack | recorded per release, non-blocking | A large jump is a review trigger | Release artifact report |
 
-`command` and the socket read loop allocate nothing in steady state beyond the command itself, and never perform disk I/O, Crashlytics calls, or share-sheet work. A diagnostic offer is a non-suspending queue operation.
+`command` and the socket read loop allocate nothing in steady state beyond the command itself, and never perform disk I/O, diagnostic recording, or share-sheet work. A diagnostic offer is a non-suspending queue operation, and the rolling file is written on its own dispatcher.
 
 ## Startup work budget
 
@@ -79,8 +81,8 @@ Reference device class for all targets: a mid-tier 2023-or-later Android phone (
 | Samsung session open | Started immediately, awaited off the first frame | The Remote surface renders `Connecting` |
 | Discovery scan | Only when Discovery is the destination | Never started from Remote rendering |
 | Entitlement refresh | Never on the launch path | Scheduled work or a result of an explicit user action |
-| Crashlytics initialization | Yes, but no collection unless opted in | Initialization must not block first frame |
-| Crash mapping download | No | Mapping upload happens at build time |
+| Local diagnostic record | A bounded, non-blocking open; nothing is written before the first frame | Recording is enqueue-only and never precedes rendering |
+| Mapping or symbol upload | No | The R8 mapping file is uploaded to Play at build time, never at runtime |
 
 ## Regression policy
 

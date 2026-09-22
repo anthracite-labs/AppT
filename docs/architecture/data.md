@@ -33,11 +33,10 @@ One row per television this phone remembers.
 | `stableIdentity` | INTEGER | True when the television supplied the identity (see [discovery.md](discovery.md)) |
 | `createdAt` | INTEGER | Device millis |
 | `lastOpenedAt` | INTEGER NULL | Written when the session reaches `Ready`; drives quiet last-used reopen |
-| `forgetPending` | INTEGER | 1 while a local forget still needs to complete on `samsung` |
 
 Forbidden columns: any column named like a token, pin, secret, certificate, MAC, address, host, SSID, Wi-Fi name, command, or text. A test loads the exported schema and fails if a forbidden name appears (the list is owned by [diagnostics.md](diagnostics.md)).
 
-`forgetPending` is a **local lifecycle marker, not a sync tombstone**. It exists because `samsung.forget` can fail and must be retried; it never leaves the phone, nothing reads it as remote state, and no other class may set it. A row with `forgetPending = 1` is hidden from every list.
+A forgotten television has no row here at all. Forget deletes the profile, so nothing can re-expose it; the retry that may still be outstanding lives in `PendingForget` below.
 
 ### `Favourite`
 
@@ -60,12 +59,26 @@ Rules:
 - `lastOpenedAt` is device-local and never leaves the phone, so one phone never changes another phone's last-used television.
 - There is no account column, no account-scoped ownership, and no shared-metadata concept anywhere in the schema.
 
+### `PendingForget`
+
+One row per local unpair that has been requested but not yet confirmed by `samsung`.
+
+| Column | Notes |
+|---|---|
+| `tvId` | Primary key |
+| `requestedAt` | Device millis, for diagnostics and ordering only |
+
+Forget is the only writer. The row exists because `samsung.forget` can fail while the telephone, television, or network is temporarily unavailable, and a retry needs durable state after the profile row is already gone. It holds no name, no favourite, no secret, and no sync metadata, and it is a **local lifecycle marker, not a tombstone**: it never leaves the phone, nothing else reads it, and no server or account concept can create one.
+
 ### Ownership rules
 
 - Remember: the user selects a controllable card → `app` inserts `TvProfile` → `ActiveRemoteHost.enter` → `samsung.open`. The secret appears only after TV-side approval.
 - Rename: one Room transaction updates `friendlyName`, `nameSource = USER`. Write happens in the ViewModel, never in a composable effect.
 - Favourite or reorder: one Room transaction per user action (see [presentation.md](presentation.md#favourites-apps-and-edit-mode)).
-- Forget this TV, requested on this phone: one Room transaction sets `forgetPending = 1` and hides the row, then `app` calls `samsung.forget` and clears the flag after `Forgotten`. A failed `forget` leaves the flag set; startup retries every pending row that still has a samsung-private record for that id. A second `forget` is safe because `forget` is idempotent.
+- Forget this TV, requested on this phone: **one Room transaction** deletes the `TvProfile` row and every `Favourite` row for that `tvId`, and inserts a `PendingForget` row. The television disappears from every list immediately, and no state that could re-expose it survives the transaction.
+- `app` then calls `samsung.forget(tvId)`. On `Forgotten`, a second transaction deletes the `PendingForget` row. A failed `forget` leaves that row in place; startup retries every pending id that still has a samsung-private record for it. A second `forget` is safe because `forget` is idempotent.
+- A `PendingForget` row is also cleared when a session for the same `tvId` reaches `Ready` again: the user has re-added the television, the new approval replaced the old pairing material, and a stale retry must never delete it. Without that rule, a stuck pending forget could unpair a freshly paired television at startup.
+- Forget removes this phone's Local Pairing and Television Personalization. It never touches account state, entitlement state, another television, or anything outside the phone.
 - Removing a profile row never touches another television's row, and never touches account state.
 
 ## DataStore
@@ -80,7 +93,6 @@ Preferences DataStore with typed keys. Call sites never use raw key strings.
 | `permissionExplanationAcknowledged` | Boolean | false | The local-network explanation has been shown and accepted |
 | `firstControlAchieved` | Boolean | false | Set when a command first returns `Accepted`. A socket-write proxy, not visible television action. See [sync.md](sync.md) |
 | `lastOpenedTvId` | String? | null | Quiet reopen target |
-| `crashReportingOptIn` | Boolean | false | Explicit user opt-in for cloud crash reporting |
 
 Explicitly absent: `lastSyncedUid`, `originDeviceId`, any `prefmeta.*` tuple, install identifiers, and any `updatedAt`/`revision`/`deletedAt` preference metadata. Those belonged to the removed sync design.
 
@@ -114,6 +126,8 @@ Owned by [sync.md](sync.md). It sits in its own directory with its own Keystore 
 - entitlement proofs cannot be written into a Room entity, DataStore key, or Samsung file;
 - deleting or corrupting one class cannot silently destroy the other.
 
+The provisional record inside this file uses the device-computed `provisionalKey` described in [sync.md](sync.md#provisional-entitlement); the server-keyed purchase fingerprint cannot be computed offline and is never stored here. Raw purchase tokens are never stored anywhere.
+
 ## Backup and device transfer
 
 AppT's data is device-local **by product rule**: a new phone starts its remote state clean, and signing in restores only account identity, Username, trial state, and Lifetime Entitlement.
@@ -121,7 +135,7 @@ AppT's data is device-local **by product rule**: a new phone starts its remote s
 The architecture enforces that structurally rather than by listing exclusions:
 
 - `android:allowBackup="false"` for V1, so neither cloud backup nor device-to-device transfer carries AppT application data.
-- `dataExtractionRules` and `backupRules` additionally exclude the secret, device, entitlement, and datastore paths, so a future change to `allowBackup` still fails closed.
+- `dataExtractionRules` and `backupRules` additionally exclude the secret, device, entitlement, diagnostics, and datastore paths, so a future change to `allowBackup` still fails closed.
 - Uninstall and clear-data remove all local television state. Pairing is re-established by pairing again; remembered televisions that expose a stable identity return as the same `TvId` after rediscovery, and device-local names and favourites do not return. That is the accepted product behavior, not a defect.
 
 Consequences documented for support: after a reinstall a customer signs in to restore their entitlement, and re-pairs their televisions.
@@ -131,7 +145,7 @@ Consequences documented for support: after a reinstall a customer signs in to re
 ### Room schema migration
 
 - Every version bump ships an explicit `Migration`; destructive fallback is a test failure if present.
-- Migration tests run against the previous exported schema, in an instrumented or Robolectric test, using realistic rows that include a Chinese-language friendly name, an emoji name, a 40-character name, a null name, and a `forgetPending` row.
+- Migration tests run against the previous exported schema, in an instrumented or Robolectric test, using realistic rows that include a Chinese-language friendly name, an emoji name, a 40-character name, a null name, and a `PendingForget` row.
 - A migration that would drop a column holding a user-visible choice (name, favourite order) is rejected in review unless the product decision is explicit.
 
 ### DataStore migration
@@ -198,8 +212,10 @@ Rules that make leakage and re-introduction of cloud state difficult rather than
 |---|---|
 | `schemaContainsNoForbiddenColumn` | The exported schema has no forbidden column name |
 | `roomMigrationEveryVersion` | A migration test exists for every schema version after 1 |
-| `forgetIsRetryable` | A failed `samsung.forget` leaves `forgetPending` set, hides the row, and retries at startup |
-| `forgetRemovesSecret` | After `Forgotten` the secret file is gone and a second `forget` still returns `Forgotten` |
+| `forgetRemovesRowAndFavouritesInOneTransaction` | After the confirming tap, the profile and its favourites are gone and a `PendingForget` row exists, with no intermediate state that re-exposes the television |
+| `forgetIsRetryable` | A failed `samsung.forget` leaves the `PendingForget` row in place and startup retries it |
+| `newPairingSupersedesPendingForget` | A session reaching `Ready` for a pending id clears the marker and never deletes the new pairing |
+| `forgetRemovesSecret` | After `Forgotten` the secret file and the marker are gone, and a second `forget` still returns `Forgotten` |
 | `favouriteReorderIsAtomic` | A reorder commits in one transaction and survives process death |
 | `dataStoreMigrationKeepsValues` | Renamed keys keep their values and delete the old key only after a successful read-back |
 | `corruptSecretDoesNotResetPairing` | An undecryptable secret yields `SecretsUnavailable`, not an empty pairing |

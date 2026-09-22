@@ -26,7 +26,7 @@ Load the file for the branch in front of you. Do not load the whole directory by
 | Android lifecycle, network transitions, background limits | [lifecycle.md](lifecycle.md) |
 | Reliability and performance targets with verification | [reliability.md](reliability.md) |
 | Threat model and trust boundaries | [security.md](security.md) |
-| Crashlytics opt-in, redaction, export | [diagnostics.md](diagnostics.md) |
+| Local redacted record, preview, export | [diagnostics.md](diagnostics.md) |
 | Test seams, fixtures, backend tests, physical matrix | [testing.md](testing.md) |
 | CI, environments, deployment, rollback, release | [release.md](release.md) |
 | Cross-module sequences | [flows.md](flows.md) |
@@ -67,7 +67,7 @@ The binding text is the numbered list in `docs/ARCHITECTURE.md`. This table is o
 | 7. Android optimized for Android | Native Kotlin/Compose/ViewModel stack. iOS is out of scope. |
 | 8. No universal TV abstraction | The type is `SamsungTvs`, not a cross-brand adapter. Ecosystem #2 is the trigger for a new seam. |
 | 9. TV and remote personalization are device-local; cloud account data is licensing-only | [data.md](data.md) stores no account ownership; [sync.md](sync.md) stores no television, personalization, or behavioral field and lists the forbidden names. |
-| 10. No behavioral analytics | [diagnostics.md](diagnostics.md): no Analytics dependency, opt-in Crashlytics only, redacted local buffer. |
+| 10. No behavioral analytics and no cloud reporting | [diagnostics.md](diagnostics.md): no telemetry dependency at all, bounded redacted local record, explicit user-confirmed export, no upload path. |
 
 ## Settled decision ownership
 
@@ -88,7 +88,7 @@ Every settled decision in `docs/PROJECT_STATE.md` has an owning canonical path. 
 | Remote-entry licensing gate and first-session exemption | [sync.md](sync.md), [lifecycle.md](lifecycle.md), [presentation.md](presentation.md) |
 | Environment separation, deployment, rollback, release checks | [release.md](release.md) |
 | Threat model, guarantees versus best-effort, needs-validation register | [security.md](security.md) |
-| Opt-in crash reporting and always-redacted local diagnostics | [diagnostics.md](diagnostics.md) |
+| Local-only redacted diagnostics and user-confirmed export | [diagnostics.md](diagnostics.md) |
 | Test contracts for every contract above | [testing.md](testing.md) |
 | Implementation route and slice dependencies | [slices.md](slices.md) |
 
@@ -102,6 +102,7 @@ These apply the baseline. They are not new product decisions. Review can reject 
 - Diagnostic export is a user-confirmed share of an already redacted report. V1 has no diagnostic upload service.
 - Manual address entry is not a V1 path.
 - The Android client has no Firestore SDK. Firestore is a server-only datastore reached exclusively through validated endpoints.
+- Play carries exactly one artifact: the production-flavoured release candidate is uploaded to the internal testing track and promoted from there, while internal-environment builds are tester builds distributed outside Play. See [release.md](release.md#release-path-and-artifact-identity).
 - AppT backup is disabled for application data, so a new phone starts remote state clean; signing in restores identity and entitlement only.
 
 ## Harvest application
@@ -110,7 +111,7 @@ These apply the baseline. They are not new product decisions. Review can reject 
 
 Clean-room reimplementation is the one HARVEST practice used while building V1 protocol behavior. It is justified because the adopted WebSocket path must live inside `samsung`, and the usual reference library is LGPL-3.0. The screener already says not to copy incompatible reference code. Using that practice does not decide AppT's license.
 
-No REJECT row is reintroduced. Diagnostic share is not file-sync. Crashlytics is the accepted reporter, not ACRA, and it collects only after explicit opt-in. There is no `TvAdapter`, no per-brand module, no iOS runtime, no credential sync, no ads, no listening mirror, and no F-Droid commitment.
+No REJECT row is reintroduced. Diagnostic share is not file-sync, and V1 adopts neither ACRA nor any cloud crash reporter: cloud crash reporting was removed from V1 this round, so diagnostics are local-only. There is no `TvAdapter`, no per-brand module, no iOS runtime, no credential sync, no ads, no listening mirror, and no F-Droid commitment.
 
 ## Settled privacy, account, and licensing semantics
 
@@ -125,7 +126,8 @@ The owning product decisions are in `docs/PRODUCT.md`, with canonical language i
 - a validated lifetime entitlement keeps paid local control available offline indefinitely;
 - trial abuse protection uses privacy-minimized pseudonymous eligibility signals plus Play Integrity, never television or behavioral data;
 - signing out, switching accounts, or deleting an account does not erase or replace device-local television state;
-- production V1 has no consumer experimental functional-control mode for non-adopted protocols.
+- production V1 has no consumer experimental functional-control mode for non-adopted protocols;
+- V1 ships no crash-reporting, behavioral-analytics, advertising, or attribution SDK, and no diagnostic upload path exists in the app or the backend.
 
 ## Needs validation
 
@@ -139,7 +141,7 @@ Provider and deployment facts that the map relies on. Each must be confirmed aga
 | Play Integrity verdict vocabulary, standard-request nonce binding, and App Check enforcement modes per environment | [sync.md](sync.md), [security.md](security.md), [release.md](release.md) |
 | App-scoped Android ID stability across reinstall, restore, and signing-key rotation | [sync.md](sync.md) |
 | Whether Play Console supports more than one RTDN topic per app | [release.md](release.md) |
-| Crashlytics opt-in semantics, locally stored unsent reports, and provider-side deletion of uploaded data | [diagnostics.md](diagnostics.md) |
+| Play Console Android vitals crash and ANR coverage for an app with no crash-reporting SDK, and Play's acceptance of an R8 mapping upload | [release.md](release.md), [diagnostics.md](diagnostics.md) |
 | Cloud KMS asymmetric signing limits, JWKS hosting, and key-rotation procedure | [sync.md](sync.md) |
 | Email-alias normalization for trial eligibility (address-level `+` tags and provider dot handling) | [security.md](security.md) |
 | Automated contrast-check tooling coverage for Compose surfaces | [presentation.md](presentation.md), [testing.md](testing.md) |

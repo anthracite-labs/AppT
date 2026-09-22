@@ -222,7 +222,7 @@ Deletes pairing material, security identity, and samsung-private device records 
 
 ### `rememberedIds`
 
-Ids for which samsung-private records exist. `app` uses this at startup to retry `forget` for ids whose `forgetPending` flag is set. It is not a UI list. See [data.md](data.md).
+Ids for which samsung-private records exist. `app` uses this at startup to retry `forget` for ids it still has in `PendingForget`. It is not a UI list and it is not an account or cloud concept. See [data.md](data.md).
 
 ### `redactedDiagnostics`
 
@@ -297,8 +297,8 @@ Malformed television traffic is handled inside the module. Callers see the sessi
 
 - Do not call `discover` or `open` before the permission gate is granted, except to handle `LocalNetworkDenied` if a race loses the grant.
 - Do not call `open` when the account gate forbids continued use. The module will still work; the gate is app policy, so it cannot be enforced inside `samsung`. See [sync.md](sync.md).
-- Do not call `forget` because a list row disappeared. `forget` is only for a local user unpair, retried while `forgetPending` is set on a hidden row. Nothing arrives from a network source that could ask for a forget. See [data.md](data.md).
-- Do not log `TvCommand.InsertText.text`, discovery names in crash reports, or `redactedDiagnostics` fields plus extra identifiers.
+- Do not call `forget` because a list row disappeared. `forget` is only for a local user unpair, retried while the id is in `PendingForget`, and never in response to a network or account event. See [data.md](data.md).
+- Do not log `TvCommand.InsertText.text`, discovery names, or `redactedDiagnostics` fields plus extra identifiers. There is no crash-reporting SDK to log to; everything that is recorded stays in the local redacted record described in [diagnostics.md](diagnostics.md).
 - Do not add a second Samsung client beside this interface.
 
 ## Test surface

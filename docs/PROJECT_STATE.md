@@ -64,7 +64,7 @@ Secondary:
 - `One Google Play lifetime purchase binds to one Customer Account; it is not freely transferable among unrelated AppT accounts.`
 - `A genuine Play purchase may receive a short non-renewable provisional entitlement if AppT validation infrastructure is temporarily unavailable.`
 - `Play Integrity is used proportionally for anti-abuse and authenticity, not as a blanket paid-entitlement confiscation mechanism.`
-- `Cloud crash reporting is opt-in; local redacted diagnostics always remain available.`
+- `V1 has no cloud crash reporting and no crash-reporting, analytics, or advertising SDK; bounded redacted local diagnostics plus an explicit user-confirmed export are the whole diagnostic path.`
 - `TV/personalization state is excluded from Android backup/device transfer; a new phone starts its remote state clean.`
 - `The same seven-day trial follows the account across phones with the original expiry; participating devices are marked as trial-consumed.`
 - `Trial/purchase UX is low-pressure and never interrupts an active remote session.`
@@ -88,6 +88,9 @@ Secondary:
 - `The known human UI/UX decision frontier is closed; remaining frontend work is technical architecture synthesis unless a real contradiction surfaces.`
 - `Architecture closure: the entitlement backend is Firebase Cloud Functions (2nd gen) with a server-only Firestore datastore, Secret Manager marker keys, a Cloud KMS proof-signing key, and Play RTDN over Pub/Sub; the Android client has no Firestore dependency.`
 - `Development, internal, and production Firebase/Cloud/Play environments are separated; production credentials never enter the repository.`
+- `Play carries one artifact: a production-flavoured release candidate is uploaded to the internal testing track and promoted from there, while internal-environment builds are distributed outside Play, so the promoted build is the build that was tested.`
+- `Account deletion freezes the purchase binding before the Firebase Auth user is deleted and releases it only after, so the purchase is never re-bindable while the previous account can still authenticate; a scheduled job finishes deletions that stopped early.`
+- `Backend source is TypeScript on the Cloud Functions 2nd gen Node.js runtime, owned by backend/, with its own lockfile and emulator-suite tests.`
 - `AppT application data is excluded from Android backup and device transfer, so a new phone starts its remote state clean.`
 - `The implementation route is the rebuilt sixteen-slice map in docs/architecture/slices.md, which replaces the old S01-S15 route and contains no television-sync slice.`
 - `Phase transition to implementation requires explicit human approval.`
@@ -95,14 +98,14 @@ Secondary:
 ## Blockers / Unknowns
 
 - Human acceptance of the architecture closure is outstanding; the repository must stay in `Phase: architecture` until it is explicit.
-- Provider facts listed as needs validation in `docs/architecture/README.md` (Play RTDN shapes, Developer API method, `purchaseType`, Play Integrity verdicts, Android ID stability, Crashlytics opt-in and deletion semantics, KMS/JWKS rotation, email-alias normalization, contrast tooling) must be confirmed during implementation.
+- Provider facts listed as needs validation in `docs/architecture/README.md` (Play RTDN shapes, Developer API method, `purchaseType`, Play Integrity verdicts, Android ID stability, Play vitals coverage without a crash SDK, KMS/JWKS rotation, email-alias normalization, contrast tooling) must be confirmed during implementation.
 - Final AppT source-license decision remains required before public distribution.
 - Focused Samsung vendor-terms/legal review must be completed before public release.
 - Physical-device evidence is required to tune the reliability targets in `docs/architecture/reliability.md`.
 
 ## Recent change
 
-- `Executed the architecture closure: removed the superseded TV-personalization sync model from every live document, added presentation, lifecycle, reliability, security, and environment architecture, settled the account/trial/purchase/entitlement backend design, and rebuilt the implementation route as sixteen vertical slices. docs/architecture/ is internally consistent and ready for human review; implementation remains unauthorized.`
+- `Applied the architecture-closure review: cloud crash reporting was removed from V1 by human decision, and the release artifact/promotion model, account-deletion durability, trial attach, provisional local key, forget lifecycle, Activity recreation, the test-only benchmark module, and the backend source layout were settled; the slice route was reordered so the licensing gate exists before any slice that routes to it. docs/architecture/ is internally consistent and ready for human review; implementation remains unauthorized.`
 
 ## Relevant canonical references
 

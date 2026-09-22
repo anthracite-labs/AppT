@@ -51,7 +51,7 @@ stateDiagram-v2
 
 `onStop` (backgrounding, screen lock, another app or the launcher in front) releases the Remote screen's retain. Grace keeps the session alive for a quick return. This is deliberate: V1 has no background control, so the session must not outlive app visibility beyond the grace window.
 
-Configuration changes do **not** release any retain. `Remote` is hosted in a route-scoped entry, and the activity declares that it handles rotation by being resizable and not locked, so a rotation is a configuration change rather than a recreation that drops interest.
+Configuration changes do **not** release any retain. The Activity is recreated, but retain interest is not an Activity-scoped resource: the `Remote` route re-retains in the new Activity's `onStart`, and `ActiveRemoteHost` keeps the session across the gap, so recreation never looks like backgrounding and never starts grace. Grace is driven by app visibility (`onStop`), not by Activity identity.
 
 ## Activity and Compose lifecycle
 
@@ -61,9 +61,9 @@ Configuration changes do **not** release any retain. `Remote` is hosted in a rou
 | Warm start from recents within grace | The retained session is reused; no reconnect, no gate re-evaluation, no new socket |
 | `onStart` after a longer absence | The Remote screen's retain is taken and the session reconnects through the existing supervised path |
 | `onStop` | Remote retain released; session enters grace |
-| `onDestroy` caused by configuration change | Retains are preserved; the session is untouched |
+| `onDestroy` caused by a configuration change (rotation, resize, locale, density) | The Activity is destroyed **and recreated**. `ActiveRemoteHost` is application-scoped, so the retained session and its socket survive; the new Activity re-retains it in `onStart` and issues no `open` |
 | `onDestroy` caused by process death | Everything in memory is gone; persisted state decides the next launch |
-| Multi-window / split screen | Treated as a window-size change while visible; `onStop` still releases when the app is not visible |
+| Multi-window / split screen | Treated as a window-size change while visible. The Activity may or may not be recreated; the session behavior is identical either way. `onStop` still releases when the app is not visible |
 | Picture-in-picture | Not used |
 
 ## Process death and cold restart
@@ -75,9 +75,23 @@ Configuration changes do **not** release any retain. `Remote` is hosted in a rou
 
 ## Rotation, window changes, and foldables
 
-- Rotation and resizing preserve the session and never re-evaluate the gate.
-- The layout rules are in [presentation.md](presentation.md#rotation-window-size-foldables-and-tablets).
+V1 declares **no `android:configChanges`**. Rotation, resizing, locale change, density change, and font-scale change all take the platform default path: the Activity is destroyed and a new instance is created. Opting out of recreation would trade a well-tested platform behavior for hand-managed layout work, and would break the moment a configuration the app did not list changed. The architecture is therefore built so that recreation is harmless:
+
+| State | Owner | Across Activity recreation |
+|---|---|---|
+| Session, socket, reconnect budget, gate decision | `ActiveRemoteHost` (application-scoped) | Survives untouched; the screen re-retains on start |
+| Current route and arguments (`tvId`) | Navigation state in the saved instance state | Survives |
+| Remote rename draft, Username draft, search text | `SavedStateHandle` | Survives, so typing is not lost |
+| Scroll position on TvList and Settings | Compose saved state | Survives |
+| Sheet visible, edit mode, an in-flight gesture | Screen-local | Dropped. The screen returns in its default state, which is cheaper than guessing |
+| Interaction preferences, favourites, pairing | Room and DataStore | Untouched |
+
+Consequences:
+
+- Recreation never re-evaluates the gate, never re-pairs, never re-scans, and never opens a second socket. If a rotation did trigger `open`, the session state machine would reject it as already satisfied.
+- Recreation is not a remote entry, so it cannot end an active session or a trial.
 - Long-press reorder and other transient gestures are cancelled by a configuration change rather than resumed mid-gesture.
+- The layout rules are in [presentation.md](presentation.md#rotation-window-size-foldables-and-tablets).
 
 ## Network transitions
 
@@ -136,7 +150,9 @@ It never runs on rotation, resume, reconnect, sheet dismissal, or a command. Tha
 
 | Test | Assertion |
 |---|---|
-| `rotationKeepsSession` | A configuration change during `Ready` performs no reconnect and no gate evaluation |
+| `rotationKeepsSession` | A rotation recreates the Activity; the retained session survives, no reconnect and no gate evaluation occur, and no second `open` is issued |
+| `recreationRestoresRouteAndDrafts` | Route, `tvId`, TvList scroll, and a rename draft survive recreation |
+| `recreationDropsTransientUiOnly` | An open sheet, edit mode, and an in-flight gesture reset on recreation, and nothing else does |
 | `graceClosesAfterFifteenSeconds` | With a fake clock, the session closes at 15 seconds and not before |
 | `backgroundReleasesRemote` | `onStop` starts grace; returning inside grace reuses the same session |
 | `processDeathRequiresNewEntryWhenFirstControlDone` | After a first `Accepted`, a process death leads to the account gate on the next entry |

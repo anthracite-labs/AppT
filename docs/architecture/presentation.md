@@ -26,7 +26,7 @@ class RemoteViewModel(...) : ViewModel() {
 
 State is produced with `MutableStateFlow` plus `combine`/`stateIn` over upstream flows (Room DAO flows, `PreferenceStore` flows, `SamsungTvs` snapshots, `Licensing.state`, `ActiveRemoteHost.current`). Upstream flows are collected with `SharingStarted.WhileSubscribed(5_000)` so leaving a screen stops work without losing state across a rotation. Intent functions launch in `viewModelScope` and never mutate shared state outside the ViewModel.
 
-Allowed ViewModel dependencies: `SamsungTvs`, `RemoteSession.snapshot`, `ActiveRemoteHost`, `TvDao`, `FavouriteDao`, `PreferenceStore`, `PermissionGate`, `AccountGate`, `Licensing`, `AccountAuth`, `DiagnosticsConsent`, `SavedStateHandle`.
+Allowed ViewModel dependencies: `SamsungTvs`, `RemoteSession.snapshot`, `ActiveRemoteHost`, `TvDao`, `FavouriteDao`, `PreferenceStore`, `PermissionGate`, `AccountGate`, `Licensing`, `AccountAuth`, `LocalDiagnostics`, `SavedStateHandle`.
 
 Forbidden ViewModel dependencies: `EntitlementBackend`, `PlayBilling`, `IntegrityProvider`, `FirebaseAuth`, OkHttp clients, Keystore aliases, DataStore key strings, `android.util.Log`, and any `samsung.internal` type. Purchase and integrity calls happen inside `Licensing`.
 
@@ -172,7 +172,7 @@ Each contract below is the interface between the ViewModel and the composables. 
 | State | `TvListUiState(rows: List<TvRowUi>, renameTarget: TvId?, renameDraft: String, forgetTarget: TvId?, showEmptyState: Boolean)` |
 | Intents | `onOpen(tvId)`, `onRenameStart(tvId)`, `onRenameCommit(text)`, `onForgetRequest(tvId)`, `onForgetConfirm(tvId)`, `onAddTv()`, `onDetails(tvId)` |
 | Observes | `TvDao`, `FavouriteDao`, `SamsungTvs.rememberedIds()`, `ActiveRemoteHost` |
-| Rules | Rows show friendly name and ordinary-language state. Model and firmware appear only in a secondary details surface. `Forget this TV` requires an explicit confirmation whose copy says the television is removed from this phone only. |
+| Rules | Rows show friendly name and ordinary-language state. Model and firmware appear only in a secondary details surface. `Forget this TV` requires an explicit confirmation whose copy says the television is removed from this phone only; on confirmation the row and its favourites disappear immediately in one transaction, and the local unpair retries in the background without ever bringing the row back. |
 
 ### Account
 
@@ -196,19 +196,19 @@ Each contract below is the interface between the ViewModel and the composables. 
 
 | | |
 |---|---|
-| State | `SettingsUiState(interaction: InteractionSettings, tvCount: Int, accountSummary: AccountSummary, crashReportingOptIn: Boolean, appVersion: String)` |
+| State | `SettingsUiState(interaction: InteractionSettings, tvCount: Int, accountSummary: AccountSummary, appVersion: String)` |
 | Intents | `onHaptics(enabled)`, `onVolumeButtons(enabled)`, `onNavigationMode(mode)`, `onOpenTvs()`, `onOpenAccount()`, `onOpenDiagnostics()`, `onOpenAbout()` |
-| Observes | `PreferenceStore`, `TvDao`, `Licensing`, `AccountAuth`, `DiagnosticsConsent` |
+| Observes | `PreferenceStore`, `TvDao`, `Licensing`, `AccountAuth` |
 | Rules | One grouped screen with the five fixed sections. Preference writes happen in the ViewModel, never in a composable effect. Contextual actions deep-link into the correct section. |
 
 ### Diagnostics
 
 | | |
 |---|---|
-| State | `DiagnosticsUiState(crashReporting: ConsentState, lastExportPreview: ExportPreview?, localEventCount: Int, uploading: Boolean)` |
-| Intents | `onCrashReportingToggle(enabled)`, `onSendStoredReports()`, `onDeleteStoredReports()`, `onBuildPreview()`, `onConfirmExport()` |
-| Observes | `DiagnosticsConsent`, `SamsungTvs.redactedDiagnostics()` |
-| Rules | Crash reporting is off until explicitly enabled. The preview lists exactly what will leave the phone before the share sheet opens. Request Support reuses the same preview and export path. Nothing is uploaded to an AppT service. |
+| State | `DiagnosticsUiState(lastExportPreview: ExportPreview?, localEventCount: Int, oldestEventAge: Duration?)` |
+| Intents | `onBuildPreview(context: SupportContext)`, `onConfirmExport()`, `onCancelPreview()`, `onClearLocalHistory()`, `onRequestSupport(tvId)` |
+| Observes | `LocalDiagnostics`, `SamsungTvs.redactedDiagnostics()` |
+| Rules | There is no upload switch, because nothing is ever uploaded: V1 has no cloud crash reporting and no analytics. The screen shows what the local record contains and how old it is, builds a preview that lists every field before anything leaves the phone, and shares only after explicit confirmation. Request Support reuses the same preview and export path. `onClearLocalHistory` deletes the record and asks for confirmation because it cannot be undone. |
 
 ## Navigation and back behavior
 
@@ -251,7 +251,8 @@ interface ActiveRemoteHost {
 | Current route and arguments (Navigation Compose saved state) | The socket, session, or reconnect budget |
 | `Remote(tvId)` re-opens the session quietly if the gate still allows | A scan in progress; Discovery starts one fresh bounded scan |
 | Permission acknowledgment, `firstControlAchieved`, interaction preferences | Pairing approval candidate pin; the pairing state restarts a fresh `open` |
-| TvList scroll position and rename draft? (draft is discarded; the row stays) | An in-flight Play purchase; purchases are re-queried from Play on next use |
+| TvList and Settings scroll position | An in-flight Play purchase; purchases are re-queried from Play on next use |
+| Rename and Username drafts (`SavedStateHandle`) | Nothing that is in flight and not in saved state |
 | Signed-in identity from the local Auth cache | Sheets, dialogs, and transient edit mode (edit mode restarts off) |
 
 Two rules follow from settled product behavior:
@@ -263,7 +264,7 @@ Two rules follow from settled product behavior:
 
 - No orientation lock. The Remote is not portrait-only.
 - Layout keys off window size classes measured on the current window, not on device category: compact width (< 600dp), medium (600–839dp), expanded (≥ 840dp), plus a compact-height variant for landscape phones.
-- Rotation and window resizing are configuration changes. They retain the Active Remote, the selected television, navigation mode, and (where safe) edit mode. They never re-pair, re-scan, or re-evaluate the licensing gate.
+- Rotation and window resizing are configuration changes, and the Activity is recreated for them because V1 declares no `android:configChanges` (see [lifecycle.md](lifecycle.md#rotation-window-changes-and-foldables)). The Active Remote, the selected television, and navigation mode survive inside the application-scoped `ActiveRemoteHost` and saved state; edit mode, sheets, and in-flight gestures restart closed. Recreation never re-pairs, re-scans, or re-evaluates the licensing gate.
 - Foldable posture and hinge APIs are not used in V1. A foldable is a window that changes size class. If a posture-specific requirement appears later, that is a new decision.
 - No separate tablet product architecture: the same screens, the same semantic order, more space.
 

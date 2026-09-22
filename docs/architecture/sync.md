@@ -41,7 +41,6 @@ flowchart TD
   integrity["Play Integrity decode API"]
   publisher["Google Play Developer API"]
   rtdn["Cloud Pub/Sub (Play RTDN)"]
-  crash["Crashlytics (opt-in only)"]
 
   app -->|"ID token + App Check"| fn
   app -->|"SDK"| auth
@@ -51,7 +50,6 @@ flowchart TD
   fn --> integrity
   fn --> publisher
   rtdn -->|"push, OIDC-authenticated"| fn
-  app -.->|"opt-in crash only"| crash
   auth --- fn
 ```
 
@@ -63,9 +61,9 @@ flowchart TD
 | Secret Manager | HMAC keys for eligibility markers and purchase fingerprints | Versioned; never leaves the backend |
 | Cloud KMS | Non-exportable ES256 key that signs entitlement proofs | Public keys exposed through `GET /v1/keys` for offline verification |
 | Play Integrity decode API | Server-side verdicts for trial and purchase decisions | Provider fact; see needs validation |
+| Scheduled reconciliation | Daily Cloud Scheduler job that finalises deletions which stopped after the Auth user was removed | Backend-only; the Android client never triggers or observes it directly |
 | Google Play Developer API | Authoritative purchase verification and acknowledgement | Service account with the narrow publisher scope |
 | Cloud Pub/Sub + RTDN | Refund, chargeback, and cancellation signals | One Play-managed topic per Play app; at-least-once, unordered |
-| Crashlytics | Opt-in crash reporting | Off by default; no identifiers |
 
 Deliberate consequences:
 
@@ -102,7 +100,7 @@ interface Licensing {
 
 interface EntitlementBackend {                           // HTTPS + OkHttp + kotlinx-serialization
     suspend fun activateTrial(request: TrialRequest): TrialResponse
-    suspend fun entitlement(): EntitlementResponse
+    suspend fun refresh(request: RefreshRequest): RefreshResponse
     suspend fun verifyPurchase(request: VerifyRequest): VerifyResponse
     suspend fun putUsername(value: String): Unit
     suspend fun deleteAccount(): DeleteResponse
@@ -141,29 +139,45 @@ All endpoints require a Firebase ID token. All require an App Check token. The u
 | Endpoint | Purpose | Request | Success response | Failure responses |
 |---|---|---|---|---|
 | `POST /v1/trial/activate` | Server-authoritative trial start and eligibility | `{playIntegrityToken, deviceSignal, appVersion}` | `{eligible:true, trialExpiresAt, serverTimeMillis, proof}` | `409 {eligible:false, reason: email_marker \| device_marker \| unverified_email}`, `403 integrity`, `503 unavailable` |
-| `GET /v1/entitlement` | Current access state plus a fresh proof | — | `{access:{kind:none\|trial\|lifetime, expiresAt, revokedAt}, proof, serverTimeMillis}` | `401`, `403`, `503` |
+| `POST /v1/entitlement/refresh` | Current access state plus a fresh proof, and idempotent trial participation marking | `{deviceSignal, appVersion}` | `{access:{kind:none\|trial\|lifetime, expiresAt, revokedAt}, trialAttached:bool, proof, serverTimeMillis}` | `401`, `403`, `503` |
 | `POST /v1/purchase/verify` | Authoritative purchase verification, binding, and restore | `{packageName, productId, purchaseToken, playIntegrityToken, source: "app"\|"restore"}` | `{result:"granted", proof, serverTimeMillis}` | `{result:"pending"}`, `{result:"bound_elsewhere"}`, `409 {result:"rejected", reason: not_purchased\|test_purchase\|already_revoked\|package_mismatch\|product_mismatch}`, `503` |
 | `POST /v1/username` | Set or change the Username | `{username}` | `{username, updatedAt}` | `400 invalid_username` |
-| `POST /v1/account/delete` | Delete the account and report what was retained | — | `{deleted:true, retained:[trial_marker, purchase_binding]}` | `401`, `503` |
+| `POST /v1/account/delete` | Resumable account deletion: freeze bindings, delete the Auth user, release bindings, report what was retained | — | `{state:"completed", retained:[trial_marker, purchase_binding]}` or `{state:"auth_delete_pending", retryable:true}` | `401`, `503` |
 | `GET /v1/keys` | Public key set for offline proof verification | — | JWKS-shaped `{keys:[{kid, kty, crv, x, y, alg:ES256, use:sig}]}` | `503` |
 
 Rules that hold for every endpoint:
 
 - Validation happens before any write: package name, product id, field shapes, lengths, and enum membership.
-- Requests are idempotent by construction: trial activation returns the existing trial, purchase verification returns the existing binding, account deletion is a no-op when already deleted.
+- Requests are idempotent by construction: trial activation returns the existing trial, entitlement refresh re-attaches an already-marked device without changing anything, purchase verification returns the existing binding, and account deletion resumes from whichever phase it reached and is a no-op when already deleted.
 - Responses never echo a raw purchase token, an email, a device signal, or another user's data.
 - Errors are typed and non-enumerating: they never reveal whether a given email or device has an AppT account.
 - No endpoint accepts a television, preference, diagnostic, or usage field. Unknown body fields are rejected rather than ignored.
+
+## Backend source architecture
+
+| Aspect | Decision |
+|---|---|
+| Runtime | Cloud Functions for Firebase, 2nd gen, on the Node.js LTS runtime |
+| Language | TypeScript, compiled at deploy; one language for the whole service |
+| Location | `backend/` at the repository root, sibling to the Android modules and outside both |
+| Package layout | `backend/src/handlers/` (one file per endpoint), `backend/src/domain/` (trial, binding, deletion, proof rules with no provider types), `backend/src/adapters/` (Play Developer API, integrity decoder, marker keys, KMS signer, Firestore access), `backend/src/http/` (auth, App Check, validation, error mapping) |
+| Rules and indexes | `backend/firestore.rules` and `backend/firestore.indexes.json`, deployed as versioned artifacts |
+| Toolchain ownership | `backend/package.json` plus a committed `package-lock.json`; ESLint and Prettier configuration in `backend/`; `npm ci` only, never an unlocked install |
+| Test organization | `backend/test/` for unit tests of domain rules with fake adapters, `backend/test/fixtures/` for the JSON request/response and RTDN fixtures, and emulator-suite tests for handler behaviour, rules, and idempotency |
+| CI | [release.md](release.md#pull-request-checks) runs typecheck, lint, unit tests, and emulator tests for every change that touches `backend/` |
+
+The seam to the app is the HTTPS API below and nothing else. Dependencies are ordinary npm dependencies, pinned by the lockfile and reviewed like Android dependencies; the backend never imports Android code and the app never imports backend code.
 
 ## Backend record shapes
 
 ```text
 accounts/{uid}
   schemaVersion     int
-  status            "active" | "deleted"
+  status            "active" | "deleting" | "deleted"
   createdAt         int (server millis)
   updatedAt         int
   deletedAt         int | null
+  deletionStartedAt int | null
   username          string | null          // 1..32 after trim, non-unique
   usernameUpdatedAt int | null
   trial             { state: "none"|"active"|"expired", activatedAt: int|null, expiresAt: int|null }
@@ -183,9 +197,10 @@ purchaseBindings/{purchaseFingerprint}
   purchaseFingerprint string               // HMAC of packageName + purchaseToken
   packageName         string
   productId           string
-  state               "bound" | "released"
-  boundUid            string | null        // present only while "bound"
+  state               "bound" | "frozen" | "released"
+  boundUid            string | null        // present only while "bound"; dropped when frozen
   boundAt             int
+  frozenAt            int | null           // set when the owning account starts deleting
   releasedAt          int | null
   releaseReason       "accountDeleted" | "support" | null
   revokedAt           int | null
@@ -240,7 +255,10 @@ sequenceDiagram
   App->>Fn: POST /v1/trial/activate (ID token, App Check, integrity, device signal)
   Fn->>Fn: verify token, App Check, integrity, email verification
   Fn->>Db: lookup marker(scope=email) and marker(scope=device)
-  alt any marker present
+  alt the account already has an active trial
+    Fn->>Db: attach this device: create the device marker if absent, change nothing else
+    Fn-->>App: the existing trialExpiresAt, serverTimeMillis, signed trial proof
+  else any marker present
     Fn-->>App: 409 not eligible with a reason
   else first time
     Fn->>Db: create both markers, set trial.activatedAt/expiresAt from server clock
@@ -250,15 +268,28 @@ sequenceDiagram
 ```
 
 - `expiresAt` is exactly seven days after the server activation timestamp.
-- The trial follows the account: signing in on another phone returns the same `trialExpiresAt` with no new window.
+- The trial follows the account: signing in on another phone returns the same `trialExpiresAt` with no new window, and that phone is marked as trial-consumed.
 - A device that participates in a trial is marked through the `device` marker, so it cannot later obtain a second trial through a different account.
 - A Lifetime Entitlement does not mark a device as trial-consumed; only trial participation does.
+
+### Attaching a phone to a trial that already exists
+
+A trial belongs to the account, but participation has to be recorded per device, so the two operations are separate:
+
+| Operation | Endpoint | When it applies | Effect |
+|---|---|---|---|
+| Activate | `POST /v1/trial/activate` | The account has never had a trial, and neither marker exists | Creates the email and device markers, sets the seven-day window |
+| Attach | `POST /v1/entitlement/refresh` | The account already has an active trial and this phone signs in | Returns the original expiry and creates this phone's device marker if it is absent |
+
+The refresh call always carries `deviceSignal`. It is the client's normal sign-in and periodic refresh path, so a second phone is marked the first time it signs in, without a separate user action. Attaching is idempotent: the same device signal hashes to the same marker, so a repeat call changes nothing, and the marker is only written while the trial is still active. Attaching never extends, restarts, or re-grants the window, and it never grants a new trial to a phone that already consumed one.
 
 ### Eligibility rules
 
 | Situation | Result |
 |---|---|
 | Verified email, no email or device marker | Trial granted, both markers created |
+| Account already has an active trial, this device unmarked | Attached: original expiry returned, device marker created |
+| Account already has an active trial, this device marked | Attached: original expiry returned, nothing written |
 | Any matching email marker | `email_marker`, no trial |
 | Any matching device marker | `device_marker`, no trial |
 | Email/password account whose email is not verified | `unverified_email`, told to verify and retry |
@@ -331,8 +362,18 @@ Verification rules:
 - The first authoritative verification binds the purchase to exactly one Customer Account (`boundUid` set, `state: bound`).
 - While the binding is live, verification from a different live account returns `bound_elsewhere`. The purchase is not freely transferable between unrelated accounts.
 - Restore on another supported Android device signed into the same account succeeds with no device roster and no cap.
-- When an account is deleted, the binding becomes `released` with `releaseReason: accountDeleted`, and the previous uid is dropped from the record. The next authoritative verification of that same Play purchase may bind it to the newly created account. That preserves "a legitimate purchaser may restore after recreating their identity" without allowing transfer between two live accounts.
-- An audited `releasePurchaseBinding` support action exists for genuine ownership disputes.
+- A binding moves `bound → frozen → released`. `frozen` exists only for the delete path and is never a usable state.
+- Only a `released` binding can be bound again. The next authoritative verification of that same Play purchase may bind it to a newly created account, which preserves "a legitimate purchaser may restore after recreating their identity" without allowing transfer between two live accounts.
+- An audited `releasePurchaseBinding` support action exists for genuine ownership disputes. It moves a `bound` binding to `released` and records the operator reference in `supportActions`.
+
+### Binding rules the deletion path must not break
+
+| Rule | Consequence |
+|---|---|
+| Exactly one live account holds a `bound` or `frozen` binding at any moment | Two accounts can never claim the same purchase |
+| A binding owned by an account that can still authenticate is never re-bindable | A partial deletion cannot hand the purchase to a new account while the old one is still usable |
+| Every state change is idempotent and recorded with a timestamp | Re-running deletion or a retry loop converges instead of duplicating work |
+| A `frozen` binding is invisible to entitlement decisions as a grant and visible as a denial reason `deletion_pending` | Neither the deleting account nor anyone else gets access through it |
 
 ### Refunds, chargebacks, and revocation
 
@@ -346,8 +387,10 @@ Verification rules:
 
 When Play reports `PURCHASED` but the AppT validator is unavailable (its own outage, Developer API failure, or no network):
 
-- The client may write a **provisional record**: `{purchaseFingerprint, productId, grantedAtAdjustedMillis, expiresAtAdjustedMillis}`.
-- It is unsigned by design, because the backend that would sign is the component that is unavailable. It is therefore device-confidence only and is treated as best-effort, not as a signed proof.
+- The client may write a **provisional record**: `{provisionalKey, productId, grantedAtAdjustedMillis, expiresAtAdjustedMillis, state: "active" | "exhausted"}`.
+- `provisionalKey` is computed **on the phone** as `SHA-256("appt-provisional:v1:" + productId + ":" + purchaseToken)`. The server-keyed `purchaseFingerprint` cannot be built offline, so it is deliberately not used here; the raw purchase token is never stored, only this non-reversible local key.
+- Non-renewability is local and literal: a key whose window has ended becomes `exhausted` and stays in a bounded list (the eight most recent keys) on this install, and no new window is ever granted for a key already in that list. Because a new provisional window can only be created from a Play-reported `PURCHASED` transaction, an exhausted key cannot be laundered into a new window without Play reporting the same transaction again.
+- It is unsigned by design, because the backend that would sign is the component that is unavailable. It is therefore device-confidence only and is treated as best-effort, not as a signed proof. Root access can clear it; that is acceptable because the window is short, it is never the basis of a durable grant, and every authoritative result replaces it.
 - It is capped at 24 hours (architecture target), is non-renewable, and cannot be re-granted for the same purchase token.
 - A validator rejection, or any authoritative paid result, replaces it immediately on the next online contact.
 - It never grants access when the Play-reported transaction is absent. It cannot be created from a client-side success alone.
@@ -362,7 +405,8 @@ Plaintext payload inside the encryption:
 ```text
 formatVersion            1
 proof                    JWS compact string | null         // signed by Cloud KMS
-provisional              { purchaseFingerprint, productId, grantedAtAdjustedMillis, expiresAtAdjustedMillis } | null
+provisional              { provisionalKey, productId, grantedAtAdjustedMillis, expiresAtAdjustedMillis, state } | null
+provisionalExhausted     [provisionalKey]  // bounded to the eight most recent
 keySet                   JWKS-shaped key set from GET /v1/keys, with fetchedAtServerMillis
 time                     { serverOffsetMillis, monotonicFloorAdjustedMillis }
 lastServerContactMillis  int
@@ -443,19 +487,40 @@ The Samsung command path stays `app → samsung → television`. `samsung` has n
 
 A second phone signed into the same account receives only the account identity, Username, trial state, and Lifetime Entitlement. It receives no remembered televisions, names, favourites, arrangement, preferences, last-used television, or pairing material. That phone discovers, pairs, names, and customizes its own televisions.
 
-The trial follows the account with its original expiry. Participating in that trial marks the second phone as trial-consumed through its device marker.
+The trial follows the account with its original expiry. Signing in on the second phone calls `POST /v1/entitlement/refresh` with that phone's device signal, which returns the original expiry and attaches the phone by creating its device marker once. That is what makes "one trial per account, one trial per device" hold without a separate user action.
 
 ## Account deletion and retention
 
-Deleting an account:
+Deleting an account is one resumable backend operation, ordered so that the purchase can never become re-bindable while the deleted identity still works:
 
-1. Deletes the `accounts/{uid}` document, including Username, trial dates, and entitlement state.
-2. Releases any purchase binding owned by that account, keeping only the fingerprint, product, and release reason; the uid is dropped.
-3. Deletes the Firebase Auth user (last, so a retry remains possible while the ID token is valid).
-4. Retains only the minimum needed for the product's own integrity promises:
-   - pseudonymous `trialMarkers` for as long as the free-trial program operates;
-   - the released `purchaseBindings` record so the purchase stays non-transferable between live accounts while remaining restorable by its legitimate Play owner;
-   - `supportActions` audit entries.
+```text
+1. mark      accounts/{uid}.status = "deleting", deletionStartedAt = now
+             every endpoint except delete-retry and a status read now rejects this account
+2. freeze    every purchaseBindings record with boundUid = uid
+             -> state = "frozen", frozenAt = now, boundUid dropped
+             the purchase is neither usable nor bindable by anyone
+3. delete    Firebase Auth user
+             if this fails: stop with status still "deleting" and the binding still "frozen",
+             return { state: "auth_delete_pending", retryable: true }, and change nothing else
+4. release   after Auth deletion is confirmed: state = "released",
+             releasedAt = now, releaseReason = "accountDeleted"
+5. finish    accounts/{uid}.status = "deleted", deletedAt = now; Username, trial dates,
+             and entitlement state are removed from the record
+```
+
+Retry behaviour:
+
+- The endpoint is idempotent and re-entrant. A retry resumes from the recorded phase instead of starting over, so a partially completed deletion completes on the next attempt.
+- Freezing happens **before** the Auth user is deleted, so there is no window in which the old account can still authenticate while the purchase is bindable elsewhere.
+- If the client disappears after phase 3, the daily reconciliation function finishes phase 4 and 5: it finds `frozen` bindings whose owning account no longer exists, releases them, and completes the deletion. This is the only automated `frozen → released` path.
+- A frozen binding denies the previous account's own requests with `deletion_pending`, so a half-deleted account cannot use the purchase either.
+- Nothing in this sequence touches device-local television state, and the client clears nothing locally beyond its own cached entitlement for the deleted identity.
+
+After a completed deletion the backend retains only:
+
+- pseudonymous `trialMarkers` for as long as the free-trial program operates;
+- the `released` `purchaseBindings` record, so the purchase stays non-transferable between live accounts while remaining restorable by its legitimate Play owner;
+- `supportActions` audit entries.
 
 Retained records contain no Username, no raw email, no television, no personalization, no diagnostics, and no usage history. Device-local televisions and personalization stay on the phone; the user may separately use **Forget this TV** or clear app data.
 
@@ -503,7 +568,12 @@ No implementation slice may recreate the removed TV-personalization sync model.
 | `deviceMarkerDeniesSecondTrial` | A second account on the same device signal is not trial-eligible |
 | `trialFollowsAccountAcrossPhones` | A second phone receives the original expiry and creates no new window |
 | `trialMarkerKeyRotationResolvesOldMarkers` | A marker written under a previous key version still denies a new trial |
-| `testPurchaseDoesNotGrantLifetime` | A `purchaseType` test purchase is rejected for production entitlement |
+| `testPurchaseDoesNotGrantLifetime` | A `purchaseType` test purchase is rejected for a durable Lifetime Entitlement in every environment |
+| `trialAttachIsIdempotent` | Refreshing from a second phone returns the original expiry and writes the device marker exactly once |
+| `deletionFreezesBeforeAuthDelete` | The binding is `frozen` before the Auth user is removed, and `deletion_pending` denies use meanwhile |
+| `deletionRetryConverges` | A retry after any phase completes the deletion exactly once |
+| `reconciliationReleasesOrphanedBindings` | A frozen binding whose account no longer exists is released by the scheduled job |
+| `provisionalUsesLocalKey` | The provisional record never contains a server fingerprint or a raw purchase token |
 | `onePurchaseBindsToOneLiveAccount` | Verification from a different live account returns `bound_elsewhere` |
 | `restoreAfterAccountDeletionSucceeds` | After deletion, the same Play purchase binds to the recreated account |
 | `revocationAppliesOnNextEntry` | A revoked binding denies the next entry and does not interrupt an active session |

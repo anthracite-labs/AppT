@@ -4,14 +4,17 @@ Vocabulary follows `.agents/skills/codebase-design/SKILL.md`: **module**, **inte
 
 ## Shape
 
-Two Gradle modules. No further split until a demonstrated pressure appears.
+Two production Gradle modules plus one test-only benchmark module. No further split until a demonstrated pressure appears.
 
-| Module | Owns | Does not own |
-|---|---|---|
-| `app` | Compose UI, navigation, permission explanation, account and licensing, Room, DataStore, entitlement cache, diagnostics wiring, Hilt application graph | WebSocket payloads, discovery packets, pairing tokens, TLS pins, retry loops, protocol generation selection |
-| `samsung` | Discovery, identity correlation, pairing, security identity, session, reconnect, capability evidence, command translation, wake, secret storage | Permission dialogs, Firebase, account state, licensing, Crashlytics SDK, layout |
+| Module | Kind | Owns | Does not own |
+|---|---|---|---|
+| `app` | production | Compose UI, navigation, permission explanation, account and licensing, Room, DataStore, entitlement cache, diagnostics, Hilt application graph | WebSocket payloads, discovery packets, pairing tokens, TLS pins, retry loops, protocol generation selection |
+| `samsung` | production | Discovery, identity correlation, pairing, security identity, session, reconnect, capability evidence, command translation, wake, secret storage | Permission dialogs, Firebase, account state, licensing, telemetry SDKs, layout |
+| `macrobenchmark` | test-only (`com.android.test`) | Macrobenchmark measurement of launch, frame timing, control latency, process-death reopen, and baseline-profile generation for `app` | Any production code, any shipped artifact, any dependency of `app` or `samsung` |
 
-`app` depends on `samsung`. `samsung` does not depend on `app`.
+`app` depends on `samsung`. `samsung` does not depend on `app`. Neither production module depends on `macrobenchmark`, and the benchmark module is not part of the release artifact.
+
+**Why the benchmark module exists** although the production shape is two modules: Android's Macrobenchmark API must run from a separate `com.android.test` module that targets the app under test, so it cannot live inside `app` or `samsung`. It adds no seam to production code, exposes nothing at runtime, and exists only in the test and CI graphs. `app` consumes generated baseline profiles through the `androidx.baselineprofile` plugin. Delete it and the reliability targets in [reliability.md](reliability.md) lose their verification, which is the "earns its keep" test.
 
 There is no `domain`, `data`, `usecase`, or `repository` Gradle module. Packages inside `app` are not a Clean Architecture stack. A universal TV **interface** is not created; ecosystem #2 is the trigger for that seam.
 
@@ -29,11 +32,9 @@ flowchart LR
   tv["Samsung television"]
   auth["Firebase Authentication"]
   fn["AppT entitlement service"]
-  crash["Crashlytics (opt-in only)"]
   samsungMod -->|"LAN client only"| tv
   appMod -->|"ID token + App Check"| fn
   appMod -->|"SDK"| auth
-  appMod -.->|"opt-in, no identifiers"| crash
   tv -.->|"no dependency"| fn
   auth -.->|"no dependency"| tv
 ```
@@ -42,7 +43,7 @@ Local control crosses only the `app` → `samsung` → television path. No Fireb
 
 ## External seams
 
-Each seam below is a place where behaviour genuinely varies, so each seam has at least two **adapters**: a production adapter and a test adapter. Anything with only one adapter is not a seam; it is an implementation detail.
+Each seam below is a place where behaviour genuinely varies, so each seam has at least two **adapters**: a production adapter and a test adapter. Anything with only one adapter is not a seam; it is an implementation detail. Diagnostics is the worked example: with cloud crash reporting removed from V1 there is no variation to abstract, so the local record and its redactor have one implementation and a test double rather than a seam.
 
 | Seam | Interface | Production adapter | Test adapter |
 |---|---|---|---|
@@ -52,7 +53,6 @@ Each seam below is a place where behaviour genuinely varies, so each seam has at
 | Entitlement backend | `EntitlementBackend` | OkHttp HTTPS client against the entitlement service | Scripted responses, delays, and outages |
 | Purchase | `PlayBilling` | Play Billing library | Scripted purchase, pending, revoked, and replayed tokens |
 | Integrity | `IntegrityProvider` | Play Integrity plus App Check token acquisition | Scripted verdicts and unavailability |
-| Diagnostics consent | `DiagnosticsConsent` | DataStore-backed preference plus Crashlytics calls | In-memory consent state |
 
 ### Samsung control (`samsung`)
 
@@ -95,7 +95,7 @@ These stay inside the module. They are not parameters of `SamsungTvs` and are no
 
 `SamsungTvsImpl` is `internal`. Tests in the `samsung` module construct it with fake internal adapters. `app` receives only `SamsungTvs`.
 
-OkHttp is the HTTP and WebSocket stack inside `samsung`. Android networking primitives are used where multicast, NSD, or Wake-on-LAN require them. No second HTTP stack. No Firebase, Play services, or Crashlytics dependency on the `samsung` Gradle graph; a CI check fails if one appears.
+OkHttp is the HTTP and WebSocket stack inside `samsung`. Android networking primitives are used where multicast, NSD, or Wake-on-LAN require them. No second HTTP stack. No Firebase, Play services, or telemetry dependency on the `samsung` Gradle graph; a CI check fails if one appears.
 
 ## Dependency direction
 
@@ -131,7 +131,7 @@ Allowed edges:
 
 Forbidden edges:
 
-- `samsung` → `app`, Firebase, Play, Crashlytics, Room, DataStore, WorkManager, or licensing.
+- `samsung` → `app`, Firebase, Play, any telemetry SDK, Room, DataStore, WorkManager, or licensing.
 - ViewModels → `EntitlementBackend`, `IntegrityProvider`, `FirebaseAuth`, OkHttp, `NsdManager`, Keystore aliases, proof types, or protocol types.
 - Licensing → `SamsungTvs`, `RemoteSession`, Room television rows, or `RemoteKey`.
 - Any module → a sync record, mutation queue, or Firestore client. The client Firestore SDK is not in the Android dependency graph at all; Firestore is server-only.
@@ -195,7 +195,7 @@ tvlist/        remembered-television management
 account/       account, trial, purchase and restore surfaces
 licensing/     Licensing, proof verification, entitlement cache, backend and billing clients
 local/         Room database and DAOs, PreferenceStore
-diagnostics/   consent, Crashlytics wiring, redactor, export
+diagnostics/   local record, redactor, export
 work/          EntitlementRefresh
 ```
 
@@ -205,12 +205,13 @@ work/          EntitlementRefresh
 
 `samsung` depends on OkHttp, Coroutines, kotlinx-serialization, and the Android APIs it uses. It does not depend on the Firebase BOM, Play Billing, or Play Integrity.
 
-`app` depends on Compose, Navigation, Lifecycle, Hilt, Room, DataStore, WorkManager, OkHttp, kotlinx-serialization, Firebase Auth, Firebase App Check with Play Integrity, Firebase Crashlytics, Play Billing, and Credential Manager. Exact versions and pins are owned by [release.md](release.md).
+`app` depends on Compose, Navigation, Lifecycle, Hilt, Room, DataStore, WorkManager, OkHttp, kotlinx-serialization, Firebase Auth, Firebase App Check with Play Integrity, Play Billing, and Credential Manager. It has no crash-reporting, analytics, advertising, or attribution dependency. Exact versions and pins are owned by [release.md](release.md).
 
 CI enforces the boundary:
 
-- `:samsung` dependency insight must not contain Firebase, Play services, or Crashlytics.
-- `:app` dependency insight must not contain a Firestore client artifact.
+- `:samsung` dependency insight must not contain Firebase, Play services, or any telemetry SDK.
+- `:app` dependency insight must not contain a Firestore client artifact or any crash-reporting, analytics, advertising, or attribution artifact.
+- Neither production module may depend on `:macrobenchmark`, and `:macrobenchmark` must not appear in the release artifact.
 - `samsung` production sources must not call `android.util.Log` or reference Firebase packages.
 - No production source may declare a sync record, tombstone, or mutation-queue type.
 

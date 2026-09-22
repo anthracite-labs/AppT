@@ -4,13 +4,17 @@ Architecture output only. **Do not open implementation Issues from this file in 
 
 Every slice is vertical: a user or tester can observe the outcome, and CI proves it, without waiting for a later slice to make the earlier one real. Security, privacy, accessibility, and reliability constraints appear in the slice where they first become real, not in a final cleanup slice.
 
-Not in this route: iOS, a second television ecosystem, IR, casting, mirroring, voice, advertising, a subscription, a diagnostic upload service, a paid-device roster, a public compatibility page, or TV-personalization cloud sync of any kind.
+Not in this route: iOS, a second television ecosystem, IR, casting, mirroring, voice, advertising, a subscription, a diagnostic upload service, cloud crash reporting, a paid-device roster, a public compatibility page, or TV-personalization cloud sync of any kind.
 
 External gates, not slices: the source-license decision and the Samsung vendor-terms review. Both gate public production promotion only; internal testing does not wait on them.
 
 ## Definition of V1-ready
 
-V1-ready for public production means S01 through S16 are accepted, the two external gates are passed, and at least one physical matrix row passes the TLS token path with a recorded wake attempt.
+V1-ready for public production means S01 through S16 are accepted, the two external gates are passed, at least one physical matrix row passes the TLS token path with a recorded wake attempt, and the recorded paid-path drill in S08 has run on production.
+
+## Ordering rule
+
+The licensing gate is part of the spine, not an appendix. Any slice that can route a post-first-session entry to Account or Entitlement comes **after** the slice that provides the gate and those surfaces, so no slice is ever accepted in a state where the product rule cannot be honored. That is why account and trial (S07) precede remembered televisions and remote-first launch routing (S09).
 
 ## Route
 
@@ -19,50 +23,49 @@ flowchart TD
   s01[S01 Skeleton and CI floor]
   s02[S02 Discovery]
   s03[S03 Pair and first command]
-  s04[S04 Saved pairing and identity]
+  s04[S04 Saved pairing and forget]
   s05[S05 Remote surface]
-  s06[S06 Reconnect and lifecycle]
-  s07[S07 Remembered televisions]
-  s08[S08 Wake and honest power]
-  s09[S09 Apps, text, favourites]
-  s10[S10 Account and trial]
-  s11[S11 Purchase and entitlement]
-  s12[S12 Diagnostics]
+  s06[S06 Reconnect, lifecycle, recreation]
+  s07[S07 Account, trial, and the gate]
+  s08[S08 Purchase, restore, revocation]
+  s09[S09 Remembered televisions and launch]
+  s10[S10 Apps, text, favourites]
+  s11[S11 Wake and honest power]
+  s12[S12 Local diagnostics and export]
   s13[S13 Accessibility and responsive]
   s14[S14 Reliability harness]
-  s15[S15 Environments and internal release]
+  s15[S15 Environments, artifacts, release]
   s16[S16 Physical acceptance and gates]
 
-  s01 --> s02 --> s03 --> s04 --> s05 --> s06 --> s07
-  s07 --> s08
-  s07 --> s09
-  s07 --> s10 --> s11
+  s01 --> s02 --> s03 --> s04 --> s05 --> s06 --> s07 --> s08 --> s09
+  s09 --> s10
+  s09 --> s11
   s03 --> s12
-  s09 --> s13
-  s11 --> s13
+  s10 --> s13
+  s08 --> s13
   s12 --> s13
   s12 --> s14
   s13 --> s15
   s14 --> s15
-  s08 --> s16
+  s11 --> s16
   s15 --> s16
 ```
 
-S08 may run in parallel with S09 and S10. S12 may start after S03. S16 may run in parallel with S13–S15 once S08 exists. Public production promotion waits for S15, S16, and the external gates.
+S11 may run in parallel with S10 and S12. S12 may start as soon as S03 lands. S16 is the last gate and may overlap S13–S15 once S11 exists. Public production promotion waits for S15, S16, the recorded paid-path drill from S08, and the two external gates.
 
 ## S01 — Walking skeleton and CI floor
 
-Observable outcome: a debug build installs and shows Welcome. Pull-request CI is green with the repository, dependency, manifest, and environment guards in place. The design-token module exists with the categories from the presentation architecture.
+Observable outcome: a debug build installs and shows Welcome. Pull-request CI is green with the repository, dependency, manifest, environment, and telemetry guards in place. The design-token module exists with the categories from the presentation architecture, and the test-only benchmark module compiles.
 
-Architecture sources: [presentation.md](presentation.md), [release.md](release.md), [modules.md](modules.md).
+Architecture sources: [presentation.md](presentation.md), [release.md](release.md), [modules.md](modules.md), [diagnostics.md](diagnostics.md).
 
 Depends on: none.
 
-Acceptance: Welcome route renders on a device; navigation graph contains only `WelcomeRoute`; version catalog pins versions with no `+` ranges and no snapshot; repository mode fails on project repositories; lockfiles and verification metadata committed; manifest allowlist matches [release.md](release.md) exactly; actions pinned to commit SHAs; token module exposes color, type, space, size, and motion categories with the 48dp floor; no analytics dependency; `:app` dependency insight shows no Firestore artifact.
+Acceptance: Welcome route renders on a device; the navigation graph contains only `WelcomeRoute`; three Gradle modules exist (`app`, `samsung`, and test-only `:macrobenchmark`) and neither production module depends on the benchmark module (`noProductionModuleDependsOnBenchmark`); version catalog pins versions with no `+` ranges and no snapshot; repository mode fails on project repositories; lockfiles and verification metadata committed; manifest allowlist matches [release.md](release.md) exactly; actions pinned to commit SHAs; token module exposes color, type, space, size, and motion categories with the 48dp floor; `noTelemetryDependency` and `adIdAbsentFromManifest` pass; `:app` dependency insight shows no Firestore artifact; `backend/` exists with its lockfile, typecheck, lint, and test jobs wired into CI.
 
-Verification: `./gradlew assembleDebug lintDebug testDebugUnitTest dependencyLockCheck`, `./gradlew :app:dependencyInsight --configuration debugRuntimeClasspath --dependency firestore` (no match), install the debug build, CI log shows pinned actions.
+Verification: `./gradlew assembleDebug lintDebug testDebugUnitTest dependencyLockCheck`, `./gradlew :app:dependencyInsight --configuration debugRuntimeClasspath --dependency firestore` (no match), `./gradlew :app:dependencyInsight --configuration debugRuntimeClasspath --dependency crashlytics` (no match), `npm ci && npm test --prefix backend`, install the debug build, CI log shows pinned actions.
 
-Not in this slice: `:samsung`, Room, discovery, Firebase.
+Not in this slice: Room, discovery, Firebase configuration, any backend endpoint.
 
 ## S02 — Local-network explanation and bounded discovery
 
@@ -90,143 +93,143 @@ Acceptance: fixture `tls-approval-then-volume` reaches `Ready` and records a vol
 
 Verification: `./gradlew :samsung:test`, `./gradlew :app:testDebugUnitTest`, Gradle dependency check, Compose test from card to `Accepted` using the fake `SamsungTvs`.
 
-Not in this slice: saved pairing, full remote layout, account.
+Not in this slice: saved pairing, full remote layout, account, remembered television list.
 
 ## S04 — Saved pairing, fail-closed identity, and forget
 
-Observable outcome: after approval, force-stopping and reopening the same television does not prompt again. A television presenting a different security identity never receives the token and asks for explicit re-pair. Forget removes the secret and the local record.
+Observable outcome: after approval, force-stopping and reopening the same television does not prompt again. A television presenting a different security identity never receives the token and asks for explicit re-pair. Forget removes the television from this phone immediately, including its favourites, and finishes the local unpair even if `samsung` is temporarily unavailable.
 
-Architecture sources: [data.md](data.md), [connection.md](connection.md), [samsung-interface.md](samsung-interface.md).
+Architecture sources: [data.md](data.md), [connection.md](connection.md), [samsung-interface.md](samsung-interface.md), [presentation.md](presentation.md#tvlist-manage-televisions).
 
 Depends on: S03.
 
-Acceptance: `token-resume` fixture passes; `identityMismatchDoesNotSendToken` passes and the recorded socket URL carries no token; `unauthorized-with-token` produces `TokenRejected` with no reconnect loop; instrumented Keystore round trip succeeds; the secret file exists only under `noBackupFilesDir/samsung-secrets/`; `forgetRemovesSecret` and `forgetIsRetryable` pass; backup and device-transfer configuration cannot carry the secret directory; no plaintext token appears in Room, DataStore, or any log the test captures; `samsung` still has no Firebase dependency.
+Acceptance: `token-resume` fixture passes; `identityMismatchDoesNotSendToken` passes and the recorded socket URL carries no token; `unauthorized-with-token` produces `TokenRejected` with no reconnect loop; instrumented Keystore round trip succeeds; the secret file exists only under `noBackupFilesDir/samsung-secrets/`; `forgetRemovesRowAndFavouritesInOneTransaction` passes (profile and favourites gone, one `PendingForget` row, television absent from every list); `forgetIsRetryable` and `forgetRemovesSecret` pass; `newPairingSupersedesPendingForget` passes; backup and device-transfer configuration cannot carry the secret, device, or diagnostics directory; no plaintext token appears in Room, DataStore, or any log the test captures; `samsung` still has no Firebase dependency.
 
 Verification: `./gradlew :samsung:test`, `./gradlew :app:testDebugUnitTest`, one instrumented test on a device or emulator, a grep over captured logs for a planted token.
 
-Not in this slice: the television list, favourites, account.
+Not in this slice: the television list surface, favourites UI, account.
 
 ## S05 — Capability-driven Remote surface
 
-Observable outcome: the Remote is recognizable and phone-native. Standard controls work, a rejected key disappears, haptics and phone volume buttons follow settings, and the D-pad/touchpad toggle appears only when the television demonstrates pointer support. Rotation keeps the session.
+Observable outcome: the Remote is recognizable and phone-native. Standard controls work, a rejected key disappears, haptics and phone volume buttons follow settings, and the D-pad/touchpad toggle appears only when the television demonstrates pointer support.
 
 Architecture sources: [commands.md](commands.md), [presentation.md](presentation.md) (Remote contract, thumb-first zones, tokens, accessibility), [lifecycle.md](lifecycle.md), [reliability.md](reliability.md).
 
 Depends on: S04.
 
-Acceptance: the UI binds only to `capabilities.keys`; the four thumb-first zones are implemented as specified and power is spatially isolated; pointer toggle is absent until the fixture probe accepts; haptics default on and can be disabled; volume buttons send volume taps only while the remote is started and the setting is on; every control has a content description, a role, and at least 48dp touch bounds with primary controls at 56dp or more; no `KEY_*` string appears in the Compose tree; `rotationKeepsSession` passes; a baseline profile for Remote is committed; `commandLatencyBudget` p50 is inside the control-path target on the reference device.
+Acceptance: the UI binds only to `capabilities.keys`; the four thumb-first zones are implemented as specified and power is spatially isolated; pointer toggle is absent until the fixture probe accepts; haptics default on and can be disabled; volume buttons send volume taps only while the remote is started and the setting is on; every control has a content description, a role, and at least 48dp touch bounds with primary controls at 56dp or more; no `KEY_*` string appears in the Compose tree; `commandLatencyBudget` p50 is inside the control-path target on the reference device; a baseline profile for Remote is committed.
 
-Verification: Compose tests with the fake adapter; `./gradlew :app:testDebugUnitTest`; `./gradlew :macrobenchmark:connectedCheck` for the launch and frame budgets; a unit test that a rejected key leaves the capability set.
+Verification: Compose tests with the fake adapter; `./gradlew :app:testDebugUnitTest`; `./gradlew :macrobenchmark:connectedCheck` for the control-latency target; a unit test that a rejected key leaves the capability set.
 
-Not in this slice: app shortcuts, text entry, favourites, account.
+Not in this slice: reconnect behavior, the television list, favourites shelf, account.
 
-## S06 — Quiet reconnect, address change, and lifecycle transitions
+## S06 — Reconnect, lifecycle, and Activity recreation
 
-Observable outcome: when the socket drops, the Remote shows a lightweight Reconnecting status and control returns without a dialog loop. A changed address for the same identity is recovered without the user typing anything. Leaving the remote closes the socket after the grace period and keeps the secret. Backgrounding, screen lock, and network loss behave per the lifecycle map.
+Observable outcome: a dropped socket shows a quiet inline status and recovers on its own; an address change recovers without the user doing anything; leaving the app and returning inside the grace window reuses the same session; rotating the phone keeps the session and the route.
 
-Architecture sources: [connection.md](connection.md), [lifecycle.md](lifecycle.md), [presentation.md](presentation.md#navigation-and-back-behavior), [reliability.md](reliability.md).
+Architecture sources: [connection.md](connection.md), [lifecycle.md](lifecycle.md), [presentation.md](presentation.md#rotation-window-size-foldables-and-tablets), [reliability.md](reliability.md).
 
 Depends on: S05.
 
-Acceptance: the backoff fixture ends in `Unreachable` and stops; the rediscovery fixture connects to the new address only when identity matches; the UI test shows a non-modal Reconnecting status; a grace test calls `close` at 15 seconds and not on rotation; `backgroundReleasesRemote` and `networkLossShowsReconnectingNotDialog` pass; `vpnDoesNotBypass` passes with honest copy; commands during reconnect return `Unavailable` and are not replayed as a burst; `gateRunsOnlyOnEntry` passes; reconnect status is announced once to accessibility services.
+Acceptance: the backoff fixture ends in `Unreachable` and stops; `reconnectBackoff` and `rediscoverSameUuid` pass; `graceClosesAfterFifteenSeconds` and `backgroundReleasesRemote` pass; `networkLossShowsReconnectingNotDialog` and `vpnDoesNotBypass` pass; `rotationKeepsSession` passes with the Activity genuinely recreated (no `android:configChanges`, one session, no second `open`, no gate evaluation); `recreationRestoresRouteAndDrafts` and `recreationDropsTransientUiOnly` pass; commands issued while not `Ready` return `Rejected(Unavailable)` and nothing is replayed; reconnect status is never a dialog loop.
 
-Verification: fake-clock contract tests, `./gradlew :app:testDebugUnitTest`, a Compose test for the status, a unit test of the grace holder.
+Verification: `./gradlew :samsung:test` with the fake transport, `./gradlew :app:testDebugUnitTest`, an instrumented rotation test that asserts Activity recreation, a scripted LAN-flap run, and one device check of the grace path.
 
-Not in this slice: wake, account.
+Not in this slice: account, television list, TV switching.
 
-## S07 — Remembered televisions, last-used reopen, and process-death restore
+## S07 — Account, server-authoritative trial, and the licensing gate
 
-Observable outcome: the user can name more than one television, open the TV switch sheet, reopen the last-used one quietly on launch, rename and forget from the list, and return to a usable Remote after the process is killed.
+Observable outcome: the first successful local-control session is never blocked on sign-in. When that session ends, the next remote entry asks the user to continue, and the television is never opened while the gate denies. Google sign-in and email/password both work, an unverified email cannot start a trial, and an eligible account receives a seven-day trial with an exact remaining time in Account and Settings. Signing in on a second phone returns the same expiry and marks that phone as trial-consumed. Signing out keeps every television and the cached proof, blocks a new entry, and never interrupts an active session. With the backend unreachable, a valid trial still permits control.
 
-Architecture sources: [data.md](data.md), [presentation.md](presentation.md) (TvList, switch sheet, restoration, launch routing), [lifecycle.md](lifecycle.md), [discovery.md](discovery.md).
+Architecture sources: [sync.md](sync.md) (authentication, topology, backend source architecture, API surface, record shapes, trial and attach, gate, local cache), [presentation.md](presentation.md#account), [lifecycle.md](lifecycle.md#workmanager), [release.md](release.md#environments).
 
 Depends on: S06.
 
-Acceptance: two fixture televisions keep distinct ids; `stableIdentitySurvivesRediscovery` and `mintedIdentityIsLocal` pass; a user edit sets `nameSource` USER and a later television name does not overwrite it; last-used reopen happens with no scan UI; the switch sheet lists remembered televisions with ordinary-language states and has no swipe gesture; switch is explicit and gate-checked; launch routing resolves to Remote first and to Account/Entitlement when the gate denies; a blocked launch never calls `SamsungTvs.open`; `roomMigrationEveryVersion`, `schemaContainsNoForbiddenColumn`, and `backupExcludesAllTvState` pass; `fallbackToDestructiveMigration` is absent; process-death restore renders Remote within the reopen budget.
+Acceptance: `accountlessFirstSessionIsExemptOnce` and `firstSessionGateEndsWithActiveRemote` pass; `gatedLaunchNeverOpensSession` passes (`SamsungTvs.open` is not called while the gate denies); a blocked entry returns to its origin and is never resumed automatically; process death after the first success also requires sign-in; Google and email/password paths reach a signed-in state; `entitlementRequiresVerifiedEmail` passes; `trialStartsServerSideAndSevenDays` passes against the emulator suite; `trialAttachIsIdempotent` passes with the original expiry returned and exactly one device marker written; `deviceMarkerDeniesSecondTrial`, `trialMarkerKeyRotationResolvesOldMarkers`, and `trialFollowsAccountAcrossPhones` pass; `proofSignatureTamperDenied`, `proofForAnotherUidIgnored`, and `clockRollbackDoesNotExtendEntitlement` pass; `signOutKeepsLocalStateAndCachedProof` passes; `backendRejectsClientSuppliedUid`, `clientFirestoreAccessDenied`, and `backendStoresNoTelevisionField` pass; account deletion runs its phases in order (`deletionFreezesBeforeAuthDelete`, `deletionRetryConverges`, `reconciliationReleasesOrphanedBindings`); Account surfaces never show a television error and Remote never shows a licensing prompt; `workManagerNeverTouchesSamsung` passes; the trial's remaining time is exposed to accessibility services as text, not color.
 
-Verification: Room tests, `./gradlew :app:testDebugUnitTest`, `./gradlew :app:connectedDebugAndroidTest` for the migration and process-death cases, Macrobenchmark `processDeathReopen`.
+Verification: `./gradlew :app:testDebugUnitTest`; `npm ci && npm test --prefix backend` plus the emulator suite with the fake Play verifier and fake integrity decoder; one instrumented test for Credential Manager through the fake seam; Compose tests for the gated entry, the blocked-entry back path, and the backend-outage copy.
 
-Not in this slice: wake, favourites, account.
+Not in this slice: purchase, restore, revocation, remembered-television routing.
 
-## S08 — Wake and honest power
+## S08 — Lifetime purchase, restore, revocation, and paid offline
 
-Observable outcome: power-on sends a wake burst when a MAC is known, then waits the wake window. After repeated failure the power-on control is gone and the screen explains that the television cannot be turned on from the phone.
+Observable outcome: Buy once completes a Play purchase and unlocks a lifetime entitlement; a reinstall plus sign-in restores it; a refund or chargeback blocks the next remote entry without interrupting an active one; a paid customer keeps local control while the backend is unreachable; if the validator is unavailable while Play reports a purchase, the user gets an honest temporary unlock that expires within 24 hours and cannot be renewed for that purchase.
 
-Architecture sources: [commands.md](commands.md), [connection.md](connection.md), [protocol.md](protocol.md).
-
-Depends on: S07.
-
-Acceptance: the fake wake sender records three bursts and no burst when the MAC is absent; `open` during the wake window does not give up at 5 seconds; the fourth distinct failure hides power-on; a later success clears the failure count; the UI never shows a permanently dead power button; no cloud or SmartThings path is added for power.
-
-Verification: contract tests with the fake wake sender, `./gradlew :app:testDebugUnitTest`, a Compose test for the explanation state.
-
-Not in this slice: SmartThings, Consumer IP Control, cloud power.
-
-## S09 — Apps, text, favourites, and the More sheet
-
-Observable outcome: the phone keyboard sends text only when text is available and hides after a rejection. App shortcuts appear only for apps the television returned. The user can favourite and reorder both app shortcuts and secondary controls, and the ordering survives restart.
-
-Architecture sources: [commands.md](commands.md), [data.md](data.md), [presentation.md](presentation.md#favourites-apps-and-edit-mode).
+Architecture sources: [sync.md](sync.md) (purchase, binding, deletion durability, revocation, provisional, local cache, gate), [presentation.md](presentation.md#entitlement-and-purchase), [release.md](release.md#play-and-rtdn-are-shared-by-design), [security.md](security.md).
 
 Depends on: S07.
 
-Acceptance: over-long text sends nothing; a rejected text clears the affordance and is absent from diagnostics; an app id not in the live list has no button; a curated hint does not invent a missing app; the composite favourite key is idempotent; reordering commits one Room transaction per move and survives process death; edit mode is entered by long-press or by the accessible Edit action; Move earlier / Move later actions exist as the gesture alternative; edit mode is not restored after process death; the shelf stays compact and does not push the navigation zone out of the lower half.
+Acceptance: `testPurchaseDoesNotGrantLifetime` passes for a `purchaseType` test purchase in every environment; `onePurchaseBindsToOneLiveAccount` passes; a replay of the same token resolves to the existing binding with no duplicate grant; `restoreAfterAccountDeletionSucceeds` passes, and the purchase is re-bindable only after the Auth user is deleted; acknowledgement happens from the backend inside the three-day window; `revocationAppliesOnNextEntry` passes; duplicate and out-of-order RTDN delivery converge; raw purchase tokens never appear in stored documents, logs, or the provisional record, and the provisional record uses the device-computed key (`provisionalUsesLocalKey`); `provisionalIsNonRenewable` and `provisionalExpiresWithin24Hours` pass and the Account surface labels it as temporary; `paidOfflineControlSurvivesOutage` passes; `PENDING` grants nothing and says so; no device roster or device cap exists anywhere in the code or schema.
+
+Verification: `./gradlew :app:testDebugUnitTest`; backend tests including the RTDN handlers, binding-freeze, and release paths; the internal testing track run with a licence tester that asserts withholding; a Compose test for pending, revoked, and provisional surfaces; **a recorded paid-path drill before public promotion** — one real purchase on the production environment, verifying grant and acknowledgement, then refunded, exercising RTDN void and revocation; the drill record states the outcome and leaves no entitlement behind.
+
+Not in this slice: any television-related cloud data, any entitlement-based device registry.
+
+## S09 — Remembered televisions, remote-first launch, and TV switching
+
+Observable outcome: reopening AppT lands on the last-used television and starts connecting; the remembered list shows friendly names and ordinary-language state; Add TV returns to discovery; Forget from the list removes the television from this phone; the switch sheet moves between remembered televisions without a swipe gesture; every one of those entries passes through the licensing gate first.
+
+Architecture sources: [data.md](data.md), [presentation.md](presentation.md) (launch routing, Remote, switch sheet, TvList), [lifecycle.md](lifecycle.md), [sync.md](sync.md#remote-entry-gate).
+
+Depends on: S07.
+
+Acceptance: `launchRoutingResolvesRemoteFirst` and `gatedLaunchNeverOpensSession` pass with a remembered television; `rememberedIds` and `forgetRemovesRowAndFavouritesInOneTransaction` behave as specified from the list; renaming writes one transaction with `nameSource = USER`, and `nameSourceUserIsNotOverwritten` passes; the switch sheet lists remembered televisions plus Add TV and contains no swipe gesture; `lastOpenedIsDeviceLocal` passes; a row whose television is offline shows an ordinary-language state and no address; backing out of a blocked entry returns to its origin (`EntryOrigin.TvList` or `Remote`); the Active Remote is released through the normal path when switching, never in parallel.
+
+Verification: `./gradlew :app:testDebugUnitTest`, Room transaction tests, Compose tests for the list, the empty state, rename, forget confirmation, and the sheet, and one device walkthrough of reopen-to-Remote.
+
+Not in this slice: favourites UI, apps surface, wake.
+
+## S10 — Apps, text, and favourites
+
+Observable outcome: a supported television lists its launchable apps, text entry uses the phone keyboard when the television accepts it, and favourite apps or controls can be added, reordered, and removed.
+
+Architecture sources: [commands.md](commands.md), [presentation.md](presentation.md#favourites-apps-and-edit-mode), [data.md](data.md).
+
+Depends on: S09.
+
+Acceptance: `app-list` and `text-rejected` fixtures behave as specified; `LaunchApp` with an unknown id returns `Rejected(Unavailable)` and sends nothing; `textInput` false hides the keyboard affordance; `favouriteReorderIsAtomic` passes; the shelf and the More sheet read one `FavouriteDao` source; edit mode is opt-in, cancellable, and never reorders core controls; a missing app degrades to a clear state rather than a dead control; nothing about a favourite leaves the phone.
 
 Verification: fixtures `text-rejected` and `app-list`, Room tests, `./gradlew :app:testDebugUnitTest`, Compose tests for a missing app and for reordering.
 
 Not in this slice: DIAL launch, a full layout designer.
 
-## S10 — Account and server-authoritative trial
+## S11 — Wake and honest power
 
-Observable outcome: the first successful local-control session is never blocked on sign-in. When that session ends, the next remote entry asks the user to continue. Google sign-in and email/password both work, an unverified email cannot start a trial, and an eligible account receives a seven-day trial with an exact remaining time shown in Account and Settings. Signing out keeps every television and the cached proof, blocks a new entry, and never interrupts an active session. With the backend unreachable, a valid trial still permits control.
+Observable outcome: with the television off and a stored MAC, the power control attempts a wake and then opens the session; when wake is unavailable or has failed repeatedly, the screen says so honestly instead of offering a button that cannot work.
 
-Architecture sources: [sync.md](sync.md) (authentication, topology, API surface, record shapes, trial, gate, local cache), [presentation.md](presentation.md#account), [lifecycle.md](lifecycle.md#workmanager), [release.md](release.md#environments).
+Architecture sources: [commands.md](commands.md), [connection.md](connection.md), [discovery.md](discovery.md), [presentation.md](presentation.md#remote), [reliability.md](reliability.md).
 
-Depends on: S07.
+Depends on: S09.
 
-Acceptance: the first session is exempt exactly once (`accountlessFirstSessionIsExemptOnce`): it continues after the first `Accepted`, and the next entry is gated (`firstSessionGateEndsWithActiveRemote`); process death after first success also requires sign-in; Google and email/password paths reach a signed-in state; `entitlementRequiresVerifiedEmail` passes; `trialStartsServerSideAndSevenDays` passes against the emulator suite; `deviceMarkerDeniesSecondTrial` and `trialMarkerKeyRotationResolvesOldMarkers` pass; `trialFollowsAccountAcrossPhones` passes; `proofSignatureTamperDenied`, `proofForAnotherUidIgnored`, and `clockRollbackDoesNotExtendEntitlement` pass; `signOutKeepsLocalStateAndCachedProof` passes; `backendRejectsClientSuppliedUid` and `clientFirestoreAccessDenied` pass; `backendStoresNoTelevisionField` passes; Account surfaces never show a television error and Remote never shows a licensing prompt; `workManagerNeverTouchesSamsung` passes; the trial's remaining time is exposed to accessibility services as text, not color.
+Acceptance: `powerOn` is `Attemptable` only with a stored MAC for the interface actually reached; wake sends a bounded burst and then opens; repeated failure moves to `Unavailable` with the explanatory copy; no SmartThings or consumer-IP-control fallback exists; a Mac that was never observed for this television never produces a wake attempt; the wake path never blocks the first frame or a command.
 
-Verification: `./gradlew :app:testDebugUnitTest`; backend tests against the Firebase emulator with the fake Play verifier and fake integrity decoder; one instrumented test for Credential Manager through the fake seam; a Compose test for the gated entry and for the backend-outage copy.
+Verification: `./gradlew :samsung:test` with the recording wake sender, `./gradlew :app:testDebugUnitTest`, and one physical attempt recorded in the acceptance matrix (a recorded failure is a valid outcome).
 
-Not in this slice: purchase, restore, revocation.
+Not in this slice: IR, HDMI discrete selection, a compatibility claim.
 
-## S11 — Lifetime purchase, restore, revocation, and paid offline
+## S12 — Local diagnostics, redacted export, and Request Support
 
-Observable outcome: Buy once completes a real Play purchase and unlocks a lifetime entitlement; a reinstall plus sign-in restores it; a refund or chargeback blocks the next remote entry without interrupting an active one; a paid customer keeps local control while the backend is unreachable; if the validator is unavailable while Play reports a purchase, the user gets an honest temporary unlock that expires within 24 hours.
-
-Architecture sources: [sync.md](sync.md) (purchase, binding, revocation, provisional, local cache, gate), [presentation.md](presentation.md#entitlement-and-purchase), [release.md](release.md#play-and-rtdn-are-shared-by-design), [security.md](security.md).
-
-Depends on: S10.
-
-Acceptance: `testPurchaseDoesNotGrantLifetime` passes for a `purchaseType` test purchase; `onePurchaseBindsToOneLiveAccount` passes; a replay of the same token resolves to the existing binding with no duplicate grant; `restoreAfterAccountDeletionSucceeds` passes; acknowledgement happens from the backend inside the three-day window; `revocationAppliesOnNextEntry` passes; duplicate and out-of-order RTDN delivery converge; raw purchase tokens never appear in stored documents or logs; `provisionalIsNonRenewable` and `provisionalExpiresWithin24Hours` pass and the Account surface labels it as temporary; `paidOfflineControlSurvivesOutage` passes; `PENDING` grants nothing and says so; no device roster or device cap exists anywhere in the code or schema.
-
-Verification: `./gradlew :app:testDebugUnitTest`; backend tests including the RTDN handlers; an end-to-end check on the internal testing track with a licence tester; a Compose test for pending, revoked, and provisional surfaces.
-
-Not in this slice: any TV-related cloud data, any entitlement-based device registry.
-
-## S12 — Diagnostics: opt-in crash reporting and redacted export
-
-Observable outcome: crash reporting is off until the user enables it; the user can preview and share a redacted report; Request Support on an unsupported card uses that same preview; nothing is uploaded to an AppT service.
+Observable outcome: the Diagnostics surface shows what the local record holds and how old it is; building a report shows a preview of every field before anything leaves the phone; sharing happens only after explicit confirmation; Request Support on an unsupported card uses the same path; Clear local history empties the record. Nothing is uploaded anywhere, because V1 has no cloud crash reporting and no analytics.
 
 Architecture sources: [diagnostics.md](diagnostics.md), [presentation.md](presentation.md#diagnostics), [security.md](security.md#b6-diagnostics), [release.md](release.md).
 
 Depends on: S03.
 
-Acceptance: `crashReportingOffByDefault`, `optedOutStoredReportsAreNotSent`, `noAnalyticsDependency`, and `adIdAbsentFromManifest` pass; manifest meta-data disables collection; enabling collection happens only from an explicit user action; send-stored and delete-stored actions exist; `setUserId` is absent from production sources; a planted token, pin, IP, MAC, email, and text are absent from the report; preview precedes share; `redactedReportContainsNoFixtureSecret` passes; a full diagnostic buffer does not delay a command; `samsung` does not depend on Crashlytics.
+Acceptance: `noTelemetryDependency` and `adIdAbsentFromManifest` pass; `localRecordIsBoundedAndRedacted` passes for both sources and the rolling file; `diagnosticFileIsExcludedFromBackup` passes; `exportRequiresUserConfirmation` passes and the preview lists every field; `clearLocalHistoryDeletesRecordAndFile` passes with a confirmation step; `noDiagnosticsUploadPath` passes (no HTTP client in the package, no endpoint in the backend inventory); `redactedReportContainsNoFixtureSecret` passes with a planted token, pin, IP, MAC, email, Username, and text; `samsungHasNoLogCalls` passes; a full record never delays a command (`commandDoesNotAwaitDiagnostics`); the unsupported card offers Request Support through the same preview.
 
-Verification: unit redaction tests, `./gradlew :app:testDebugUnitTest`, manifest merge check, dependency check, a Compose test for the preview and consent states.
+Verification: unit redaction tests, `./gradlew :app:testDebugUnitTest`, manifest merge check, dependency check, `npm test --prefix backend` endpoint inventory test, and a Compose test for the preview, confirmation, and clear-history states.
 
-Not in this slice: a diagnostic backend, analytics, an upload endpoint.
+Not in this slice: a diagnostic backend, crash reporting, analytics, an upload endpoint.
 
 ## S13 — Accessibility and responsive closure
 
-Observable outcome: a screen-reader user completes Welcome, explanation, discovery, approval, one command, the account gate, trial surfaces, and settings. Text scales to 200% without clipping. Contrast and target sizes hold. Landscape, foldable, and tablet windows behave per the responsive rules.
+Observable outcome: a screen-reader user completes Welcome, explanation, discovery, approval, one command, the account gate, trial and purchase surfaces, settings, and diagnostics. Text scales to 200% without clipping. Contrast and target sizes hold. Landscape, foldable, and tablet windows behave per the responsive rules.
 
 Architecture sources: [presentation.md](presentation.md) (accessibility contracts, responsive rules, tokens), [ui-ux.md](ui-ux.md), [reliability.md](reliability.md).
 
-Depends on: S09, S11, S12.
+Depends on: S10, S08, S12.
 
-Acceptance: every interactive control across the routes has a name, role, and state; `everyControlMeetsTouchTarget` passes for every route; `fontScale200DoesNotClip` passes for every route; status is never color-only; `reducedMotionSkipsTravel` passes; `gestureAlternativesExist` passes; `destructiveActionsConfirm` passes for forget, sign-out, and account deletion; `statusAnnouncedOnce` passes; traversal order matches the visual task order in the Remote zones; a TalkBack walkthrough record is attached to the slice; each window size class renders per the responsive table with control ordering preserved.
+Acceptance: every interactive control across the routes has a name, role, and state; `everyControlMeetsTouchTarget` passes for every route; `fontScale200DoesNotClip` passes for every route; `statusIsNotColorOnly` passes; `reducedMotionSkipsTravel` passes; `gestureAlternativesExist` passes; `destructiveActionsConfirm` passes for forget, sign-out, account deletion, and clear-local-history; `statusAnnouncedOnce` passes; traversal order matches the visual task order in the Remote zones; a TalkBack walkthrough record is attached to the slice; each window size class renders per the responsive table with control ordering preserved.
 
 Verification: Compose accessibility assertions, `./gradlew :app:connectedDebugAndroidTest` on a phone and a tablet-sized emulator, a manual TalkBack script, and a screenshot set at 100% and 200% font scale.
 
@@ -234,41 +237,41 @@ Not in this slice: a new visual brand, a separate tablet product.
 
 ## S14 — Reliability and performance verification harness
 
-Observable outcome: launch, control latency, frame timing, memory, and battery results are recorded per release on the reference device, and a regression beyond the thresholds fails the pipeline.
+Observable outcome: launch, control latency, frame timing, memory, and battery results are recorded per release from the benchmark module, and a regression beyond the thresholds fails the pipeline.
 
-Architecture sources: [reliability.md](reliability.md), [testing.md](testing.md#performance-and-reliability), [lifecycle.md](lifecycle.md).
+Architecture sources: [reliability.md](reliability.md), [testing.md](testing.md#performance-and-reliability), [modules.md](modules.md#shape), [lifecycle.md](lifecycle.md).
 
 Depends on: S12.
 
-Acceptance: Macrobenchmark module measures cold and warm start, Remote frame timing, discovery, reopen after process death, and rotation; `launchBudget`, `commandLatencyBudget`, `frameTimingBudget`, and `reconnectRecoveryRate` are enforced; baseline profiles for Remote, Discovery, and TvList are committed and refreshed when composition changes materially; `commandDoesNotAwaitDiagnostics` passes; memory and battery budgets are recorded with a battery-historian run on the reference device; a >20% regression blocks promotion until explained; results are stored as release artifacts, never as analytics.
+Acceptance: the `:macrobenchmark` module measures cold and warm start, Remote frame timing, control latency, discovery, reopen after process death, and recreation; `launchBudget`, `commandLatencyBudget`, `frameTimingBudget`, and `reconnectRecoveryRate` are enforced; baseline profiles for Remote, Discovery, and TvList are generated by the module and committed; `commandDoesNotAwaitDiagnostics` passes; memory and battery budgets are recorded with a battery-historian run on the reference device; a >20% regression blocks promotion until explained; results are stored as release artifacts, never as analytics; `noProductionModuleDependsOnBenchmark` passes.
 
-Verification: `./gradlew :macrobenchmark:connectedCheck`, recorded benchmark JSON per release, the release checklist entry, and a CI job that fails on the threshold breach.
+Verification: `./gradlew :macrobenchmark:connectedCheck`, recorded benchmark JSON per release, the release checklist entry, and a CI job that fails on a threshold breach.
 
 Not in this slice: public performance claims or SLAs.
 
-## S15 — Environment separation, deployment drill, and internal release
+## S15 — Environment separation, artifact identity, and internal release
 
-Observable outcome: an App Bundle installs from the Play internal testing track, pointed at the internal backend, with production infrastructure untouched. A backend rollback drill is recorded.
+Observable outcome: the production-flavoured release candidate installs from the Play internal testing track against the production environment, the internal tester build installs against the internal environment outside Play, and a backend rollback drill is recorded. The artifact that will be promoted is the artifact that was tested.
 
-Architecture sources: [release.md](release.md) (environments, backend deployment and rollback, checks, release path), [sync.md](sync.md), [security.md](security.md#b7-ci-supply-chain-and-release).
+Architecture sources: [release.md](release.md) (environments, release path and artifact identity, backend deployment and rollback, checks), [sync.md](sync.md), [security.md](security.md#b7-ci-supply-chain-and-release).
 
 Depends on: S13, S14.
 
-Acceptance: `dev`, `internal`, and `production` projects exist with separate Firebase, Firestore, functions, Secret Manager keys, and Cloud KMS keys; `debugVariantCannotReachProduction` and `releaseVariantCannotReachDevelopment` pass; AAB builds; the internal track installs on a device; lockfiles and verification metadata are committed; the permission allowlist matches this map; actions are pinned by SHA; `main` is green; every pull-request check in [release.md](release.md#pull-request-checks) runs; production functions deploy with a traffic split from 0% and the rollback step is exercised once and recorded; secret scanning finds no credential; production promotion workflow exists, is manual, and is not run by this slice.
+Acceptance: `dev`, `internal`, and `production` projects exist with separate Firebase, Firestore, functions, Secret Manager keys, and Cloud KMS keys; `debugVariantCannotReachProduction` and `releaseVariantCannotReachDevelopment` pass; `releaseArtifactsDifferOnlyByConfig` passes — the internal and production release artifacts from one commit differ only in environment configuration, and the production artifact carries none of the development or internal configuration; the candidate AAB installs from the Play internal testing track against production; the tester build installs against internal and is never uploaded to Play; lockfiles and verification metadata are committed; the permission allowlist matches this map; actions are pinned by SHA; `main` is green; every pull-request check in [release.md](release.md#pull-request-checks) runs, including the backend typecheck, lint, and emulator jobs; production functions deploy with a traffic split from 0% and the rollback step is exercised once and recorded; secret scanning finds no credential; the production promotion workflow exists, is manual, and is not run by this slice.
 
-Verification: CI logs, Play internal testing install, the recorded rollback drill note, and the environment guard checks.
+Verification: CI logs, a Play internal testing install of the production candidate, an internal-environment install of the tester build, the recorded rollback drill note, and the environment and artifact guard checks.
 
 Not in this slice: public rollout, the license decision, the vendor-terms decision.
 
-## S16 — Physical acceptance and release gates
+## S16 — Physical acceptance and external gates
 
 Observable outcome: one real Samsung television completes pair, command, reconnect, and process-death resume on the TLS token path. Wake is attempted and recorded, including an honest failure. The matrix row contains no address, MAC, token, or account email. Both external gates are recorded as passed before public promotion.
 
 Architecture sources: [testing.md](testing.md#physical-acceptance-matrix), [release.md](release.md#two-external-gates).
 
-Depends on: S08. May run in parallel with S13–S15. A debug or internal build is enough.
+Depends on: S11. May run in parallel with S13–S15. A debug or internal build is enough.
 
-Acceptance: one matrix row with the required columns filled; pin-survived-reboot recorded as yes, no, or not tried; no year range added to the app as a support gate; honest wake failure recorded if wake does not work; the source-license decision and the Samsung vendor-terms review are recorded as human decisions before public promotion; production promotion is not started by this slice.
+Acceptance: one matrix row with the required columns filled; pin-survived-reboot recorded as yes, no, or not tried; no year range added to the app as a support gate; honest wake failure recorded if wake does not work; the source-license decision and the Samsung vendor-terms review are recorded as human decisions before public promotion; the S08 paid-path drill is recorded as complete; production promotion is not started by this slice.
 
 Verification: the matrix note in the slice record plus a rerun of the contract tests against the same build.
 
@@ -276,6 +279,6 @@ Not in this slice: a public compatibility page, a second ecosystem, a commitment
 
 ## Slice count and dependency outline
 
-Sixteen slices. Linear control spine S01→S02→S03→S04→S05→S06→S07, then S08 (power honesty) and S09 (secondary surfaces) branch from S07. S10 (account and trial) follows S07, S11 (purchase and entitlement) follows S10. S12 (diagnostics) follows S03. S13 (accessibility closure) follows S09, S11, and S12. S14 (reliability harness) follows S12. S15 (environments and internal release) follows S13 and S14. S16 (physical acceptance and gates) follows S08 and gates public promotion with S15 and the two external decisions.
+Sixteen slices. Control spine: S01 → S02 → S03 → S04 → S05 → S06. The licensing spine follows immediately: S07 (account, trial, and the gate) → S08 (purchase and entitlement) → S09 (remembered televisions, remote-first launch, switching). Branches: S10 (apps, text, favourites) and S11 (wake and honest power) from S09; S12 (local diagnostics) from S03. Closure: S13 (accessibility and responsive) after S10, S08, and S12; S14 (reliability harness) after S12; S15 (environments, artifact identity, release) after S13 and S14; S16 (physical acceptance and external gates) after S11 and gating public promotion with S15 and the two external decisions.
 
-This count replaces the previous S01–S15 route. The old S10/S11 pair (account plus non-secret TV-sync) no longer exists, because there is no TV-sync architecture to implement.
+This count replaces the previous S01–S15 route. The old S10/S11 pair (account plus non-secret TV-sync) no longer exists, because there is no TV-sync architecture to implement, and the account/trial slice now sits before remembered-television routing so that every slice which can open a gated entry ships the gate and its surfaces together.

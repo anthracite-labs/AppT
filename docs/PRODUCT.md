@@ -174,19 +174,20 @@ The exact Samsung protocol and vendor-terms position receives focused legal/vend
 
 ## Privacy and diagnostics
 
-V1 has **no behavioral usage analytics**.
+V1 has **no behavioral usage analytics and no cloud crash reporting**. No crash-reporting, analytics, advertising, or attribution SDK ships in the app, and nothing is uploaded automatically by a crash handler or any other component.
 
-Cloud crash reporting is opt-in rather than automatic. AppT always keeps a bounded, already-redacted local diagnostic buffer. A customer may explicitly enable anonymous crash reporting in Settings or explicitly share a redacted Request Support report. Crash data must not be tied to username, account id, email, television id, network identifiers, command/text content, or another persistent user identifier.
+AppT keeps a bounded, already-redacted local diagnostic record on the phone, so support information exists without a cloud service. Diagnostic information leaves the phone only when the customer explicitly previews and shares a redacted report, for example through Request Support.
 
-Privacy-safe crash and error reporting is acceptable when it excludes sensitive information such as:
+Reports must not contain sensitive information such as:
 
 - pairing credentials;
 - sensitive remote-control command contents;
 - Wi-Fi names;
 - local IP addresses;
-- directly identifiable television information.
+- directly identifiable television information;
+- Username, account id, email, or any other persistent user identifier.
 
-More detailed diagnostic information may be exported only through an explicit user action.
+Cloud crash reporting was evaluated and deliberately excluded from V1 for this reason. A more detailed diagnostic export remains available only through an explicit user action.
 
 ## Casting and voice
 

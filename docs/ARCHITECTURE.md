@@ -134,7 +134,7 @@ The `app` module does not construct raw Samsung WebSocket payloads, raw `KEY_*` 
 ## Diagnostics and privacy
 
 - V1 has no behavioral analytics.
-- Cloud crash reporting is **opt-in**: **Firebase Crashlytics** is configured without behavioral Analytics, collection is disabled until the user explicitly enables it, and a bounded/redacted local diagnostic log/export path always remains available.
+- V1 has **no cloud crash reporting** and no crash-reporting, analytics, advertising, or attribution SDK: diagnostics are a bounded, always-redacted local record plus an explicit user-confirmed export and share. Nothing is uploaded automatically.
 - Logs and reports must exclude pairing credentials, Wi-Fi names, local IP addresses, directly identifying TV data, sensitive command/text contents, and other secrets.
 - More detailed diagnostics require explicit user action.
 - Diagnostics must not sit in the TV-control critical path.

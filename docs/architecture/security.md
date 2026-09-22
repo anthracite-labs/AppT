@@ -26,7 +26,7 @@ Do not present a best-effort mitigation as a guarantee in product copy, support 
 | Lifetime Entitlement and other entitlement proofs | Device cache plus entitlement backend | Getting paid local control without paying |
 | Purchase binding | Entitlement backend | Rebinding a stolen purchase token to another AppT account |
 | Pseudonymous trial markers | Entitlement backend | Linking an identity to trial history; trial reset |
-| Local diagnostics and crash reports | Device, and Crashlytics only after explicit opt-in | Learning network, account, or command details |
+| Local diagnostics | Device only; leaves the phone solely as a user-confirmed, redacted export | Learning network, account, or command details |
 | CI, deployment, and signing material | GitHub Actions, Google Cloud, Play Console | Supply-chain compromise; shipping an attacker build |
 
 Adversaries considered: a hostile device on the same LAN; a spoofing or malformed-discovery responder; the television itself behaving unexpectedly; a curious or malicious local app on the phone; a thief of a single credential (purchase token, ID token, App Check token); a motivated user who wants a second free trial or a free lifetime entitlement; a compromised or rooted phone; a compromised dependency or CI pipeline.
@@ -43,7 +43,6 @@ flowchart LR
   auth["Firebase Authentication"]
   backend["AppT entitlement service and Firestore"]
   playapi["Google Play Developer API and RTDN"]
-  crash["Crashlytics, opt-in only"]
   ci["CI, Play Console, Google Cloud"]
 
   phone <-->|"B1 unauthenticated LAN"| tv
@@ -51,7 +50,7 @@ flowchart LR
   phone <-->|"B3 Play Billing IPC"| play
   phone <-->|"B4 Firebase Auth SDK"| auth
   backend <-->|"B5 server-to-server OAuth and Pub/Sub"| playapi
-  phone -->|"B6 opt-in, no identifiers"| crash
+  phone -->|"B6 user-confirmed, redacted export"| outside["Diagnostic recipient chosen by the user"]
   ci -->|"B7 deploy credentials"| backend
   backend --- auth
 ```
@@ -63,7 +62,7 @@ flowchart LR
 | B3 Play Billing | Purchase flow and purchase tokens | App against Play on the same device | Server-authoritative verification, one-account binding, no client trust |
 | B4 Firebase Auth | Sign-in and identity | App against Auth | Provider-verified Google identity, required email verification for the fallback path, no profile copying |
 | B5 Server to Play | Purchase verification, RTDN | AppT service against Google | Service account with narrow scope, Workload Identity Federation, signature-free Pub/Sub push with authenticated service account |
-| B6 Diagnostics | Opt-in crash data | User decision against a third-party processor | Off by default, no identifiers, redaction before any write, local buffer always redacted |
+| B6 Diagnostics | User-confirmed, redacted diagnostic export | Customer against a recipient the customer chooses | No crash-reporting or analytics SDK at all, redaction at write time, allowlisted preview before anything leaves, no upload endpoint to attack |
 | B7 Deployment | Code, rules, indexes, secrets | Human/CI against production | No long-lived keys in git, WIF, least-privilege service accounts, pinned actions, manual production promotion |
 
 ## Threat catalogue
@@ -118,24 +117,25 @@ flowchart LR
 | Clock manipulation to extend a trial or provisional entitlement | Server timestamps are authoritative. The client keeps a server time offset and a monotonic adjusted-time floor, so moving the device clock backwards does not extend an entitlement window. Any successful online check replaces local truth. | Best-effort, bounded |
 | Provisional entitlement abused as permanent access | Provisional access comes only from a Play-reported `PURCHASED` transaction, is non-renewable, and expires within the architecture target of 24 hours; a validator rejection or an authoritative paid result replaces it. It cannot be re-granted for the same purchase token. | Best-effort |
 | Entitlement revocation interrupts an active remote | Revocation, expiry, refunds, and sign-out never interrupt an active remote session. They gate the next remote entry. | Enforced by AppT |
-| Deletion used to erase abuse or purchase history | Account deletion removes ordinary account records but retains pseudonymous trial markers for the trial program's life and the minimum purchase-binding record needed to keep the purchase non-transferable and restorable. Both are documented and contain no television, personalization, or behavioral data. | Enforced by AppT |
-| Deletion used to reset a purchase relationship | A deleted account releases the binding; the next authoritative verification of the same Play purchase may bind it to the new account. That preserves "the legitimate purchaser may restore" without allowing transfer between two live accounts. | Enforced by AppT |
+| Deletion used to erase abuse or purchase history | Account deletion removes ordinary account records but retains pseudonymous trial markers for the trial program's life and the released purchase-binding record that keeps the purchase non-transferable and restorable. Both are documented and contain no television, personalization, or behavioral data. | Enforced by AppT |
+| Deletion used to reset a purchase relationship | Deletion is ordered: the account is marked `deleting`, every binding it owns is frozen with the uid dropped, and the Firebase Auth user is removed before any binding becomes re-bindable. Only after Auth deletion is confirmed does the binding become `released`, so the legitimate purchaser can restore it into a recreated account while no live account can take it over. | Enforced by AppT |
+| Partial deletion leaving a purchase re-bindable while the old identity still works | The freeze step precedes Auth deletion, every phase is idempotent and resumable, a frozen binding denies use with `deletion_pending`, and a scheduled reconciliation job finishes deletions that stopped after the Auth user was removed. | Enforced by AppT |
 
 ### B6 Diagnostics
 
 | Threat | Control | Class |
 |---|---|---|
-| Crash or diagnostic data leaking television, account, or network detail | Crash reporting is off until the user opts in. Local diagnostics are redacted at write time. No `setUserId`, no custom keys for account, television, address, or Wi-Fi, no command text, no installation identifier. | Enforced by AppT |
-| Diagnostics used as implicit analytics | No behavioral Analytics dependency, no event-volume or usage reporting, no diagnostic upload endpoint. A CI dependency check fails if an analytics artifact appears. | Enforced by AppT |
-| Opt-in turning into silent collection | The opt-in state is a local, explicit, revocable preference. While disabled, Crashlytics stores nothing to the network; the user may explicitly send or delete locally stored reports when opting in. | Enforced by AppT + provider |
-| Removal of already-uploaded crash data after opt-out | Provider-side deletion of already-processed reports needs an operator request to Firebase support. The architecture records this as a documented support path, not a user-facing button. | Needs validation |
+| Diagnostic data leaking television, account, or network detail | The record is redacted at write time and never leaves the phone unless the customer previews and shares it. No crash-reporting or analytics SDK exists, and no identifier is ever written or sent. | Enforced by AppT |
+| Diagnostics used as implicit analytics or reporting | No crash-reporting, analytics, or attribution dependency; no event-volume or usage reporting; no diagnostic upload endpoint; no HTTP client in the diagnostics package. A CI dependency check fails if any such artifact appears. | Enforced by AppT |
+| Silent upload through a diagnostic path | There is nothing to switch on: V1 ships no reporting SDK, the diagnostics package holds no network client, and no backend endpoint could receive a report. A dependency check and an endpoint-inventory test enforce both. | Enforced by AppT |
+| Local diagnostic record outliving the customer's wishes | The Diagnostics surface offers Clear local history, which deletes the buffer and the rolling file, and uninstall removes both anyway. Nothing was ever uploaded, so no provider-side copy exists to delete. | Enforced by AppT |
 | Diagnostic export exceeding the preview | Export is built from an allowlist, previewed, and shared only after explicit confirmation. | Enforced by AppT |
 
 ### B7 CI, supply chain, and release
 
 | Threat | Control | Class |
 |---|---|---|
-| Unreviewed dependency or tracker SDK reaching production | Locked and verified dependencies, restricted repositories, license/provenance review for significant additions, manifest permission allowlist, dependency-insight checks that `samsung` has no Firebase/Play/Crashlytics artifact. | Enforced by AppT |
+| Unreviewed dependency or tracker SDK reaching production | Locked and verified dependencies, restricted repositories, license/provenance review for significant additions, manifest permission allowlist, and dependency-insight checks that no crash-reporting, analytics, advertising, or attribution artifact reaches either production module. | Enforced by AppT |
 | CI action retargeted by a moving tag | Actions pinned to immutable commit SHAs. | Enforced by AppT |
 | Production credentials in git | No service-account keys in the repository. CI uses Workload Identity Federation; runtime secrets live in Secret Manager; production Firebase configuration is injected at build time. Secret scanning runs in CI. | Enforced by AppT |
 | Debug or internal build pointing at production infrastructure | Per-variant configuration with a CI check that the debug variant cannot resolve production identifiers, and that the release variant cannot resolve development identifiers. | Enforced by AppT |
@@ -150,7 +150,7 @@ These stay out of product copy as promises:
 - a hostile LAN host can still impersonate a television that only offers the plaintext channel, or prevent service;
 - a television vendor can change protocol behaviour without notice;
 - a customer who controls their Play account and their phone can always reinstall; anti-abuse raises cost, it does not make abuse impossible;
-- Google Play, Firebase, and Crashlytics availability are outside AppT control, which is why local control never depends on them.
+- Google Play and Firebase availability are outside AppT control, which is why local control never depends on them.
 
 ## Privacy controls summary
 
@@ -158,8 +158,8 @@ These stay out of product copy as promises:
 - No television, personalization, pairing, or usage data in the backend, checked structurally and by test.
 - Backend storage limited to: Firebase Auth identity, Username, Trial state, pseudonymous eligibility markers, purchase binding, and Lifetime Entitlement state.
 - Raw anti-abuse identifiers and raw purchase tokens are never persisted.
-- Cloud crash reporting is opt-in, off by default, and never carries a persistent identifier.
-- Local redacted diagnostics are always available to the user and are never in the command path.
+- There is no cloud crash reporting, behavioral analytics, or diagnostic upload path in V1, so no provider receives diagnostic data and none can be tied together across services.
+- Local redacted diagnostics are always available and are never in the command path; they leave the phone only as an explicit, previewed, user-confirmed export.
 
 ## Needs validation
 
@@ -172,13 +172,13 @@ Facts that this architecture relies on and that must be confirmed against author
 | `purchaseType` behaviour for licence-test, promo, and rewarded purchases at verification time | Preventing test purchases from granting production entitlement | [sync.md](sync.md), [release.md](release.md) |
 | Play Integrity verdict vocabulary and standard-request nonce binding | Trial and purchase abuse decisions | [sync.md](sync.md) |
 | Behaviour of the app-scoped Android ID across reinstall, restore, and signing-key rotation | Device marker stability for one-trial-per-device | [sync.md](sync.md) |
-| Crashlytics opt-in semantics, locally stored unsent reports, and provider-side deletion of already-uploaded data | Consent correctness | [diagnostics.md](diagnostics.md) |
+| Whether Play Console Android vitals crash and ANR reporting covers an app that ships no crash-reporting SDK, and whether Play accepts an R8 mapping upload for deobfuscation | The release halt criterion and crash visibility after cloud reporting was removed | [release.md](release.md), [diagnostics.md](diagnostics.md) |
 | Firebase App Check enforcement modes per environment | Backend call authenticity in dev versus production | [release.md](release.md) |
 | Cloud KMS asymmetric signing limits, JWKS hosting, and key-rotation procedure | Offline proof verification | [sync.md](sync.md) |
 
 ## Review hooks
 
-Controls above become tests in [testing.md](testing.md). At minimum: `identityMismatchDoesNotSendToken`, `noPlaintextTokenAfterTlsPairing`, `malformedFrameDoesNotEscapeSession`, `backendRejectsClientSuppliedUid`, `clientFirestoreAccessDenied`, `trialMarkerKeyRotationResolvesOldMarkers`, `testPurchaseDoesNotGrantLifetime`, `proofSignatureTamperDenied`, `clockRollbackDoesNotExtendEntitlement`, `revocationAppliesOnNextEntry`, `crashReportingOffByDefault`, `redactedReportContainsNoFixtureSecret`, `noAnalyticsDependency`, `samsungGraphExcludesFirebase`, `releaseVariantCannotReachDevelopment`.
+Controls above become tests in [testing.md](testing.md). At minimum: `identityMismatchDoesNotSendToken`, `noPlaintextTokenAfterTlsPairing`, `malformedFrameDoesNotEscapeSession`, `backendRejectsClientSuppliedUid`, `clientFirestoreAccessDenied`, `trialMarkerKeyRotationResolvesOldMarkers`, `testPurchaseDoesNotGrantLifetime`, `proofSignatureTamperDenied`, `clockRollbackDoesNotExtendEntitlement`, `revocationAppliesOnNextEntry`, `deletionFreezesBeforeAuthDelete`, `deletionRetryConverges`, `trialAttachIsIdempotent`, `provisionalUsesLocalKey`, `redactedReportContainsNoFixtureSecret`, `noTelemetryDependency`, `noDiagnosticsUploadPath`, `samsungGraphExcludesFirebase`, `releaseVariantCannotReachDevelopment`.
 
 Any new threat that changes a boundary, a guarantee, or a data category must update this file in the same change that introduces it.
 
@@ -190,5 +190,4 @@ Checked while writing this map; re-check before relying on them in code.
 - One-time purchase lifecycle and RTDN requirement: <https://developer.android.com/google/play/billing/lifecycle/one-time>
 - `purchases.products` REST resource, including `purchaseState`, `acknowledgementState`, and `purchaseType`: <https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.products>
 - Play Integrity token decoding: <https://developer.android.com/google/play/integrity/verdicts>
-- Crashlytics opt-in collection and unsent-report handling: <https://firebase.google.com/docs/crashlytics/android/customize-crash-reports>
 - App-scoped Android ID behaviour: <https://android-developers.googleblog.com/2017/04/changes-to-device-identifiers-in.html>

@@ -12,7 +12,7 @@ Test external behavior at the highest useful seam. The two primary seams are `Sa
 | Instrumented | Keystore round trip, backup exclusion, permission gate, Room migration, process-death restore, Credential Manager and Play Billing seams | Layout polish |
 | Compose | Critical flows against a fake `SamsungTvs` and fake licensing: first control, exemption, reconnect status, hidden dead controls, no address on cards, gate surfaces | Wire format |
 | Accessibility | Semantics, target sizes, scaled text, reduced motion, traversal order | Visual taste |
-| Performance | Launch, control latency, frame timing, memory, battery | Product desirability |
+| Performance | Launch, control latency, frame timing, memory, battery, measured from the test-only `:macrobenchmark` module in [modules.md](modules.md#shape) | Product desirability |
 | Physical matrix | One real television per generation actually claimed | A predeclared year range |
 
 `app` tests replace `SamsungModule` and the licensing seams with fakes. They assert on snapshots and results. They do not assert `KEY_*` or ports.
@@ -85,7 +85,7 @@ Minimum fixture set before the matching slice can be called done:
 
 A slice that needs a missing fixture captures a redacted trace or generates a synthetic trace whose provenance says `synthetic`. Synthetic traces are valid for unit contracts. They do not count as a physical-matrix row.
 
-Backend fixtures are JSON request/response pairs under `functions/test/fixtures/`, including a Play verifier response for a standard purchase, a `purchaseType` test purchase, a pending purchase, a revoked purchase, RTDN one-time-purchased, one-time-canceled, and voided-purchase messages, and a duplicate-delivery pair.
+Backend fixtures are JSON request/response pairs under `backend/test/fixtures/`, including a Play verifier response for a standard purchase, a `purchaseType` test purchase, a pending purchase, a revoked purchase, RTDN one-time-purchased, one-time-canceled, and voided-purchase messages, and a duplicate-delivery pair.
 
 ## Required behavioral contracts
 
@@ -96,7 +96,7 @@ These names are the contract. Implementation may split them; it may not drop the
 | Test | Assertion |
 |---|---|
 | `cloudAbsenceDoesNotBlockCommand` | `Ready` fixture accepts a command with Firebase classes absent from the `samsung` runtime |
-| `samsungGraphExcludesFirebase` | Gradle dependencies of `:samsung` exclude Firebase, Play services, and Crashlytics |
+| `samsungGraphExcludesFirebase` | Gradle dependencies of `:samsung` exclude Firebase, Play services, and every telemetry SDK |
 | `identityMismatchDoesNotSendToken` | Recorded socket URL carries no token |
 | `discoveryEndsAtBound` | Fake clock at 10 seconds yields `Finished` and the multicast lock is released |
 | `v1ProbesDoNotRequestNearbyWifiDevices` | Target 36 discovery requests neither `NEARBY_WIFI_DEVICES` nor location for SSDP, raw sockets, or `NsdManager` |
@@ -107,7 +107,7 @@ These names are the contract. Implementation may split them; it may not drop the
 | `forgetRemovesSecret` | After `Forgotten` the secret file is gone and a second `forget` still returns `Forgotten` |
 | `noPlaintextTokenAfterTlsPairing` | A television that completed TLS pairing never receives its saved token over the plaintext channel |
 | `holdCancellationReleases` | A cancelled `Hold` still writes release |
-| `noBackendCallOnCommandPath` | No entitlement, Auth, or Crashlytics call occurs between input and socket write |
+| `noBackendCallOnCommandPath` | No entitlement, Auth, or diagnostic-recording call occurs between input and socket write |
 
 ### Licensing and the account gate
 
@@ -121,7 +121,12 @@ These names are the contract. Implementation may split them; it may not drop the
 | `trialFollowsAccountAcrossPhones` | A second device receives the original expiry and creates no new window |
 | `deviceMarkerDeniesSecondTrial` | A second account on the same device signal is not trial-eligible |
 | `trialMarkerKeyRotationResolvesOldMarkers` | A marker written under a previous key version still denies a new trial with no raw value stored |
-| `testPurchaseDoesNotGrantLifetime` | A `purchaseType` test or promo purchase never grants durable production entitlement |
+| `testPurchaseDoesNotGrantLifetime` | A `purchaseType` test or promo purchase never grants a durable Lifetime Entitlement in any environment |
+| `trialAttachIsIdempotent` | Refresh from a second phone returns the original expiry, creates the device marker once, and never extends the window |
+| `deletionFreezesBeforeAuthDelete` | A binding is `frozen` before the Auth user is removed, and `deletion_pending` denies use in that state |
+| `deletionRetryConverges` | A retry after any phase completes the deletion exactly once, and the binding becomes re-bindable only after Auth deletion |
+| `reconciliationReleasesOrphanedBindings` | A frozen binding whose account no longer exists is released by the scheduled job alone |
+| `provisionalUsesLocalKey` | The provisional record holds the device-computed key, never the server fingerprint and never a raw token |
 | `onePurchaseBindsToOneLiveAccount` | Verification from a different live account returns `bound_elsewhere` |
 | `restoreAfterAccountDeletionSucceeds` | After deletion the same Play purchase binds to the recreated account |
 | `revocationAppliesOnNextEntry` | A revoked binding denies the next entry and leaves an active session untouched |
@@ -141,7 +146,9 @@ These names are the contract. Implementation may split them; it may not drop the
 |---|---|
 | `schemaContainsNoForbiddenColumn` | The exported schema has no forbidden column name |
 | `roomMigrationEveryVersion` | A migration test exists for every schema version after 1 |
-| `forgetIsRetryable` | A failed `samsung.forget` leaves `forgetPending` set, hides the row, and retries at startup |
+| `forgetRemovesRowAndFavouritesInOneTransaction` | The confirming tap removes the profile and its favourites together and leaves one `PendingForget` row; no intermediate state re-exposes the television |
+| `forgetIsRetryable` | A failed `samsung.forget` keeps the `PendingForget` row and the retry, and the television stays out of every list |
+| `newPairingSupersedesPendingForget` | A session reaching `Ready` for a pending id clears the marker and never deletes the fresh pairing |
 | `favouriteReorderIsAtomic` | A reorder commits in one transaction and survives process death |
 | `dataStoreMigrationKeepsValues` | Renamed keys keep values and delete the old key only after a successful read-back |
 | `corruptSecretDoesNotResetPairing` | An undecryptable secret yields `SecretsUnavailable`, not an empty pairing |
@@ -155,7 +162,9 @@ These names are the contract. Implementation may split them; it may not drop the
 
 | Test | Assertion |
 |---|---|
-| `rotationKeepsSession` | A configuration change during `Ready` performs no reconnect and no gate evaluation |
+| `rotationKeepsSession` | A rotation recreates the Activity; the session survives, no reconnect or gate evaluation happens, and no second `open` is issued |
+| `recreationRestoresRouteAndDrafts` | Route, `tvId`, list scroll, and a rename draft survive recreation |
+| `recreationDropsTransientUiOnly` | An open sheet, edit mode, and an in-flight gesture reset on recreation, and nothing else does |
 | `graceClosesAfterFifteenSeconds` | With a fake clock, the session closes at 15 seconds and not before |
 | `backgroundReleasesRemote` | `onStop` starts grace; returning inside grace reuses the same session |
 | `processDeathRequiresNewEntryWhenFirstControlDone` | After a first `Accepted`, process death leads to the account gate on the next entry |
@@ -170,10 +179,13 @@ These names are the contract. Implementation may split them; it may not drop the
 
 | Test | Assertion |
 |---|---|
-| `redactedReportContainsNoFixtureSecret` | A planted token, pin, IP, MAC, email, and text are absent from the report |
-| `crashReportingOffByDefault` | Fresh install state leaves provider collection disabled |
-| `optedOutStoredReportsAreNotSent` | With consent disabled, stored reports are neither sent nor offered for sending without an explicit action |
-| `noAnalyticsDependency` | `firebase-analytics` and advertising SDKs are absent from the merged graph |
+| `redactedReportContainsNoFixtureSecret` | A planted token, pin, IP, MAC, email, Username, and text are absent from the record, the rolling file, and the export |
+| `noTelemetryDependency` | No crash-reporting, analytics, advertising, or attribution artifact appears in the merged graph |
+| `localRecordIsBoundedAndRedacted` | Both sources cap at 200 events, the rolling file caps at its bound, and every stored field is on the allowlist |
+| `diagnosticFileIsExcludedFromBackup` | Backup and device-transfer rules exclude the diagnostics path |
+| `exportRequiresUserConfirmation` | Nothing leaves the phone before the preview is shown and the user confirms |
+| `clearLocalHistoryDeletesRecordAndFile` | Both sources and the rolling file are empty afterwards |
+| `noDiagnosticsUploadPath` | The diagnostics package contains no HTTP client and the backend endpoint inventory contains no diagnostics endpoint |
 | `adIdAbsentFromManifest` | `AD_ID` does not appear in the merged manifest |
 | `samsungHasNoLogCalls` | `samsung` production sources do not call `android.util.Log` |
 | `backendStoresNoTelevisionField` | Backend sources and rules contain no forbidden field name |
@@ -219,11 +231,11 @@ Welcome to explanation to cards; card has no IP text; approval state; one comman
 |---|---|
 | Authorization | Missing or invalid ID token rejected; a uid in the body is rejected; App Check required |
 | Rules | Client reads and writes denied for every collection, including a hard delete |
-| Trial | Eligible activation; email-marker denial; device-marker denial; idempotent re-activation; unverified email denial; unverified-email normalization |
+| Trial | Eligible activation; email-marker denial; device-marker denial; idempotent re-activation; attach on an active trial creates one device marker and returns the original expiry; attach is idempotent; attach never extends the window; unverified email denial; unverified-email normalization |
 | Markers | No raw value stored; key rotation lookup across versions; support clear writes an audit record |
 | Purchase | Standard purchase granted and acknowledged; pending grants nothing; `purchaseType` test/promo/rewarded rejected; package/product mismatch rejected; second live account `bound_elsewhere`; replay resolves to the existing binding; raw token absent from all stored documents and logs |
 | Revocation | Voided-purchase and one-time-canceled handlers revoke; duplicate delivery is idempotent; out-of-order delivery converges |
-| Deletion | Account record deleted; binding released with the uid dropped; markers retained; Auth user deleted last; retry after partial failure completes |
+| Deletion | Phase order is mark, freeze, delete Auth, release, finish; the binding is frozen before the Auth user is removed; a frozen binding denies with `deletion_pending`; a retry after any phase converges; the reconciliation job releases orphaned frozen bindings; markers retained; no endpoint accepts a request from an account in `deleting` state |
 | Retention | Stored fields are limited to the documented shapes; a schema test fails on a forbidden field name |
 
 Backend tests run against the Firebase emulator suite with a fake Play verifier and a fake integrity decoder. No live Google API is called in CI.
@@ -235,6 +247,8 @@ Backend tests run against the Firebase emulator suite with a fake Play verifier 
 | `debugVariantCannotReachProduction` | A debug build cannot resolve production backend or Firebase identifiers |
 | `releaseVariantCannotReachDevelopment` | A release build cannot resolve development identifiers |
 | `noCredentialFilesInRepo` | Secret scanning finds no service-account key, signing key, or upload credential in the tree |
+| `releaseArtifactsDifferOnlyByConfig` | The internal and production release artifacts from one commit differ only in environment configuration, and neither contains the other's configuration |
+| `noProductionModuleDependsOnBenchmark` | `:app` and `:samsung` do not depend on `:macrobenchmark`, and `:macrobenchmark` is absent from the release artifact |
 
 ## Physical acceptance matrix
 

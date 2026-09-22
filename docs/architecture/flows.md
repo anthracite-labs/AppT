@@ -87,10 +87,11 @@ sequenceDiagram
   App->>Auth: sign in
   Auth-->>App: uid, verified-email state
   App->>Lic: onSignedIn()
-  Lic->>Fn: GET /v1/entitlement
+  Lic->>Fn: POST /v1/entitlement/refresh with the device signal
   alt entitlement active
     Fn-->>Lic: lifetime or trial access, signed proof
     Lic->>Lic: cache proof and key set
+    Note over Fn: an active trial also attaches this phone: the device marker is created here, once
   else no entitlement yet
     Fn-->>Lic: access none
     Lic->>Fn: POST /v1/trial/activate with integrity token and device signal
@@ -105,6 +106,8 @@ sequenceDiagram
 ```
 
 An unverified email/password account cannot activate a trial. Google identities are provider-verified. Nothing about the television is sent in either call.
+
+This refresh is also the second-phone path: signing in on another phone returns the account's original trial expiry and marks that phone as trial-consumed through its device marker. Attaching never restarts or extends the window, and repeating it changes nothing.
 
 ## Trial expiry and the next remote entry
 
@@ -123,7 +126,7 @@ sequenceDiagram
   App->>Host: enter(tvId)
   Host->>Lic: evaluate access
   alt backend reachable
-    Lic->>Fn: GET /v1/entitlement
+    Lic->>Fn: POST /v1/entitlement/refresh
     Fn-->>Lic: trial expired, no lifetime
     Host-->>App: RequireEntitlement
     App-->>User: Entitlement surface with Buy once and Restore purchase
@@ -345,35 +348,44 @@ sequenceDiagram
   User->>App: Delete account
   App->>App: confirmation stating what is deleted and what remains on the phone
   App->>Lic: deleteAccount()
-  Lic->>Fn: POST /v1/account/delete
-  Fn->>Fn: delete account record, release purchase binding, retain markers and binding
-  Fn->>Auth: delete user (last, so a retry stays possible)
-  Fn-->>Lic: deleted
-  Lic->>Lic: clear cached proof, drop identity
+  Lic->>Fn: POST /v1/account/delete (resumable)
+  Fn->>Fn: phase 1: mark accounts/{uid}.status = deleting, refuse every other call from this account
+  Fn->>Fn: phase 2: freeze every binding owned by this uid, dropping the uid
+  alt Auth deletion succeeds
+    Fn->>Auth: phase 3: delete the Auth user
+    Fn->>Fn: phase 4-5: release the binding, mark the account deleted
+    Fn-->>Lic: state completed, retained trial markers and released binding
+    Lic->>Lic: clear cached proof, drop identity
+  else Auth deletion fails
+    Fn-->>Lic: state auth_delete_pending, retryable
+    Note over Fn: the binding stays frozen, so nothing is re-bindable and nothing is usable
+    App-->>User: deletion unfinished, with a retry
+  end
   App->>Storage: nothing changes
   App-->>User: Deleted. Local televisions remain on this phone
 ```
 
+Freezing before deleting the Auth user is what makes the sequence safe: while the old identity can still authenticate, the purchase is bound to nobody and usable by nobody. The daily reconciliation job finishes any deletion that stopped after the Auth user was removed.
+
 The account backend retains only pseudonymous trial markers and the released purchase binding. Television data was never there to delete.
 
-## Diagnostics opt-in and export
+## Diagnostics: local record and user-confirmed export
 
 ```mermaid
 sequenceDiagram
   actor User
   participant App as AppT
-  participant Consent as DiagnosticsConsent
-  participant Crash as Crashlytics
+  participant Record as LocalDiagnostics
+  participant Samsung as samsung buffer
   User->>App: Open Privacy and Diagnostics
-  App-->>User: Crash reporting is off, with an explanation of what would be sent
-  User->>Consent: Enable crash reporting
-  Consent->>Crash: enable collection from the next launch
-  App-->>User: Offer to send or delete reports stored on the device
-  User->>App: Request a diagnostic export
-  App->>App: build allowlisted report from redacted diagnostics
-  App-->>User: Preview of every field leaving the phone
+  App-->>User: what the local record holds, how old it is, and a Clear action
+  User->>App: Request Support on a card, or choose Export
+  App->>Record: read the app-level events
+  App->>Samsung: redactedDiagnostics()
+  App->>App: merge chronologically and build the allowlisted report
+  App-->>User: preview of every field that would leave the phone
   User->>App: Confirm
   App->>App: system share sheet
 ```
 
-No AppT service receives a diagnostic report in V1.
+Nothing is uploaded at any point, and no AppT service could receive a report: there is no crash-reporting or analytics SDK, no network client in the diagnostics package, and no backend endpoint for one. Clearing local history deletes the buffer and the rolling file.
