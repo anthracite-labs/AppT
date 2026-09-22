@@ -24,6 +24,7 @@ Load the file for the branch in front of you. Do not load the whole directory by
 | Test seams, fixtures, physical matrix | [testing.md](testing.md) |
 | CI, supply chain, Play release | [release.md](release.md) |
 | Cross-module sequences | [flows.md](flows.md) |
+| Product surface, navigation, remote interaction, visual and recovery rules | [ui-ux.md](ui-ux.md) |
 | Vertical implementation route | [slices.md](slices.md) |
 
 `protocol.md` is for `samsung` implementers. `app` code uses only the types in `samsung-interface.md`.
@@ -37,6 +38,7 @@ Load the file for the branch in front of you. Do not load the whole directory by
 | Reconnect and control lifecycle | [connection.md](connection.md) |
 | Secret lifecycle | [data.md](data.md) |
 | Account, trial, and entitlement lifecycle | [sync.md](sync.md) |
+| UI/UX information and interaction architecture | [ui-ux.md](ui-ux.md) |
 
 ## Invariant demonstration
 
