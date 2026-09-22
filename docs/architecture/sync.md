@@ -4,44 +4,50 @@ Firebase Authentication and Cloud Firestore sync non-secret application data. Th
 
 The sync worker reconciles in the background. Each record is compared with the current remote version before any write. There is no unconditional push, and no push-then-merge pass.
 
-## Unresolved decision — different account
+## Account switching
 
-This is a material product decision. This map does not choose it.
+Pairing is device-local; synchronized personalization is account-scoped.
 
-**Decision needed:** When this phone already has a `lastSyncedUid`, and the user authenticates a Firebase uid that is different, what should happen to local television names, favourites, preferences, and device-local pairing material?
+When a phone with a non-null `lastSyncedUid` authenticates a different Firebase uid, AppT does not merge the two accounts and does not silently switch synchronization context.
 
-Do not assume merge into the new account, replace local data with the new account's cloud data, two profiles on one phone, wipe of non-secret data, or wipe of pairing secrets.
+1. Pause synchronization before any read or write under the new uid.
+2. Ask for explicit confirmation to switch accounts.
+3. If the user cancels, sign out the newly authenticated uid and leave the existing account-scoped local state and all pairing material unchanged.
+4. If the user confirms:
+   - preserve Samsung pairing secrets, saved security identity, samsung-private device records, `lastOpenedTvId`, the permission-explanation state, `firstControlAchieved`, and the install `originDeviceId`;
+   - remove the previous account's local `TvProfile`/favourite sync state, tombstones, and pending sync work **without emitting tombstones or writes to the new account**;
+   - reset the three synchronized preferences to their product defaults without marking those resets pending;
+   - set `lastSyncedUid` to the new uid;
+   - perform a pull/reconcile for the new account before uploading any newly created account-scoped mutation.
+5. The old account's friendly names, favourites, preference values, tombstones, and other synchronized metadata are never copied into the new account.
 
-**Holding behavior until that decision exists:**
+An account switch never calls `SamsungTvs.forget` and never deletes device-local pairing material.
 
-- Do not upload local records to the new uid.
-- Do not download that uid's records over local data.
-- Do not delete pairing secrets.
-- Do not offer a merge or replace action.
-- A session already open may finish. Do not drop it because a conflicting sign-in started.
-- If the user is at the account gate, show a holding screen whose meaning is that switching accounts is not available and nothing was changed. The only account action on that screen is sign-out, so the user is not trapped.
-- Stop further account-switch work.
+A remembered locally paired television may therefore exist with no live `TvProfile` in the new account. It remains controllable. Until that account supplies metadata or the user creates new metadata, the UI uses a neutral `Samsung TV` label or a freshly discovered television-reported name. It must not display the previous account's custom friendly name or favourites.
 
-Same-uid sign-in and first sign-in (`lastSyncedUid` null) are specified below and are not blocked.
+If the cloud is unavailable after a confirmed switch, the new account context still applies locally and synchronization retries later. Previously paired local control remains independent of that retry.
 
-## Unresolved decision — cross-device unpair
+## Cross-device deletion and local pairing
 
-This is a material product decision. This map does not choose it.
+Pairing remains strictly local to each phone.
 
-**Decision needed:** When a signed-in user deletes a television on one phone, should that deletion also unpair the television on the user's other phones, or should pairing stay strictly local while only non-secret synced state is removed?
+When the user explicitly forgets/removes a television on Phone A:
 
-Do not assume that other phones call `forget`, and do not assume that a remote tombstone is only a cloud name with no effect on the local list. Those are the two answers. Neither is selected here.
+- Phone A records the synchronized non-secret television tombstone and removes related account-scoped favourites.
+- Phone A explicitly calls `SamsungTvs.forget`, so Phone A's pairing material is deleted.
+- The tombstone may synchronize to the user's other phones.
 
-**Holding behavior until that decision exists:**
+When that tombstone wins on Phone B:
 
-- Synchronize the non-secret television deletion record with the compare-before-write rule below. The deletion fact must not be lost, and an older live record must not resurrect it.
-- Do not call `forget`.
-- Do not delete pairing secrets or samsung-private device records.
-- Do not set `localUnpairPending`.
-- Do not hide, disable, or drop favourites for a television this phone has already paired, solely because the winning synced television record is a tombstone.
-- Do not show a flow that says the other phone unpaired this one.
-- A local forget, requested by the user on this phone, still calls `forget`. That path is specified in [data.md](data.md). It is not this decision.
-- This continuation of local control is holding behavior. It is not the chosen product meaning of delete.
+- apply the non-secret deletion and remove/hide the deleted account-scoped friendly name and related favourites;
+- do **not** call `forget`;
+- do **not** delete Samsung pairing secrets, security identity, or samsung-private device records;
+- Phone B remains capable of local control using its own independent pairing;
+- if Phone B has pairing material but no live account metadata, show a neutral `Samsung TV` label or a freshly discovered television-reported name rather than the deleted friendly name.
+
+Only an explicit local forget action on a phone removes that phone's pairing material. A cloud record cannot remotely unpair another phone.
+
+If the user later creates account metadata again for that locally paired television, that is a new live record with a newer version tuple and follows the normal last-write-wins rules.
 
 ## Account gate
 
@@ -49,19 +55,29 @@ Sign-in methods: Google, via Android Credential Manager and Firebase `GoogleAuth
 
 The gate reads the local Firebase user cache only. It does not wait for a network round trip before allowing control. Token refresh failure must not clear `currentUser` and must not sign the user out.
 
-The accepted product rule is the whole gate. Sign-in is required for continued/full product use and for synchronization. It is not a prerequisite for reaching or completing the first successful local-control session. This map does not add a trigger the product text does not state. It does not define the requirement as the next cold start, the next navigation, or an interrupt of the remote at the instant the first command is accepted. There is no control that permanently dismisses the account requirement.
+The first remote session has a specific account exemption.
+
+When `app` enters the remote with `firstControlAchieved == false` and no Firebase user, the resulting `ActiveRemote` is the **first-session exemption**. The exemption belongs to that active remote session, not to the process or a navigation flag.
+
+- The first `CommandResult.Accepted` sets `firstControlAchieved = true`.
+- `Accepted` means the command was written to the live Samsung session. It does not mean the television visibly acted; the adopted channel does not acknowledge key execution. This is the architecture's observable proxy for the product's first successful local-control experience.
+- Setting the flag does **not** interrupt the exempt remote session. The user may continue using that remote.
+- Rotation, a share sheet, or another transient pause covered by the existing `ActiveRemote` grace window remains the same exempt session.
+- When that `ActiveRemote` session closes, the exemption ends.
+- The next attempt to enter/open a remote session requires a local Firebase user before `SamsungTvs.open` is called.
+- A process death ends the active session; therefore the next remote entry after restart requires sign-in if `firstControlAchieved` is already true.
+- There is no permanent skip.
 
 | Condition | Effect |
 |---|---|
-| `firstControlAchieved` is false | First local-control session is allowed without a Firebase user. |
-| `firstControlAchieved` is true, `currentUser` null | Continued/full product use and sync require sign-in. The session that already reached first success is not retroactively blocked. No permanent dismiss. |
-| `currentUser` non-null, cloud unreachable | Allowed. Sync may fail. An open session does not wait on the cloud. |
-| Explicit sign-out | Continued/full use requires sign-in again. Secrets and Room remain so a later same-uid sign-in restores control without re-pairing. |
-| Different uid from `lastSyncedUid` | Holding behavior for different-account sign-in. |
+| `firstControlAchieved` false and no user | Open the first-session-exempt remote. |
+| Exempt remote has reached first `Accepted` | Keep that same remote usable until its `ActiveRemote` session ends. |
+| Exempt session ended, `firstControlAchieved` true, `currentUser` null | Route to account; do not call `SamsungTvs.open`. |
+| `currentUser` non-null, cloud unreachable | Allow remote entry. Sync may fail; local control does not wait. |
+| Explicit sign-out | Do not destroy pairing material. A new remote entry requires sign-in; an already-open Samsung session is not made dependent on a cloud round trip. |
+| Authenticated uid differs from `lastSyncedUid` | Run the explicit account-switch confirmation flow above before synchronization under that uid. |
 
-The gate lives in `app`. `SamsungTvs.open` does not check Auth. That split is what keeps a Firebase outage from being enforceable inside the television module. `app` does not call `open` for continued/full use when sign-in is required and `currentUser` is null. It may call `open` for the first session.
-
-`firstControlAchieved` becomes true when a command first returns `Accepted`. `Accepted` means the command was written to the live session. It does not mean the television visibly acted. The adopted channel does not acknowledge keys. This flag is the architecture's observable proxy for the product's first successful local-control session. Do not invent an acknowledgement the protocol does not provide. See [samsung-interface.md](samsung-interface.md).
+The gate lives in `app`. `SamsungTvs.open` never checks Auth. This keeps account policy outside the deep Samsung module and keeps a Firebase outage out of the command path.
 
 ## Sync whitelist
 
@@ -154,7 +170,8 @@ One Firestore transaction per record. Do not batch the whitelist. A batch has no
 
 ```text
 if lastSyncedUid != null and lastSyncedUid != current uid:
-    different-account holding behavior, stop
+    stop synchronization and require the explicit account-switch flow
+    // no cloud read/write occurs until the switch is confirmed or cancelled
 
 for each stored whitelist record with pendingSync:
     compare-before-write that record
@@ -166,10 +183,10 @@ one-shot get of the three collections, not a snapshot listener:
         else if local row is absent or remote tuple is strictly newer:
             apply the remote non-secret record
             if it is a television tombstone:
-                cross-device unpair holding behavior
-                do not call forget
+                remove account-scoped TV metadata/favourites
+                preserve device-local pairing and do not call forget
 
-if this pass was not a holding stop:
+if the uid context is valid for this pass:
     store lastSyncedUid = current uid
 ```
 
@@ -208,7 +225,7 @@ After the transaction:
 - Re-read the local row.
 - If a newer local mutation landed, leave `pendingSync` set and enqueue again. Do not clear it, and do not apply the remote tuple over that newer mutation.
 - If the local tuple is still the one just compared and the local write committed, or the remote tuple won, or the tuples were equal: clear `pendingSync`.
-- If the remote tuple won, apply that non-secret record in the same local transaction that clears `pendingSync`. A television tombstone still follows the unpair holding behavior.
+- If the remote tuple won, apply that non-secret record in the same local transaction that clears `pendingSync`. A television tombstone removes account-scoped metadata but never deletes this phone's pairing material.
 
 Records that must not be uploaded: a non-correlatable television. Clear its `pendingSync` without a cloud write so the worker does not retry it forever. Do not create a remote document for it.
 
@@ -332,24 +349,26 @@ Each phone stores its own pairing secret and opens its own session. Sync shares 
 
 Phone A offline keeps commanding. Mutations stay in Room or DataStore with `pendingSync` and the tuple written at mutation time. When the network returns, the worker compares each pending record with the current remote version before writing. Firestore downtime does not close Phone A's session.
 
-A delete on Phone A tombstones the non-secret record. Phone B stores that tombstone when it wins the tuple comparison. Phone B does not unpair unless a later human decision says so. Until then, the cross-device unpair holding behavior applies.
+A delete on Phone A tombstones the non-secret record and may locally unpair Phone A when the user chose the explicit local forget action. Phone B stores the winning tombstone, removes the account-scoped name/favourites, and retains its own pairing secret. Phone B can continue local control under a neutral or freshly discovered name until new account metadata is created.
 
 ## Account and sync lifecycle
 
 ```mermaid
 stateDiagram-v2
   [*] --> FirstSession: no successful control yet
-  FirstSession --> SignedIn: signs in, uid new or same
-  FirstSession --> ContinuedUse: first control succeeded, no user
-  ContinuedUse --> SignedIn: signs in, uid new or same
-  ContinuedUse --> Holding: different uid
-  SignedIn --> ContinuedUse: sign out
-  SignedIn --> Holding: auth user replaced by different uid
-  Holding --> ContinuedUse: sign out
+  FirstSession --> SignedIn: signs in
+  FirstSession --> ExemptRemote: first Accepted, no user
+  ExemptRemote --> NeedAccount: active remote session ends
+  NeedAccount --> SignedIn: sign in, first uid or same uid
+  NeedAccount --> SwitchConfirm: authenticated uid differs
+  SignedIn --> NeedAccount: sign out
+  SignedIn --> SwitchConfirm: authenticated uid differs
+  SwitchConfirm --> SignedIn: confirm switch and reset account-scoped local state
+  SwitchConfirm --> NeedAccount: cancel and sign out new uid
   SignedIn --> SignedIn: cloud down, local user remains
 ```
 
-`ContinuedUse` means the product requirement now applies: sign-in is required for continued/full use and for sync. The transition is not a cold-start rule, a next-navigation rule, or an interrupt of the remote.
+`ExemptRemote` is the first remote session after the first `Accepted`. It remains usable until that active session ends. `NeedAccount` is enforced on the next remote entry. Account switching never merges the previous account's synchronized metadata into the new account.
 
 ```mermaid
 sequenceDiagram
