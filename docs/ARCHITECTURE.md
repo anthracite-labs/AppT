@@ -105,6 +105,8 @@ The `app` module does not construct raw Samsung WebSocket payloads, raw `KEY_*` 
 - Backend: **Firebase Authentication + Cloud Firestore**.
 - V1 sign-in methods: **Google sign-in + email/password fallback**.
 - First successful local control is not gated by account creation.
+- The first successful command does not interrupt that active first remote session; after the session ends, the next remote entry requires sign-in.
+- Switching to a different account requires explicit confirmation. Account-scoped names, favourites, tombstones, and synchronized preferences are replaced rather than merged; device-local pairing/security material remains.
 - The TV-control path does not depend on Firebase, AppT backend availability, or public internet availability.
 
 ## Sync model
@@ -115,7 +117,9 @@ The `app` module does not construct raw Samsung WebSocket payloads, raw `KEY_*` 
 - A dedicated sync implementation exchanges an explicit whitelist of non-secret data with Firestore.
 - Deferred/retryable synchronization work uses WorkManager where appropriate.
 - Firestore is not a competing local application datastore.
-- Conflict policy is **last committed write wins per small record**, with deletion handling designed so deletions synchronize rather than resurrect stale data.
+- Conflict policy is **last committed write wins per small record**, with compare-before-write semantics so stale clients cannot overwrite newer live records or tombstones.
+- Synchronized television deletion removes account-scoped non-secret metadata but does not remotely unpair another phone.
+- Only an explicit local forget removes pairing material from that phone.
 - TV pairing credentials and device secrets are never synchronized.
 
 ## Diagnostics and privacy
@@ -175,4 +179,4 @@ These are binding unless deliberately changed by a later architecture decision:
 
 Implementation-ready detail lives in `docs/architecture/`. Start at `docs/architecture/README.md`. That directory elaborates this baseline. It does not replace it. If an elaboration conflicts with this file, this file wins until a later architecture decision changes it.
 
-A missing decision that could materially change product or architecture intent is surfaced, not chosen. The open cases are different-account sign-in, and whether deleting a television on one signed-in phone also unpairs other phones. Both are recorded in `docs/architecture/sync.md`. Neither is chosen here.
+The detailed map is accepted when it remains consistent with this baseline and `docs/PRODUCT.md`. Any future missing decision that could materially change product or architecture intent must still be surfaced rather than invented. The account-gate timing, different-account switch behavior, and cross-device pairing semantics are settled in `docs/PRODUCT.md` and elaborated in `docs/architecture/sync.md`.
