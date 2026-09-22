@@ -12,7 +12,7 @@ External gates, not slices: Samsung vendor-terms review before public production
 
 ## Definition of V1-ready
 
-V1-ready for public production means S01 through S15 are accepted, the different-account holding behavior is still in force or a later slice has implemented the human decision, and the two external gates have been passed. S14 can put a build on the internal track before S15. Public promotion waits for S15.
+V1-ready for public production means S01 through S15 are accepted, the different-account holding behavior and the cross-device unpair holding behavior are still in force or a later slice has implemented those human decisions, and the two external gates have been passed. S14 can put a build on the internal track before S15. Public promotion waits for S15.
 
 ## Sequence
 
@@ -70,7 +70,7 @@ Seams: permission gate in `app`; create `:samsung`; `discover` with real probes 
 
 Depends on: S01.
 
-Acceptance: explanation precedes any system prompt; the first scan starts as soon as the gate is granted, without a separate technical setup step; a rescan action starts a new `discover()`; API 33+ requests `NEARBY_WIFI_DEVICES` and does not request location; scan finishes at 10 seconds; soundbar fixture emits no card; unsupported fixture emits `Unsupported` and writes no key frame; cards contain no IP text; multicast lock released on cancel.
+Acceptance: explanation precedes any system prompt and precedes the first scan; the first scan starts as soon as the gate is granted, without a separate technical setup step; a rescan action starts a new `discover()`; target 36 V1 probes do not request `NEARBY_WIFI_DEVICES` or location and do not declare `ACCESS_LOCAL_NETWORK`; a system prompt appears only when a chosen API requires one; scan finishes at 10 seconds; soundbar fixture emits no card; unsupported fixture emits `Unsupported` and writes no key frame; cards contain no IP text; multicast lock released on cancel.
 
 Verification: JVM contract tests for the fixture cases; Compose test for the card; a device or emulator walkthrough of the explanation. Physical discovery evidence may wait for S15.
 
@@ -136,11 +136,11 @@ Not in this slice: app shortcuts, account, sync of the new preferences (DataStor
 
 Observable outcome: the user can name more than one television, see them in a list, reopen the last-used one quietly, and forget one so that its secret is gone.
 
-Seams: Room `TvProfile`, `TvList`, `lastOpenedAt`, startup `forget` reconciliation. Read [data.md](data.md).
+Seams: Room `TvProfile`, `TvList`, `lastOpenedAt`, startup retry of a local unpair. Read [data.md](data.md).
 
 Depends on: S04, S06.
 
-Acceptance: two fixture televisions keep distinct ids; user edit sets `nameSource` USER and a later television name does not overwrite it; last-used id reopens without a scan UI; forget calls `forget` before the tombstone and the secret file is absent; schema export contains no forbidden column; destructive migration is not configured.
+Acceptance: two fixture televisions keep distinct ids; user edit sets `nameSource` USER and a later television name does not overwrite it; last-used id reopens without a scan UI; local forget writes `localUnpairPending` and the tombstone tuple in one Room transaction, then calls `forget`; after `Forgotten` the secret file is absent; startup retries `forget` only while `localUnpairPending` is set; schema export contains no forbidden column; destructive migration is not configured.
 
 Verification: Room test; Compose flow for rename, reopen, and forget; instrumented or JVM schema assertion.
 
@@ -176,13 +176,13 @@ Not in this slice: sync of favourites (local until S11), DIAL launch.
 
 ## S10 — Account after first control
 
-Observable outcome: the first successful command is not blocked on sign-in. The next entry requires a local Firebase user. Google and email/password both work. Sign-out keeps secrets and does not delete televisions. With a cached user and Firebase unreachable, a command still succeeds.
+Observable outcome: the first successful local-control session is not blocked on sign-in. After that success, continued/full use and sync require a local Firebase user. This slice does not define that requirement as the next cold start, the next navigation, or an interrupt of the remote. Google and email/password both work. Sign-out keeps secrets and does not delete televisions. With a cached user and Firebase unreachable, a command still succeeds.
 
 Seams: account gate, Credential Manager, Firebase Auth. Read [sync.md](sync.md).
 
 Depends on: S03, S07.
 
-Acceptance: Compose test reaches `Accepted` with `currentUser` null on the first session; second launch shows the account screen; no skip-forever control; sign-out then sign-in of the same test user restores the list without re-pairing; airplane-mode test with a cached user still commands on the LAN fixture; auth errors do not clear a cached user; password reset email can be sent.
+Acceptance: Compose test reaches `Accepted` with `currentUser` null before `firstControlAchieved`; that `Accepted` is asserted as a socket write, not as visible television action; no skip-forever control; the test does not encode a second-launch-only or next-route-only account rule; after `firstControlAchieved`, sync does not run without a local user; sign-out then sign-in of the same test user restores the list without re-pairing; airplane-mode test with a cached user still commands on the LAN fixture; auth errors do not clear a cached user; password reset email can be sent.
 
 Verification: Compose tests with fake auth where possible; one instrumented test against a Firebase test project or emulator for Google is not required if Credential Manager is covered by a fake and email/password is covered against the Auth emulator.
 
@@ -196,7 +196,7 @@ Seams: sync worker, `SyncRecord`, Security Rules, tombstones. Read [sync.md](syn
 
 Depends on: S10, S09.
 
-Acceptance: Room write is visible before the worker runs; worker failure does not change session state; fresh-install pull does not push tombstones; tombstone does not resurrect; secret field write is denied by rules; cross-user read is denied; hard delete is denied; non-correlatable television is not uploaded; different-uid test uploads nothing and deletes no secret; Firestore persistence is off; no snapshot listener in source.
+Acceptance: Room write is visible before the worker runs; the value and its version tuple commit together; the worker submits that stored tuple and does not restamp it; each record is compared with the current remote version inside a transaction before write; a stale tuple is denied by rules and does not overwrite a newer live record or a newer tombstone; worker failure does not change session state; fresh-install pull does not push tombstones; tombstone does not resurrect; a winning remote television tombstone does not call `forget` and does not delete a secret; secret field write is denied by rules; cross-user read is denied; hard delete is denied; non-correlatable television is not uploaded; different-uid test uploads nothing and deletes no secret; Firestore persistence is off; no snapshot listener in source.
 
 Verification: unit tests for merge and the apply algorithm; Firestore rules tests; one instrumented or emulator test of two clients; Gradle/source check for snapshot listeners.
 

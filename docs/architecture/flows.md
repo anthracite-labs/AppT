@@ -6,7 +6,7 @@ Owning files: reconnect in [connection.md](connection.md), secrets in [data.md](
 
 ## First run to first control
 
-Firebase is not a participant. Sign-in happens after the first accepted command, in [sync.md](sync.md).
+Firebase is not a participant. Account creation is introduced after the first successful local-control session. This path observes that session as `Accepted`, which means the command was written to the open session, not that the television visibly acted. The gate does not turn that result into a cold-start rule or a next-navigation rule. See [sync.md](sync.md).
 
 The product list names discovery before the permission sentence. The baseline orders them as explanation, then local-network access, then automatic discovery. This sequence follows the baseline.
 
@@ -21,7 +21,7 @@ sequenceDiagram
   App->>User: Welcome
   App->>User: Explain local network access
   User->>Gate: Continue
-  Gate->>User: System prompt when the API level requires one
+  Gate->>User: System prompt when a chosen API requires one
   Gate->>App: Granted
   App->>Samsung: discover
   Samsung->>TV: Bounded client probes

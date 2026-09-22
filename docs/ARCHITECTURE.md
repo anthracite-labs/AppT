@@ -175,4 +175,4 @@ These are binding unless deliberately changed by a later architecture decision:
 
 Implementation-ready detail lives in `docs/architecture/`. Start at `docs/architecture/README.md`. That directory elaborates this baseline. It does not replace it. If an elaboration conflicts with this file, this file wins until a later architecture decision changes it.
 
-A missing decision that could materially change product or architecture intent is surfaced, not chosen. The open case is different-account sign-in, recorded in `docs/architecture/sync.md`.
+A missing decision that could materially change product or architecture intent is surfaced, not chosen. The open cases are different-account sign-in, and whether deleting a television on one signed-in phone also unpairs other phones. Both are recorded in `docs/architecture/sync.md`. Neither is chosen here.

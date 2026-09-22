@@ -182,4 +182,4 @@ From the accepted baseline, restated only where implementers need the number bes
 - Kotlin, Jetpack Compose, ViewModel, Coroutines, StateFlow.
 - One `OkHttpClient` inside `samsung` for device-info and the remote WebSocket. No logging interceptor.
 
-The Android 17 `ACCESS_LOCAL_NETWORK` permission is not declared and not requested while `targetSdk` is 36. Official guidance forbids requesting it before targeting 37. The future bump is a release-note in [discovery.md](discovery.md), not V1 work.
+`targetSdk` / `compileSdk` 36 stays the V1 baseline. `ACCESS_LOCAL_NETWORK` is not declared and not requested while `targetSdk` is 36. Broad local-network permission is a requirement of a later target-37 bump, not of V1. `NEARBY_WIFI_DEVICES` is not a V1 permission: SSDP, raw sockets, and `NsdManager` do not require it. Android 16 local-network protection is transitional and opt-in at target 36. The gate is specified in [discovery.md](discovery.md).

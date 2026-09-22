@@ -46,10 +46,9 @@ INTERNET
 ACCESS_NETWORK_STATE
 ACCESS_WIFI_STATE
 CHANGE_WIFI_MULTICAST_STATE
-NEARBY_WIFI_DEVICES   neverForLocation
 ```
 
-Anything else fails CI until the architecture map is changed. In particular the allowlist does not include `AD_ID`, `ACCESS_FINE_LOCATION`, `ACCESS_LOCAL_NETWORK`, `RECEIVE_BOOT_COMPLETED`, `FOREGROUND_SERVICE`, or install-packages. A later target-37 bump must change this allowlist in the same change that adopts `ACCESS_LOCAL_NETWORK`.
+Anything else fails CI until the architecture map is changed. In particular the allowlist does not include `AD_ID`, `ACCESS_FINE_LOCATION`, `ACCESS_LOCAL_NETWORK`, `NEARBY_WIFI_DEVICES`, `RECEIVE_BOOT_COMPLETED`, `FOREGROUND_SERVICE`, or install-packages. `NEARBY_WIFI_DEVICES` is added only in the change that adopts a Wi-Fi API which requires it, with `neverForLocation`. A target-37 bump must change this allowlist in the same change that adopts `ACCESS_LOCAL_NETWORK`. See [discovery.md](discovery.md).
 
 ## Release path
 

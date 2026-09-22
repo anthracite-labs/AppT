@@ -6,20 +6,23 @@ Caller-facing scan behavior is `SamsungTvs.discover()` in [samsung-interface.md]
 
 One gate in `app` owns local-network permission policy. `samsung` does not launch permission UI.
 
-The gate explains, in ordinary language, that the phone needs to reach the television on the home network. The explanation is shown immediately before the system prompt. Primary copy does not say SSDP, mDNS, multicast, or port.
+The gate explains, in ordinary language, that the phone needs to reach the television on the home network. The explanation is shown immediately before any system permission prompt, and before the first scan even when the platform shows no prompt. Primary copy does not say SSDP, mDNS, multicast, or port.
 
-| API level | Gate behavior |
+V1 stays at `minSdk` 29 and `targetSdk` / `compileSdk` 36. Do not bump the target in order to adopt a newer permission.
+
+| Situation | Gate behavior |
 |---|---|
-| 33–36 | After the explanation, request `NEARBY_WIFI_DEVICES`. Declare it with `neverForLocation`. This is also the permission that restores LAN access when Android 16 local-network restrictions are opted in. |
-| 29–32 | Show the same explanation. Do not request location for discovery. The V1 probes are SSDP and `NsdManager`, not `WifiManager` scans. |
+| `targetSdk` 36, V1 probes | After the explanation, the gate is granted and discovery may start. V1 probes are SSDP, raw sockets, `NsdManager`, and a multicast lock. Those probes do not require `NEARBY_WIFI_DEVICES` or a location permission. Do not request either. Do not declare `NEARBY_WIFI_DEVICES` for them. |
+| A chosen Android Wi-Fi API that requires a runtime permission | Request that permission after the same explanation, and only then. Request `NEARBY_WIFI_DEVICES` only in that case, with `neverForLocation`. V1 discovery does not choose such an API. |
+| `targetSdk` 37 or newer | Not V1. Before that bump, this same gate must request `ACCESS_LOCAL_NETWORK` for broad LAN access. Do not use the system service picker. It cannot serve a multi-television scan plus quiet reconnect to remembered televisions. Do not declare or request `ACCESS_LOCAL_NETWORK` while `targetSdk` is 36. |
+
+Android 16 local-network protection is transitional and opt-in at target 36. It is not a reason to require `NEARBY_WIFI_DEVICES` on API 33–36, and it is not a reason to request `ACCESS_LOCAL_NETWORK` early. If an opted-in device blocks the V1 probes, `discover` emits `Failed(LocalNetworkDenied)` once. The gate returns to the explanation. It does not add a permission the chosen probes do not require.
 
 Install-time permissions used by discovery: `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, `CHANGE_WIFI_MULTICAST_STATE`.
 
-Do not declare `ACCESS_FINE_LOCATION` unless an instrumented test on API 29–32 proves a chosen probe cannot run without it. The default is not to declare it. Do not declare `ACCESS_LOCAL_NETWORK` while `targetSdk` is 36. Do not request it at runtime before a future target-37 bump.
+Do not declare `ACCESS_FINE_LOCATION` unless an instrumented test proves a chosen probe cannot run without it. The default is not to declare it. Do not declare `NEARBY_WIFI_DEVICES` in the V1 manifest. Do not declare `ACCESS_LOCAL_NETWORK` while `targetSdk` is 36.
 
-Before any bump to `targetSdk` 37, the gate must request `ACCESS_LOCAL_NETWORK` and keep broad LAN access. The system service picker is the wrong path: it cannot serve multi-television scan plus quiet reconnect to remembered televisions. That bump is not a V1 slice.
-
-Gate states: explanation required, requesting, granted, denied. Denial returns to the explanation with a way to retry. A revoke observed at the next scan returns to the explanation. Denied is not a protocol error and is not retried in a loop by `samsung`.
+Gate states: explanation required, requesting, granted, denied. `requesting` is used only when a chosen API actually shows a system prompt. At target 36, Continue on the explanation grants the gate for the V1 probes without a system prompt. Denial returns to the explanation with a way to retry. A revoke observed at the next scan returns to the explanation. Denied is not a protocol error and is not retried in a loop by `samsung`.
 
 If sockets fail in a way that matches missing LAN permission, `discover` emits `Failed(LocalNetworkDenied)` once and stops.
 

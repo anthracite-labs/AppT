@@ -93,17 +93,22 @@ These names are the contract. Implementation may split them, not drop the assert
 | `secretRecordIsNotASyncRecord` | Schema and `SyncRecord` reflection contain none of the forbidden names |
 | `identityMismatchDoesNotSendToken` | Recorded socket URL has no token |
 | `discoveryEndsAtBound` | Fake clock at 10 seconds yields `Finished` and the multicast lock is released |
+| `v1ProbesDoNotRequestNearbyWifiDevices` | Target 36 discovery does not request `NEARBY_WIFI_DEVICES` or location for SSDP, raw sockets, or `NsdManager` |
 | `secondDiscoverCancelsFirst` | One scan owner |
 | `malformedFrameDoesNotEscapeSession` | No exception on the caller; session continues or reconnects |
 | `redactedReportContainsNoFixtureSecret` | Planted token, IP, MAC, and text are absent |
-| `tombstoneDoesNotResurrect` | Older live remote record loses to a newer tombstone |
+| `tombstoneDoesNotResurrect` | An older live tuple is denied. It does not replace a newer tombstone |
+| `staleWriteDoesNotOverwrite` | An older tuple does not replace a newer live record. Rules deny the update |
+| `workerSubmitsStoredTuple` | The worker writes the persisted `updatedAt`, `revision`, and `originDeviceId`. It does not stamp a new tuple at push time |
+| `preferenceMutationWritesMetadata` | The preference value and `prefmeta` commit in one edit. The worker does not create that tuple later |
+| `remoteTombstoneDoesNotForget` | A winning remote television tombstone does not call `forget`. The secret file remains |
 | `freshInstallDoesNotWipeCloud` | Empty local store pulls and pushes no tombstones |
 | `forgetRemovesSecret` | After `Forgotten`, the secret file is gone and a second `forget` still returns `Forgotten` |
 | `holdCancellationReleases` | Cancelled `Hold` still writes release |
 
 Room migrations, once a second schema version exists, run as instrumented or Robolectric migration tests. Destructive fallback is a test failure if it is present in production source.
 
-Compose coverage for V1 flows: welcome to explanation to cards; card has no IP text; approval state; one command; reconnecting status is not a dialog; rejected key disappears; account screen is not shown before first `Accepted`.
+Compose coverage for V1 flows: welcome to explanation to cards; card has no IP text; approval state; one command; reconnecting status is not a dialog; rejected key disappears; account requirement is not applied before the first `Accepted`. That `Accepted` is a socket write, not visible television action. Coverage does not encode a cold-start-only or next-route-only account rule.
 
 ## Physical acceptance matrix
 

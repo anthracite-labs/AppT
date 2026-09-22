@@ -58,11 +58,12 @@ Database file: `appt.db` in the application database directory. Version 1. Expor
 | `correlatable` INTEGER | yes | False records are not uploaded |
 | `nameSource` TEXT | yes | `USER` or `TV` |
 | `lastOpenedAt` INTEGER NULL | no | Device-local reopen |
-| `updatedAt` INTEGER | yes | Client millis |
+| `updatedAt` INTEGER | yes | Client millis at the mutation |
 | `revision` INTEGER | yes | Incremented on each local mutation |
 | `deletedAt` INTEGER NULL | yes | Tombstone |
 | `originDeviceId` TEXT | yes | Install id tie-break |
 | `pendingSync` INTEGER | no | Outbox flag |
+| `localUnpairPending` INTEGER | no | This phone's user asked to forget. Not set by a remote tombstone |
 
 No column for token, pin, MAC, address, SSID, or command text. A unit test loads the exported schema and fails if a forbidden name from [diagnostics.md](diagnostics.md) appears.
 
@@ -77,11 +78,11 @@ No column for token, pin, MAC, address, SSID, or command text. A unit test loads
 | `sortOrder` | |
 | sync metadata | Same `updatedAt`, `revision`, `deletedAt`, `originDeviceId`, `pendingSync` pattern as `TvProfile` |
 
-Favourite identity is the triple, not a random UUID. Reorder updates `sortOrder` and bumps `updatedAt` / `revision` on each changed row.
+Favourite identity is the triple, not a random UUID. Reorder updates `sortOrder` and bumps `updatedAt` / `revision` on each changed row in the same write as the new order.
 
 A television the user has not selected is not inserted. An `Unsupported` scan hit is not inserted.
 
-`nameSource` starts as `TV` when the row is created from `DiscoveredTv.name`. A user edit sets `USER` and bumps sync metadata. A later television-reported name must not overwrite `USER`.
+`nameSource` starts as `TV` when the row is created from `DiscoveredTv.name`. A user edit sets `USER` and bumps sync metadata in that same write. A later television-reported name must not overwrite `USER`.
 
 `lastOpenedAt` is written when the remote surface reaches `Ready`. It is not a sync field. Last-used reopen is device-local, so one phone does not steal another's last television.
 
@@ -102,12 +103,18 @@ Device-local, never built into a `SyncRecord`:
 | Key | Purpose |
 |---|---|
 | `permissionExplanationAcknowledged` | Gate has been shown |
-| `firstControlAchieved` | Account gate after first success |
+| `firstControlAchieved` | Set when a command first returns `Accepted`. Socket-write proxy, not visible television action. See [sync.md](sync.md) |
 | `lastOpenedTvId` | Quiet reopen |
 | `lastSyncedUid` | Detect a different account. See [sync.md](sync.md) |
-| `originDeviceId` | Random install id, created once |
+| `originDeviceId` | Canonical lowercase UUID, created once. Tie-break id |
 
-Sync metadata for whitelist preferences lives in DataStore under a `prefmeta.` prefix (`updatedAt`, `revision`, `deletedAt`, `originDeviceId`, `pendingSync`). The sync worker is the only writer of `prefmeta.`. UI reads the preference values, not Firestore.
+Sync metadata for whitelist preferences lives in the same DataStore under a `prefmeta.` prefix: `updatedAt`, `revision`, `deletedAt`, `originDeviceId`, `pendingSync`.
+
+A local preference change is one DataStore edit. That edit writes the new value and the `prefmeta.` tuple together. `updatedAt` is client millis at that edit. `revision` is the previous revision plus one, or 1 if none. `originDeviceId` is the install id. `pendingSync` is true. The UI calls this edit. It does not write the value alone and leave metadata for later.
+
+The sync worker is not the writer of that original tuple. It must not stamp `updatedAt`, `revision`, or `originDeviceId` when it later uploads the preference. After a successful reconcile it may clear `pendingSync` if the stored tuple is still the one it wrote. When a remote tuple wins, it writes the remote value and the remote `prefmeta.` together, with `pendingSync` false, in one edit. If a newer local edit landed, it leaves `pendingSync` set and does not overwrite that edit. UI reads the preference values, not Firestore.
+
+Room mutations follow the same rule. The DAO write that changes a name, a favourite, or a local tombstone also writes `updatedAt`, `revision`, `originDeviceId`, and `pendingSync` in that transaction. The worker does not invent them at sync time.
 
 `lastSyncedUid` and `originDeviceId` are account-identifying. They stay out of Crashlytics and diagnostic export.
 
@@ -115,9 +122,10 @@ Sync metadata for whitelist preferences lives in DataStore under a `prefmeta.` p
 
 - `app` writes Room and DataStore first. UI collects those flows.
 - `samsung` writes secrets and samsung-private files. `app` never reads them.
-- Remember: user selects a controllable card → `app` inserts `TvProfile` → `open`. Secret appears only after approval.
-- Forget: `app` calls `forget` first and retries on `Failed`, then tombstones the Room row. Startup calls `forget` for every tombstoned id still present in `rememberedIds()`.
-- A tombstone that arrives from sync also calls `forget` for that `TvId`.
+- Remember: user selects a controllable card → `app` inserts `TvProfile` with its sync tuple → `open`. Secret appears only after approval.
+- Local forget, requested on this phone: one Room transaction sets `localUnpairPending`, `deletedAt`, and the rest of the sync tuple together. Then `app` calls `forget` and retries on `Failed`. After `Forgotten`, clear `localUnpairPending`. The tombstone stays. Startup calls `forget` only for ids that still have `localUnpairPending` and are still in `rememberedIds()`. A second `forget` is safe.
+- A television tombstone that arrives from sync does not call `forget`, does not set `localUnpairPending`, and does not delete pairing material. Holding behavior is in [sync.md](sync.md).
+- The local list keeps a television when this phone has pairing material for it and `localUnpairPending` is false, even if the winning synced record is a tombstone. That is holding, not the product meaning of delete. A local unpair is hidden because the user on this phone forgot it.
 - Non-correlatable televisions can be named locally and must not be uploaded.
 
 ## Secret lifecycle
@@ -131,20 +139,20 @@ sequenceDiagram
   participant Room
   participant Cloud as Firestore
   User->>App: Choose television
-  App->>Room: Insert name
+  App->>Room: Insert name and version tuple
   App->>Samsung: open
   Note over Secret: Candidate pin stays in memory
   Samsung->>Secret: On approval, encrypt token and pin
-  App->>Cloud: Sync name only
-  Note over Secret,Cloud: Secret file is not a sync input
-  User->>App: Forget television
+  App->>Room: Enqueue name
+  Note over Room,Cloud: Worker compares the stored tuple before writing
+  User->>App: Forget television on this phone
+  App->>Room: localUnpairPending and tombstone tuple
   App->>Samsung: forget
   Samsung->>Secret: Delete secret and device file
-  App->>Room: Tombstone
-  App->>Cloud: Tombstone name
+  Note over App,Cloud: A remote tombstone does not enter this path
 ```
 
-Cloud failure on the sync steps does not roll back the secret and does not close an open session. The name remains local and `pendingSync` stays set.
+Cloud failure on the sync steps does not roll back the secret and does not close an open session. The name remains local and `pendingSync` stays set until compare-before-write settles it.
 
 ## Structural barriers
 

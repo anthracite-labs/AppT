@@ -188,7 +188,7 @@ Starts or resumes the persistent session for one television. The initial snapsho
 
 Sends one typed command.
 
-- Returns `Accepted` when the command has been written to the live session, not when the television has visibly acted. The television often does not acknowledge a key.
+- Returns `Accepted` when the command has been written to the live session, not when the television has visibly acted. The television often does not acknowledge a key. The account gate uses the first `Accepted` as its observable proxy for the first successful local-control session. That proxy is a socket write. Do not invent an acknowledgement. See [sync.md](sync.md).
 - Returns `Rejected` for expected failures. It does not throw those failures.
 - Throws `CancellationException` only when the calling coroutine is cancelled.
 - Cancelling one `command` does not close the session.
@@ -222,7 +222,7 @@ Deletes pairing material, security identity, and samsung-private device records 
 
 ### `rememberedIds`
 
-Ids for which samsung-private records exist. `app` uses this at startup to call `forget` for ids it has tombstoned. It is not a UI list by itself.
+Ids for which samsung-private records exist. `app` uses this at startup to retry `forget` for ids whose `localUnpairPending` flag is set. It is not a UI list, and it is not a list of remote tombstones. See [data.md](data.md).
 
 ### `redactedDiagnostics`
 
@@ -297,7 +297,7 @@ Malformed television traffic is handled inside the module. Callers see the sessi
 
 - Do not call `discover` or `open` before the permission gate is granted, except to handle `LocalNetworkDenied` if a race loses the grant.
 - Do not call `open` when the account gate forbids continued use. The module will still work; the gate is app policy so a cloud outage cannot be enforced inside `samsung`. See [sync.md](sync.md).
-- On a TV tombstone, call `forget` and retry if it returns `Failed`.
+- Do not call `forget` because a remote television tombstone won. `forget` is only for a local user unpair, retried while `localUnpairPending` is set. See [sync.md](sync.md) and [data.md](data.md).
 - Do not log `TvCommand.InsertText.text`, discovery names in crash reports, or `redactedDiagnostics` fields plus extra identifiers.
 - Do not add a second Samsung client beside this interface.
 
