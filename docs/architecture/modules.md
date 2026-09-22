@@ -31,7 +31,7 @@ flowchart LR
   end
   tv["Samsung television"]
   auth["Firebase Authentication"]
-  fn["AppT entitlement service"]
+  fn["AppT Entitlement Backend"]
   samsungMod -->|"LAN client only"| tv
   appMod -->|"ID token + App Check"| fn
   appMod -->|"SDK"| auth
@@ -50,7 +50,7 @@ Each seam below is a place where behaviour genuinely varies, so each seam has at
 | Samsung control | `SamsungTvs`, `RemoteSession` | `SamsungTvsImpl` inside `samsung` | Fake installed with Hilt `@TestInstallIn` |
 | Local-network access | `PermissionGate` | Android platform APIs and app preference state | Scripted states |
 | Identity | `AccountAuth` | Firebase Auth plus Credential Manager | Scripted sign-in, verification, and failure states |
-| Entitlement backend | `EntitlementBackend` | OkHttp HTTPS client against the entitlement service | Scripted responses, delays, and outages |
+| Entitlement Backend | `EntitlementBackend` | OkHttp HTTPS client against the Entitlement Backend | Scripted responses, delays, and outages |
 | Purchase | `PlayBilling` | Play Billing library | Scripted purchase, pending, revoked, and replayed tokens |
 | Integrity | `IntegrityProvider` | Play Integrity plus App Check token acquisition | Scripted verdicts and unavailability |
 

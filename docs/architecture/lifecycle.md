@@ -126,7 +126,7 @@ AppT binds to the active non-VPN local network and never adds a VPN bypass. Netw
 
 | Property | Value |
 |---|---|
-| Purpose | Refresh trial/Lifetime Entitlement state with the entitlement backend and, when a provisional entitlement is active, retry authoritative validation |
+| Purpose | Refresh trial/Lifetime Entitlement state with the Entitlement Backend and, when a provisional entitlement is active, retry authoritative validation |
 | Work name | `EntitlementRefresh`, unique with `ExistingWorkPolicy.KEEP` |
 | Constraints | `NETWORK_CONNECTED` only |
 | Frequency | At most once per 12 hours, best effort; never exact |

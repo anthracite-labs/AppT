@@ -1,6 +1,6 @@
 # Diagnostics and privacy
 
-V1 has a **bounded, always-redacted local diagnostic record** and an **explicit, user-confirmed diagnostic export**. It has no cloud crash reporting, no crash-reporting SDK, no behavioral analytics, no diagnostic upload service, and no diagnostic data on the entitlement backend.
+V1 has a **bounded, always-redacted local diagnostic record** and an **explicit, user-confirmed diagnostic export**. It has no cloud crash reporting, no crash-reporting SDK, no behavioral analytics, no diagnostic upload service, and no diagnostic data on the Entitlement Backend.
 
 **Decision recorded this round:** cloud crash reporting (Firebase Crashlytics) was in the earlier draft of this map and has been **removed from V1 entirely**. It conflicted with the settled rule that nothing leaves the phone without an explicit user action, and with the rule that no persistent installation or user identifier is created. The replacement is local-only: the record stays on the phone, and a report leaves only when the customer builds a preview and shares it.
 
@@ -15,7 +15,7 @@ Owning files elsewhere: the Diagnostics surface contract is in [presentation.md]
 | Preview, export builder, share sheet | `app` (`diagnostics`) | No | Available on explicit user action |
 | Any crash-reporting, analytics, ads, or attribution SDK | **Not in the dependency graph** | — | Absent |
 
-`samsung` does not depend on any telemetry SDK, and `app` contains none. There is no seam here: diagnostics has one implementation and a test double rather than a production/test adapter pair, so it is not a seam in the [modules.md](modules.md) sense.
+`samsung` does not depend on any telemetry SDK, and `app` contains none. There is no seam here: diagnostics has one implementation and a test double rather than a production/test adapter pair, so it is not a seam in the [modules.md](modules.md#external-seams) sense.
 
 ## What the local record contains
 

@@ -82,7 +82,7 @@ sequenceDiagram
   participant App as AppT
   participant Auth as AccountAuth
   participant Lic as Licensing
-  participant Fn as EntitlementService
+  participant Fn as Entitlement Backend
   User->>App: Continue with Google or email
   App->>Auth: sign in
   Auth-->>App: uid, verified-email state
@@ -117,7 +117,7 @@ sequenceDiagram
   participant App as AppT
   participant Host as ActiveRemoteHost
   participant Lic as Licensing
-  participant Fn as EntitlementService
+  participant Fn as Entitlement Backend
   User->>App: Press a control during the last minute of the trial
   App->>Host: command
   Host-->>App: Accepted
@@ -146,7 +146,7 @@ sequenceDiagram
   participant App as AppT
   participant Play as PlayBilling
   participant Lic as Licensing
-  participant Fn as EntitlementService
+  participant Fn as Entitlement Backend
   participant Api as Play Developer API
   User->>App: Buy once
   App->>Play: buyLifetime()
@@ -175,7 +175,7 @@ sequenceDiagram
   participant App as AppT
   participant Play as PlayBilling
   participant Lic as Licensing
-  participant Fn as EntitlementService
+  participant Fn as Entitlement Backend
   User->>App: Restore purchase
   App->>Play: query purchases
   Play-->>App: lifetime purchase token (if this Play account owns one)
@@ -204,7 +204,7 @@ A second phone signed into the same account receives identity, Username, trial s
 sequenceDiagram
   participant Play as Google Play
   participant PubSub as Cloud Pub/Sub
-  participant Fn as EntitlementService
+  participant Fn as Entitlement Backend
   participant Db as Firestore
   participant App as AppT
   Play->>PubSub: voided purchase or one-time product canceled
@@ -225,7 +225,7 @@ sequenceDiagram
   participant App as AppT
   participant Samsung as SamsungTvs
   participant TV as Samsung television
-  participant Fn as EntitlementService
+  participant Fn as Entitlement Backend
   App->>Samsung: command
   Samsung->>TV: write
   Samsung-->>App: Accepted
@@ -342,7 +342,7 @@ sequenceDiagram
   actor User
   participant App as AppT
   participant Lic as Licensing
-  participant Fn as EntitlementService
+  participant Fn as Entitlement Backend
   participant Auth as FirebaseAuth
   participant Storage as Room, Samsung files
   User->>App: Delete account

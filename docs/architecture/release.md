@@ -128,7 +128,7 @@ The release artifact is an Android App Bundle. Production signing is Play App Si
 | `internalRelease` | `internal` | Testers, outside the Play production tracks (Firebase App Distribution or direct install from CI) |
 | `productionRelease` | `production` | **The only artifact uploaded to Play** |
 
-One application id and one signing key are shared by all three, so Play Billing and Play Integrity behave the same way everywhere; each variant embeds only its own environment's Firebase configuration, and the production artifact contains no development or internal configuration. Version codes are distinct and monotonically increasing per build so a tester can move between artifacts. Artifact identity is recorded in the deployment log together with the commit SHA.
+One application id and one signing key are shared by all three, so Play Billing and Play Integrity behave the same way everywhere; each variant embeds only its own environment's Firebase configuration, and the production artifact contains no development or internal configuration. Version codes are distinct and monotonically increasing per build so a tester can replace an installed artifact with another; Play only ever sees the production artifact, so its version-code sequence is contiguous and promotion cannot collide with a tester build. Artifact identity is recorded in the deployment log together with the commit SHA.
 
 Workflows, manual dispatch only:
 

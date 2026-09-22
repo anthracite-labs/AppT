@@ -113,7 +113,7 @@ The `app` module does not construct raw Samsung WebSocket payloads, raw `KEY_*` 
 - Trial eligibility is constrained by privacy-minimized pseudonymous signals derived from the verified email identity and Android device, plus a random AppT install identifier. Raw television or behavioral data is not part of anti-abuse state.
 - Use **Play Integrity** for authenticity/fraud checks at appropriate entitlement actions, not as a device-tracking or behavioral system.
 - On Android, the lifetime unlock is a **Google Play one-time non-consumable product**.
-- Purchase validation must be authoritative before lifetime entitlement is granted. The backend is the AppT entitlement service on Firebase Cloud Functions with a server-only Firestore datastore, reached over validated HTTPS endpoints; the Android client has no Firestore dependency. See `docs/architecture/sync.md`.
+- Purchase validation must be authoritative before lifetime entitlement is granted. The backend is the AppT Entitlement Backend on Firebase Cloud Functions with a server-only Firestore datastore, reached over validated HTTPS endpoints; the Android client has no Firestore dependency. See `docs/architecture/sync.md`.
 - A validated lifetime entitlement is associated with the AppT account and can be restored after sign-in on another supported Android device.
 - The entitlement model stays conceptually vendor-neutral for future iOS, but Android purchase portability to iOS is not promised.
 - Account deletion removes account-held username/trial/license data subject to required transaction/legal retention and does not delete device-local TV pairing or personalization. Only pseudonymous trial-eligibility markers and the minimum purchase-binding record survive deletion, and neither contains television, personalization, or behavioral data.
@@ -184,7 +184,7 @@ These are binding unless deliberately changed by a later architecture decision:
 7. **The Android implementation is optimized for Android rather than a hypothetical shared iOS runtime.**
 8. **Universal TV abstractions wait for a second real ecosystem.**
 9. **TV and remote personalization remain device-local; the cloud account is limited to identity, username, trial/anti-abuse state, and license entitlement.**
-10. **No behavioral analytics.**
+10. **No behavioral analytics and no cloud crash reporting.**
 
 ## Elaboration
 

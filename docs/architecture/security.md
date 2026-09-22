@@ -41,7 +41,7 @@ flowchart LR
   phone["AppT phone app"]
   play["Google Play Billing on device"]
   auth["Firebase Authentication"]
-  backend["AppT entitlement service and Firestore"]
+  backend["AppT Entitlement Backend and Firestore"]
   playapi["Google Play Developer API and RTDN"]
   ci["CI, Play Console, Google Cloud"]
 
@@ -138,7 +138,7 @@ flowchart LR
 | Unreviewed dependency or tracker SDK reaching production | Locked and verified dependencies, restricted repositories, license/provenance review for significant additions, manifest permission allowlist, and dependency-insight checks that no crash-reporting, analytics, advertising, or attribution artifact reaches either production module. | Enforced by AppT |
 | CI action retargeted by a moving tag | Actions pinned to immutable commit SHAs. | Enforced by AppT |
 | Production credentials in git | No service-account keys in the repository. CI uses Workload Identity Federation; runtime secrets live in Secret Manager; production Firebase configuration is injected at build time. Secret scanning runs in CI. | Enforced by AppT |
-| Debug or internal build pointing at production infrastructure | Per-variant configuration with a CI check that the debug variant cannot resolve production identifiers, and that the release variant cannot resolve development identifiers. | Enforced by AppT |
+| Debug or internal build pointing at production infrastructure | Per-variant configuration with CI checks that the debug variant cannot resolve production identifiers, that the release variant cannot resolve development identifiers, and that the internal and production release artifacts from one commit differ only in environment configuration. | Enforced by AppT |
 | Accidental public promotion before gates | Production promotion is a manual dispatch that requires internal testing to have passed, plus human confirmation of the source license and the Samsung vendor-terms review. | Enforced by process |
 | Compromised release artifact | Play App Signing; the upload key is a CI secret; mapping files uploaded from the release workflow. | Best-effort |
 

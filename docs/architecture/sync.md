@@ -34,7 +34,7 @@ Chosen inside the already-accepted Firebase direction, with the data-minimizing 
 flowchart TD
   app["AppT app (Kotlin, Compose)"]
   auth["Firebase Authentication"]
-  fn["AppT entitlement service (Cloud Functions for Firebase, 2nd gen)"]
+  fn["AppT Entitlement Backend (Cloud Functions for Firebase, 2nd gen)"]
   fs["Cloud Firestore (server-only)"]
   sm["Secret Manager (marker and fingerprint keys)"]
   kms["Cloud KMS (ES256 proof-signing key)"]
@@ -246,7 +246,7 @@ sequenceDiagram
   actor User
   participant App as AppT
   participant Auth as FirebaseAuth
-  participant Fn as EntitlementService
+  participant Fn as Entitlement Backend
   participant Db as Firestore
 
   User->>App: Continue after first session
@@ -326,7 +326,7 @@ sequenceDiagram
   actor User
   participant App as AppT
   participant Play as Play Billing
-  participant Fn as EntitlementService
+  participant Fn as Entitlement Backend
   participant Api as Play Developer API
 
   User->>App: Buy once
@@ -377,7 +377,7 @@ Verification rules:
 
 ### Refunds, chargebacks, and revocation
 
-- Play RTDN delivers one-time product events and voided purchase events to a Pub/Sub topic that pushes to the entitlement service with an OIDC-authenticated subscription.
+- Play RTDN delivers one-time product events and voided purchase events to a Pub/Sub topic that pushes to the Entitlement Backend with an OIDC-authenticated subscription.
 - Handlers are idempotent and tolerate duplicates and out-of-order delivery. A voided or canceled event marks the binding revoked and the account entitlement `revoked`.
 - The entitlement endpoint re-checks stored state on every refresh, so a missed notification self-heals on the next online contact.
 - Revocation applies on the next remote entry and never interrupts an active remote session.
@@ -477,6 +477,7 @@ sealed interface RemoteEntryDecision {
 | Signed in, trial expired, no lifetime, backend reachable | `RequireEntitlement` | Entitlement surface |
 | Signed in, trial expired, no lifetime, backend unreachable | `RequireEntitlement(retryable)` | Entitlement surface with an explicit not-a-TV-problem message |
 | Signed in, revocation recorded | `RequireEntitlement(revoked)` | Entitlement surface, Restore purchase |
+| Signed in, account marked `deleting` (an earlier deletion did not finish) | `RequireEntitlement(deletionPending)` | Account surface explains the unfinished deletion and offers Retry deletion. The purchase is frozen and grants nothing |
 | Signed in, no cached proof, backend reachable | Fetch, then `Allow` or `RequireEntitlement` | Depends on the answer |
 | Signed in, no cached proof, backend unreachable | `RequireEntitlement(retryable)` | Honest retry surface. Sign-in normally fetches a proof immediately, so this window is short |
 | An active session is already retained | Not a gate decision | Never interrupted |
