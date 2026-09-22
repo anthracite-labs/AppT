@@ -27,7 +27,7 @@ This document records the architecture decisions already made for AppT. It is th
 
 Start lean:
 
-- `app` — Compose UI, navigation, product flows, account/sync orchestration, permission UX, application wiring.
+- `app` — Compose UI, navigation, product flows, account/licensing orchestration, local application data, permission UX, application wiring.
 - `samsung` — Samsung discovery, pairing, identity, capabilities, connection/reconnection, protocol parsing, and command translation.
 
 Do not create a universal TV abstraction before a second TV ecosystem exists. Samsung is implemented cleanly first; the universal seam is designed from two real implementations later.
@@ -96,31 +96,40 @@ The `app` module does not construct raw Samsung WebSocket payloads, raw `KEY_*` 
 - **DataStore** stores preferences and small configuration state.
 - TV pairing credentials/tokens/private keys are password-equivalent data and are protected using **Android Keystore-backed** storage.
 - Pairing secrets are not stored as ordinary Room/DataStore plaintext.
-- Friendly names, favourites, and syncable preferences are a different storage class from TV pairing secrets.
-- Pairing secrets never enter account synchronization.
+- Television names, favourites, remote arrangement, last-used television, and remote preferences are device-local application data. They are not account data and are not synchronized through AppT's backend.
+- Pairing secrets and television identities never enter the customer-account backend.
 - Where a persistent TV security identity can be established, an unexpected identity change fails closed and requires explicit re-pairing.
 
-## Account and backend
+## Account, trial, and entitlement
 
-- Backend: **Firebase Authentication + Cloud Firestore**.
-- V1 sign-in methods: **Google sign-in + email/password fallback**.
-- First successful local control is not gated by account creation.
-- The first successful command does not interrupt that active first remote session; after the session ends, the next remote entry requires sign-in.
-- Switching to a different account requires explicit confirmation. Account-scoped names, favourites, tombstones, and synchronized preferences are replaced rather than merged; device-local pairing/security material remains.
-- The TV-control path does not depend on Firebase, AppT backend availability, or public internet availability.
+- Identity uses **Firebase Authentication**.
+- V1 sign-in methods are **Google sign-in through Android Credential Manager**, with email/password fallback.
+- Google is the primary low-friction path. The Google display name may seed an editable username; unrelated profile data is not copied into AppT.
+- The customer account contains only identity linkage, username, trial/anti-abuse state, and lifetime license entitlement.
+- Television identities, friendly names, favourites, settings, layouts, pairing state, pairing credentials, diagnostics, and usage history are not customer-account fields.
+- The first successful local-control session is available before account creation.
+- The first successful command does not interrupt that active remote session. After that session ends, the next remote entry requires an AppT account.
+- A new eligible account receives a **seven-day full-use trial** whose start/expiry is server-authoritative.
+- Trial eligibility is constrained by privacy-minimized pseudonymous signals derived from the verified email identity and Android device, plus a random AppT install identifier. Raw television or behavioral data is not part of anti-abuse state.
+- Use **Play Integrity** for authenticity/fraud checks at appropriate entitlement actions, not as a device-tracking or behavioral system.
+- On Android, the lifetime unlock is a **Google Play one-time non-consumable product**.
+- Purchase validation must be authoritative before lifetime entitlement is granted; the exact backend deployment/service shape is finalized in the detailed architecture round.
+- A validated lifetime entitlement is associated with the AppT account and can be restored after sign-in on another supported Android device.
+- The entitlement model stays conceptually vendor-neutral for future iOS, but Android purchase portability to iOS is not promised.
+- Account deletion removes account-held username/trial/license data subject to required transaction/legal retention and does not delete device-local TV pairing or personalization.
+- Signing out or changing accounts does not alter local television/personalization data.
 
-## Sync model
+## Local personalization and licensing gate
 
-- **Room is the application-local source of truth.**
-- Screens/ViewModels read local data rather than switching between local and cloud sources.
-- Local mutations are persisted locally first.
-- A dedicated sync implementation exchanges an explicit whitelist of non-secret data with Firestore.
-- Deferred/retryable synchronization work uses WorkManager where appropriate.
-- Firestore is not a competing local application datastore.
-- Conflict policy is **last committed write wins per small record**, with compare-before-write semantics so stale clients cannot overwrite newer live records or tombstones.
-- Synchronized television deletion removes account-scoped non-secret metadata but does not remotely unpair another phone.
-- Only an explicit local forget removes pairing material from that phone.
-- TV pairing credentials and device secrets are never synchronized.
+- **Room remains the application-local source of truth** for structured television/personalization data.
+- DataStore remains the source for device-local preferences and small application state.
+- Screens/ViewModels do not read television or personalization state from the cloud.
+- There is no AppT cloud synchronization of TVs, favourites, remote layouts, preferences, last-used television, or pairing state.
+- A second phone signed into the same account restores only account identity/username/license state; it discovers, pairs, names, and customizes televisions independently.
+- A paid lifetime customer's previously validated entitlement permits local TV control offline indefinitely. AppT does not periodically require its backend merely to keep paid local control alive.
+- During an active seven-day trial, the app may rely on the known server-authoritative expiry while offline. When that expiry has passed, the next remote entry requires an online entitlement check or purchase. An already active remote session is not interrupted at the expiry instant.
+- Licensing/account checks live in `app`; the `samsung` module never reads Auth, billing, trial, or entitlement state.
+- The local TV-command path remains `app → samsung → television` and never passes through the licensing backend.
 
 ## Diagnostics and privacy
 
@@ -138,7 +147,8 @@ Use the highest useful seam and test external behavior rather than internal impl
 - Samsung protocol contract tests using recorded/redacted fixtures.
 - Fake transports for connection, WebSocket, discovery, timeout, and failure scenarios.
 - Room migration/data tests.
-- Instrumented tests where Android behavior is materially involved, including Keystore, permissions, lifecycle, and platform networking integration.
+- Account/licensing tests for first-session exemption, seven-day expiry, offline paid entitlement, trial anti-abuse decisions, purchase restoration, and account deletion preserving local TV data.
+- Instrumented tests where Android behavior is materially involved, including Keystore, permissions, lifecycle, platform networking integration, Credential Manager, Play Billing, and Play Integrity integration seams.
 - Compose UI tests for critical user flows.
 - A small physical Samsung-TV acceptance matrix before release.
 - The Samsung module interface is the primary high-value test surface. Its concrete shape is `docs/architecture/samsung-interface.md`.
@@ -172,11 +182,11 @@ These are binding unless deliberately changed by a later architecture decision:
 6. **No unnecessary listening server is part of V1 control.**
 7. **The Android implementation is optimized for Android rather than a hypothetical shared iOS runtime.**
 8. **Universal TV abstractions wait for a second real ecosystem.**
-9. **Room is local truth; cloud sync is secondary and non-secret.**
+9. **TV and remote personalization remain device-local; the cloud account is limited to identity, username, trial/anti-abuse state, and license entitlement.**
 10. **No behavioral analytics.**
 
 ## Elaboration
 
 Implementation-ready detail lives in `docs/architecture/`. Start at `docs/architecture/README.md`. That directory elaborates this baseline. It does not replace it. If an elaboration conflicts with this file, this file wins until a later architecture decision changes it.
 
-The detailed map is accepted when it remains consistent with this baseline and `docs/PRODUCT.md`. Any future missing decision that could materially change product or architecture intent must still be surfaced rather than invented. The account-gate timing, different-account switch behavior, and cross-device pairing semantics are settled in `docs/PRODUCT.md` and elaborated in `docs/architecture/sync.md`.
+The detailed map is accepted when it remains consistent with this baseline and `docs/PRODUCT.md`. Any future missing decision that could materially change product or architecture intent must still be surfaced rather than invented. The previous TV-personalization sync model is superseded: the current architecture round must replace the old sync elaboration with the privacy-first account/trial/entitlement design and update presentation, backend, security, lifecycle, performance, and migration architecture before phase exit.
