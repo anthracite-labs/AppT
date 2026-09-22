@@ -13,26 +13,27 @@ Project: `AppT`
 
 Purpose: `A universal TV remote for ordinary consumers, beginning with Samsung Smart TVs and expanding across television ecosystems behind one consistent phone-native experience.`
 
-Phase: `discovery`
+Phase: `architecture`
 
 ## Current objective
 
-Objective: `Determine the V1 application architecture and stack from AppT's approved product constraints, without preselecting a framework or runtime.`
+Objective: `Define the V1 application architecture and stack from AppT's approved product constraints, without preselecting a framework or runtime.`
 
 Success condition: `An evidence-backed architecture decision compares viable approaches against AppT's Samsung-control, local-first, security, account-sync, reliability, and cross-platform requirements, then records the selected direction and its trade-offs.`
 
 ## Active work
 
-Primary: `Application architecture and stack discovery`
+Primary: `V1 application architecture and stack definition`
 
 Secondary:
 
-- Samsung control integration constraints relevant to stack selection.
+- Samsung control integration constraints relevant to the application architecture.
 - Account/sync boundary design, preserving device-local pairing credentials and offline local control.
 - Focused Samsung vendor-terms/legal review remains a pre-release gate, not an architecture blocker.
 
 ## Current decisions
 
+- `Product discovery is complete; docs/PRODUCT.md is the approved product definition and the canonical input to architecture.`
 - `AppT is a Universal TV Remote for ordinary consumers — docs/PRODUCT.md`
 - `Samsung Smart TVs are the first intentionally targeted ecosystem; other TVs may be experimentally probed with explicit user consent before functional commands — docs/PRODUCT.md`
 - `Android and iPhone are V1 targets when architecture can support both without compromising reliability; Android-first is an acceptable fallback — docs/PRODUCT.md`
@@ -49,7 +50,7 @@ Secondary:
 
 ## Recent change
 
-- `Architecture discovery was reset to a stack-neutral first-principles pass.`
+- `Product discovery completed with docs/PRODUCT.md approved; the project advanced to architecture.`
 
 ## Relevant canonical references
 
@@ -59,10 +60,10 @@ Secondary:
 
 ## Next
 
-`Research and compare viable V1 architecture and stack approaches from the approved product constraints and Samsung-first control requirements, without assuming a preferred framework.`
+`Define and select the V1 application architecture and stack from the approved product constraints and Samsung-first control requirements, recording the decision and trade-offs in the appropriate canonical architecture artifact.`
 
 ## After that
 
-1. `Record the architecture/stack decision and move the project into architecture when the discovery evidence is sufficient.`
-2. `Design the Samsung integration boundary and account/local-data seams from the accepted product and architecture decisions.`
-3. `Formalize decided implementation work for dispatch only after those boundaries are settled.`
+1. `Design the Samsung integration boundary and account/local-data seams from the accepted product and architecture decisions.`
+2. `Formalize decided implementation work for dispatch only after those boundaries are settled.`
+3. `Move into implementation when the architecture and implementation boundaries are sufficiently decided.`
