@@ -84,7 +84,9 @@ Modes:
   secrets    Secret-scanner self-tests, then a full tree scan. Pass a git ref as
              the second argument to also scan the diff against it:
                  tools/security/run.sh secrets origin/main
-  detekt     Kotlin static analysis via the Gradle detekt task.
+  detekt     Kotlin static analysis over the production Kotlin in :app and
+             :samsung, against config/detekt/detekt.yml, plus
+             dependencyLockCheck. Mirrors the `detekt` CI job exactly.
   build      The exact strict Gradle build used for CodeQL Kotlin extraction.
              The command is printed below rather than documented by hand, so
              this help text cannot drift from what the script actually runs.
@@ -119,17 +121,17 @@ check_secrets() {
 }
 
 check_detekt() {
-  log "detekt — Kotlin static analysis (repository-owned configuration)"
+  log "detekt — Kotlin static analysis (production Kotlin in :app and :samsung)"
   require java
   [[ -x ./gradlew ]] || chmod +x ./gradlew
-  # The task name is the detekt Gradle plugin's own task. It runs against the
-  # repository-owned config/detekt/detekt.yml, has no generated baseline, and
-  # fails on any configured violation.
-  if ! ./gradlew --no-daemon --dry-run detekt >/dev/null 2>&1; then
-    die "the 'detekt' Gradle task is not available. detekt is not yet integrated
-    into this build; see the Issue #36 follow-up note before relying on this mode."
-  fi
-  ./gradlew "${GRADLE_STRICT_FLAGS[@]}" detekt
+  # Runs against the single repository-owned config/detekt/detekt.yml. There is
+  # no baseline file and no --auto-correct, so a finding fails the run.
+  #
+  # The task list mirrors the `detekt` job in .github/workflows/ci.yml exactly —
+  # detekt plus dependencyLockCheck in one invocation under strict verification —
+  # so a green run here is the same evidence CI produces, not a weaker variant.
+  info "./gradlew ${GRADLE_STRICT_FLAGS[*]} detekt dependencyLockCheck"
+  ./gradlew "${GRADLE_STRICT_FLAGS[@]}" detekt dependencyLockCheck
 }
 
 check_build() {
