@@ -85,7 +85,7 @@ Needs validation before implementation relies on it: the current Play Console mo
 
 ## Pull-request checks
 
-Workflow on pull request and on `main`, actions pinned to immutable commit SHAs with the version tag in a comment:
+Workflows on pull request, on `main` push, on the weekly schedule, and on manual dispatch, with actions pinned to immutable commit SHAs and the version tag in a comment:
 
 1. Assemble debug.
 2. Unit tests.
@@ -107,18 +107,52 @@ Workflow on pull request and on `main`, actions pinned to immutable commit SHAs 
 15. Backend function tests and rules tests against the emulator suite.
 16. Accessibility assertions on controls touched by the change.
 
-Cost-aware execution does not weaken this floor. Secret scanning runs on every
-pull request and every push to `main`. Expensive Android, emulator, detekt, and
-backend jobs are started only when changed paths can affect their result. A
-pull request that changes CI itself exercises the affected gates before merge.
-On the resulting `main` push, CI and CodeQL use GitHub's commit-to-pull-request
-association to avoid repeating expensive checks that the merged pull request
-already passed; a direct push to `main` has no such association and therefore
-runs the full relevant gates. CodeQL also keeps its weekly schedule and manual
-dispatch. Dependency Review remains a pull-request check on every PR, but its
-dependency-graph comparison is skipped when no dependency manifest, Gradle
-build file, lockfile, wrapper pin, or verification metadata changed. The
-Dependabot alert export is manual-dispatch only and is not a CI gate.
+Cost-aware execution does not weaken this floor, and the topology is
+deliberately small: the repository owns exactly two workflow files — one
+automated verification workflow (`CI`, `.github/workflows/ci.yml`) and one
+manual maintenance workflow (`Maintenance`,
+`.github/workflows/maintenance.yml`). No legacy or parallel workflow may be
+left beside them, and no third repository-owned workflow may re-enter the
+fan-out without a recorded decision.
+
+The verification workflow starts one cheap classification job (`changes`) on
+every trigger, and that job is the single place that discovers the changed
+paths and GitHub's commit-to-pull-request association. Every other job
+consumes its `run_*` outputs; no job re-diffs the tree or re-queries the
+association. The classification rules are first-party and tested:
+`tools/ci/classify-changes.sh`, with the scenario matrix (docs-only,
+Android/Kotlin source, backend, dependency/lockfile, workflow/security
+configuration, merged-PR reuse, direct main push, schedule, dispatch) pinned
+by `tools/ci/test/classify-changes.test.sh`.
+
+- Secret scanning runs on every pull request and every push to `main`.
+- The expensive Android, emulator, detekt, backend, and CodeQL jobs start
+  only when the changed paths can affect their result. A change to CI
+  plumbing (the workflow file or `tools/ci/`) exercises every affected gate
+  once before merge.
+- On the `main` push created by merging an already-validated pull request,
+  the association lookup marks the commit PR-validated and the heavy jobs are
+  not repeated; a direct push to `main` has no such association and therefore
+  runs the full relevant gates.
+- CodeQL analysis is a job of the verification workflow (java-kotlin under
+  the manual strict build, javascript-typescript without a build, both
+  `security-extended`) and keeps its weekly schedule and manual dispatch. On
+  schedule and dispatch events, CodeQL is the only job that runs.
+- Dependency Review is a pull-request job of the verification workflow for
+  PRs targeting `main`. It compares the dependency graph only when a
+  dependency manifest, Gradle build file, lockfile, wrapper pin, or
+  verification metadata changed, and it retries on snapshot warnings so it
+  waits for the one canonical head snapshot instead of racing its only
+  producer, GitHub's automatic dependency submission (`submit-gradle`). No
+  repository-owned workflow produces dependency snapshots.
+- The maintenance workflow is `workflow_dispatch` only, with an explicit
+  operation selector: export Dependabot alerts, clean old workflow runs, and
+  purge Actions caches. No push, pull-request, schedule, or chained trigger
+  can execute a maintenance operation, and each operation's job receives only
+  the permissions it needs — `vulnerability-alerts: read` for the export, and
+  `actions: write` for the destructive cleanup and purge operations only,
+  never widened onto unrelated operations. The Dependabot alert export is not
+  a CI gate.
 
 `main` stays releasable. A red check is not merged.
 

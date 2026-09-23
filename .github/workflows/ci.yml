@@ -1,14 +1,35 @@
-# AppT continuous integration — the S01 floor.
+# AppT continuous integration — the single automated verification workflow.
 #
-# docs/architecture/release.md#pull-request-checks owns this list. S01 wires
-# the checks that are real in the walking skeleton; the remaining numbered
-# checks (fixture redaction grep, environment guard, emulator suites, release
-# artifact comparison, signing identity) arrive with the slices that make them
-# meaningful.
+# docs/architecture/release.md#pull-request-checks owns the check list. This
+# file carries the S01 floor (secret scanning, Android build/tests/lint/guards,
+# runtime-emulator acceptance, backend checks), the CodeQL SAST gate (Issue
+# #36), and the dependency-review gate (Issue #36) in one workflow.
+#
+# Topology (Issue #52 — consolidation of the former ci.yml, codeql.yml and
+# dependency-review.yml):
+#
+#   * One cheap `changes` job is the single place that discovers the changed
+#     paths and GitHub's commit-to-pull-request association. Every other job
+#     consumes its run_* outputs; no job re-diffs the tree or re-queries the
+#     association. The classification rules live in tools/ci/classify-changes.sh
+#     and are pinned by tools/ci/test/classify-changes.test.sh.
+#   * Secret scanning runs on every pull request and every push to main.
+#   * The Android, emulator, detekt, backend and CodeQL jobs start only when
+#     the changed paths can affect their result, and a main push created by
+#     merging an already-validated pull request does not repeat them.
+#   * CodeQL keeps its weekly schedule (Monday 04:17 UTC) and manual dispatch;
+#     on those events the classifier starts CodeQL and nothing else.
+#   * Dependency review is a pull-request job for PRs targeting main. It
+#     compares the dependency graph only when dependency inputs changed, and
+#     it retries on snapshot warnings so it waits for the single
+#     GitHub-managed head snapshot (Automatic Dependency Submission,
+#     `submit-gradle`) instead of racing it. No repository-owned workflow
+#     produces dependency snapshots.
 #
 # Every external action is pinned to an immutable commit SHA, with the
 # human-readable release tag retained in a trailing comment, so CI cannot be
-# retargeted by a moving tag.
+# retargeted by a moving tag. One action has one pinned revision across the
+# repository.
 
 name: CI
 
@@ -16,8 +37,21 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    # Weekly CodeQL scan so a newly published query or a drifted default
+    # branch is caught without waiting for a change to the source. 04:17 UTC
+    # Monday: an off-peak minute, so this does not collide with the top of
+    # the hour.
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+    # Manual CodeQL execution. The classifier starts the CodeQL jobs and no
+    # other job on dispatch.
 
 # A red required check is not mergeable. Nothing here is `continue-on-error`.
+# Workflow level keeps only the minimum every job shares; the two jobs that
+# need more ask for it at job level and only there:
+#   codeql:            security-events: write (SARIF upload to code scanning)
+#   dependency-review: pull-requests: write (posts the review comment)
 permissions:
   contents: read
   pull-requests: read
@@ -29,11 +63,15 @@ concurrency:
 env:
   JAVA_VERSION: '17'
   NODE_VERSION: '22'
+  # Matches the pin in gradle/wrapper/gradle-wrapper.properties exactly: the
+  # distribution is checksum-pinned by distributionSha256Sum.
+  GRADLE_VERSION: '8.13'
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Cheap path classifier. Secret scanning still runs on every PR/main push;
-  # expensive jobs start only when files that can affect their result changed.
+  # Cheap path classifier. The single decision point: every other job starts
+  # only from its run_* outputs. Secret scanning is the only job that runs on
+  # every PR and main push unconditionally.
   # ---------------------------------------------------------------------------
   changes:
     name: Classify changed paths
@@ -43,7 +81,17 @@ jobs:
       detekt: ${{ steps.classify.outputs.detekt }}
       welcome: ${{ steps.classify.outputs.welcome }}
       backend: ${{ steps.classify.outputs.backend }}
+      codeql: ${{ steps.classify.outputs.codeql }}
+      dependency: ${{ steps.classify.outputs.dependency }}
+      ci_config: ${{ steps.classify.outputs.ci_config }}
       pr_validated: ${{ steps.classify.outputs.pr_validated }}
+      run_secret_scan: ${{ steps.classify.outputs.run_secret_scan }}
+      run_android: ${{ steps.classify.outputs.run_android }}
+      run_detekt: ${{ steps.classify.outputs.run_detekt }}
+      run_welcome: ${{ steps.classify.outputs.run_welcome }}
+      run_backend: ${{ steps.classify.outputs.run_backend }}
+      run_codeql: ${{ steps.classify.outputs.run_codeql }}
+      run_dependency_review: ${{ steps.classify.outputs.run_dependency_review }}
     steps:
       - name: Check out change history
         # actions/checkout v4.3.0
@@ -55,77 +103,32 @@ jobs:
         id: classify
         env:
           EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PUSH_BASE_SHA: ${{ github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE_REF: ${{ github.base_ref }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
-          base="$PUSH_BASE_SHA"
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            base="$PR_BASE_SHA"
-          fi
-
-          zeros="0000000000000000000000000000000000000000"
-          if [ -z "$base" ] || [ "$base" = "$zeros" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
-            base="$(git rev-parse HEAD^)"
-          fi
-
-          git diff --name-only "$base" "$GITHUB_SHA" > changed-files.txt
-
-          pr_validated=false
+          # Only push events need the association lookup: a main push created
+          # by merging a pull request carries that association, and a direct
+          # push does not.
+          pr_count=0
           if [ "$EVENT_NAME" = "push" ]; then
-            associated_prs="$(gh api -H "Accept: application/vnd.github+json" "/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq 'length')"
-            if [ "$associated_prs" -gt 0 ]; then
-              pr_validated=true
-              echo "Main commit is associated with an already-validated pull request; heavy CI will not be repeated."
-            fi
+            pr_count="$(gh api -H "Accept: application/vnd.github+json" "/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq 'length')"
           fi
 
-          echo "Changed files:"
-          cat changed-files.txt
-
-          android=false
-          detekt=false
-          welcome=false
-          backend=false
-
-          while IFS= read -r path; do
-            case "$path" in
-              app/*|samsung/*|macrobenchmark/*|gradle/*|build.gradle.kts|settings.gradle.kts|gradle.properties|tools/ci/*|.github/workflows/ci.yml)
-                android=true
-                ;;
-            esac
-
-            case "$path" in
-              app/*.kt|app/*/*.kt|app/*/*/*.kt|app/*/*/*/*.kt|samsung/*.kt|samsung/*/*.kt|samsung/*/*/*.kt|samsung/*/*/*/*.kt|config/detekt/*|build.gradle.kts|settings.gradle.kts|gradle/libs.versions.toml|gradle/verification-metadata.xml|.github/workflows/ci.yml)
-                detekt=true
-                ;;
-            esac
-
-            case "$path" in
-              app/*|samsung/*|gradle/libs.versions.toml|build.gradle.kts|settings.gradle.kts|gradle.properties|tools/ci/welcome-launch.sh|.github/workflows/ci.yml)
-                welcome=true
-                ;;
-            esac
-
-            case "$path" in
-              backend/*|.github/workflows/ci.yml)
-                backend=true
-                ;;
-            esac
-          done < changed-files.txt
-
-          echo "android=$android" >> "$GITHUB_OUTPUT"
-          echo "detekt=$detekt" >> "$GITHUB_OUTPUT"
-          echo "welcome=$welcome" >> "$GITHUB_OUTPUT"
-          echo "backend=$backend" >> "$GITHUB_OUTPUT"
-          echo "pr_validated=$pr_validated" >> "$GITHUB_OUTPUT"
+          # The classifier prints key=value to stdout (captured into
+          # GITHUB_OUTPUT) and diagnostics to stderr (the run log).
+          bash tools/ci/classify-changes.sh \
+            "$EVENT_NAME" "$BASE_SHA" "$GITHUB_SHA" "$pr_count" "$BASE_REF" \
+            | tee "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------------
   # Secret scanning — runs on every PR and every push to main (release.md #14).
   # ---------------------------------------------------------------------------
   secret-scan:
+    needs: changes
+    if: needs.changes.outputs.run_secret_scan == 'true'
     name: Secret scanning
     runs-on: ubuntu-24.04
     steps:
@@ -162,7 +165,7 @@ jobs:
   # ---------------------------------------------------------------------------
   android:
     needs: changes
-    if: needs.changes.outputs.pr_validated != 'true' && needs.changes.outputs.android == 'true'
+    if: needs.changes.outputs.run_android == 'true'
     name: Android build, tests, lint and guards
     runs-on: ubuntu-24.04
     steps:
@@ -184,7 +187,7 @@ jobs:
           # Installs the pinned Gradle CLI and puts it on PATH, which is what
           # materializes the wrapper below. The version matches the pin in
           # gradle/wrapper/gradle-wrapper.properties exactly.
-          gradle-version: '8.13'
+          gradle-version: ${{ env.GRADLE_VERSION }}
 
       # The Gradle wrapper, the dependency lockfiles and the dependency
       # verification metadata are all COMMITTED. There is no bootstrap or
@@ -279,7 +282,7 @@ jobs:
   # ---------------------------------------------------------------------------
   detekt:
     needs: changes
-    if: needs.changes.outputs.pr_validated != 'true' && needs.changes.outputs.detekt == 'true'
+    if: needs.changes.outputs.run_detekt == 'true'
     name: detekt Kotlin static analysis
     runs-on: ubuntu-24.04
     steps:
@@ -298,7 +301,7 @@ jobs:
         # gradle/actions/setup-gradle v4.4.2
         uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3
         with:
-          gradle-version: '8.13'
+          gradle-version: ${{ env.GRADLE_VERSION }}
 
       # Resolved under the same strict supply-chain conditions as the Android
       # floor: the committed verification metadata and lockfiles are the only
@@ -331,7 +334,7 @@ jobs:
   # ---------------------------------------------------------------------------
   welcome-launch:
     needs: changes
-    if: needs.changes.outputs.pr_validated != 'true' && needs.changes.outputs.welcome == 'true'
+    if: needs.changes.outputs.run_welcome == 'true'
     name: Debug APK installs and opens to Welcome
     runs-on: ubuntu-24.04
     steps:
@@ -350,7 +353,7 @@ jobs:
         # gradle/actions/setup-gradle v4.4.2
         uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3
         with:
-          gradle-version: '8.13'
+          gradle-version: ${{ env.GRADLE_VERSION }}
 
       # GitHub's ubuntu runners expose /dev/kvm, but only to members of the kvm
       # group; without this the emulator falls back to software rendering and
@@ -401,7 +404,7 @@ jobs:
   # ---------------------------------------------------------------------------
   backend:
     needs: changes
-    if: needs.changes.outputs.pr_validated != 'true' && needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.run_backend == 'true'
     name: Backend typecheck, lint and tests
     runs-on: ubuntu-24.04
     steps:
@@ -433,3 +436,220 @@ jobs:
 
       - name: Test
         run: npm test --prefix backend
+
+  # ---------------------------------------------------------------------------
+  # CodeQL analysis — the primary security SAST engine (Issue #36),
+  # consolidated from the former codeql.yml (Issue #52).
+  #
+  # Issue #36 scope: java-kotlin and javascript-typescript under the
+  # security-extended query suite. Generic Semgrep is deliberately NOT added:
+  # CodeQL is AppT's primary security SAST engine and detekt is the Kotlin
+  # quality/correctness gate. Semgrep is reserved for a later
+  # repository-specific invariant that neither can express cleanly.
+  #
+  # The Java/Kotlin analysis uses `build-mode: manual` and runs the
+  # repository's own strict Gradle build. There is no parallel weak build path
+  # here on purpose: Kotlin is only fully extracted if the real Kotlin
+  # compiler runs, and the real build is the one that resolves under
+  # --dependency-verification=strict against the committed checksums. A
+  # CodeQL-only build would either skip Kotlin or quietly weaken the
+  # supply-chain floor.
+  #
+  # The job itself carries the only code-scanning permission in this
+  # workflow (security-events: write); the classifier job that starts it
+  # needs only what the workflow grants at top level.
+  # ---------------------------------------------------------------------------
+  codeql:
+    needs: changes
+    if: needs.changes.outputs.run_codeql == 'true'
+    name: CodeQL ${{ matrix.language }} (${{ matrix.build-mode }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    # Only the permissions CodeQL actually needs:
+    #   contents: read         - check out the source
+    #   actions: read          - the CodeQL action reads workflow metadata
+    #   security-events: write - upload SARIF to code scanning
+    # Nothing else is granted, and no secret is referenced anywhere here.
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Kotlin is only extracted when the real Kotlin compiler runs, so this
+          # language uses a manual build against the repository's own Gradle
+          # invocation under strict dependency verification.
+          - language: java-kotlin
+            build-mode: manual
+          # TypeScript needs no build step; the extractor reads source directly.
+          - language: javascript-typescript
+            build-mode: none
+
+    steps:
+      - name: Check out
+        # actions/checkout v4.3.0
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Set up JDK
+        if: matrix.language == 'java-kotlin'
+        # actions/setup-java v4.7.1
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        if: matrix.language == 'java-kotlin'
+        # gradle/actions/setup-gradle v4.4.2
+        uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+          # The build cache is disabled for extraction on purpose. gradle.properties
+          # sets org.gradle.caching=true for CI speed, and setup-gradle restores a
+          # cached build cache across runs. A compile task served FROM-CACHE emits
+          # no compiler invocation, so CodeQL traces nothing and fails with
+          # "CodeQL could not process any code written in Java/Kotlin". Extraction
+          # needs the compiler to actually run, so this job opts out of every cache.
+          cache-disabled: true
+
+      - name: Initialize CodeQL
+        # github/codeql-action v4.38.1
+        #
+        # v4 is the current line: it targets the Node 24 runner runtime, and
+        # GitHub directs advanced-setup users to migrate off v3, which is
+        # deprecated in December 2026. Pinned to the immutable commit that the
+        # v4.38.1 tag object peels to, per release.md#pull-request-checks.
+        uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # security-extended for both language families: the default suite
+          # optimises for precision at the cost of coverage, and AppT wants the
+          # wider security query set as its SAST floor.
+          queries: security-extended
+
+      # The real build, not a CodeQL-shaped approximation of one. This is the
+      # same invocation the CI floor uses (assembleDebug under strict
+      # dependency verification against the committed lockfiles and checksums),
+      # so extraction sees exactly what CI compiles. `assembleDebug` also runs
+      # the merged-manifest guard, so a build that extracts is a build that
+      # passed the permission allowlist.
+      #
+      # The three flags after --no-daemon are extraction requirements, not build
+      # policy, and each exists because without it CodeQL traces no compilation:
+      #
+      #   --no-build-cache
+      #     gradle.properties sets org.gradle.caching=true. A compile task served
+      #     from the build cache emits no compiler invocation at all.
+      #   -Dorg.gradle.parallel=false
+      #     gradle.properties sets org.gradle.parallel=true. Parallel worker
+      #     processes compile outside the traced foreground invocation.
+      #   -Pkotlin.compiler.execution.strategy=in-process
+      #     The Kotlin daemon is the Kotlin Gradle plugin's default strategy. It
+      #     runs the Kotlin compiler in a separate long-lived JVM that the
+      #     extractor does not attach to, which for a Kotlin-only module set is
+      #     exactly the "could not process any code written in Java/Kotlin"
+      #     failure. In-process puts the compiler inside the traced JVM.
+      #
+      # tools/security/run.sh `build` carries the identical flag set, so the
+      # local reproduction and the extraction build cannot drift apart.
+      - name: Build Kotlin for extraction
+        if: matrix.language == 'java-kotlin'
+        run: >-
+          chmod +x ./gradlew
+          && ./gradlew --no-daemon --no-build-cache
+          -Dorg.gradle.parallel=false
+          -Pkotlin.compiler.execution.strategy=in-process
+          --dependency-verification=strict
+          assembleDebug
+
+      - name: Perform CodeQL analysis
+        # github/codeql-action v4.38.1
+        uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd
+        with:
+          category: '/language:${{ matrix.language }}'
+
+  # ---------------------------------------------------------------------------
+  # Dependency review — the pull-request gate on newly introduced dependencies
+  # (Issue #36), consolidated from the former dependency-review.yml (Issue
+  # #52). The job starts only when dependency inputs changed (the classifier's
+  # run_dependency_review), so a docs-only PR no longer burns a run just to
+  # decide that; when it does start, the action's own retry waits for the
+  # single GitHub-managed head snapshot instead of racing it.
+  #
+  # This complements, and does not replace, the existing supply-chain floor:
+  # committed Gradle lockfiles, gradle/verification-metadata.xml under
+  # --dependency-verification=strict, the committed Gradle wrapper with a pinned
+  # distributionSha256Sum, backend/package-lock.json with npm ci as the only
+  # install, and reviewed version-catalog changes. Those controls answer "is
+  # this the artifact we reviewed?"; this check answers "does the thing we are
+  # about to add have a known vulnerability?".
+  #
+  # AppT relies on GitHub's automatic Gradle dependency submission
+  # (`submit-gradle`) as the single snapshot producer. Do not add a second
+  # manual dependency-submission workflow: Issue #40 proved that duplicate
+  # base/head snapshot counts make the dependency comparison ambiguous and
+  # must fail closed.
+  # ---------------------------------------------------------------------------
+  dependency-review:
+    needs: changes
+    if: needs.changes.outputs.run_dependency_review == 'true'
+    name: Dependency review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    # dependency-review-action reads the diff and posts its report as a
+    # pull-request comment, so it needs exactly these two and nothing more.
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Check out the base and head of the change
+        # actions/checkout v4.3.0
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          # The action diffs base against head, so both must be present.
+          fetch-depth: 0
+
+      # Severity threshold: LOW.
+      #
+      # Rationale (Issue #36 asks for a defensible security-oriented threshold):
+      #   * AppT ships no telemetry, analytics or crash-reporting SDK and keeps
+      #     television data device-local, so the dependency graph is small and
+      #     every addition is already a reviewed, deliberate act. A graph that
+      #     small can afford the strictest practical threshold.
+      #   * Dependency updates arrive as reviewed pull requests and are never
+      #     auto-merged (release.md: "Silent upgrades are not allowed"), so a
+      #     low-severity failure costs one review decision rather than an
+      #     unattended break.
+      #   * `moderate` or higher would let a known-vulnerable version land and be
+      #     re-litigated later, which is the opposite of the fail-closed posture
+      #     the rest of this repository takes.
+      #
+      # A deliberate non-goal: no `deny-licenses` policy is configured here. The
+      # final AppT source license is an explicit pre-public-release human gate
+      # (docs/architecture/release.md#two-external-gates, docs/HARVEST.md), and
+      # encoding a license policy in CI now would pre-empt that decision. License
+      # provenance stays a reviewed pull-request note, as release.md requires.
+      - name: Dependency review
+        id: review
+        # actions/dependency-review-action v5.0.0
+        #
+        # v5.0.0's only breaking change over v4 is a move to the node24 runtime,
+        # which needs Actions Runner >= v2.327.1; GitHub-hosted ubuntu-24.04
+        # runners are well past that.
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
+        with:
+          fail-on-severity: low
+          comment-summary-in-pr: always
+          # Automatic Gradle dependency submission runs independently as
+          # `submit-gradle`. Retry the compare endpoint until that one canonical
+          # head snapshot is visible. 600 s covers the ~5 minute visibility lag
+          # measured on this repository while remaining bounded and fail-closed.
+          retry-on-snapshot-warnings: true
+          retry-on-snapshot-warnings-timeout: 600
