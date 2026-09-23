@@ -16,11 +16,20 @@ The wrapper (`gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.jar`) is
 pinned by checksum. CI does not generate it: `.github/workflows/ci.yml` fails if
 it is missing.
 
-These files were produced once by `.github/workflows/supply-chain-bootstrap.yml`
-(manual dispatch), which generates the wrapper in an empty scratch build,
-records the published distribution checksum, generates the lockfiles and the
-SHA-256 verification metadata, proves the result passes strict verification, and
-commits it. To regenerate locally with a Gradle 8.13 installation:
+These files were produced once by a one-shot bootstrap workflow, which generated
+the wrapper in an empty scratch build (running `gradle wrapper` inside this
+repository would configure the AppT build, and resolve AGP, before the wrapper
+meant to run that build exists), recorded the published distribution checksum,
+generated the lockfiles and the SHA-256 verification metadata, proved the result
+passes strict verification, and committed it. That workflow was **deleted** once
+the artifacts landed: the committed state is now the only source, and CI never
+regenerates it.
+
+`distributionSha256Sum` was read from the published
+`gradle-8.13-bin.zip.sha256` and independently matches the Gradle
+release-checksums reference.
+
+To regenerate locally with a Gradle 8.13 installation:
 
 ```bash
 gradle wrapper --gradle-version 8.13 --distribution-type bin

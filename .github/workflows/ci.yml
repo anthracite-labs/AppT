@@ -130,6 +130,13 @@ jobs:
           ./gradlew --no-daemon --dependency-verification=strict
           assembleDebug lintDebug testDebugUnitTest dependencyLockCheck
 
+      # Lint writes its findings to an XML/HTML report; surfacing errors as
+      # annotations means a lint failure is readable in the checks UI without
+      # downloading the artifact. Runs even when the step above failed.
+      - name: Report lint findings
+        if: always()
+        run: python3 tools/ci/report-lint.py
+
       - name: Privacy, supply-chain and module guards
         # noTelemetryDependency, adIdAbsentFromManifest,
         # noProductionModuleDependsOnBenchmark, the permission allowlist, the
@@ -139,14 +146,16 @@ jobs:
 
       - name: ':app dependency insight — no Firestore client'
         run: >-
-          ./gradlew --no-daemon :app:dependencyInsight
+          ./gradlew --no-daemon --dependency-verification=strict
+          :app:dependencyInsight
           --configuration debugRuntimeClasspath --dependency firestore
           | tee firestore-insight.txt
           && ! grep -qiE '^(com\.google\.firebase|com\.google\.cloud).*firestore' firestore-insight.txt
 
       - name: ':app dependency insight — no Crashlytics'
         run: >-
-          ./gradlew --no-daemon :app:dependencyInsight
+          ./gradlew --no-daemon --dependency-verification=strict
+          :app:dependencyInsight
           --configuration debugRuntimeClasspath --dependency crashlytics
           | tee crashlytics-insight.txt
           && ! grep -qi 'crashlytics:' crashlytics-insight.txt
