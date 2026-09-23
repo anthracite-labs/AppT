@@ -17,13 +17,13 @@ Phase: `implementation`
 
 ## Current objective
 
-Objective: `Finish S01 in PR #30 by landing the required committed Gradle supply-chain artifacts, then rerun the full Android verification and review against Issue #27 before any dependent slice is compiled or dispatched.`
+Objective: `Review S01 PR #30 against GitHub Issue #27 now that the full CI workflow is green, obtain the remaining install/launch-to-Welcome evidence, and accept S01 only after all review findings and acceptance criteria are satisfied.`
 
 Success condition: `Each implementation slice is compiled from the accepted architecture into one self-contained Arena Issue, implemented and reviewed before the next dependent slice is dispatched, while the accepted privacy, reliability, accessibility, licensing, and Samsung-control contracts remain intact.`
 
 ## Active work
 
-Primary: `Arena repaired the original :app assembleDebug/configuration failures in PR #30 through successive CI-driven fixes. The latest CI run now fails at the explicit supply-chain gate because gradlew, gradle-wrapper.jar, gradle/verification-metadata.xml, and the app/samsung/macrobenchmark lockfiles are still not committed; downstream Android checks are therefore skipped. S01 remains active and unaccepted.`
+Primary: `PR #30 now has a fully green CI run: Android build/tests/lint, supply-chain verification, privacy/module guards, both dependency-insight checks, macrobenchmark compilation, backend checks, and secret scanning all pass. The PR completion text is stale, and device/emulator install-and-launch evidence for Welcome is still not recorded. S01 remains active and unaccepted pending review and that runtime evidence.`
 
 Secondary:
 
@@ -109,7 +109,7 @@ Secondary:
 
 ## Recent change
 
-- `PR #30 progressed past the original Android compile/lint defects. The current blocker is now the required committed Gradle wrapper, dependency-verification metadata, and module lockfiles; latest CI stops before the remaining Android acceptance checks.`
+- `PR #30 reached a fully green CI run after the Gradle wrapper, lockfiles, verification metadata, strict verification, compile/lint fixes, guards, dependency-insight checks, and macrobenchmark compilation all passed. Runtime install/launch evidence is still outstanding.`
 
 ## Relevant canonical references
 
@@ -129,7 +129,7 @@ Secondary:
 
 ## Next
 
-`Have Arena commit the missing Gradle wrapper, verification metadata, and app/samsung/macrobenchmark lockfiles on PR #30, then rerun the complete Android CI/guard/benchmark verification. Do not compile or dispatch S02 before S01 is accepted.`
+`Run the repository-defined code-review pass on PR #30 and obtain real device/emulator evidence that the debug build installs and opens to Welcome. Do not compile or dispatch S02 before S01 is accepted.`
 
 ## After that
 
