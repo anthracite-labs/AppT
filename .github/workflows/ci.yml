@@ -228,14 +228,25 @@ jobs:
             -camera-back none
           disable-animations: true
           script: |
+            set -x
             chmod +x ./gradlew
             adb devices
             adb shell getprop ro.build.version.sdk
+            adb shell getprop ro.product.model
             # connectedDebugAndroidTest installs the debug APK plus the test APK
             # and runs WelcomeLaunchTest, which launches MainActivity and
             # asserts the Welcome surface is displayed.
             ./gradlew --no-daemon --dependency-verification=strict \
-              :app:connectedDebugAndroidTest
+              :app:connectedDebugAndroidTest 2>&1 | tee connected.log || {
+                echo "=== connectedDebugAndroidTest failed; reason follows ==="
+                awk '/\* What went wrong:/{f=1} f{print} /\* Try:/{f=0}' \
+                  connected.log | grep -v "^[[:space:]]*at " | head -n 25
+                echo "=== instrumentation / crash log ==="
+                adb logcat -d -t 300 \
+                  | grep -iE "AndroidRuntime|TestRunner|appt|FATAL" \
+                  | tail -n 40
+                exit 1
+              }
             # Independent evidence that a plain launcher-style start reaches
             # Welcome, recorded from the device itself.
             adb shell am force-stop dev.anthracite.appt
@@ -252,7 +263,10 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: welcome-launch-report
-          path: app/build/reports/androidTests/**
+          path: |
+            app/build/reports/androidTests/**
+            app/build/outputs/androidTest-results/**
+            connected.log
           if-no-files-found: warn
           retention-days: 7
 
