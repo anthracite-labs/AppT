@@ -97,9 +97,21 @@ jobs:
         # docs/BUILD.md. Generating them from the pinned version keeps every
         # documented ./gradlew command identical to what CI runs.
         run: |
-          set -euo pipefail
+          set -uo pipefail
           if [ ! -f ./gradlew ]; then
-            gradle wrapper --gradle-version 8.13 --distribution-type bin
+            gradle wrapper --gradle-version 8.13 --distribution-type bin --stacktrace > wrapper.log 2>&1
+            status=$?
+          else
+            status=0
+          fi
+          if [ "$status" -ne 0 ]; then
+            # Surface the failure as annotations so it is readable without
+            # downloading the run log.
+            tail -n 60 wrapper.log | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            cat wrapper.log
+            exit "$status"
           fi
           ./gradlew --version
 
