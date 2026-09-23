@@ -107,6 +107,16 @@ Workflow on pull request and on `main`, actions pinned to immutable commit SHAs 
 15. Backend function tests and rules tests against the emulator suite.
 16. Accessibility assertions on controls touched by the change.
 
+Cost-aware execution does not weaken this floor. Secret scanning runs on every
+pull request and every push to `main`. Expensive Android, emulator, detekt, and
+backend jobs are started only when the changed paths can affect their result;
+changes to the CI workflow itself deliberately exercise every CI job. CodeQL
+runs on source/build/security-relevant changes plus its weekly schedule and
+manual dispatch. Dependency Review remains a pull-request check on every PR,
+but its dependency-graph comparison is skipped when no dependency manifest,
+Gradle build file, lockfile, wrapper pin, or verification metadata changed.
+The Dependabot alert export is manual-dispatch only and is not a CI gate.
+
 `main` stays releasable. A red check is not merged.
 
 ### Manifest allowlist
