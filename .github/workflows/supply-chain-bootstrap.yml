@@ -123,9 +123,12 @@ jobs:
         # Run-log download is unavailable to the authoring agent, so compile
         # errors are mirrored into annotations, which the API does expose.
         run: |
-          grep -nE "^e: |error:|Caused by|Could not|Unresolved reference|> Task .* FAILED|FAILURE:|What went wrong" first.log \
-            | grep -v "^[0-9]*: *at " | head -n 10 \
-            | while IFS= read -r line; do echo "::error::FIRSTBUILD: $line"; done
+          # Print the 'What went wrong' block, which carries the actual reason.
+          awk '/\* What went wrong:/{f=1} f{print} /\* Try:/{f=0}' first.log \
+            | grep -v "^\s*at " | head -n 14 \
+            | while IFS= read -r line; do echo "::error::WHY: $line"; done
+          grep -nE "^e: |error:|Unresolved reference|> Task .* FAILED" first.log \
+            | head -n 6 | while IFS= read -r line; do echo "::error::FIRSTBUILD: $line"; done
           test "${{ steps.firstbuild.outputs.status }}" = "0"
 
       - name: Generate dependency lockfiles
