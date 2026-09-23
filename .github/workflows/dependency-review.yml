@@ -1,5 +1,7 @@
 # AppT dependency review — the pull-request gate on newly introduced
-# dependencies.
+# dependencies. The workflow itself remains a fast required check on every PR,
+# but the expensive dependency-graph comparison runs only when dependency
+# manifests, Gradle build files, lockfiles, or verification metadata changed.
 #
 # This complements, and does not replace, the existing supply-chain floor:
 # committed Gradle lockfiles, gradle/verification-metadata.xml under
@@ -48,6 +50,59 @@ jobs:
         with:
           # The action diffs base against head, so both must be present.
           fetch-depth: 0
+
+      - name: Detect dependency-relevant changes
+        id: dependency_changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git diff --name-only "$BASE_SHA" "$GITHUB_SHA" > changed-files.txt
+
+          if grep -Eq '(^|/)build\.gradle\.kts$|^settings\.gradle\.kts$|^gradle\.properties$|^gradle/libs\.versions\.toml$|(^|/)gradle\.lockfile$|^settings-gradle\.lockfile$|^gradle/verification-metadata\.xml$|^gradle/wrapper/gradle-wrapper\.properties$|^backend/package(-lock)?\.json      #
+      # Rationale (Issue #36 asks for a defensible security-oriented threshold):
+      #   * AppT ships no telemetry, analytics or crash-reporting SDK and keeps
+      #     television data device-local, so the dependency graph is small and
+      #     every addition is already a reviewed, deliberate act. A graph that
+      #     small can afford the strictest practical threshold.
+      #   * Dependency updates arrive as reviewed pull requests and are never
+      #     auto-merged (release.md: "Silent upgrades are not allowed"), so a
+      #     low-severity failure costs one review decision rather than an
+      #     unattended break.
+      #   * `moderate` or higher would let a known-vulnerable version land and be
+      #     re-litigated later, which is the opposite of the fail-closed posture
+      #     the rest of this repository takes.
+      #
+      # A deliberate non-goal: no `deny-licenses` policy is configured here. The
+      # final AppT source license is an explicit pre-public-release human gate
+      # (docs/architecture/release.md#two-external-gates, docs/HARVEST.md), and
+      # encoding a license policy in CI now would pre-empt that decision. License
+      # provenance stays a reviewed pull-request note, as release.md requires.
+      - name: Dependency review
+        if: steps.dependency_changes.outputs.relevant == 'true'
+        id: review
+        # actions/dependency-review-action v5.0.0
+        #
+        # v5.0.0's only breaking change over v4 is a move to the node24 runtime,
+        # which needs Actions Runner >= v2.327.1; GitHub-hosted ubuntu-24.04
+        # runners are well past that.
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
+        with:
+          fail-on-severity: low
+          comment-summary-in-pr: always
+          # Automatic Gradle dependency submission runs independently as
+          # `submit-gradle`. Retry the compare endpoint until that one canonical
+          # head snapshot is visible. 600 s covers the ~5 minute visibility lag
+          # measured on this repository while remaining bounded and fail-closed.
+          retry-on-snapshot-warnings: true
+          retry-on-snapshot-warnings-timeout: 600
+
+ changed-files.txt; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+            echo "No dependency manifests, lockfiles, Gradle build files, or verification metadata changed; skipping dependency graph comparison."
+          fi
 
       # Severity threshold: LOW.
       #
