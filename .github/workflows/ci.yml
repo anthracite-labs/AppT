@@ -159,6 +159,8 @@ jobs:
           assembleDebug lintDebug testDebugUnitTest dependencyLockCheck
 
       - name: Assemble debug, unit tests and lint, and write the supply-chain metadata
+        id: bootstrap_build
+        continue-on-error: true
         if: steps.supply_chain.outputs.bootstrapped != 'true'
         # Resolves the graph once and generates the lockfiles and the SHA-256
         # verification metadata, which are then uploaded for review and commit.
@@ -166,11 +168,21 @@ jobs:
         # broken build; it only defers checksum enforcement to the commit that
         # adds the reviewed checksums.
         run: |
-          set -euo pipefail
-          ./gradlew --no-daemon --write-locks resolveAndLockAll
-          ./gradlew --no-daemon --write-verification-metadata sha256 \
-            assembleDebug lintDebug testDebugUnitTest :macrobenchmark:assembleBenchmark
-          ./gradlew --no-daemon assembleDebug lintDebug testDebugUnitTest dependencyLockCheck
+          {
+            ./gradlew --no-daemon --write-locks resolveAndLockAll --stacktrace &&
+            ./gradlew --no-daemon --write-verification-metadata sha256 \
+              assembleDebug lintDebug testDebugUnitTest :macrobenchmark:assembleBenchmark &&
+            ./gradlew --no-daemon assembleDebug lintDebug testDebugUnitTest dependencyLockCheck
+          } > build.log 2>&1
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+          cat build.log
+
+      - name: Report bootstrap build
+        if: always() && steps.supply_chain.outputs.bootstrapped != 'true'
+        run: |
+          grep -iE "^e: |error:|FAILURE|What went wrong|Caused by|Could not|Unresolved|> Task .* FAILED" build.log \
+            | head -n 8 | while IFS= read -r line; do echo "::error::BUILD: $line"; done
+          test "${{ steps.bootstrap_build.outputs.status }}" = "0"
 
       - name: Upload generated supply-chain metadata for review
         if: steps.supply_chain.outputs.bootstrapped != 'true'
