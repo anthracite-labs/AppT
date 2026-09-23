@@ -79,6 +79,18 @@ style:
   ReturnCount:
     active: true
     max: 3
+  UnusedPrivateMember:
+    active: true
+    # A @Composable preview is entry-point code invoked by the Android Studio
+    # layout renderer; nothing in source calls it, so detekt reads it as dead
+    # code. That is a false positive specific to Compose tooling, and the fix is
+    # to tell the rule about the annotation — not to delete the previews (they
+    # are how the Welcome surface is inspected) and not to switch the rule off.
+    #
+    # Scoped to @Preview-annotated functions only. Every other unused private
+    # member in production Kotlin still fails the build, which is the case this
+    # rule actually exists for.
+    ignoreAnnotated: ['Preview']
   # Kotlin's `also`/`let`/`run` are used for scope-limited side effects in the
   # Compose code; the default of 2 chained calls is reached by ordinary theming.
   MaxLineLength:

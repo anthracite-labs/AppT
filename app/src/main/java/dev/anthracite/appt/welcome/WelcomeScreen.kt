@@ -33,14 +33,6 @@ import dev.anthracite.appt.tokens.SpaceTokens
 import dev.anthracite.appt.tokens.TypeTokens
 import dev.anthracite.appt.tokens.motionDuration
 
-/** Stable test tags, so accessibility assertions do not depend on copy. */
-object WelcomeTestTags {
-    const val VALUE_PROPOSITION = "welcome.valueProposition"
-    const val REASSURANCE = "welcome.reassurance"
-    const val MASCOT = "welcome.mascot"
-    const val PRIMARY_ACTION = "welcome.primaryAction"
-}
-
 /**
  * The Welcome surface.
  *
@@ -80,25 +72,7 @@ fun WelcomeScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(SpaceTokens.md, Alignment.CenterVertically),
         ) {
-            // Restrained brand personality. It is decorative: it carries no
-            // meaning, so it is hidden from the semantics tree entirely
-            // (presentation.md: decorative nodes are marked decorative).
-            val mascotAlpha by animateFloatAsState(
-                targetValue = 1f,
-                // Timing comes from the motion token, resolved against the
-                // reduced-motion setting. No duration literal appears here.
-                animationSpec = tween(durationMillis = motionDuration(MotionTokens.MASCOT_MILLIS)),
-                label = "welcomeMascotFade",
-            )
-            Text(
-                text = stringResource(R.string.welcome_mascot_glyph),
-                style = TypeTokens.display,
-                color = ColorTokens.brandAccent,
-                modifier = Modifier
-                    .alpha(mascotAlpha)
-                    .testTag(WelcomeTestTags.MASCOT)
-                    .clearAndSetSemantics { },
-            )
+            WelcomeMascot()
 
             Text(
                 text = stringResource(R.string.welcome_value_proposition),
@@ -139,6 +113,39 @@ fun WelcomeScreen(
             }
         }
     }
+}
+
+/**
+ * The decorative brand mark.
+ *
+ * Its own composable rather than inline in [WelcomeScreen]: it is self-contained
+ * presentation with its own animation state, and inlining it pushed the screen
+ * composable past the LongMethod threshold. Nothing about behaviour changes —
+ * the node keeps its test tag, keeps its motion token, and stays hidden from the
+ * semantics tree.
+ *
+ * Restrained brand personality. It is decorative: it carries no meaning, so it
+ * is hidden from the semantics tree entirely (presentation.md: decorative nodes
+ * are marked decorative).
+ */
+@Composable
+private fun WelcomeMascot(modifier: Modifier = Modifier) {
+    val mascotAlpha by animateFloatAsState(
+        targetValue = 1f,
+        // Timing comes from the motion token, resolved against the
+        // reduced-motion setting. No duration literal appears here.
+        animationSpec = tween(durationMillis = motionDuration(MotionTokens.MASCOT_MILLIS)),
+        label = "welcomeMascotFade",
+    )
+    Text(
+        text = stringResource(R.string.welcome_mascot_glyph),
+        style = TypeTokens.display,
+        color = ColorTokens.brandAccent,
+        modifier = modifier
+            .alpha(mascotAlpha)
+            .testTag(WelcomeTestTags.MASCOT)
+            .clearAndSetSemantics { },
+    )
 }
 
 @Preview(showBackground = true)
