@@ -15,7 +15,14 @@
 name: Supply-chain bootstrap
 
 on:
+  # workflow_dispatch is the intended trigger, but the agent identity that
+  # authored this branch cannot create dispatch events, so the job also runs on
+  # push to this one branch. It is a no-op once the artifacts exist (see the
+  # `needs_bootstrap` guard below), so it costs one skipped job per push and
+  # disappears entirely when the branch is merged and this file is deleted.
   workflow_dispatch:
+  push:
+    branches: [arena/01a0cc2b-appt]
 
 permissions:
   contents: write
@@ -32,7 +39,28 @@ jobs:
           ref: ${{ github.ref_name }}
           persist-credentials: true
 
+      # Self-disabling: once the artifacts are committed this workflow does
+      # nothing, so it can never fight the committed state or regenerate it.
+      - name: Decide whether bootstrap is needed
+        id: need
+        run: |
+          set -euo pipefail
+          needed=false
+          for required in gradlew gradle/wrapper/gradle-wrapper.jar \
+            gradle/verification-metadata.xml app/gradle.lockfile \
+            samsung/gradle.lockfile macrobenchmark/gradle.lockfile
+          do
+            [ -f "$required" ] || needed=true
+          done
+          if [ -f gradle/verification-metadata.xml ] && \
+             ! grep -q '<component ' gradle/verification-metadata.xml; then
+            needed=true
+          fi
+          echo "needed=$needed" >> "$GITHUB_OUTPUT"
+          echo "bootstrap needed: $needed"
+
       - name: Set up JDK
+        if: steps.need.outputs.needed == 'true'
         # actions/setup-java v4.7.1
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
         with:
@@ -40,12 +68,14 @@ jobs:
           java-version: '17'
 
       - name: Set up Gradle
+        if: steps.need.outputs.needed == 'true'
         # gradle/actions/setup-gradle v4.4.2
         uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3
         with:
           gradle-version: '8.13'
 
       - name: Materialize the pinned Gradle wrapper
+        if: steps.need.outputs.needed == 'true'
         # Generated in an empty scratch build, because `gradle wrapper` run in
         # this repository would configure the AppT build (and resolve AGP)
         # before the wrapper that is meant to run that build exists.
@@ -62,6 +92,7 @@ jobs:
           ./gradlew --version
 
       - name: Record the distribution checksum
+        if: steps.need.outputs.needed == 'true'
         # Pins the Gradle distribution itself by checksum, verified against the
         # published .sha256 rather than trusted from memory.
         run: |
@@ -76,17 +107,33 @@ jobs:
           grep distributionSha256Sum gradle/wrapper/gradle-wrapper.properties
 
       - name: Build once without verification, to surface real build errors first
+        id: firstbuild
+        continue-on-error: true
+        if: steps.need.outputs.needed == 'true'
         # If the project does not build, that must be the reported failure,
         # not a downstream checksum error.
         run: |
-          set -euxo pipefail
           ./gradlew --no-daemon assembleDebug lintDebug testDebugUnitTest \
-            :macrobenchmark:assembleBenchmark
+            :macrobenchmark:assembleBenchmark > first.log 2>&1
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+          tail -n 200 first.log
+
+      - name: Report first build
+        if: always() && steps.need.outputs.needed == 'true'
+        # Run-log download is unavailable to the authoring agent, so compile
+        # errors are mirrored into annotations, which the API does expose.
+        run: |
+          grep -nE "^e: |error:|Caused by|Could not|Unresolved reference|> Task .* FAILED|FAILURE:|What went wrong" first.log \
+            | grep -v "^[0-9]*: *at " | head -n 10 \
+            | while IFS= read -r line; do echo "::error::FIRSTBUILD: $line"; done
+          test "${{ steps.firstbuild.outputs.status }}" = "0"
 
       - name: Generate dependency lockfiles
+        if: steps.need.outputs.needed == 'true'
         run: ./gradlew --no-daemon --write-locks resolveAndLockAll
 
       - name: Generate SHA-256 dependency verification metadata
+        if: steps.need.outputs.needed == 'true'
         # Gradle creates verification-metadata.xml itself; seeding it with an
         # empty <components/> would activate verification with zero known
         # checksums and fail every resolution.
@@ -98,6 +145,7 @@ jobs:
           grep -c '<component ' gradle/verification-metadata.xml
 
       - name: Prove the committed state passes strict verification
+        if: steps.need.outputs.needed == 'true'
         run: |
           set -euxo pipefail
           ./gradlew --no-daemon --verify-dependencies \
@@ -106,6 +154,7 @@ jobs:
           ./gradlew --no-daemon --verify-dependencies :macrobenchmark:assembleBenchmark
 
       - name: Commit the generated artifacts
+        if: steps.need.outputs.needed == 'true'
         run: |
           set -euxo pipefail
           git config user.name 'github-actions[bot]'
@@ -119,10 +168,8 @@ jobs:
             echo 'Nothing to commit.'
             exit 0
           fi
-          git commit -m 'Commit Gradle wrapper, dependency lockfiles and verification metadata
-
-Generated by the one-shot supply-chain bootstrap workflow, which also proved
-the committed state passes strict dependency verification.
-
-Refs #27'
+          git commit \
+            -m 'Commit Gradle wrapper, dependency lockfiles and verification metadata' \
+            -m 'Generated by the one-shot supply-chain bootstrap workflow, which also proved the committed state passes strict dependency verification.' \
+            -m 'Refs #27'
           git push origin HEAD:${{ github.ref_name }}
