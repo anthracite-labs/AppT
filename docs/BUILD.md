@@ -37,6 +37,15 @@ Android floor, from the repository root:
 ./gradlew :macrobenchmark:assembleBenchmark
 ```
 
+### Dependency verification
+
+`gradle/verification-metadata.template.xml` holds the reviewed *policy*. It is
+not named `verification-metadata.xml` on purpose: Gradle activates verification
+on that filename alone, so committing it with no checksums would fail every
+resolution. Copy the template to `gradle/verification-metadata.xml` and
+generate the checksums, then review and commit the result; verification is
+active from that commit on.
+
 Dependency lockfiles are committed. After a deliberate, reviewed dependency
 change, refresh them with:
 

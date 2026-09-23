@@ -141,8 +141,8 @@ jobs:
         run: |
           set -euo pipefail
           bootstrapped=true
-          if ! grep -q '<component ' gradle/verification-metadata.xml; then
-            echo '::warning::gradle/verification-metadata.xml has no component checksums yet.'
+          if [ ! -f gradle/verification-metadata.xml ] || ! grep -q '<component ' gradle/verification-metadata.xml; then
+            echo '::warning::gradle/verification-metadata.xml is absent or has no component checksums yet.'
             bootstrapped=false
           fi
           if ! ls app/gradle.lockfile >/dev/null 2>&1; then
@@ -168,6 +168,9 @@ jobs:
         # broken build; it only defers checksum enforcement to the commit that
         # adds the reviewed checksums.
         run: |
+          # Seed the policy template so the generated file inherits the
+          # reviewed policy (verify-metadata on, no trusted-artifact wildcards).
+          cp gradle/verification-metadata.template.xml gradle/verification-metadata.xml
           {
             ./gradlew --no-daemon --write-locks resolveAndLockAll --stacktrace &&
             ./gradlew --no-daemon --write-verification-metadata sha256 \
