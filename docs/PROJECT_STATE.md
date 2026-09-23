@@ -17,13 +17,13 @@ Phase: `implementation`
 
 ## Current objective
 
-Objective: `Repair and review S01 implementation in PR #30 against GitHub Issue #27. S01 is not accepted until the Android build, guards, benchmark compilation, dependency-lock/verification floor, and install/launch evidence all pass.`
+Objective: `Finish S01 in PR #30 by landing the required committed Gradle supply-chain artifacts, then rerun the full Android verification and review against Issue #27 before any dependent slice is compiled or dispatched.`
 
 Success condition: `Each implementation slice is compiled from the accepted architecture into one self-contained Arena Issue, implemented and reviewed before the next dependent slice is dispatched, while the accepted privacy, reliability, accessibility, licensing, and Samsung-control contracts remain intact.`
 
 ## Active work
 
-Primary: `Arena returned S01 PR #30 from Issue #27. Backend and secret-scanning jobs pass, but the Android CI job fails because Gradle reports that :app has no assembleDebug task; downstream Android guards and macrobenchmark verification are skipped. S01 remains active and unaccepted.`
+Primary: `Arena repaired the original :app assembleDebug/configuration failures in PR #30 through successive CI-driven fixes. The latest CI run now fails at the explicit supply-chain gate because gradlew, gradle-wrapper.jar, gradle/verification-metadata.xml, and the app/samsung/macrobenchmark lockfiles are still not committed; downstream Android checks are therefore skipped. S01 remains active and unaccepted.`
 
 Secondary:
 
@@ -109,7 +109,7 @@ Secondary:
 
 ## Recent change
 
-- `Arena opened PR #30 for S01. Its first CI run is red: backend and secret scanning pass, while the Android job fails before acceptance checks complete because :app exposes no assembleDebug task.`
+- `PR #30 progressed past the original Android compile/lint defects. The current blocker is now the required committed Gradle wrapper, dependency-verification metadata, and module lockfiles; latest CI stops before the remaining Android acceptance checks.`
 
 ## Relevant canonical references
 
@@ -129,7 +129,7 @@ Secondary:
 
 ## Next
 
-`Repair PR #30 until the Android CI floor is green and the missing S01 acceptance evidence is supplied; then run the repository-defined review pass. Do not compile or dispatch S02 before S01 is accepted.`
+`Have Arena commit the missing Gradle wrapper, verification metadata, and app/samsung/macrobenchmark lockfiles on PR #30, then rerun the complete Android CI/guard/benchmark verification. Do not compile or dispatch S02 before S01 is accepted.`
 
 ## After that
 
