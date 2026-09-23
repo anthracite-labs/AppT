@@ -49,6 +49,12 @@ android {
 
     testOptions {
         unitTests {
+            // Compose tests run on Robolectric so the accessibility assertions
+            // execute on every CI run rather than only when a device is
+            // attached, and that needs real Android resources.
+            // Robolectric's native graphics mode (required for Compose to lay
+            // out and measure the nodes the touch-target assertions read) is
+            // set in app/src/test/resources/robolectric.properties.
             isIncludeAndroidResources = true
         }
     }
