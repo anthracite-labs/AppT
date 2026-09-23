@@ -74,3 +74,21 @@ jobs:
           # Name the check explicitly so a red dependency review is legible in
           # the checks list rather than appearing as a generic job.
           comment-summary-in-pr: always
+          # Wait for this head's Gradle dependency snapshot instead of judging
+          # the diff before the snapshot exists.
+          #
+          # The snapshot for a head SHA is submitted asynchronously by GitHub's
+          # "Automatic Dependency Submission (Gradle)" workflow, which starts
+          # beside this job and has taken 40-135 s in practice. Without a retry
+          # this job completes first and can pass on "No snapshots were found
+          # for the head SHA" without screening the introduced dependency graph
+          # (observed at 5d5af7e: the review closed 16:49:31Z, the head
+          # snapshot landed 16:49:55Z). retry-on-snapshot-warnings re-queries
+          # the dependency-graph compare API every 10 seconds until the head
+          # snapshot is present, so fail-on-severity: low really does screen
+          # the newly introduced dependencies.
+          # The timeout is an explicit bound rather than the 120 s default:
+          # 300 s clears the slowest observed submission (~135 s) with room for
+          # runner queueing, and still fits inside timeout-minutes: 15 above.
+          retry-on-snapshot-warnings: true
+          retry-on-snapshot-warnings-timeout: 300
