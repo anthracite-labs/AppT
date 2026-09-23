@@ -25,8 +25,28 @@ name: CodeQL
 on:
   pull_request:
     branches: [main]
+    paths:
+      - 'app/**'
+      - 'samsung/**'
+      - 'macrobenchmark/**'
+      - 'backend/**'
+      - 'gradle/**'
+      - '**/*.gradle.kts'
+      - 'gradle.properties'
+      - 'tools/security/**'
+      - '.github/workflows/codeql.yml'
   push:
     branches: [main]
+    paths:
+      - 'app/**'
+      - 'samsung/**'
+      - 'macrobenchmark/**'
+      - 'backend/**'
+      - 'gradle/**'
+      - '**/*.gradle.kts'
+      - 'gradle.properties'
+      - 'tools/security/**'
+      - '.github/workflows/codeql.yml'
   schedule:
     # Recurring scan so a newly published query or a drifted default branch is
     # caught without waiting for a change to the source. 04:17 UTC Monday: an

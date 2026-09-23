@@ -31,6 +31,84 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # Cheap path classifier. Secret scanning still runs on every PR/main push;
+  # expensive jobs start only when files that can affect their result changed.
+  # ---------------------------------------------------------------------------
+  changes:
+    name: Classify changed paths
+    runs-on: ubuntu-24.04
+    outputs:
+      android: ${{ steps.classify.outputs.android }}
+      detekt: ${{ steps.classify.outputs.detekt }}
+      welcome: ${{ steps.classify.outputs.welcome }}
+      backend: ${{ steps.classify.outputs.backend }}
+    steps:
+      - name: Check out change history
+        # actions/checkout v4.3.0
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          fetch-depth: 0
+
+      - name: Classify paths
+        id: classify
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BASE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          base="$PUSH_BASE_SHA"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base="$PR_BASE_SHA"
+          fi
+
+          zeros="0000000000000000000000000000000000000000"
+          if [ -z "$base" ] || [ "$base" = "$zeros" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            base="$(git rev-parse HEAD^)"
+          fi
+
+          git diff --name-only "$base" "$GITHUB_SHA" > changed-files.txt
+          echo "Changed files:"
+          cat changed-files.txt
+
+          android=false
+          detekt=false
+          welcome=false
+          backend=false
+
+          while IFS= read -r path; do
+            case "$path" in
+              app/*|samsung/*|macrobenchmark/*|gradle/*|build.gradle.kts|settings.gradle.kts|gradle.properties|tools/ci/*|.github/workflows/ci.yml)
+                android=true
+                ;;
+            esac
+
+            case "$path" in
+              app/*.kt|app/*/*.kt|app/*/*/*.kt|app/*/*/*/*.kt|samsung/*.kt|samsung/*/*.kt|samsung/*/*/*.kt|samsung/*/*/*/*.kt|config/detekt/*|build.gradle.kts|settings.gradle.kts|gradle/libs.versions.toml|gradle/verification-metadata.xml|.github/workflows/ci.yml)
+                detekt=true
+                ;;
+            esac
+
+            case "$path" in
+              app/*|samsung/*|gradle/libs.versions.toml|build.gradle.kts|settings.gradle.kts|gradle.properties|tools/ci/welcome-launch.sh|.github/workflows/ci.yml)
+                welcome=true
+                ;;
+            esac
+
+            case "$path" in
+              backend/*|.github/workflows/ci.yml)
+                backend=true
+                ;;
+            esac
+          done < changed-files.txt
+
+          echo "android=$android" >> "$GITHUB_OUTPUT"
+          echo "detekt=$detekt" >> "$GITHUB_OUTPUT"
+          echo "welcome=$welcome" >> "$GITHUB_OUTPUT"
+          echo "backend=$backend" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
   # Secret scanning — runs on every PR and every push to main (release.md #14).
   # ---------------------------------------------------------------------------
   secret-scan:
@@ -69,6 +147,8 @@ jobs:
   # Android floor.
   # ---------------------------------------------------------------------------
   android:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
     name: Android build, tests, lint and guards
     runs-on: ubuntu-24.04
     steps:
@@ -184,6 +264,8 @@ jobs:
   # long build job.
   # ---------------------------------------------------------------------------
   detekt:
+    needs: changes
+    if: needs.changes.outputs.detekt == 'true'
     name: detekt Kotlin static analysis
     runs-on: ubuntu-24.04
     steps:
@@ -234,6 +316,8 @@ jobs:
   # so it runs on a real emulator against the installed APK.
   # ---------------------------------------------------------------------------
   welcome-launch:
+    needs: changes
+    if: needs.changes.outputs.welcome == 'true'
     name: Debug APK installs and opens to Welcome
     runs-on: ubuntu-24.04
     steps:
@@ -302,6 +386,8 @@ jobs:
   # Backend package (release.md #11b). Always package-prefixed from the root.
   # ---------------------------------------------------------------------------
   backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     name: Backend typecheck, lint and tests
     runs-on: ubuntu-24.04
     steps:

@@ -1,5 +1,6 @@
 # AppT dependency review — the pull-request gate on newly introduced
-# dependencies.
+# dependencies. The job stays a fast required check on every PR, while the
+# expensive graph comparison runs only when dependency inputs changed.
 #
 # This complements, and does not replace, the existing supply-chain floor:
 # committed Gradle lockfiles, gradle/verification-metadata.xml under
@@ -49,6 +50,29 @@ jobs:
           # The action diffs base against head, so both must be present.
           fetch-depth: 0
 
+      - name: Detect dependency-relevant changes
+        id: dependency_changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git diff --name-only "$BASE_SHA" "$GITHUB_SHA" > changed-files.txt
+
+          relevant=false
+          while IFS= read -r path; do
+            case "$path" in
+              build.gradle.kts|*/build.gradle.kts|settings.gradle.kts|gradle.properties|gradle/libs.versions.toml|*/gradle.lockfile|settings-gradle.lockfile|gradle/verification-metadata.xml|gradle/wrapper/gradle-wrapper.properties|backend/package.json|backend/package-lock.json)
+                relevant=true
+                break
+                ;;
+            esac
+          done < changed-files.txt
+
+          echo "relevant=$relevant" >> "$GITHUB_OUTPUT"
+          if [ "$relevant" = "false" ]; then
+            echo "Dependency inputs unchanged; skipping dependency graph comparison."
+          fi
+
       # Severity threshold: LOW.
       #
       # Rationale (Issue #36 asks for a defensible security-oriented threshold):
@@ -70,6 +94,7 @@ jobs:
       # encoding a license policy in CI now would pre-empt that decision. License
       # provenance stays a reviewed pull-request note, as release.md requires.
       - name: Dependency review
+        if: steps.dependency_changes.outputs.relevant == 'true'
         id: review
         # actions/dependency-review-action v5.0.0
         #
