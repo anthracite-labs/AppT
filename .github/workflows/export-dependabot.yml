@@ -77,18 +77,18 @@ jobs:
             |
             "### Alert #\(.number) — \(.dependency.package.name)\n\n" +
             "- **Severity:** \(.security_advisory.severity)\n" +
-            "- **Package:** \`\(.dependency.package.name)\`\n" +
+            "- **Package:** `\(.dependency.package.name)`\n" +
             "- **Ecosystem:** \(.dependency.package.ecosystem)\n" +
-            "- **Manifest:** \`\(.dependency.manifest_path)\`\n" +
+            "- **Manifest:** `\(.dependency.manifest_path)`\n" +
             "- **Scope:** \(.dependency.scope // "unknown")\n" +
             "- **Relationship:** \(.dependency.relationship // "unknown")\n" +
             "- **GHSA:** \(.security_advisory.ghsa_id)\n" +
             "- **CVE:** \(.security_advisory.cve_id // "None")\n" +
             "- **CVSS:** \(.security_advisory.cvss.score // "Not listed")\n" +
-            "- **Vulnerable versions:** \`\(.security_vulnerability.vulnerable_version_range)\`\n" +
-            "- **First patched version:** \`" +
+            "- **Vulnerable versions:** `\(.security_vulnerability.vulnerable_version_range)`\n" +
+            "- **First patched version:** `" +
               (.security_vulnerability.first_patched_version.identifier // "No patched version listed") +
-            "\`\n" +
+            "`\n" +
             "- **Summary:** " +
               ((.security_advisory.summary // "No summary") | gsub("\n"; " ")) +
             "\n" +
