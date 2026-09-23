@@ -106,10 +106,13 @@ jobs:
           } > wrapper.log
           status=$?
           cat wrapper.log
-          if [ "$status" -ne 0 ]; then
-            tail -n 80 wrapper.log | while IFS= read -r line; do echo "::error::$line"; done
-            exit "$status"
-          fi
+          {
+            echo '### Gradle wrapper materialization'
+            echo '```'
+            cat wrapper.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
 
       # Strict dependency verification and dependency locking are only
       # meaningful once the generated lockfiles and checksum metadata are
