@@ -61,6 +61,7 @@ on:
 # Nothing else is granted, and no secret is referenced anywhere in this file.
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: codeql-${{ github.workflow }}-${{ github.ref }}
@@ -73,7 +74,33 @@ env:
   GRADLE_VERSION: '8.13'
 
 jobs:
+  preflight:
+    name: Decide whether CodeQL needs rerun
+    runs-on: ubuntu-24.04
+    outputs:
+      run_analysis: ${{ steps.decide.outputs.run_analysis }}
+    steps:
+      - name: Reuse successful PR validation on merged commits
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          run_analysis=true
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            associated_prs="$(gh api -H "Accept: application/vnd.github+json" "/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq 'length')"
+            if [ "$associated_prs" -gt 0 ]; then
+              run_analysis=false
+              echo "Main commit is associated with a pull request that already passed CodeQL; skipping duplicate analysis."
+            fi
+          fi
+
+          echo "run_analysis=$run_analysis" >> "$GITHUB_OUTPUT"
+
   analyze:
+    needs: preflight
+    if: needs.preflight.outputs.run_analysis == 'true'
     name: CodeQL ${{ matrix.language }} (${{ matrix.build-mode }})
     runs-on: ubuntu-24.04
     timeout-minutes: 60

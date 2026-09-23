@@ -109,13 +109,16 @@ Workflow on pull request and on `main`, actions pinned to immutable commit SHAs 
 
 Cost-aware execution does not weaken this floor. Secret scanning runs on every
 pull request and every push to `main`. Expensive Android, emulator, detekt, and
-backend jobs are started only when the changed paths can affect their result;
-changes to the CI workflow itself deliberately exercise every CI job. CodeQL
-runs on source/build/security-relevant changes plus its weekly schedule and
-manual dispatch. Dependency Review remains a pull-request check on every PR,
-but its dependency-graph comparison is skipped when no dependency manifest,
-Gradle build file, lockfile, wrapper pin, or verification metadata changed.
-The Dependabot alert export is manual-dispatch only and is not a CI gate.
+backend jobs are started only when changed paths can affect their result. A
+pull request that changes CI itself exercises the affected gates before merge.
+On the resulting `main` push, CI and CodeQL use GitHub's commit-to-pull-request
+association to avoid repeating expensive checks that the merged pull request
+already passed; a direct push to `main` has no such association and therefore
+runs the full relevant gates. CodeQL also keeps its weekly schedule and manual
+dispatch. Dependency Review remains a pull-request check on every PR, but its
+dependency-graph comparison is skipped when no dependency manifest, Gradle
+build file, lockfile, wrapper pin, or verification metadata changed. The
+Dependabot alert export is manual-dispatch only and is not a CI gate.
 
 `main` stays releasable. A red check is not merged.
 
