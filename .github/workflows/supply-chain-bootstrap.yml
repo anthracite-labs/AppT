@@ -118,6 +118,10 @@ jobs:
           echo "status=$?" >> "$GITHUB_OUTPUT"
           tail -n 200 first.log
 
+      - name: Report lint findings
+        if: always() && steps.need.outputs.needed == 'true'
+        run: python3 tools/ci/report-lint.py
+
       - name: Report first build
         if: always() && steps.need.outputs.needed == 'true'
         # Run-log download is unavailable to the authoring agent, so compile
