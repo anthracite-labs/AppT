@@ -17,13 +17,13 @@ Phase: `implementation`
 
 ## Current objective
 
-Objective: `Dispatch S01 from the compiled Arena work order in GitHub Issue #27 after explicit human authorization, then implement and review S01 before any dependent slice is compiled or dispatched.`
+Objective: `S01 is human-authorized for Arena execution from GitHub Issue #27. Arena must claim/assign the Issue in its execution environment, implement only S01, and return a pull request for review before any dependent slice is compiled or dispatched.`
 
 Success condition: `Each implementation slice is compiled from the accepted architecture into one self-contained Arena Issue, implemented and reviewed before the next dependent slice is dispatched, while the accepted privacy, reliability, accessibility, licensing, and Samsung-control contracts remain intact.`
 
 ## Active work
 
-Primary: `S01 has been compiled into self-contained Arena Issue #27 and passed the pre-dispatch check. Issue #27 remains unassigned and undispatched; no implementation slice is active yet.`
+Primary: `Human dispatch authorization for S01 was recorded on GitHub Issue #27. The connected GitHub integration exposes no identifiable Arena assignee, so Arena must claim/assign Issue #27 as its first execution action; implementation has not yet been observed as started.`
 
 Secondary:
 
@@ -109,7 +109,7 @@ Secondary:
 
 ## Recent change
 
-- `ChatGPT compiled S01 into GitHub Issue #27 under .agents/ARENA-DISPATCH.md. The work order passed the pre-dispatch check and remains unassigned, so Arena execution has not started.`
+- `The human authorized S01 dispatch on 2026-09-23 and ChatGPT recorded that authorization on GitHub Issue #27. Arena's first execution action must be to claim/assign the Issue before implementation.`
 
 ## Relevant canonical references
 
@@ -122,14 +122,14 @@ Secondary:
 - `docs/architecture/slices.md — the accepted S01–S17 implementation route merged through PR #25.`
 - `docs/HARVEST.md — harvested research disposition: ADOPT / HARVEST / REJECT.`
 - `GitHub Issue #23 — pre-S01 planning reconciliation work order that produced the revised slice route.`
-- `GitHub Issue #27 — compiled S01 Arena work order; pre-dispatch check passed, currently unassigned and undispatched.`
+- `GitHub Issue #27 — compiled S01 Arena work order; pre-dispatch check passed and human dispatch authorization recorded; Arena must claim/assign it before implementation.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
 - `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
 - `AGENTS.md — repository operating entry point.`
 
 ## Next
 
-`Explicitly dispatch S01 by assigning GitHub Issue #27 to Arena. Do not compile or dispatch S02 before S01 is accepted.`
+`Arena claims/assigns GitHub Issue #27 and executes the S01 work order, returning a pull request. Do not compile or dispatch S02 before S01 is accepted.`
 
 ## After that
 
