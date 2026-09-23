@@ -17,13 +17,13 @@ Phase: `implementation`
 
 ## Current objective
 
-Objective: `Compile the accepted S01 implementation slice from docs/architecture/slices.md into one self-contained Arena Issue. No implementation slice is active or dispatched yet.`
+Objective: `Dispatch S01 from the compiled Arena work order in GitHub Issue #27 after explicit human authorization, then implement and review S01 before any dependent slice is compiled or dispatched.`
 
 Success condition: `Each implementation slice is compiled from the accepted architecture into one self-contained Arena Issue, implemented and reviewed before the next dependent slice is dispatched, while the accepted privacy, reliability, accessibility, licensing, and Samsung-control contracts remain intact.`
 
 ## Active work
 
-Primary: `The Issue #23 reconciliation is accepted and merged. The authoritative implementation route is S01–S17 in docs/architecture/slices.md. S01 is the next slice to compile; no implementation slice is active or dispatched yet.`
+Primary: `S01 has been compiled into self-contained Arena Issue #27 and passed the pre-dispatch check. Issue #27 remains unassigned and undispatched; no implementation slice is active yet.`
 
 Secondary:
 
@@ -109,7 +109,7 @@ Secondary:
 
 ## Recent change
 
-- `The human accepted and merged PR #25, completing Issue #23. The reconciled S01–S17 route is now authoritative; S01 remains undispatched until its Arena Issue is compiled and explicitly dispatched.`
+- `ChatGPT compiled S01 into GitHub Issue #27 under .agents/ARENA-DISPATCH.md. The work order passed the pre-dispatch check and remains unassigned, so Arena execution has not started.`
 
 ## Relevant canonical references
 
@@ -122,16 +122,17 @@ Secondary:
 - `docs/architecture/slices.md — the accepted S01–S17 implementation route merged through PR #25.`
 - `docs/HARVEST.md — harvested research disposition: ADOPT / HARVEST / REJECT.`
 - `GitHub Issue #23 — pre-S01 planning reconciliation work order that produced the revised slice route.`
+- `GitHub Issue #27 — compiled S01 Arena work order; pre-dispatch check passed, currently unassigned and undispatched.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
 - `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
 - `AGENTS.md — repository operating entry point.`
 
 ## Next
 
-`Compile S01 from docs/architecture/slices.md into one self-contained Arena implementation Issue under .agents/ARENA-DISPATCH.md. Do not compile or dispatch S02 until S01 is accepted.`
+`Explicitly dispatch S01 by assigning GitHub Issue #27 to Arena. Do not compile or dispatch S02 before S01 is accepted.`
 
 ## After that
 
-1. `Dispatch S01 to Arena after its Issue passes the pre-dispatch check.`
-2. `Review the S01 pull request against its Issue plus the canonical architecture and merge only if accepted.`
-3. `Compile the next dependency-ready slice only after the current slice is accepted; keep provider needs-validation facts and the two external gates visible until resolved.`
+1. `Arena implements S01 from Issue #27 and returns a pull request with the required verification evidence.`
+2. `Review the S01 pull request against Issue #27 plus the canonical architecture; merge only if accepted, then update docs/PROJECT_STATE.md.`
+3. `Compile the next dependency-ready slice only after S01 is accepted; keep provider needs-validation facts and the two external gates visible until resolved.`
