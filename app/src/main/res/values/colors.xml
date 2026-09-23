@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirrors ColorTokens.surface, for the pre-Compose window only. -->
+    <color name="appt_surface">#FF101418</color>
+</resources>

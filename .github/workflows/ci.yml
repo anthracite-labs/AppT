@@ -1,0 +1,283 @@
+# AppT continuous integration — the S01 floor.
+#
+# docs/architecture/release.md#pull-request-checks owns this list. S01 wires
+# the checks that are real in the walking skeleton; the remaining numbered
+# checks (fixture redaction grep, environment guard, emulator suites, release
+# artifact comparison, signing identity) arrive with the slices that make them
+# meaningful.
+#
+# Every external action is pinned to an immutable commit SHA, with the
+# human-readable release tag retained in a trailing comment, so CI cannot be
+# retargeted by a moving tag.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A red required check is not mergeable. Nothing here is `continue-on-error`.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '17'
+  NODE_VERSION: '22'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Secret scanning — runs on every PR and every push to main (release.md #14).
+  # ---------------------------------------------------------------------------
+  secret-scan:
+    name: Secret scanning
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out the full history
+        # actions/checkout v4.3.0
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          # Full history so the scan covers the tree and every commit in the
+          # change, not just the tip.
+          fetch-depth: 0
+
+      - name: Set up Node
+        # actions/setup-node v4.4.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Secret scanner self-test
+        run: node --test "tools/secret-scan/test/*.test.mjs"
+
+      # Scans the whole tree on every run, plus the diff of a pull request.
+      # The scanner is first-party and dependency-free: see the provenance note
+      # at the top of tools/secret-scan/secret-scan.mjs.
+      - name: Scan the tree and the diff for secrets
+        run: |
+          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
+            node tools/secret-scan/secret-scan.mjs --base "${{ github.event.pull_request.base.sha }}"
+          else
+            node tools/secret-scan/secret-scan.mjs
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Android floor.
+  # ---------------------------------------------------------------------------
+  android:
+    name: Android build, tests, lint and guards
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        # actions/checkout v4.3.0
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Set up JDK
+        # actions/setup-java v4.7.1
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        # gradle/actions/setup-gradle v4.4.2
+        uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3
+        with:
+          # Installs the pinned Gradle CLI and puts it on PATH, which is what
+          # materializes the wrapper below. The version matches the pin in
+          # gradle/wrapper/gradle-wrapper.properties exactly.
+          gradle-version: '8.13'
+
+      # The Gradle wrapper, the dependency lockfiles and the dependency
+      # verification metadata are all COMMITTED. There is no bootstrap or
+      # self-healing path here on purpose: a missing supply-chain artifact must
+      # fail the build, not be regenerated on the fly, or the repository could
+      # sit indefinitely in a partially verified state.
+      - name: Verify the supply-chain artifacts are committed
+        run: |
+          set -euo pipefail
+          missing=0
+          for required in \
+            gradlew \
+            gradle/wrapper/gradle-wrapper.jar \
+            gradle/wrapper/gradle-wrapper.properties \
+            gradle/verification-metadata.xml \
+            app/gradle.lockfile \
+            samsung/gradle.lockfile \
+            macrobenchmark/gradle.lockfile \
+            settings-gradle.lockfile
+          do
+            if [ ! -f "$required" ]; then
+              echo "::error::Required committed supply-chain artifact is missing: $required"
+              missing=1
+            fi
+          done
+          if ! grep -q '<component ' gradle/verification-metadata.xml; then
+            echo "::error::gradle/verification-metadata.xml contains no component checksums."
+            missing=1
+          fi
+          test "$missing" -eq 0
+          chmod +x ./gradlew
+          ./gradlew --version
+
+      # The full S01 Android verification set from Issue #27, under strict
+      # dependency verification against the committed checksums.
+      - name: Assemble debug, unit tests, lint and dependency lock check
+        run: >-
+          ./gradlew --no-daemon --dependency-verification=strict
+          assembleDebug lintDebug testDebugUnitTest dependencyLockCheck
+
+      # Lint writes its findings to an XML/HTML report; surfacing errors as
+      # annotations means a lint failure is readable in the checks UI without
+      # downloading the artifact. Runs even when the step above failed.
+      - name: Report lint findings
+        if: always()
+        run: python3 tools/ci/report-lint.py
+
+      - name: Privacy, supply-chain and module guards
+        # noTelemetryDependency, adIdAbsentFromManifest,
+        # noProductionModuleDependsOnBenchmark, the permission allowlist, the
+        # Firestore/crash-reporting checks, the :samsung boundary, the no-Log
+        # rule, the no-sync-record rule and the version-catalog pin check.
+        run: ./gradlew --no-daemon --dependency-verification=strict appTGuards
+
+      - name: ':app dependency insight — no Firestore client'
+        run: >-
+          ./gradlew --no-daemon --dependency-verification=strict
+          :app:dependencyInsight
+          --configuration debugRuntimeClasspath --dependency firestore
+          | tee firestore-insight.txt
+          && ! grep -qiE '^(com\.google\.firebase|com\.google\.cloud).*firestore' firestore-insight.txt
+
+      - name: ':app dependency insight — no Crashlytics'
+        run: >-
+          ./gradlew --no-daemon --dependency-verification=strict
+          :app:dependencyInsight
+          --configuration debugRuntimeClasspath --dependency crashlytics
+          | tee crashlytics-insight.txt
+          && ! grep -qi 'crashlytics:' crashlytics-insight.txt
+
+      - name: ':macrobenchmark compiles as a test-only module'
+        run: ./gradlew --no-daemon --dependency-verification=strict :macrobenchmark:assembleBenchmark
+
+      - name: Upload reports
+        if: always()
+        # actions/upload-artifact v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android-reports
+          path: |
+            **/build/reports/**
+            **/build/outputs/lint-results-*.html
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Runtime acceptance (Issue #27): the debug APK installs on an emulator and
+  # opens to Welcome. A unit/Robolectric test cannot evidence this criterion,
+  # so it runs on a real emulator against the installed APK.
+  # ---------------------------------------------------------------------------
+  welcome-launch:
+    name: Debug APK installs and opens to Welcome
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        # actions/checkout v4.3.0
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Set up JDK
+        # actions/setup-java v4.7.1
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        # gradle/actions/setup-gradle v4.4.2
+        uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3
+        with:
+          gradle-version: '8.13'
+
+      # GitHub's ubuntu runners expose /dev/kvm, but only to members of the kvm
+      # group; without this the emulator falls back to software rendering and
+      # times out.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -la /dev/kvm
+
+      - name: Install the debug APK on an emulator and assert it opens to Welcome
+        # reactivecircus/android-emulator-runner v2.38.0 (Apache-2.0)
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          # API 29 is AppT's minSdk, so the acceptance evidence is taken at the
+          # floor the app claims to support.
+          api-level: 29
+          target: default
+          arch: x86_64
+          profile: pixel_2
+          force-avd-creation: false
+          emulator-options: >-
+            -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+            -camera-back none
+          disable-animations: true
+          # Runs tools/ci/welcome-launch.sh: the emulator action executes
+          # `script` with /usr/bin/sh, so the logic lives in a bash file rather
+          # than inline.
+          script: bash tools/ci/welcome-launch.sh
+
+      - name: Upload the connected-test report
+        if: always()
+        # actions/upload-artifact v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: welcome-launch-report
+          path: |
+            app/build/reports/androidTests/**
+            app/build/outputs/androidTest-results/**
+            connected.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Backend package (release.md #11b). Always package-prefixed from the root.
+  # ---------------------------------------------------------------------------
+  backend:
+    name: Backend typecheck, lint and tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        # actions/checkout v4.3.0
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Set up Node
+        # actions/setup-node v4.4.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      # npm ci is the only install: it fails if package-lock.json is missing or
+      # out of step with package.json.
+      - name: Install from the committed lockfile
+        run: npm ci --prefix backend
+
+      - name: Typecheck
+        run: npm run typecheck --prefix backend
+
+      - name: Lint
+        run: npm run lint --prefix backend
+
+      - name: Format check
+        run: npm run format:check --prefix backend
+
+      - name: Test
+        run: npm test --prefix backend

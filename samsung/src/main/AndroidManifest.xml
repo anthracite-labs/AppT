@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  :samsung declares no permission and no component.
+
+  It has no activities, no permission UI and no @AndroidEntryPoint
+  (docs/architecture/modules.md#hilt-composition-roots). Any permission the
+  control path eventually needs is declared by the slice that requests it, and
+  only from the release.md allowlist.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />

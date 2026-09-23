@@ -1,0 +1,34 @@
+# Build output
+build/
+.gradle/
+
+# The Gradle wrapper IS committed (docs/architecture/release.md pins the
+# toolchain), so it is never swept up by a generic *.jar rule.
+!gradle/wrapper/gradle-wrapper.jar
+local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Node
+node_modules/
+backend/lib/
+backend/coverage/
+*.tsbuildinfo
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Keys, certificates and credentials never enter the tree
+# (docs/architecture/release.md: secret scanning fails on any keystore,
+# certificate or key file appearing in the tree).
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+google-services.json
+service-account*.json

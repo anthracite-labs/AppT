@@ -119,6 +119,27 @@ CHANGE_WIFI_MULTICAST_STATE
 com.android.vending.BILLING
 ```
 
+The allowlist governs *capability requests*: permissions AppT asks the platform
+or another app to grant it. It is an upper bound, not a mandate — S01 declares
+none of them.
+
+One narrow category is outside it. A library may define a **self-permission**: a
+`<permission>` the app declares and then requires of other apps to guard its own
+exported component, most commonly a `FileProvider` or a `WorkManager`-style
+internal receiver. Such an entry grants AppT no capability at all; it restricts
+who may talk to AppT. The merged-manifest guard therefore exempts an entry only
+when it satisfies **both** conditions:
+
+1. it is scoped to the application id (`dev.anthracite.appt.*`), so it cannot be
+   a platform or third-party capability; and
+2. it is declared `android:protectionLevel="signature"`, so only a build signed
+   with the same key can hold it.
+
+Anything failing either condition — including any unscoped permission and any
+`normal`/`dangerous` self-permission — must appear in the allowlist above or it
+fails CI. This exemption cannot widen AppT's capability surface, because a
+signature-level self-permission is not a capability AppT receives.
+
 Anything else fails CI until the architecture map is changed. In particular the allowlist does not include `AD_ID`, `ACCESS_FINE_LOCATION`, `ACCESS_LOCAL_NETWORK`, `NEARBY_WIFI_DEVICES`, `RECEIVE_BOOT_COMPLETED`, `FOREGROUND_SERVICE`, or install-packages. `NEARBY_WIFI_DEVICES` is added only in the change that adopts a Wi-Fi API which requires it, with `neverForLocation`. A target-37 bump must change this allowlist in the same change that adopts `ACCESS_LOCAL_NETWORK`. See [discovery.md](discovery.md).
 
 ## Release path and artifact identity

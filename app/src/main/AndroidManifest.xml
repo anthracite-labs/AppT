@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  S01 declares no permission at all.
+
+  docs/architecture/release.md#manifest-allowlist owns an *allowlist* of what
+  may eventually be declared; nothing on it is needed by a walking skeleton
+  whose only destination is Welcome. Permissions arrive in the slice that uses
+  them, and CI fails on anything outside the allowlist.
+
+  Explicitly absent and not to be added here: AD_ID, any location permission,
+  ACCESS_LOCAL_NETWORK, NEARBY_WIFI_DEVICES, boot receivers, foreground-service
+  permissions, and install-package permissions.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AppT">
+
+        <!-- One activity (docs/architecture/presentation.md#route-graph). -->
+        <!-- No android:label here: it would duplicate the application label. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AppT">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
