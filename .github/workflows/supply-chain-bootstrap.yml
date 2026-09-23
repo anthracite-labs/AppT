@@ -146,7 +146,9 @@ jobs:
 
       - name: Generate dependency lockfiles
         if: steps.need.outputs.needed == 'true'
-        run: ./gradlew --no-daemon --write-locks resolveAndLockAll
+        run: |
+          tools/ci/run-step.sh lockfiles \
+            ./gradlew --no-daemon --write-locks resolveAndLockAll
 
       - name: Generate SHA-256 dependency verification metadata
         if: steps.need.outputs.needed == 'true'
@@ -154,20 +156,38 @@ jobs:
         # empty <components/> would activate verification with zero known
         # checksums and fail every resolution.
         run: |
-          set -euxo pipefail
-          ./gradlew --no-daemon --write-verification-metadata sha256 \
-            assembleDebug lintDebug testDebugUnitTest dependencyLockCheck \
-            :macrobenchmark:assembleBenchmark appTGuards
-          grep -c '<component ' gradle/verification-metadata.xml
+          tools/ci/run-step.sh metadata \
+            ./gradlew --no-daemon --write-verification-metadata sha256 \
+              assembleDebug lintDebug testDebugUnitTest dependencyLockCheck \
+              :macrobenchmark:assembleBenchmark appTGuards
+          grep -c '<component ' gradle/verification-metadata.xml || true
 
       - name: Prove the committed state passes strict verification
         if: steps.need.outputs.needed == 'true'
         run: |
-          set -euxo pipefail
-          ./gradlew --no-daemon --verify-dependencies \
-            assembleDebug lintDebug testDebugUnitTest dependencyLockCheck
-          ./gradlew --no-daemon --verify-dependencies appTGuards
-          ./gradlew --no-daemon --verify-dependencies :macrobenchmark:assembleBenchmark
+          tools/ci/run-step.sh strict-build \
+            ./gradlew --no-daemon --verify-dependencies \
+              assembleDebug lintDebug testDebugUnitTest dependencyLockCheck
+          tools/ci/run-step.sh strict-guards \
+            ./gradlew --no-daemon --verify-dependencies appTGuards
+          tools/ci/run-step.sh strict-benchmark \
+            ./gradlew --no-daemon --verify-dependencies :macrobenchmark:assembleBenchmark
+
+      # Re-reads every recorded status and fails the job if any step failed.
+      # The per-step `continue-on-error` above exists only so one cycle can
+      # report the whole remaining error set; it never softens the gate.
+      - name: Assert every generation step succeeded
+        if: steps.need.outputs.needed == 'true'
+        run: |
+          set -uo pipefail
+          rc=0
+          for f in .ci-status/*; do
+            [ -f "$f" ] || continue
+            s="$(cat "$f")"
+            echo "$(basename "$f"): $s"
+            [ "$s" = "0" ] || rc=1
+          done
+          exit "$rc"
 
       - name: Commit the generated artifacts
         if: steps.need.outputs.needed == 'true'
@@ -179,6 +199,7 @@ jobs:
             gradle/wrapper/gradle-wrapper.properties \
             gradle/verification-metadata.xml
           git add -f ./*/gradle.lockfile || true
+          rm -rf .ci-status step-*.log first.log errs.txt
           git add -A
           if git diff --cached --quiet; then
             echo 'Nothing to commit.'
