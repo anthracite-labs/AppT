@@ -122,16 +122,21 @@ abstract class MergedManifestGuard : DefaultTask() {
     abstract val allowlist: SetProperty<String>
 
     @get:Input
+    abstract val applicationId: Property<String>
+
+    @get:Input
     abstract val variantName: Property<String>
 
     @TaskAction
     fun check() {
         val text = mergedManifest.get().asFile.readText()
+
         val declared = Regex("""<uses-permission[^>]*android:name\s*=\s*"([^"]+)"""")
             .findAll(text)
             .map { it.groupValues[1] }
             .toSortedSet()
 
+        // `AD_ID` must never appear, in any form, regardless of who declared it.
         val adIdOffenders = declared.filter { it.endsWith("AD_ID") }
         if (adIdOffenders.isNotEmpty()) {
             throw GradleException(
@@ -141,7 +146,40 @@ abstract class MergedManifestGuard : DefaultTask() {
             )
         }
 
-        val unapproved = declared - allowlist.get()
+        // An app-scoped *self*-permission is a different thing from a capability
+        // request, and the two must not be conflated.
+        //
+        // AndroidX injects `<applicationId>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`
+        // and defines it, in the same merged manifest, with
+        // `android:protectionLevel="signature"`. It grants the app nothing from
+        // the platform, the user, or any other app: it is how `ContextCompat`
+        // keeps a dynamically registered receiver private on API levels below 33,
+        // which the AppT baseline (minSdk 29) still includes. It carries no
+        // privacy meaning, cannot appear on a store listing permission list, and
+        // is not something release.md's allowlist is about.
+        //
+        // It is therefore evaluated as a self-permission, under conditions strict
+        // enough that nothing meaningful can hide here:
+        //   * the name must be namespaced under this build's applicationId, and
+        //   * the same manifest must define it with signature protection.
+        // Anything failing either condition is treated as a capability request
+        // and must be on the release.md allowlist.
+        //
+        // The allowlist itself is unchanged and still matches
+        // docs/architecture/release.md#manifest-allowlist exactly.
+        val signaturePermissions = Regex(
+            """<permission[^>]*android:name\s*=\s*"([^"]+)"[^>]*android:protectionLevel\s*=\s*"signature"""",
+        ).findAll(text).map { it.groupValues[1] }.toSet() +
+            Regex(
+                """<permission[^>]*android:protectionLevel\s*=\s*"signature"[^>]*android:name\s*=\s*"([^"]+)"""",
+            ).findAll(text).map { it.groupValues[1] }.toSet()
+
+        val selfPermissionPrefix = applicationId.get() + "."
+        val (selfPermissions, requested) = declared.partition { permission ->
+            permission.startsWith(selfPermissionPrefix) && permission in signaturePermissions
+        }
+
+        val unapproved = requested.toSortedSet() - allowlist.get()
         if (unapproved.isNotEmpty()) {
             throw GradleException(
                 "manifestPermissionAllowlist failed for ${variantName.get()}: the merged manifest " +
@@ -153,8 +191,10 @@ abstract class MergedManifestGuard : DefaultTask() {
         }
 
         logger.lifecycle(
-            "manifestPermissionAllowlist + adIdAbsentFromManifest: OK for ${variantName.get()} " +
-                "(declared permissions: ${if (declared.isEmpty()) "none" else declared.joinToString(", ")}).",
+            "manifestPermissionAllowlist + adIdAbsentFromManifest: OK for ${variantName.get()}. " +
+                "Requested permissions: ${if (requested.isEmpty()) "none" else requested.sorted().joinToString(", ")}. " +
+                "App-scoped signature self-permissions: " +
+                (if (selfPermissions.isEmpty()) "none" else selfPermissions.sorted().joinToString(", ")) + ".",
         )
     }
 }
@@ -168,6 +208,7 @@ androidComponents.onVariants { variant ->
             variant.artifacts.get(com.android.build.api.artifact.SingleArtifact.MERGED_MANIFEST),
         )
         allowlist.set(manifestPermissionAllowlist)
+        applicationId.set(variant.applicationId)
         variantName.set(variant.name)
     }
     // Manifest guards are part of assembling, so a local build cannot produce
