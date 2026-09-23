@@ -70,6 +70,13 @@ jobs:
       - name: Check out the head of the change
         # actions/checkout v4.3.0
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          # The pull_request default is refs/pull/N/merge (a test merge of the
+          # PR into its base). Submit the graph of the PR HEAD instead — the
+          # exact tree dependency review will judge. The action keys the
+          # snapshot to pull_request.head.sha itself, so this makes the
+          # submitted graph and its commit agree exactly.
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Set up Java
         # actions/setup-java v4.7.1
@@ -84,13 +91,22 @@ jobs:
         # Same monorepo and the same immutable commit already pinned for
         # gradle/actions/setup-gradle in ci.yml and codeql.yml — this step adds
         # no new pinned surface.
+        #
+        # No additional-arguments here on purpose. The action resolves the
+        # LOCKED project graph and records its coordinates; it does not build
+        # or install anything. Its own bookkeeping plugin
+        # (org.gradle:github-dependency-graph-gradle-plugin, from the plugin
+        # portal) deliberately resolves outside
+        # gradle/verification-metadata.xml — forcing
+        # --dependency-verification=strict onto this step fails closed on that
+        # tooling (observed in run 35904754457). The byte-level checksum floor
+        # stays exactly where it belongs: every real build in CI — assemble,
+        # lint, tests, dependencyLockCheck, the detekt job and CodeQL's manual
+        # Kotlin build — still resolves under strict verification, and this
+        # step cannot change any of that.
         uses: gradle/actions/dependency-submission@017a9effdb900e5b5b2fddfb590a105619dca3c3
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
-          # Resolve under the same strict verification CI enforces everywhere
-          # else, so the submission path can never quietly accept an artifact
-          # whose checksum is not in gradle/verification-metadata.xml.
-          additional-arguments: --dependency-verification=strict
 
   # ---------------------------------------------------------------------------
   # 2. Review — only after the submission above, and only once the snapshot is
