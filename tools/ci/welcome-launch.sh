@@ -56,8 +56,23 @@ fi
 # an ordinary cold launch.
 echo "=== launcher-style cold start ==="
 adb shell am force-stop dev.anthracite.appt
-adb shell monkey -p dev.anthracite.appt -c android.intent.category.LAUNCHER 1
-sleep 6
+# `monkey` returns before the activity is actually resumed and can bounce off
+# the launcher, so start the LAUNCHER intent directly and wait for it. -W
+# blocks until the launch completes; -S forces a cold start.
+adb shell am start -W -S \
+  -a android.intent.action.MAIN \
+  -c android.intent.category.LAUNCHER \
+  -n dev.anthracite.appt/.MainActivity | tr -d '\r'
+
+# Wait for the window manager to report AppT focused, rather than assuming a
+# fixed sleep is long enough on a cold emulator.
+for _ in $(seq 1 20); do
+  if adb shell dumpsys window 2>/dev/null \
+      | grep -q 'dev.anthracite.appt/.*MainActivity'; then
+    break
+  fi
+  sleep 1
+done
 
 focus="$(adb shell dumpsys window 2>/dev/null \
   | grep -iE 'mCurrentFocus|mFocusedApp' | head -n 2 | tr -d '\r')"
