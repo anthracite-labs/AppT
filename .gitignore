@@ -1,6 +1,10 @@
 # Build output
 build/
 .gradle/
+
+# The Gradle wrapper IS committed (docs/architecture/release.md pins the
+# toolchain), so it is never swept up by a generic *.jar rule.
+!gradle/wrapper/gradle-wrapper.jar
 local.properties
 *.apk
 *.aab

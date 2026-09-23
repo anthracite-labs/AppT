@@ -92,122 +92,50 @@ jobs:
           # gradle/wrapper/gradle-wrapper.properties exactly.
           gradle-version: '8.13'
 
-      - name: Materialize the pinned Gradle wrapper
-        id: wrapper
-        continue-on-error: true
-        # gradlew and gradle-wrapper.jar are generated, not committed; see
-        # docs/BUILD.md. The wrapper is generated in an empty scratch directory
-        # and copied in, because running `gradle wrapper` inside the project
-        # would configure the AppT build (and resolve AGP) before the wrapper
-        # that is supposed to run that build even exists.
-        run: |
-          set -x
-          {
-            which gradle || true
-            gradle --version || true
-            if [ ! -f ./gradlew ]; then
-              scratch="$(mktemp -d)"
-              # Gradle 8.13 refuses to run in a directory that is not a build,
-              # so the scratch directory needs an (empty) settings file.
-              : > "$scratch/settings.gradle.kts"
-              ( cd "$scratch" && gradle wrapper --gradle-version 8.13 --distribution-type bin --stacktrace )
-              ls -la "$scratch" "$scratch/gradle/wrapper" || true
-              cp "$scratch/gradlew" ./gradlew
-              cp "$scratch/gradle/wrapper/gradle-wrapper.jar" gradle/wrapper/gradle-wrapper.jar
-              chmod +x ./gradlew
-            fi
-            ./gradlew --version
-          } > wrapper.log 2>&1
-          echo "status=$?" >> "$GITHUB_OUTPUT"
-          cat wrapper.log
-
-      - name: Report wrapper materialization
-        if: always()
-        run: |
-          # Annotations are capped, so surface only the diagnostic tail:
-          # error/exception lines plus the last few lines of output.
-          grep -iE "error|exception|caused by|what went wrong|not found|denied|no such" wrapper.log \
-            | tail -n 6 | while IFS= read -r line; do echo "::error::WRAPPER: $line"; done
-          tail -n 4 wrapper.log | while IFS= read -r line; do echo "::error::TAIL: $line"; done
-          test "${{ steps.wrapper.outputs.status }}" = "0"
-
-      # Strict dependency verification and dependency locking are only
-      # meaningful once the generated lockfiles and checksum metadata are
-      # committed. This step states plainly whether the repository is
-      # bootstrapped, so a missing bootstrap reads as a bootstrap problem
-      # rather than as a confusing checksum failure. See docs/BUILD.md.
-      - name: Supply-chain bootstrap state
-        id: supply_chain
+      # The Gradle wrapper, the dependency lockfiles and the dependency
+      # verification metadata are all COMMITTED. There is no bootstrap or
+      # self-healing path here on purpose: a missing supply-chain artifact must
+      # fail the build, not be regenerated on the fly, or the repository could
+      # sit indefinitely in a partially verified state.
+      - name: Verify the supply-chain artifacts are committed
         run: |
           set -euo pipefail
-          bootstrapped=true
-          if [ ! -f gradle/verification-metadata.xml ] || ! grep -q '<component ' gradle/verification-metadata.xml; then
-            echo '::warning::gradle/verification-metadata.xml is absent or has no component checksums yet.'
-            bootstrapped=false
+          missing=0
+          for required in \
+            gradlew \
+            gradle/wrapper/gradle-wrapper.jar \
+            gradle/wrapper/gradle-wrapper.properties \
+            gradle/verification-metadata.xml \
+            app/gradle.lockfile \
+            samsung/gradle.lockfile \
+            macrobenchmark/gradle.lockfile
+          do
+            if [ ! -f "$required" ]; then
+              echo "::error::Required committed supply-chain artifact is missing: $required"
+              missing=1
+            fi
+          done
+          if ! grep -q '<component ' gradle/verification-metadata.xml; then
+            echo "::error::gradle/verification-metadata.xml contains no component checksums."
+            missing=1
           fi
-          if ! ls app/gradle.lockfile >/dev/null 2>&1; then
-            echo '::warning::Dependency lockfiles are not committed yet.'
-            bootstrapped=false
-          fi
-          echo "bootstrapped=$bootstrapped" >> "$GITHUB_OUTPUT"
+          test "$missing" -eq 0
+          chmod +x ./gradlew
+          ./gradlew --version
 
-      - name: Assemble debug, unit tests, lint and dependency lock check (strict verification)
-        if: steps.supply_chain.outputs.bootstrapped == 'true'
+      # The full S01 Android verification set from Issue #27, under strict
+      # dependency verification against the committed checksums.
+      - name: Assemble debug, unit tests, lint and dependency lock check
         run: >-
-          ./gradlew --no-daemon
-          --verify-dependencies
+          ./gradlew --no-daemon --verify-dependencies
           assembleDebug lintDebug testDebugUnitTest dependencyLockCheck
-
-      - name: Assemble debug, unit tests and lint, and write the supply-chain metadata
-        id: bootstrap_build
-        continue-on-error: true
-        if: steps.supply_chain.outputs.bootstrapped != 'true'
-        # Resolves the graph once and generates the lockfiles and the SHA-256
-        # verification metadata, which are then uploaded for review and commit.
-        # The build itself must still pass here, so this path never hides a
-        # broken build; it only defers checksum enforcement to the commit that
-        # adds the reviewed checksums.
-        run: |
-          # No verification file is put in place first: Gradle activates
-          # verification on that filename alone, so seeding it with zero
-          # checksums would fail every resolution. Gradle's
-          # write-verification-metadata generates the file (with verify-metadata
-          # enabled, matching the reviewed policy template), and the reviewer
-          # confirms the policy header when committing it.
-          {
-            ./gradlew --no-daemon --write-locks resolveAndLockAll --stacktrace &&
-            ./gradlew --no-daemon --write-verification-metadata sha256 \
-              assembleDebug lintDebug testDebugUnitTest :macrobenchmark:assembleBenchmark &&
-            ./gradlew --no-daemon assembleDebug lintDebug testDebugUnitTest dependencyLockCheck
-          } > build.log 2>&1
-          echo "status=$?" >> "$GITHUB_OUTPUT"
-          cat build.log
-
-      - name: Report bootstrap build
-        if: always() && steps.supply_chain.outputs.bootstrapped != 'true'
-        run: |
-          grep -iE "^e: |error:|Caused by|Could not resolve|No matching|not found|Unresolved|> Task .* FAILED|required by|locking" build.log \
-            | grep -v "^\s*at " | head -n 9 | while IFS= read -r line; do echo "::error::BUILD: $line"; done
-          test "${{ steps.bootstrap_build.outputs.status }}" = "0"
-
-      - name: Upload generated supply-chain metadata for review
-        if: steps.supply_chain.outputs.bootstrapped != 'true'
-        # actions/upload-artifact v4.6.2
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: supply-chain-bootstrap
-          path: |
-            gradle/verification-metadata.xml
-            **/gradle.lockfile
-          if-no-files-found: warn
-          retention-days: 14
 
       - name: Privacy, supply-chain and module guards
         # noTelemetryDependency, adIdAbsentFromManifest,
         # noProductionModuleDependsOnBenchmark, the permission allowlist, the
         # Firestore/crash-reporting checks, the :samsung boundary, the no-Log
         # rule, the no-sync-record rule and the version-catalog pin check.
-        run: ./gradlew --no-daemon appTGuards
+        run: ./gradlew --no-daemon --verify-dependencies appTGuards
 
       - name: ':app dependency insight — no Firestore client'
         run: >-
@@ -224,7 +152,7 @@ jobs:
           && ! grep -qi 'crashlytics:' crashlytics-insight.txt
 
       - name: ':macrobenchmark compiles as a test-only module'
-        run: ./gradlew --no-daemon :macrobenchmark:assembleBenchmark
+        run: ./gradlew --no-daemon --verify-dependencies :macrobenchmark:assembleBenchmark
 
       - name: Upload reports
         if: always()

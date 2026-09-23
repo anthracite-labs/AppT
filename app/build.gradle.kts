@@ -172,7 +172,16 @@ androidComponents.onVariants { variant ->
     }
     // Manifest guards are part of assembling, so a local build cannot produce
     // an APK whose permissions were never checked.
-    tasks.named("assemble${capitalized}") { dependsOn(guard) }
+    //
+    // `tasks.matching { ... }.configureEach` rather than `tasks.named(...)`:
+    // this callback runs while AGP is still configuring variants, and the
+    // variant lifecycle tasks (`assembleDebug`, `assembleRelease`) do not exist
+    // yet. `named` resolved them eagerly and failed configuration with
+    // "Task with name 'assembleDebug' not found in project ':app'"; `matching`
+    // is lazy and wires the dependency when AGP creates the task.
+    tasks.matching { it.name == "assemble$capitalized" }.configureEach {
+        dependsOn(guard)
+    }
 }
 
 // Accepted names, aggregating every variant's merged manifest.
