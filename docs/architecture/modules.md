@@ -4,16 +4,19 @@ Vocabulary follows `.agents/skills/codebase-design/SKILL.md`: **module**, **inte
 
 ## Shape
 
-Two Gradle modules. No further split until a demonstrated pressure appears.
+Two production Gradle modules plus one test-only benchmark module. No further split until a demonstrated pressure appears.
 
-| Module | Owns | Does not own |
-|---|---|---|
-| `app` | Compose UI, navigation, permission explanation, account gate, Room, DataStore, sync worker, Crashlytics wiring, Hilt application graph | WebSocket payloads, discovery packets, pairing tokens, TLS pins, retry loops, protocol generation selection |
-| `samsung` | Discovery, identity correlation, pairing, security identity, session, reconnect, capability evidence, command translation, wake, secret storage | Permission dialogs, Firebase, account state, sync records, Crashlytics SDK, layout |
+| Module | Kind | Owns | Does not own |
+|---|---|---|---|
+| `app` | production | Compose UI, navigation, permission explanation, account and licensing, Room, DataStore, entitlement cache, diagnostics, Hilt application graph | WebSocket payloads, discovery packets, pairing tokens, TLS pins, retry loops, protocol generation selection |
+| `samsung` | production | Discovery, identity correlation, pairing, security identity, session, reconnect, capability evidence, command translation, wake, secret storage | Permission dialogs, Firebase, account state, licensing, telemetry SDKs, layout |
+| `macrobenchmark` | test-only (`com.android.test`) | Macrobenchmark measurement of launch, frame timing, control latency, process-death reopen, and baseline-profile generation for `app` | Any production code, any shipped artifact, any dependency of `app` or `samsung` |
 
-`app` depends on `samsung`. `samsung` does not depend on `app`.
+`app` depends on `samsung`. `samsung` does not depend on `app`. Neither production module depends on `macrobenchmark`, and the benchmark module is not part of the release artifact.
 
-There is no `domain`, `data`, `usecase`, or `repository` Gradle module. Packages inside `app` are not a Clean Architecture stack. A universal TV **interface** is not created. Ecosystem #2 is the trigger for that seam; it gets its own module then, not a speculative **adapter** now.
+**Why the benchmark module exists** although the production shape is two modules: Android's Macrobenchmark API must run from a separate `com.android.test` module that targets the app under test, so it cannot live inside `app` or `samsung`. It adds no seam to production code, exposes nothing at runtime, and exists only in the test and CI graphs. `app` consumes generated baseline profiles through the `androidx.baselineprofile` plugin. Delete it and the reliability targets in [reliability.md](reliability.md) lose their verification, which is the "earns its keep" test.
+
+There is no `domain`, `data`, `usecase`, or `repository` Gradle module. Packages inside `app` are not a Clean Architecture stack. A universal TV **interface** is not created; ecosystem #2 is the trigger for that seam.
 
 Suggested namespaces, confirmable before the first Play upload: `dev.anthracite.appt` and `dev.anthracite.appt.samsung`. The application id default is `dev.anthracite.appt`. Changing it before the first Play upload is not an architecture change.
 
@@ -22,82 +25,116 @@ Suggested namespaces, confirmable before the first Play upload: `dev.anthracite.
 ```mermaid
 flowchart LR
   subgraph phone [Phone]
-    appMod[app]
-    samsungMod[samsung]
+    appMod["app (UI, gates, local data, licensing)"]
+    samsungMod["samsung (deep control module)"]
     appMod --> samsungMod
   end
-  tv[SamsungTV]
-  cloud[FirebaseAuthAndFirestore]
-  samsungMod -->|LAN client only| tv
-  appMod -->|non-secret sync when signed in| cloud
-  tv -.->|no dependency| cloud
-  cloud -.->|no dependency| tv
+  tv["Samsung television"]
+  auth["Firebase Authentication"]
+  fn["AppT Entitlement Backend"]
+  samsungMod -->|"LAN client only"| tv
+  appMod -->|"ID token + App Check"| fn
+  appMod -->|"SDK"| auth
+  tv -.->|"no dependency"| fn
+  auth -.->|"no dependency"| tv
 ```
 
-Local control crosses only the `app` → `samsung` → television path. Firebase is not on that path.
+Local control crosses only the `app` → `samsung` → television path. No Firebase, Play, or licensing component sits on it.
 
-## External seam
+## External seams
 
-`samsung` presents one **interface**: `SamsungTvs`, specified in [samsung-interface.md](samsung-interface.md).
+Each seam below is a place where behaviour genuinely varies, so each seam has at least two **adapters**: a production adapter and a test adapter. Anything with only one adapter is not a seam; it is an implementation detail. Diagnostics is the worked example: with cloud crash reporting removed from V1 there is no variation to abstract, so the local record and its redactor have one implementation and a test double rather than a seam.
+
+| Seam | Interface | Production adapter | Test adapter |
+|---|---|---|---|
+| Samsung control | `SamsungTvs`, `RemoteSession` | `SamsungTvsImpl` inside `samsung` | Fake installed with Hilt `@TestInstallIn` |
+| Local-network access | `PermissionGate` | Android platform APIs and app preference state | Scripted states |
+| Identity | `AccountAuth` | Firebase Auth plus Credential Manager | Scripted sign-in, verification, and failure states |
+| Entitlement Backend | `EntitlementBackend` | OkHttp HTTPS client against the Entitlement Backend | Scripted responses, delays, and outages |
+| Purchase | `PlayBilling` | Play Billing library | Scripted purchase, pending, revoked, and replayed tokens |
+| Integrity | `IntegrityProvider` | Play Integrity plus App Check token acquisition | Scripted verdicts and unavailability |
+
+### Samsung control (`samsung`)
+
+`SamsungTvs` presents one interface, specified in [samsung-interface.md](samsung-interface.md).
 
 **Depth:** callers learn discovery, open, command, wake, forget, and observable session state. Protocol generations, sockets, tokens, and backoff stay behind the seam.
 
-**Leverage:** every screen, ViewModel test, and Compose test uses the same interface. A fake **adapter** of `SamsungTvs` replaces the production **adapter** in `app` tests.
+**Leverage:** every screen, ViewModel test, and Compose test uses the same interface.
 
-**Locality:** a protocol change is confined to `samsung`. Callers change only when the observable contract changes.
+**Locality:** a protocol change is confined to `samsung`; callers change only when the observable contract changes.
 
-Deletion test: deleting `samsung` would force WebSocket, discovery, pairing, and reconnect knowledge back into every caller. The module earns its keep. It is not a pass-through.
+Deletion test: deleting `samsung` would force WebSocket, discovery, pairing, and reconnect knowledge back into every caller. The module earns its keep and is not a pass-through.
 
-Two **adapters** of `SamsungTvs` make the seam real:
+### Licensing (`app`)
 
-1. Production `SamsungTvsImpl`, constructed inside `samsung`.
-2. Fake, used by `app` unit and Compose tests, installed with Hilt `@TestInstallIn(replaces = SamsungModule::class)`.
+`Licensing` is the deep module for trial, purchase, and entitlement state. Its interface is in [sync.md](sync.md#client-seams).
 
-## Internal seams
+**Depth:** callers learn one snapshot and six intents. Proof verification, key-set caching, the time model, provisional records, retry policy, App Check, Play verification round trips, and the account gate inputs stay behind the seam.
 
-These stay inside `samsung`. They are not parameters of `SamsungTvs` and are not types `app` can import. Each exists because production and test adapters both need it.
+**Leverage:** account surfaces, the gate, Settings, and launch routing all read the same snapshot; none of them knows how a proof is verified.
+
+**Locality:** a change in backend protocol, proof format, or revocation handling is one module's change.
+
+Deletion test: deleting `Licensing` would push token handling, proof verification, time arithmetic, and purchase state into every account surface and into `ActiveRemoteHost`. It earns its keep.
+
+`Licensing` is the only caller of `EntitlementBackend`, `PlayBilling`, and `IntegrityProvider`. `AccountAuth` is separate because identity and entitlement vary independently: sign-in can succeed while entitlement checks fail, and a signed-out app still evaluates the first-session exemption.
+
+### Internal seams inside `samsung`
+
+These stay inside the module. They are not parameters of `SamsungTvs` and are not types `app` can import. Each exists because production and test adapters both need it.
 
 | Internal seam | Production adapter | Test adapter |
 |---|---|---|
 | Discovery transport | SSDP client, `NsdManager`, device-info HTTP | Scripted candidates |
 | Session transport | OkHttp WebSocket and TLS | Scripted frames, delays, closes, certificate identities |
 | Secret store | Android Keystore AES-GCM files | In-memory |
-| Wake sender | UDP magic packet | Records sends, sends nothing |
+| Wake sender | UDP magic packet | Records sends, transmits nothing |
 | Clock | System clock | Controllable |
 | Diagnostic log | Redacting ring buffer | Captures events for assertions |
 
 `SamsungTvsImpl` is `internal`. Tests in the `samsung` module construct it with fake internal adapters. `app` receives only `SamsungTvs`.
 
-OkHttp is the HTTP and WebSocket stack inside `samsung`. Android networking primitives are used where multicast, NSD, or Wake-on-LAN require them. No second HTTP stack. No Firebase, Play services, or Crashlytics dependency on the `samsung` Gradle graph. A CI check fails the build if one appears.
+OkHttp is the HTTP and WebSocket stack inside `samsung`. Android networking primitives are used where multicast, NSD, or Wake-on-LAN require them. No second HTTP stack. No Firebase, Play services, or telemetry dependency on the `samsung` Gradle graph; a CI check fails if one appears.
 
 ## Dependency direction
 
 ```mermaid
 flowchart TD
-  ui[ComposeAndViewModels]
-  gates[PermissionGateAndAccountGate]
-  local[RoomAndDataStore]
-  sync[SyncWorker]
-  iface[SamsungTvs]
-  impl[SamsungImplementation]
+  ui["Compose and ViewModels"]
+  gates["PermissionGate and AccountGate"]
+  host["ActiveRemoteHost"]
+  local["Room, DataStore, entitlement cache"]
+  licensing["Licensing"]
+  work["EntitlementRefresh worker"]
+  iface["SamsungTvs"]
+  impl["Samsung implementation"]
   ui --> gates
   ui --> local
-  ui --> iface
-  sync --> local
+  ui --> licensing
+  ui --> host
+  gates --> licensing
+  host --> gates
+  host --> iface
+  licensing --> local
+  work --> licensing
   iface --> impl
 ```
 
 Allowed edges:
 
-- ViewModels depend on `SamsungTvs`, Room/DataStore readers, and the gates.
-- The sync worker depends on Room, DataStore, and Firebase. It does not depend on `RemoteSession` and does not call `command`.
-- `samsung` implementation depends on its internal adapters, OkHttp, and Android framework APIs it needs for LAN and Keystore.
+- ViewModels depend on `SamsungTvs`, `ActiveRemoteHost`, Room DAOs, `PreferenceStore`, `AccountAuth`, `Licensing`, and the gates.
+- `Licensing` depends on `AccountAuth`, `EntitlementBackend`, `PlayBilling`, `IntegrityProvider`, and the entitlement cache.
+- `ActiveRemoteHost` depends on `AccountGate` and `SamsungTvs`. It opens a session only after the gate allows.
+- The `EntitlementRefresh` worker depends on `Licensing` only. It never touches `SamsungTvs`, `RemoteSession`, discovery, or Room television rows.
+- `samsung` depends on its internal adapters, OkHttp, and the Android framework APIs it needs for LAN and Keystore.
 
 Forbidden edges:
 
-- `samsung` → `app`, Firebase, Crashlytics, Room sync entities, or WorkManager.
-- ViewModels → OkHttp, `NsdManager`, Keystore aliases, or protocol types.
-- Sync worker → secret store or session transport.
+- `samsung` → `app`, Firebase, Play, any telemetry SDK, Room, DataStore, WorkManager, or licensing.
+- ViewModels → `EntitlementBackend`, `IntegrityProvider`, `FirebaseAuth`, OkHttp, `NsdManager`, Keystore aliases, proof types, or protocol types.
+- Licensing → `SamsungTvs`, `RemoteSession`, Room television rows, or `RemoteKey`.
+- Any module → a sync record, mutation queue, or Firestore client. The client Firestore SDK is not in the Android dependency graph at all; Firestore is server-only.
 - UI → Firestore snapshot listeners. V1 has none.
 
 ## Hilt composition roots
@@ -108,42 +145,26 @@ Hilt wires the Android graph. It is not the architecture. Ordinary classes take 
 |---|---|---|
 | `AppTApplication` `@HiltAndroidApp` | `app` | Application graph |
 | `SamsungModule` `@InstallIn(SingletonComponent::class)` | `samsung` | `SamsungTvs` to the production implementation |
-| App modules | `app` | Room database, DataStore, sync worker, account gate, permission gate, Crashlytics hookup |
+| App modules | `app` | Room database, `PreferenceStore`, `ActiveRemoteHost`, `AccountGate`, `PermissionGate`, `Licensing`, backend and billing adapters, diagnostics, WorkManager configuration |
 
-`app` does not `@Provides SamsungTvs`. Construction of the production adapter stays in `samsung`, so `app` cannot assemble a half-wired session. Tests replace `SamsungModule` entirely.
+`app` does not `@Provides SamsungTvs`. Construction of the production adapter stays in `samsung`, so `app` cannot assemble a half-wired session. Tests replace `SamsungModule` and the licensing seams.
 
 `@AndroidEntryPoint` is used on Android entry points in `app` only. `samsung` has no activities, no permission UI, and no `@AndroidEntryPoint`.
 
-ViewModels expose `StateFlow`. Navigation uses Navigation Compose with type-safe Kotlin-serialization routes. Routes grow with the slices in [slices.md](slices.md). V1 route set:
-
-| Route | Role |
-|---|---|
-| `Welcome` | First open |
-| `LocalNetwork` | Explanation immediately before the system prompt |
-| `Discovery` | Bounded scan results |
-| `Remote` | Active control for one `TvId` |
-| `TvList` | Remembered televisions |
-| `Account` | Google and email/password, after first control |
-| `Settings` | Haptics, volume buttons, navigation mode, names |
-| `ExportDiagnostics` | Explicit redacted share |
-
-There is no route for manual IP entry, casting, or IR.
+ViewModels expose a single `StateFlow` of `UiState`. Navigation uses Navigation Compose with type-safe Kotlin-serialization routes. Routes, launch routing, and screen contracts are owned by [presentation.md](presentation.md).
 
 ## Process and lifecycle ownership
 
 V1 is a single process. No `android:process`, no foreground service, no boot receiver, no app widget. Background continuous discovery or control is not part of V1.
 
-`app` owns an `ActiveRemote` holder:
+`app` owns two pieces of process-level state:
 
-- `open` when the remote surface starts and the account gate allows it.
-- If that open occurs before `firstControlAchieved` with no signed-in user, the holder owns the first-session account exemption for the lifetime of that same `ActiveRemote`.
-- Pass a scope owned by `ActiveRemote`, not the destination ViewModel scope, so leaving the screen does not cancel the grace window.
-- Call `close` 15 seconds after the remote surface stops, unless it started again.
-- The 15 seconds covers rotation, a share sheet, and a transient pause; returning inside it is the same exempt session rather than a new remote entry.
-- Once the exempt holder closes after first success, the next remote entry requires sign-in before a new `open`.
-- Cancelling the session does not delete secrets.
+1. **`ActiveRemoteHost`** — the application-scoped owner of the current Active Remote. `Remote` screens retain it; sheets, edit mode, and rotation do not release it. Release starts the 15-second grace. Transitions are owned by [lifecycle.md](lifecycle.md).
+2. **`AccountGate`** — the single licensing decision point, consulted by `ActiveRemoteHost.enter`. Its rules are owned by [sync.md](sync.md#remote-entry-gate).
 
-The permission gate and the account gate live in `app`. `samsung` never launches permission UI and never reads Firebase Auth. Gate rules are in [discovery.md](discovery.md) and [sync.md](sync.md).
+The permission gate also lives in `app`. `samsung` never launches permission UI and never reads Firebase Auth. Gate rules are in [discovery.md](discovery.md).
+
+Deferred background work is limited to `EntitlementRefresh` in `WorkManager`, whose scope is in [lifecycle.md](lifecycle.md#workmanager).
 
 ## Package layout
 
@@ -164,17 +185,35 @@ samsung/di/SamsungModule.kt
 `app`:
 
 ```text
-gate/          permission gate, account gate
+gate/          PermissionGate, AccountGate
+host/          ActiveRemoteHost
+navigation/    routes, launch routing
 discovery/     scan UI
-remote/        remote UI, ActiveRemote
-account/
-sync/
-local/         Room and DataStore
-diagnostics/   Crashlytics and share sheet
-navigation/
+pairing/       pairing UI
+remote/        remote UI, sheets, edit mode
+tvlist/        remembered-television management
+account/       account, trial, purchase and restore surfaces
+licensing/     Licensing, proof verification, entitlement cache, backend and billing clients
+local/         Room database and DAOs, PreferenceStore
+diagnostics/   local record, redactor, export
+work/          EntitlementRefresh
 ```
 
-`local` is the Room and DataStore package. It is not a Clean Architecture data layer and it is not a Gradle module.
+`local` is the Room and DataStore package. It is not a Clean Architecture data layer and it is not a Gradle module. `licensing` is not a Gradle module either; the split is a package boundary that keeps entitlement code out of UI and out of `samsung`.
+
+## Dependency set boundaries
+
+`samsung` depends on OkHttp, Coroutines, kotlinx-serialization, and the Android APIs it uses. It does not depend on the Firebase BOM, Play Billing, or Play Integrity.
+
+`app` depends on Compose, Navigation, Lifecycle, Hilt, Room, DataStore, WorkManager, OkHttp, kotlinx-serialization, Firebase Auth, Firebase App Check with Play Integrity, Play Billing, and Credential Manager. It has no crash-reporting, analytics, advertising, or attribution dependency. Exact versions and pins are owned by [release.md](release.md).
+
+CI enforces the boundary:
+
+- `:samsung` dependency insight must not contain Firebase, Play services, or any telemetry SDK.
+- `:app` dependency insight must not contain a Firestore client artifact or any crash-reporting, analytics, advertising, or attribution artifact.
+- Neither production module may depend on `:macrobenchmark`, and `:macrobenchmark` must not appear in the release artifact.
+- `samsung` production sources must not call `android.util.Log` or reference Firebase packages.
+- No production source may declare a sync record, tombstone, or mutation-queue type.
 
 ## Platform baseline
 
@@ -182,6 +221,5 @@ From the accepted baseline, restated only where implementers need the number bes
 
 - `minSdk` 29, `targetSdk` / `compileSdk` 36.
 - Kotlin, Jetpack Compose, ViewModel, Coroutines, StateFlow.
-- One `OkHttpClient` inside `samsung` for device-info and the remote WebSocket. No logging interceptor.
-
-`targetSdk` / `compileSdk` 36 stays the V1 baseline. `ACCESS_LOCAL_NETWORK` is not declared and not requested while `targetSdk` is 36. Broad local-network permission is a requirement of a later target-37 bump, not of V1. `NEARBY_WIFI_DEVICES` is not a V1 permission: SSDP, raw sockets, and `NsdManager` do not require it. Android 16 local-network protection is transitional and opt-in at target 36. The gate is specified in [discovery.md](discovery.md).
+- One `OkHttpClient` shared by `samsung` and by the entitlement client, configured per consumer. No logging interceptor in release.
+- `ACCESS_LOCAL_NETWORK` is not declared and not requested while `targetSdk` is 36. Broad local-network permission is a requirement of a later target-37 bump, not of V1. `NEARBY_WIFI_DEVICES` is not a V1 permission. The gate is specified in [discovery.md](discovery.md).

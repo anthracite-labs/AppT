@@ -17,18 +17,18 @@ Phase: `architecture`
 
 ## Current objective
 
-Objective: `Complete the second architecture round, now including a dedicated UI/UX architecture track: information architecture, screen/state models, remote interaction design, onboarding, account/trial/purchase surfaces, accessibility, recovery, visual-system rules, plus remaining security/backend/lifecycle/reliability/migration closure.`
+Objective: `The architecture closure round (GitHub Issue #19) is complete. The remaining work is human review and explicit acceptance of the closed map. No implementation slice is authorized or dispatched.`
 
 Success condition: `Every material product/architecture decision is explicit, the detailed docs are internally consistent with docs/PRODUCT.md, docs/ARCHITECTURE.md, CONTEXT.md, and docs/HARVEST.md, the superseded TV-sync model is fully removed, and the human explicitly approves leaving architecture.`
 
 ## Active work
 
-Primary: `Architecture closure work order #19 is compiled and ready for Arena: complete frontend, licensing/backend, security, lifecycle/network, reliability, migrations, tests, release, and slice-map reconciliation. No implementation slice is active or dispatched.`
+Primary: `Architecture closure Issue #19 is executed on branch arena/01a0cb3f-appt from base commit 20b4d1ea5e837986d953b804ceb7cb9f6f0ec117. The detailed map in docs/architecture/ is internally consistent, the superseded TV-personalization sync model is removed, and implementation slices S01-S16 are defined. No implementation slice is active or dispatched.`
 
 Secondary:
 
-- Reconcile all detailed docs that still contain the superseded Firestore TV-personalization sync model.
-- Add the missing presentation/navigation, threat-model, backend-environment, Android lifecycle/network, reliability/performance, and persisted-format migration architecture.
+- Human review and explicit acceptance of the closure PR is the next gate.
+- Provider facts recorded as needs validation in docs/architecture/README.md must be confirmed during implementation.
 - Focused Samsung vendor-terms/legal review remains a pre-release gate, not an architecture blocker.
 
 ## Current decisions
@@ -64,7 +64,7 @@ Secondary:
 - `One Google Play lifetime purchase binds to one Customer Account; it is not freely transferable among unrelated AppT accounts.`
 - `A genuine Play purchase may receive a short non-renewable provisional entitlement if AppT validation infrastructure is temporarily unavailable.`
 - `Play Integrity is used proportionally for anti-abuse and authenticity, not as a blanket paid-entitlement confiscation mechanism.`
-- `Cloud crash reporting is opt-in; local redacted diagnostics always remain available.`
+- `V1 has no cloud crash reporting and no crash-reporting, analytics, or advertising SDK; bounded redacted local diagnostics plus an explicit user-confirmed export are the whole diagnostic path.`
 - `TV/personalization state is excluded from Android backup/device transfer; a new phone starts its remote state clean.`
 - `The same seven-day trial follows the account across phones with the original expiry; participating devices are marked as trial-consumed.`
 - `Trial/purchase UX is low-pressure and never interrupts an active remote session.`
@@ -86,36 +86,41 @@ Secondary:
 - `Portrait phone is the primary reference, but V1 responds correctly to rotation, landscape, foldables and tablets without a separate tablet product.`
 - `Accessibility floor includes 48dp minimum targets, scalable text, TalkBack semantics/status announcements, no color-only meaning, gesture alternatives, strong contrast, reduced-motion respect, and safe destructive-action treatment.`
 - `The known human UI/UX decision frontier is closed; remaining frontend work is technical architecture synthesis unless a real contradiction surfaces.`
+- `Architecture closure: the Entitlement Backend is Firebase Cloud Functions (2nd gen) with a server-only Firestore datastore, Secret Manager marker keys, a Cloud KMS proof-signing key, and Play RTDN over Pub/Sub; the Android client has no Firestore dependency.`
+- `Development, internal, and production Firebase/Cloud/Play environments are separated; production credentials never enter the repository.`
+- `Play carries one artifact: a production-flavoured release candidate is uploaded to the internal testing track and promoted from there, while internal-environment builds are distributed outside Play, so the promoted build is the build that was tested.`
+- `Account deletion freezes the purchase binding before the Firebase Auth user is deleted and releases it only after, so the purchase is never re-bindable while the previous account can still authenticate; a scheduled job finishes deletions that stopped early.`
+- `Backend source is TypeScript on the Cloud Functions 2nd gen Node.js runtime, owned by backend/, with its own lockfile and emulator-suite tests, and every backend command is package-prefixed from the repository root as `npm <script> --prefix backend` (ci, typecheck, lint, test, test:emulator, deploy).`
+- `Production signing stays with Google-managed Play App Signing and CI holds only the upload key; the outside-Play internal tester build is signed with a separate internal signing key whose certificate is registered only in the internal Firebase project, so each App Check registration matches the certificate of the build that talks to it.`
+- `The internal and production release artifacts are compared with signature material stripped, so a signing-certificate difference can never be mistaken for a configuration difference, and signing identity plus certificate registration are asserted by their own checks.`
+- `Both release variants from one commit carry the same versionCode and versionName, because the version identifies a release rather than an environment, so the artifact comparison needs no version-code exception and allows environment configuration to differ and nothing else.`
+- `A frozen purchase binding and its account record share one random deletion-scoped deletionId written at freeze, so an interrupted account deletion is always reconcilable and a frozen binding can never be permanently orphaned.`
+- `An accountDeleted release of a purchase binding requires an Auth-removal proof timestamp: reconciliation releases only after Firebase Auth confirms the user is gone, and while the identity can still authenticate it leaves the binding frozen and raises an alert instead of releasing.`
+- `AppT application data is excluded from Android backup and device transfer, so a new phone starts its remote state clean.`
+- `The implementation route is the rebuilt sixteen-slice map in docs/architecture/slices.md, which replaces the old S01-S15 route and contains no television-sync slice.`
 - `Phase transition to implementation requires explicit human approval.`
 
 ## Blockers / Unknowns
 
-- Exact entitlement backend/service and datastore shape.
-- Google Play purchase binding, restore identity, validation-outage, and integrity-failure semantics.
-- Offline paid-entitlement cache/token representation and tamper model.
-- Anti-abuse keyed-identifier rotation and backend/legal retention implementation.
-- Dev/test/production Firebase, Play Billing, Play Integrity, and backend environment separation.
-- Compile the settled UI/UX decisions into explicit presentation/navigation state contracts, responsive rules, Compose ownership, restoration behavior, and accessibility verification.
-- Formal threat model/trust boundaries for LAN control plus account/licensing infrastructure.
-- Android network/lifecycle architecture across Wi-Fi/Ethernet changes, VPNs, screen/background/process transitions, and Doze.
-- Internal reliability/performance budgets and benchmark gates.
-- Secret/private-record migration, key rotation, corruption, and app-upgrade strategy.
-- Detailed data/modules/flows/testing/release/slices docs still need reconciliation after the privacy pivot.
+- Human acceptance of the architecture closure is outstanding; the repository must stay in `Phase: architecture` until it is explicit.
+- Provider facts listed as needs validation in `docs/architecture/README.md` (Play RTDN shapes, Developer API method, `purchaseType`, Play Integrity verdicts, Android ID stability, Play vitals coverage without a crash SDK, KMS/JWKS rotation, email-alias normalization, contrast tooling) must be confirmed during implementation.
 - Final AppT source-license decision remains required before public distribution.
 - Focused Samsung vendor-terms/legal review must be completed before public release.
+- Physical-device evidence is required to tune the reliability targets in `docs/architecture/reliability.md`.
 
 ## Recent change
 
-- `Compiled GitHub Issue #19 as the architecture-only Arena work order to close all remaining technical architecture gaps and rebuild the implementation slice map; implementation remains unauthorized.`
+- `Applied the third architecture-closure review: the release-artifact comparison is now consistent with the documented version codes (one version code and name per release, so the check keeps environment configuration as the only permitted difference and needs no version-code exception), and a frozen purchase binding now carries a deletion-scoped deletionId matching its account record plus an Auth-removal proof timestamp, so reconciliation has a defined lookup key and no accountDeleted release can happen while the previous identity can still authenticate. Earlier this closure round, the outside-Play internal build got its own signing identity and per-environment App Check registration while production keeps Google-managed Play App Signing, the artifact comparison was made signature-aware, and every backend command was made package-prefixed against backend/ so no install or test command depends on the caller's working directory. Earlier this closure round, cloud crash reporting was removed from V1 by human decision, and the release artifact/promotion model, account-deletion durability, trial attach, provisional local key, forget lifecycle, Activity recreation, the test-only benchmark module, and the backend source layout were settled. docs/architecture/ is internally consistent and ready for human review; implementation remains unauthorized.`
 
 ## Relevant canonical references
 
 - `docs/PRODUCT.md — approved product definition, including privacy-first account/trial/license behavior.`
-- `CONTEXT.md — canonical AppT domain language.`
+- `CONTEXT.md — canonical AppT domain language, including Entitlement Backend, Provisional Entitlement, and Trial Eligibility Marker.`
 - `docs/ARCHITECTURE.md — accepted technical baseline as revised by settled architecture decisions.`
-- `docs/architecture/README.md — detailed architecture map and reconciliation status.`
-- `docs/architecture/sync.md — current account/trial/entitlement architecture and remaining technical questions.`
-- `docs/architecture/ui-ux.md — settled product-surface architecture and frontend technical closure requirements.`
+- `docs/architecture/README.md — detailed architecture map, settled-decision ownership, invariant pointers, and the needs-validation register.`
+- `docs/architecture/sync.md — account, trial, purchase, and entitlement architecture (file name is historical).`
+- `docs/architecture/presentation.md — routes, screen state contracts, restoration, responsive rules, tokens, accessibility.`
+- `docs/architecture/slices.md — the S01–S16 implementation route.`
 - `docs/HARVEST.md — harvested research disposition: ADOPT / HARVEST / REJECT.`
 - `GitHub Issue #19 — architecture-only Arena work order for technical closure and slice-map rebuild.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
@@ -124,10 +129,10 @@ Secondary:
 
 ## Next
 
-`Run architecture closure Issue #19 in Arena, then review its pull request against the canonical product/domain/architecture/UI decisions. Do not dispatch implementation.`
+`Review the architecture closure pull request against the canonical product/domain/architecture/UI decisions, then explicitly accept or reject the architecture map. Do not dispatch implementation.`
 
 ## After that
 
-1. `Arena executes Issue #19 and returns an architecture-only pull request.`
-2. `Review and reconcile that PR against PRODUCT, ARCHITECTURE, CONTEXT, HARVEST, PROJECT_STATE, and UI/UX decisions.`
-3. `Only explicit human approval can move the project to implementation; then compile implementation slices one at a time from the accepted slice map.`
+1. `Human review of the architecture closure pull request, including the needs-validation register and the S01–S16 route.`
+2. `Record explicit acceptance or the required changes; the repository stays in Phase: architecture until acceptance.`
+3. `After explicit approval, compile implementation slices one at a time from docs/architecture/slices.md through the Arena dispatch contract.`
