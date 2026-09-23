@@ -1,0 +1,111 @@
+# One-shot: top up gradle/verification-metadata.xml.
+#
+# The first generation pass ran a task list, which discovered the dependency
+# graphs of those tasks but missed three metadata artifacts resolved while
+# CONFIGURING the build (the buildscript `classpath` configuration):
+# kotlinx-coroutines-bom-1.6.4.pom, junit-bom-5.9.2.module and
+# junit-bom-5.10.2.module. Strict verification then rejected them.
+#
+# Generation is incremental and preserves existing entries, so this re-runs it
+# including the `help` task, which is the task Gradle documents for discovering
+# as much as possible, and re-proves the committed state under strict
+# verification before committing.
+#
+# The checksums cannot be produced from the authoring sandbox, which has no
+# Maven egress. DELETE this workflow once it has run: ci.yml remains the gate
+# and never regenerates supply-chain artifacts.
+
+name: Verification metadata top-up
+
+on:
+  push:
+    branches: [arena/01a0cc2b-appt]
+
+permissions:
+  contents: write
+
+jobs:
+  topup:
+    name: Top up and re-verify dependency checksums
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        # actions/checkout v4.3.0
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          ref: ${{ github.ref_name }}
+          persist-credentials: true
+
+      # Self-disabling: only runs while the known-missing entries are absent.
+      - name: Decide whether the top-up is needed
+        id: need
+        run: |
+          set -euo pipefail
+          needed=false
+          for artifact in kotlinx-coroutines-bom-1.6.4.pom \
+            junit-bom-5.9.2.module junit-bom-5.10.2.module
+          do
+            grep -q "$artifact" gradle/verification-metadata.xml || needed=true
+          done
+          echo "needed=$needed" >> "$GITHUB_OUTPUT"
+          echo "top-up needed: $needed"
+
+      - name: Set up JDK
+        if: steps.need.outputs.needed == 'true'
+        # actions/setup-java v4.7.1
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Generate the missing checksums
+        if: steps.need.outputs.needed == 'true'
+        run: |
+          set -euxo pipefail
+          chmod +x ./gradlew
+          before="$(grep -c '<component ' gradle/verification-metadata.xml)"
+          # `help` discovers configuration-time resolution, including the
+          # buildscript classpath; the task list keeps the execution-time
+          # graphs. Generation is incremental, so existing entries survive.
+          ./gradlew --no-daemon --write-verification-metadata sha256 \
+            help assembleDebug lintDebug testDebugUnitTest \
+            dependencyLockCheck :macrobenchmark:assembleBenchmark appTGuards
+          after="$(grep -c '<component ' gradle/verification-metadata.xml)"
+          echo "components: ${before} -> ${after}"
+          for artifact in kotlinx-coroutines-bom-1.6.4.pom \
+            junit-bom-5.9.2.module junit-bom-5.10.2.module
+          do
+            grep -q "$artifact" gradle/verification-metadata.xml \
+              || { echo "still missing: $artifact"; exit 1; }
+          done
+
+      # Proves the committed state verifies strictly, which is the actual
+      # requirement, rather than merely that the file grew.
+      - name: Re-prove strict verification from the committed state
+        if: steps.need.outputs.needed == 'true'
+        run: |
+          set -euxo pipefail
+          ./gradlew --no-daemon --dependency-verification=strict \
+            assembleDebug lintDebug testDebugUnitTest dependencyLockCheck
+          ./gradlew --no-daemon --dependency-verification=strict appTGuards
+          ./gradlew --no-daemon --dependency-verification=strict \
+            :macrobenchmark:assembleBenchmark
+
+      - name: Commit the topped-up metadata
+        if: steps.need.outputs.needed == 'true'
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -f android-build.log
+          git add -f gradle/verification-metadata.xml
+          git add -f ./*/gradle.lockfile || true
+          if git diff --cached --quiet; then
+            echo 'Nothing to commit.'
+            exit 0
+          fi
+          git commit \
+            -m 'Add verification checksums for configuration-time BOM metadata' \
+            -m 'The first generation pass missed three artifacts resolved while configuring the build (buildscript classpath). Regenerated including the help task and re-proved strict verification from the committed state.' \
+            -m 'Refs #27'
+          git push origin HEAD:${{ github.ref_name }}
