@@ -17,13 +17,13 @@ Phase: `implementation`
 
 ## Current objective
 
-Objective: `Review S01 PR #30 against GitHub Issue #27 now that the full CI workflow is green, obtain the remaining install/launch-to-Welcome evidence, and accept S01 only after all review findings and acceptance criteria are satisfied.`
+Objective: `Complete the final S01 acceptance pass on PR #30 now that CI and real API 29 install/launch-to-Welcome evidence are green; require the final review record and current PR completion report before human acceptance and merge.`
 
 Success condition: `Each implementation slice is compiled from the accepted architecture into one self-contained Arena Issue, implemented and reviewed before the next dependent slice is dispatched, while the accepted privacy, reliability, accessibility, licensing, and Samsung-control contracts remain intact.`
 
 ## Active work
 
-Primary: `PR #30 now has a fully green CI run: Android build/tests/lint, supply-chain verification, privacy/module guards, both dependency-insight checks, macrobenchmark compilation, backend checks, and secret scanning all pass. The PR completion text is stale, and device/emulator install-and-launch evidence for Welcome is still not recorded. S01 remains active and unaccepted pending review and that runtime evidence.`
+Primary: `PR #30 has a fully green CI run including a real API 29 emulator acceptance job: connectedDebugAndroidTest passes, the debug APK cold-launches dev.anthracite.appt/.MainActivity, and AppT is focused/resumed on Welcome. Arena reported Standards clean except one non-blocking duplication judgement call and Spec clean. The PR description is still stale, and Arena has one unpushed cosmetic annotation-severity fix due to its expired GitHub token. S01 remains unaccepted pending cleanup and final human review.`
 
 Secondary:
 
@@ -109,7 +109,7 @@ Secondary:
 
 ## Recent change
 
-- `PR #30 reached a fully green CI run after the Gradle wrapper, lockfiles, verification metadata, strict verification, compile/lint fixes, guards, dependency-insight checks, and macrobenchmark compilation all passed. Runtime install/launch evidence is still outstanding.`
+- `PR #30 now has genuine runtime acceptance evidence on an API 29 x86_64 emulator in CI: connectedDebugAndroidTest passes and a cold launcher start resumes dev.anthracite.appt/.MainActivity on Welcome. The current green PR head is a66aac5; Arena's later cosmetic annotation fix was not pushed because its GitHub token expired.`
 
 ## Relevant canonical references
 
@@ -129,7 +129,7 @@ Secondary:
 
 ## Next
 
-`Run the repository-defined code-review pass on PR #30 and obtain real device/emulator evidence that the debug build installs and opens to Welcome. Do not compile or dispatch S02 before S01 is accepted.`
+`Reconnect Arena's GitHub access, push the cosmetic annotation-only fix if still desired, require the resulting HEAD to stay green, update PR #30's stale completion report, and complete the final human acceptance review. Do not compile or dispatch S02 before S01 is accepted.`
 
 ## After that
 
