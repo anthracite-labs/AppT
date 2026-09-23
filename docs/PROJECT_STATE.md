@@ -17,13 +17,13 @@ Phase: `implementation`
 
 ## Current objective
 
-Objective: `Complete the security baseline in GitHub Issue #36 — full security audit followed by automated code-scanning/tooling implementation — before resuming S02. S07 remains dependency-ready but is not active or authorized.`
+Objective: `Resume S02 — Local-network explanation and bounded discovery — now that the pre-S02 security baseline in Issue #36 has been accepted and merged. S07 remains dependency-ready but is not active or authorized.`
 
-Success condition: `Issue #36 completes a validated full security audit and lands the accepted CodeQL/detekt/dependency-review/Dependabot/security-script baseline without weakening existing privacy or supply-chain controls; its resulting PR is reviewed and accepted before S02 resumes.`
+Success condition: `S02 is implemented and accepted against the architecture/slice contract while preserving the merged security baseline, privacy constraints, and supply-chain controls.`
 
 ## Active work
 
-Primary: `Security baseline Issue #36 is compiled, labelled ready-for-agent, and intentionally unassigned pending explicit human Arena dispatch. S01 remains the accepted implementation baseline through PR #30; no product implementation slice is active.`
+Primary: `Security baseline Issue #36 is complete and closed by merged PR #38. S01 remains the accepted product implementation baseline through PR #30; S02 is now the next product slice to compile and dispatch.`
 
 Secondary:
 
@@ -100,7 +100,7 @@ Secondary:
 - `The implementation route is the accepted seventeen-slice map in docs/architecture/slices.md, merged through PR #25; it replaces the sixteen-slice map and contains no television-sync slice.`
 - `Architecture closure was explicitly accepted by the human on 2026-09-23; implementation is now authorized, one accepted slice at a time.`
 - `S01 — Walking skeleton and CI floor — is the accepted implementation baseline, merged through PR #30 with green Android, runtime-emulator, backend, and secret-scanning checks.`
-- `Before S02, AppT will run the dedicated Arena security baseline in Issue #36: a full standard-profile security audit first, then implementation of CodeQL for Java/Kotlin and JavaScript/TypeScript, detekt for Kotlin, GitHub dependency review, Dependabot version-update configuration, and a repository-owned security script while preserving the existing secret scanner.`
+- `The pre-S02 security baseline is accepted through merged PR #38 / closed Issue #36: full standard-profile audit evidence was produced, and CodeQL for Java/Kotlin plus JavaScript/TypeScript, detekt, GitHub dependency review, Dependabot configuration, and the repository-owned security script are now part of the repository floor while preserving the existing secret scanner.`
 - `Generic Semgrep is deferred; add it only for a later AppT-specific invariant that CodeQL, detekt, Android lint, existing Gradle guards, or simple repository checks cannot express cleanly.`
 
 ## Blockers / Unknowns
@@ -112,7 +112,7 @@ Secondary:
 
 ## Recent change
 
-- `The human reprioritized the next action on 2026-09-23: security baseline Issue #36 now precedes S02 and is compiled ready-for-agent but unassigned pending explicit Arena dispatch.`
+- `Security baseline Issue #36 was reviewed, remediated, and accepted on 2026-09-23 through merged PR #38; the repository now returns to S02 as the next product slice.`
 
 ## Relevant canonical references
 
@@ -126,17 +126,17 @@ Secondary:
 - `docs/HARVEST.md — harvested research disposition: ADOPT / HARVEST / REJECT.`
 - `GitHub Issue #23 — pre-S01 planning reconciliation work order that produced the revised slice route.`
 - `GitHub Issue #27 — completed S01 Arena work order; closed by merged PR #30.`
-- `GitHub Issue #36 — security baseline Arena work order: full audit followed by automated code scanning/tooling; ready-for-agent and unassigned.`
+- `GitHub Issue #36 — completed security-baseline Arena work order; closed by merged PR #38.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
 - `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
 - `AGENTS.md — repository operating entry point.`
 
 ## Next
 
-`After explicit human authorization, dispatch Issue #36 to Arena. Arena must run the full standard-profile security audit to a valid terminal state before implementing the agreed automated security baseline and returning a PR.`
+`Compile and dispatch S02 — Local-network explanation and bounded discovery — as the next authorized product implementation slice, using the accepted slice/architecture sources and preserving the merged security baseline.`
 
 ## After that
 
-1. `Review Issue #36's audit evidence and security-tooling PR; accept and merge only after its audit and automation acceptance criteria pass, then update docs/PROJECT_STATE.md.`
-2. `Resume S02 — Local-network explanation and bounded discovery — as the next product implementation slice after the security baseline is accepted.`
+1. `Implement and review S02 against the accepted architecture/slice contract.`
+2. `Keep the confirmed security-audit follow-up findings visible for separate hardening work; do not silently fold them into unrelated product slices.`
 3. `S07 remains dependency-ready after S01 and may run in parallel with the control spine, but compile/dispatch it only when explicitly chosen and authorized; keep provider needs-validation facts and the two external public-release gates visible.`
