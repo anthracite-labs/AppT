@@ -121,7 +121,11 @@ jobs:
       - name: Report wrapper materialization
         if: always()
         run: |
-          while IFS= read -r line; do echo "::error::$line"; done < wrapper.log
+          # Annotations are capped, so surface only the diagnostic tail:
+          # error/exception lines plus the last few lines of output.
+          grep -iE "error|exception|caused by|what went wrong|not found|denied|no such" wrapper.log \
+            | tail -n 6 | while IFS= read -r line; do echo "::error::WRAPPER: $line"; done
+          tail -n 4 wrapper.log | while IFS= read -r line; do echo "::error::TAIL: $line"; done
           test "${{ steps.wrapper.outputs.status }}" = "0"
 
       # Strict dependency verification and dependency locking are only
