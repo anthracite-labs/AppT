@@ -1,0 +1,110 @@
+name: Export Dependabot Alerts
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/export-dependabot.yml'
+
+permissions:
+  contents: read
+  vulnerability-alerts: read
+
+jobs:
+  export:
+    name: Export Dependabot alerts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Fetch open Dependabot alerts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          gh api             --paginate             --slurp             -H "Accept: application/vnd.github+json"             -H "X-GitHub-Api-Version: 2022-11-28"             "/repos/${GITHUB_REPOSITORY}/dependabot/alerts?state=open&per_page=100"             | jq 'add // []'             > dependabot-alerts.json
+
+      - name: Generate Markdown report
+        run: |
+          set -euo pipefail
+
+          TOTAL="$(jq 'length' dependabot-alerts.json)"
+          CRITICAL="$(jq '[.[] | select(.security_advisory.severity == "critical")] | length' dependabot-alerts.json)"
+          HIGH="$(jq '[.[] | select(.security_advisory.severity == "high")] | length' dependabot-alerts.json)"
+          MODERATE="$(jq '[.[] | select(.security_advisory.severity == "moderate")] | length' dependabot-alerts.json)"
+          LOW="$(jq '[.[] | select(.security_advisory.severity == "low")] | length' dependabot-alerts.json)"
+
+          cat > dependabot-alerts.md <<EOF
+          # AppT Dependabot Alert Export
+
+          Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+          Repository: \`${GITHUB_REPOSITORY}\`
+
+          Source commit: \`${GITHUB_SHA}\`
+
+          ## Summary
+
+          | Severity | Open alerts |
+          | --- | ---: |
+          | Critical | ${CRITICAL} |
+          | High | ${HIGH} |
+          | Moderate | ${MODERATE} |
+          | Low | ${LOW} |
+          | **Total** | **${TOTAL}** |
+
+          ## Alerts
+
+          EOF
+
+          jq -r '
+            def severity_rank:
+              if . == "critical" then 0
+              elif . == "high" then 1
+              elif . == "moderate" then 2
+              elif . == "low" then 3
+              else 4
+              end;
+
+            sort_by(
+              (.security_advisory.severity | severity_rank),
+              .dependency.package.name,
+              .number
+            )
+            | .[]
+            |
+            "### Alert #\(.number) — \(.dependency.package.name)\n\n" +
+            "- **Severity:** \(.security_advisory.severity)\n" +
+            "- **Package:** \`\(.dependency.package.name)\`\n" +
+            "- **Ecosystem:** \(.dependency.package.ecosystem)\n" +
+            "- **Manifest:** \`\(.dependency.manifest_path)\`\n" +
+            "- **Scope:** \(.dependency.scope // "unknown")\n" +
+            "- **Relationship:** \(.dependency.relationship // "unknown")\n" +
+            "- **GHSA:** \(.security_advisory.ghsa_id)\n" +
+            "- **CVE:** \(.security_advisory.cve_id // "None")\n" +
+            "- **CVSS:** \(.security_advisory.cvss.score // "Not listed")\n" +
+            "- **Vulnerable versions:** \`\(.security_vulnerability.vulnerable_version_range)\`\n" +
+            "- **First patched version:** \`" +
+              (.security_vulnerability.first_patched_version.identifier // "No patched version listed") +
+            "\`\n" +
+            "- **Summary:** " +
+              ((.security_advisory.summary // "No summary") | gsub("\n"; " ")) +
+            "\n" +
+            "- **GitHub:** \(.html_url)\n"
+          ' dependabot-alerts.json >> dependabot-alerts.md
+
+      - name: Add report to workflow summary
+        run: |
+          cat dependabot-alerts.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Dependabot export
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dependabot-alerts
+          path: |
+            dependabot-alerts.md
+            dependabot-alerts.json
+          if-no-files-found: error
+          retention-days: 14
