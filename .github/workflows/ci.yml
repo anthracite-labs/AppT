@@ -108,7 +108,8 @@ jobs:
             gradle/verification-metadata.xml \
             app/gradle.lockfile \
             samsung/gradle.lockfile \
-            macrobenchmark/gradle.lockfile
+            macrobenchmark/gradle.lockfile \
+            settings-gradle.lockfile
           do
             if [ ! -f "$required" ]; then
               echo "::error::Required committed supply-chain artifact is missing: $required"
@@ -236,15 +237,23 @@ jobs:
             echo "::error::GRADLEW: $(test -f ./gradlew && echo present || echo MISSING)"
             set -x
             chmod +x ./gradlew
-            adb devices
-            adb shell getprop ro.build.version.sdk
-            adb shell getprop ro.product.model
+            echo "::error::CHMOD_RC: $?"
+            adb devices 2>&1 | tail -5
+            echo "::error::ADB_RC: $?"
+            echo "::error::SDK: $(adb shell getprop ro.build.version.sdk 2>&1 | tr -d '\r')"
+            echo "::error::MODEL: $(adb shell getprop ro.product.model 2>&1 | tr -d '\r')"
             # connectedDebugAndroidTest installs the debug APK plus the test APK
             # and runs WelcomeLaunchTest, which launches MainActivity and
             # asserts the Welcome surface is displayed.
             ./gradlew --no-daemon --dependency-verification=strict \
               :app:connectedDebugAndroidTest 2>&1 | tee connected.log || {
                 echo "=== connectedDebugAndroidTest failed; reason follows ==="
+                awk '/\* What went wrong:/{f=1} f{print} /\* Try:/{f=0}' \
+                  connected.log | grep -v "^[[:space:]]*at " | head -n 20 \
+                  | while IFS= read -r line; do echo "::error::WHY: $line"; done
+                grep -iE "^e: |error:|FAILED|Installation failed|INSTALL_" \
+                  connected.log | sort -u | head -n 10 \
+                  | while IFS= read -r line; do echo "::error::ERR: $line"; done
                 awk '/\* What went wrong:/{f=1} f{print} /\* Try:/{f=0}' \
                   connected.log | grep -v "^[[:space:]]*at " | head -n 25
                 echo "=== instrumentation / crash log ==="
