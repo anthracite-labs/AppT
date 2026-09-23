@@ -168,9 +168,12 @@ jobs:
         # broken build; it only defers checksum enforcement to the commit that
         # adds the reviewed checksums.
         run: |
-          # Seed the policy template so the generated file inherits the
-          # reviewed policy (verify-metadata on, no trusted-artifact wildcards).
-          cp gradle/verification-metadata.template.xml gradle/verification-metadata.xml
+          # No verification file is put in place first: Gradle activates
+          # verification on that filename alone, so seeding it with zero
+          # checksums would fail every resolution. Gradle's
+          # write-verification-metadata generates the file (with verify-metadata
+          # enabled, matching the reviewed policy template), and the reviewer
+          # confirms the policy header when committing it.
           {
             ./gradlew --no-daemon --write-locks resolveAndLockAll --stacktrace &&
             ./gradlew --no-daemon --write-verification-metadata sha256 \
