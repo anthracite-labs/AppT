@@ -180,8 +180,8 @@ jobs:
       - name: Report bootstrap build
         if: always() && steps.supply_chain.outputs.bootstrapped != 'true'
         run: |
-          grep -iE "^e: |error:|FAILURE|What went wrong|Caused by|Could not|Unresolved|> Task .* FAILED" build.log \
-            | head -n 8 | while IFS= read -r line; do echo "::error::BUILD: $line"; done
+          grep -iE "^e: |error:|Caused by|Could not resolve|No matching|not found|Unresolved|> Task .* FAILED|required by|locking" build.log \
+            | grep -v "^\s*at " | head -n 9 | while IFS= read -r line; do echo "::error::BUILD: $line"; done
           test "${{ steps.bootstrap_build.outputs.status }}" = "0"
 
       - name: Upload generated supply-chain metadata for review
