@@ -62,6 +62,21 @@ android {
     lint {
         warningsAsErrors = true
         abortOnError = true
+        checkDependencies = true
+
+        // Dependency-currency advisories are informational here, not failures.
+        // docs/architecture/release.md#gradle: "Updates arrive as reviewed pull
+        // requests. Silent upgrades are not allowed." A lint check that fails
+        // the build the moment upstream publishes a release would either force
+        // an unreviewed bump or block every unrelated change, which is the
+        // opposite of that rule. Version currency is handled by reviewed
+        // dependency-update pull requests; the pins themselves are still
+        // enforced exactly by `versionCatalogPinned`.
+        informational += setOf(
+            "AndroidGradlePluginVersion",
+            "GradleDependency",
+            "NewerVersionAvailable",
+        )
         // The Welcome surface is not yet localized beyond the default locale;
         // translation completeness becomes real when store locales are chosen.
         disable += setOf("MissingTranslation")

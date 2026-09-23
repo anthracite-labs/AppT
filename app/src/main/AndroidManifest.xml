@@ -22,10 +22,10 @@
         android:theme="@style/Theme.AppT">
 
         <!-- One activity (docs/architecture/presentation.md#route-graph). -->
+        <!-- No android:label here: it would duplicate the application label. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
             android:theme="@style/Theme.AppT">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
