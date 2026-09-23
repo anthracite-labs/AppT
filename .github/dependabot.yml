@@ -29,9 +29,12 @@ version: 2
 
 updates:
   # ---------------------------------------------------------------------------
-  # Gradle: gradle/libs.versions.toml, the module lockfiles, and the wrapper
-  # properties. The version catalog is the single place a version is written, so
-  # a bump is a one-line diff that `versionCatalogPinned` still enforces as exact.
+  # Gradle: gradle/libs.versions.toml is where Dependabot writes its bumps. The
+  # module lockfiles, gradle/verification-metadata.xml and the wrapper
+  # properties belong to this ecosystem, but the lockfiles are NOT assumed to be
+  # maintained automatically — see the REVIEWER NOTE below. The version catalog
+  # is the single place a version is written, so a bump is a one-line diff that
+  # `versionCatalogPinned` still enforces as exact.
   # ---------------------------------------------------------------------------
   - package-ecosystem: gradle
     directory: '/'
@@ -63,19 +66,29 @@ updates:
 
     # REVIEWER NOTE — required follow-up for every Gradle bump in this repo.
     #
-    # Dependabot updates gradle/libs.versions.toml and the *.gradle.lockfile
-    # files, but it CANNOT update gradle/verification-metadata.xml. Because CI
-    # resolves under --dependency-verification=strict, a Dependabot Gradle pull
-    # request will fail until the new artifacts' checksums are added. That is the
-    # intended fail-closed behaviour, not a flake. Before merging, run the
-    # documented regeneration (docs/BUILD.md, gradle/verification-metadata.template.xml):
+    # Dependabot proposes the version bump in gradle/libs.versions.toml. Do not
+    # assume it keeps anything else in step automatically. It CANNOT write
+    # gradle/verification-metadata.xml at all, and its Gradle lockfile support
+    # has a documented limitation where gradle.lockfile is not updated when a
+    # Gradle version catalog is in use (dependabot-core#12557; later work in
+    # dependabot-core#14879 may have narrowed that gap — confirm on the first
+    # Dependabot Gradle pull request rather than trusting it either way). AppT
+    # is exactly that catalog-driven setup, so the manual regeneration below is
+    # the authoritative process for BOTH the *.gradle.lockfile files and the
+    # verification metadata.
+    #
+    # Because CI resolves under --dependency-verification=strict and runs
+    # dependencyLockCheck, a Dependabot Gradle pull request fails closed until
+    # the regenerated artifacts are committed. That is the intended fail-closed
+    # behaviour, not a flake. Before merging, run the documented regeneration
+    # (docs/BUILD.md, gradle/verification-metadata.template.xml):
     #
     #   ./gradlew --no-daemon --write-verification-metadata sha256 \
     #     assembleDebug testDebugUnitTest lintDebug :macrobenchmark:assembleBenchmark
     #   ./gradlew resolveAndLockAll --write-locks
     #
     # Then review the generated <components> diff exactly as you would review a
-    # lockfile, and commit both artifacts to the Dependabot branch.
+    # lockfile, and commit the regenerated artifacts to the Dependabot branch.
 
   # ---------------------------------------------------------------------------
   # Backend npm package. All dependency updates must go through this directory,
