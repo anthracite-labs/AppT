@@ -359,7 +359,7 @@ Verification rules:
 - Acknowledge within Google's three-day window from the backend so an unacknowledged purchase cannot be auto-refunded by client failure.
 - `purchaseType` (test, promo, rewarded) never grants a durable production Lifetime Entitlement. Such a purchase is recorded for diagnostics and is reported as rejected to the client with an internal reason.
 - The fingerprint is `HMAC-SHA256(keyVersion, packageName + ":" + purchaseToken)`. Product id is stored on the binding record but not inside the fingerprint, so a voided-purchase notification (which carries no product id) still resolves.
-- The raw purchase token lives only in memory for the duration of the verification call.
+- The raw purchase token lives only in memory during the verification call.
 
 ### Binding
 

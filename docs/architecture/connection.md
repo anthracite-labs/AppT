@@ -24,7 +24,7 @@ Prefer TLS when the television demonstrates port 8002 or `TokenAuthSupport`. Fal
 
 Pin the public key, not the whole certificate, so a reissue with the same key still matches. A factory reset that rotates the key fails closed. That is the intended outcome.
 
-First contact has no pin. The module may accept one certificate as a candidate in order to speak the handshake. The candidate stays in memory. It is persisted only together with a successful approval. A second, different certificate on that connection is rejected. Hostname mismatch against the IP is ignored only after the pin check passes. This is not a trust-all `TrustManager`: an already saved pin is compared before the token is placed on the wire, and a mismatch closes the socket.
+First contact has no pin. The module may accept one certificate as a candidate to speak the handshake. The candidate stays in memory. It is persisted only together with a successful approval. A second, different certificate on that connection is rejected. Hostname mismatch against the IP is ignored only after the pin check passes. This is not a trust-all `TrustManager`: an already saved pin is compared before the token is placed on the wire, and a mismatch closes the socket.
 
 If physical evidence later shows a television rotates this key on ordinary reboot, that evidence updates the identity rule inside `samsung`. It does not add a user-facing bypass. The physical matrix in [testing.md](testing.md) records whether the pin survived reboot.
 
