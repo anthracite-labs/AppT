@@ -11,6 +11,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.detekt)
 }
 
 android {
@@ -53,6 +54,24 @@ kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
+}
+
+// ---------------------------------------------------------------------------
+// detekt — the Kotlin static-analysis floor (Issue #36)
+// ---------------------------------------------------------------------------
+//
+// :samsung is a production module, so it is in detekt's scope even though the
+// S01 skeleton has no Kotlin source in it yet: discovery, pairing, the session
+// and the protocol arrive in S02–S04 and must land under the same rules from
+// their first commit rather than being retrofitted.
+//
+// Identical to :app on purpose. See config/detekt/detekt.yml for the scope and
+// the reason there is no baseline.
+detekt {
+    config.setFrom(rootProject.file("config/detekt/detekt.yml"))
+    buildUponDefaultConfig = true
+    autoCorrect = false
+    source.setFrom("src/main/java", "src/main/kotlin")
 }
 
 dependencies {

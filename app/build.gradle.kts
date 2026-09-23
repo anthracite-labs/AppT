@@ -12,6 +12,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.detekt)
 }
 
 android {
@@ -89,6 +90,25 @@ kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
+}
+
+// ---------------------------------------------------------------------------
+// detekt — the Kotlin static-analysis floor (Issue #36)
+// ---------------------------------------------------------------------------
+//
+// One committed, reviewed configuration for the whole repository, resolved from
+// the root so :app and :samsung cannot drift onto different rule sets.
+// `buildUponDefaultConfig = true` means every detekt default rule is active and
+// this file only records the deltas, so an unmentioned rule is on.
+//
+// There is deliberately no `baseline` property. A generated baseline would
+// freeze today's findings as permanently acceptable; Issue #36 forbids it.
+detekt {
+    config.setFrom(rootProject.file("config/detekt/detekt.yml"))
+    buildUponDefaultConfig = true
+    autoCorrect = false
+    // Production Kotlin only — see the scope note in config/detekt/detekt.yml.
+    source.setFrom("src/main/java", "src/main/kotlin")
 }
 
 dependencies {

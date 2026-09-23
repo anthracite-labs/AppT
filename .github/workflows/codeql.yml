@@ -1,0 +1,161 @@
+# AppT CodeQL analysis — the primary security SAST engine.
+#
+# docs/architecture/release.md#pull-request-checks owns the rule that every
+# external action is pinned to an immutable commit SHA with the human-readable
+# release tag retained in a trailing comment, so CI cannot be retargeted by a
+# moving tag. The pins below follow that rule, and reuse the exact SHAs already
+# committed in ci.yml wherever the same action is needed, so one action has one
+# pinned revision across the repository.
+#
+# Issue #36 scope: java-kotlin and javascript-typescript under the
+# security-extended query suite. Generic Semgrep is deliberately NOT added:
+# CodeQL is AppT's primary security SAST engine and detekt is the Kotlin
+# quality/correctness gate. Semgrep is reserved for a later repository-specific
+# invariant that neither can express cleanly.
+#
+# The Java/Kotlin analysis uses `build-mode: manual` and runs the repository's
+# own strict Gradle build. There is no parallel weak build path here on purpose:
+# Kotlin is only fully extracted if the real Kotlin compiler runs, and the real
+# build is the one that resolves under --dependency-verification=strict against
+# the committed checksums. A CodeQL-only build would either skip Kotlin or
+# quietly weaken the supply-chain floor.
+
+name: CodeQL
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Recurring scan so a newly published query or a drifted default branch is
+    # caught without waiting for a change to the source. 04:17 UTC Monday: an
+    # off-peak minute, so this does not collide with the top of the hour.
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+# Only the permissions CodeQL actually needs:
+#   contents: read        - check out the source
+#   actions: read         - the CodeQL action reads workflow metadata
+#   security-events: write - upload SARIF to code scanning
+# Nothing else is granted, and no secret is referenced anywhere in this file.
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '17'
+  # Matches the pin in gradle/wrapper/gradle-wrapper.properties exactly, as in
+  # ci.yml: the distribution is checksum-pinned by distributionSha256Sum.
+  GRADLE_VERSION: '8.13'
+
+jobs:
+  analyze:
+    name: CodeQL ${{ matrix.language }} (${{ matrix.build-mode }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Kotlin is only extracted when the real Kotlin compiler runs, so this
+          # language uses a manual build against the repository's own Gradle
+          # invocation under strict dependency verification.
+          - language: java-kotlin
+            build-mode: manual
+          # TypeScript needs no build step; the extractor reads source directly.
+          - language: javascript-typescript
+            build-mode: none
+
+    steps:
+      - name: Check out
+        # actions/checkout v4.3.0
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Set up JDK
+        if: matrix.language == 'java-kotlin'
+        # actions/setup-java v4.7.1
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        if: matrix.language == 'java-kotlin'
+        # gradle/actions/setup-gradle v4.4.2
+        uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+          # The build cache is disabled for extraction on purpose. gradle.properties
+          # sets org.gradle.caching=true for CI speed, and setup-gradle restores a
+          # cached build cache across runs. A compile task served FROM-CACHE emits
+          # no compiler invocation, so CodeQL traces nothing and fails with
+          # "CodeQL could not process any code written in Java/Kotlin". Extraction
+          # needs the compiler to actually run, so this job opts out of every cache.
+          cache-disabled: true
+
+      - name: Initialize CodeQL
+        # github/codeql-action v4.38.1
+        #
+        # v4 is the current line: it targets the Node 24 runner runtime, and
+        # GitHub directs advanced-setup users to migrate off v3, which is
+        # deprecated in December 2026. Pinned to the immutable commit that the
+        # v4.38.1 tag object peels to, per release.md#pull-request-checks.
+        uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # security-extended for both language families: the default suite
+          # optimises for precision at the cost of coverage, and AppT wants the
+          # wider security query set as its SAST floor.
+          queries: security-extended
+
+      # The real build, not a CodeQL-shaped approximation of one. This is the
+      # same invocation the CI floor uses (ci.yml: assembleDebug under strict
+      # dependency verification against the committed lockfiles and checksums),
+      # so extraction sees exactly what CI compiles. `assembleDebug` also runs
+      # the merged-manifest guard, so a build that extracts is a build that
+      # passed the permission allowlist.
+      #
+      # The three flags after --no-daemon are extraction requirements, not build
+      # policy, and each exists because without it CodeQL traces no compilation:
+      #
+      #   --no-build-cache
+      #     gradle.properties sets org.gradle.caching=true. A compile task served
+      #     from the build cache emits no compiler invocation at all.
+      #   -Dorg.gradle.parallel=false
+      #     gradle.properties sets org.gradle.parallel=true. Parallel worker
+      #     processes compile outside the traced foreground invocation.
+      #   -Pkotlin.compiler.execution.strategy=in-process
+      #     The Kotlin daemon is the Kotlin Gradle plugin's default strategy. It
+      #     runs the Kotlin compiler in a separate long-lived JVM that the
+      #     extractor does not attach to, which for a Kotlin-only module set is
+      #     exactly the "could not process any code written in Java/Kotlin"
+      #     failure. In-process puts the compiler inside the traced JVM.
+      #
+      # tools/security/run.sh `build` carries the identical flag set, so the
+      # local reproduction and the extraction build cannot drift apart.
+      - name: Build Kotlin for extraction
+        if: matrix.language == 'java-kotlin'
+        run: >-
+          chmod +x ./gradlew
+          && ./gradlew --no-daemon --no-build-cache
+          -Dorg.gradle.parallel=false
+          -Pkotlin.compiler.execution.strategy=in-process
+          --dependency-verification=strict
+          assembleDebug
+
+      - name: Perform CodeQL analysis
+        # github/codeql-action v4.38.1
+        uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd
+        with:
+          category: '/language:${{ matrix.language }}'

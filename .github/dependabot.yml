@@ -1,0 +1,148 @@
+# Dependabot version-update configuration for AppT.
+#
+# Purpose and limits (Issue #36): this produces *reviewed pull requests*. It does
+# not replace, and must not be read as replacing, any of the existing controls:
+#
+#   * committed Gradle lockfiles, refreshed only through
+#     `./gradlew resolveAndLockAll --write-locks` as a reviewed change;
+#   * gradle/verification-metadata.xml under --dependency-verification=strict;
+#   * the committed Gradle wrapper with its pinned distributionSha256Sum;
+#   * backend/package-lock.json with `npm ci` as the only install;
+#   * the dependency-review check on every pull request;
+#   * the release.md rule that new significant dependencies carry a license and
+#     provenance note, and that updates arrive as reviewed pull requests while
+#     "silent upgrades are not allowed".
+#
+# Deliberately absent, per Issue #36 and release.md:
+#   * no auto-merge anywhere. Nothing in this file enables it, and no
+#     auto-merge workflow exists in .github/workflows/.
+#   * no `registries:` block, so nothing but the default public registries the
+#     build already uses can be suggested.
+#   * no `insecure` or scheduled security-update-only noise beyond what GitHub
+#     raises separately; this file is about *version* updates.
+#
+# Cadence is monthly with grouped minor/patch updates: a low-noise rhythm that
+# keeps each pull request small enough to actually review, which is the point of
+# a reviewed-update policy.
+
+version: 2
+
+updates:
+  # ---------------------------------------------------------------------------
+  # Gradle: gradle/libs.versions.toml is where Dependabot writes its bumps. The
+  # module lockfiles, gradle/verification-metadata.xml and the wrapper
+  # properties belong to this ecosystem, but the lockfiles are NOT assumed to be
+  # maintained automatically — see the REVIEWER NOTE below. The version catalog
+  # is the single place a version is written, so a bump is a one-line diff that
+  # `versionCatalogPinned` still enforces as exact.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: gradle
+    directory: '/'
+    schedule:
+      interval: monthly
+      day: monday
+      time: '06:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    labels:
+      - dependencies
+      - gradle
+    commit-message:
+      prefix: 'deps(gradle)'
+    groups:
+      # AndroidX and Compose move together; keeping them in one pull request
+      # avoids a matrix of individually-broken intermediate states.
+      androidx:
+        patterns:
+          - 'androidx.*'
+          - 'com.android.*'
+      kotlin:
+        patterns:
+          - 'org.jetbrains.kotlin*'
+          - 'com.google.devtools.ksp*'
+      # Everything else stays individual: a lone dependency bump is easier to
+      # reason about and to revert than a mixed bag.
+
+    # REVIEWER NOTE — required follow-up for every Gradle bump in this repo.
+    #
+    # Dependabot proposes the version bump in gradle/libs.versions.toml. Do not
+    # assume it keeps anything else in step automatically. It CANNOT write
+    # gradle/verification-metadata.xml at all, and its Gradle lockfile support
+    # has a documented limitation where gradle.lockfile is not updated when a
+    # Gradle version catalog is in use (dependabot-core#12557; later work in
+    # dependabot-core#14879 may have narrowed that gap — confirm on the first
+    # Dependabot Gradle pull request rather than trusting it either way). AppT
+    # is exactly that catalog-driven setup, so the manual regeneration below is
+    # the authoritative process for BOTH the *.gradle.lockfile files and the
+    # verification metadata.
+    #
+    # Because CI resolves under --dependency-verification=strict and runs
+    # dependencyLockCheck, a Dependabot Gradle pull request fails closed until
+    # the regenerated artifacts are committed. That is the intended fail-closed
+    # behaviour, not a flake. Before merging, run the documented regeneration
+    # (docs/BUILD.md, gradle/verification-metadata.template.xml):
+    #
+    #   ./gradlew --no-daemon --write-verification-metadata sha256 \
+    #     assembleDebug testDebugUnitTest lintDebug :macrobenchmark:assembleBenchmark
+    #   ./gradlew resolveAndLockAll --write-locks
+    #
+    # Then review the generated <components> diff exactly as you would review a
+    # lockfile, and commit the regenerated artifacts to the Dependabot branch.
+
+  # ---------------------------------------------------------------------------
+  # Backend npm package. All dependency updates must go through this directory,
+  # never a root-level npm ecosystem, because backend/ owns its own lockfile and
+  # the Android tree must never gain a package.json.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: npm
+    directory: '/backend'
+    schedule:
+      interval: monthly
+      day: monday
+      time: '06:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    labels:
+      - dependencies
+      - backend
+    commit-message:
+      prefix: 'deps(backend)'
+    groups:
+      # The TypeScript toolchain (compiler, ts-jest, types) must move as one set.
+      typescript:
+        patterns:
+          - 'typescript'
+          - 'typescript-eslint'
+          - 'ts-jest'
+          - '@types/*'
+      linting:
+        patterns:
+          - 'eslint'
+          - '@eslint/*'
+          - 'prettier'
+      jest:
+        patterns:
+          - 'jest'
+          - '@jest/*'
+
+  # ---------------------------------------------------------------------------
+  # GitHub Actions. Dependabot keeps the immutable commit-SHA pins current and
+  # preserves the human-readable tag comment beside them, which is exactly the
+  # release.md pinning contract: CI cannot be retargeted by a moving tag, and a
+  # reviewer can still see which release a SHA corresponds to.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: monthly
+      day: monday
+      time: '06:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: 'deps(actions)'
