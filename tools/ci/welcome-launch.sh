@@ -54,6 +54,16 @@ fi
 # launcher-style start reaches Welcome. The instrumentation above already
 # asserts the Welcome nodes; this records what the window manager reports for
 # an ordinary cold launch.
+# AGP uninstalls both APKs once connectedDebugAndroidTest finishes, so the
+# supplementary cold start below must reinstall the debug APK first. Without
+# this the launch fails with "Activity class ... does not exist", which is an
+# artifact of the harness rather than anything about the app.
+echo "=== reinstall the debug APK for the cold-start check ==="
+apk="$(find app/build/outputs/apk/debug -name '*.apk' | head -n 1)"
+test -n "$apk" || { echo "::error::No debug APK found to reinstall"; exit 1; }
+echo "installing ${apk}"
+adb install -r -t "$apk"
+
 echo "=== launcher-style cold start ==="
 adb shell am force-stop dev.anthracite.appt
 # `monkey` returns before the activity is actually resumed and can bounce off
