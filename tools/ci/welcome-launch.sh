@@ -75,7 +75,7 @@ start_out="$(adb shell am start -W -S \
   -n dev.anthracite.appt/.MainActivity 2>&1 | tr -d '\r')"
 echo "${start_out}"
 echo "${start_out}" | head -n 8 | while IFS= read -r line; do
-  printf '::notice::AMSTART: %s\\n' "$line"
+  printf '::notice::AMSTART: %s\n' "$line"
 done
 
 # Wait for the window manager to report AppT focused, rather than assuming a
