@@ -93,23 +93,36 @@ jobs:
           gradle-version: '8.13'
 
       - name: Materialize the pinned Gradle wrapper
+        id: wrapper
+        continue-on-error: true
         # gradlew and gradle-wrapper.jar are generated, not committed; see
         # docs/BUILD.md. The wrapper is generated in an empty scratch directory
         # and copied in, because running `gradle wrapper` inside the project
         # would configure the AppT build (and resolve AGP) before the wrapper
         # that is supposed to run that build even exists.
         run: |
-          set -euxo pipefail
-          if [ ! -f ./gradlew ]; then
-            scratch="$(mktemp -d)"
-            ( cd "$scratch" && gradle wrapper --gradle-version 8.13 --distribution-type bin )
-            cp "$scratch/gradlew" ./gradlew
-            cp "$scratch/gradlew.bat" ./gradlew.bat || true
-            mkdir -p gradle/wrapper
-            cp "$scratch/gradle/wrapper/gradle-wrapper.jar" gradle/wrapper/gradle-wrapper.jar
-            chmod +x ./gradlew
-          fi
-          ./gradlew --version
+          set -x
+          {
+            which gradle || true
+            gradle --version || true
+            if [ ! -f ./gradlew ]; then
+              scratch="$(mktemp -d)"
+              ( cd "$scratch" && gradle wrapper --gradle-version 8.13 --distribution-type bin --stacktrace )
+              ls -la "$scratch" "$scratch/gradle/wrapper" || true
+              cp "$scratch/gradlew" ./gradlew
+              cp "$scratch/gradle/wrapper/gradle-wrapper.jar" gradle/wrapper/gradle-wrapper.jar
+              chmod +x ./gradlew
+            fi
+            ./gradlew --version
+          } > wrapper.log 2>&1
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+          cat wrapper.log
+
+      - name: Report wrapper materialization
+        if: always()
+        run: |
+          while IFS= read -r line; do echo "::error::$line"; done < wrapper.log
+          test "${{ steps.wrapper.outputs.status }}" = "0"
 
       # Strict dependency verification and dependency locking are only
       # meaningful once the generated lockfiles and checksum metadata are
