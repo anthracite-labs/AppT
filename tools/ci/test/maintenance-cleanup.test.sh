@@ -17,7 +17,11 @@
 #   * the current run is never a deletion candidate;
 #   * active/queued runs are never deleted;
 #   * a Maintenance run whose operation could not be resolved is
-#     quarantined: preserved and reported, never deleted.
+#     quarantined: preserved and reported, never deleted;
+#   * the resolver's job selection (the pure resolve_job_name_from_jobs
+#     seam) is pinned against the real GitHub Jobs API shape: skipped jobs
+#     are status=completed with conclusion=skipped, and ambiguous, empty
+#     or unexpected job sets stay unresolved.
 #
 # A cross-file check also pins that every `operation` choice in
 # .github/workflows/maintenance.yml has a job whose name the operations
@@ -60,6 +64,12 @@ expect() { # <case> <actual> <expected>
     pass=$((pass + 1))
   fi
 }
+
+# Sourcing exposes the resolver's pure functions for offline testing; the
+# script's direct-execution branch is guarded by BASH_SOURCE, so sourcing
+# performs no API calls.
+# shellcheck disable=SC1091
+source "$OPS_SCRIPT"
 
 # ---------------------------------------------------------------------------
 # Fixture: the Actions API run shape as fetched by the cleanup job
@@ -197,13 +207,104 @@ expect "page-shape delete ids" "$(tsv_ids "$out_dir3/delete-runs.tsv")" "$(tsv_i
 expect "page-shape kept ids" "$(tsv_ids "$out_dir3/kept-runs.tsv" 3)" "$(tsv_ids "$out_dir/kept-runs.tsv" 3)"
 
 # ---------------------------------------------------------------------------
+# Pure resolver seam: resolve_job_name_from_jobs consumes the exact
+# /actions/runs/{id}/jobs API response of a consolidated Maintenance run —
+# all three conditional jobs, the two unselected ones in GitHub's real
+# skipped shape (status=completed, conclusion=skipped; there is no status
+# "skipped") — and prints the selected job's name only when it is
+# unambiguous.
+# ---------------------------------------------------------------------------
+mk_job() { # <name> <status> <conclusion-json>
+  jq -cn --arg n "$1" --arg s "$2" --argjson c "$3" \
+    '{id: 9000, run_id: 777, name: $n, head_sha: "deadbeef",
+      url: "https://github.com/x/jobs/9000", html_url: "https://github.com/x/jobs/9000",
+      status: $s, conclusion: $c,
+      started_at: "2026-09-15T12:00:00Z", completed_at: "2026-09-15T12:00:01Z"}'
+}
+
+jobs_fixture() { # <file> <job-json>...
+  local out="$1" first=1 j; shift
+  printf '{"total_count": %d, "jobs": [' "$#" > "$out"
+  for j in "$@"; do
+    [ "$first" -eq 1 ] || printf ', ' >> "$out"
+    printf '%s' "$j" >> "$out"
+    first=0
+  done
+  printf ']}\n' >> "$out"
+}
+
+SKIP_CLEANUP="$(mk_job "Keep latest run per workflow" completed '"skipped"')"
+SKIP_PURGE="$(mk_job "Delete all GitHub Actions caches" completed '"skipped"')"
+
+# A completed selected job (non-skipped conclusion) plus two skipped jobs.
+jobs_fixture "$tmp/jobs-completed.json" \
+  "$(mk_job "Export Dependabot alerts" completed '"success"')" "$SKIP_CLEANUP" "$SKIP_PURGE"
+expect "jobs: completed selected job resolves" \
+  "$(resolve_job_name_from_jobs < "$tmp/jobs-completed.json")" "Export Dependabot alerts"
+
+# An in_progress selected job (conclusion null) plus two skipped jobs.
+jobs_fixture "$tmp/jobs-inprogress.json" \
+  "$SKIP_CLEANUP" "$(mk_job "Delete all GitHub Actions caches" in_progress 'null')" "$SKIP_PURGE"
+expect "jobs: in_progress selected job (conclusion null) resolves" \
+  "$(resolve_job_name_from_jobs < "$tmp/jobs-inprogress.json")" "Delete all GitHub Actions caches"
+
+# A queued selected job (conclusion null) plus two skipped jobs.
+jobs_fixture "$tmp/jobs-queued.json" \
+  "$(mk_job "Keep latest run per workflow" queued 'null')" "$SKIP_CLEANUP" "$SKIP_PURGE"
+expect "jobs: queued selected job (conclusion null) resolves" \
+  "$(resolve_job_name_from_jobs < "$tmp/jobs-queued.json")" "Keep latest run per workflow"
+
+# Ambiguous: two non-skipped jobs → no resolution.
+jobs_fixture "$tmp/jobs-ambiguous.json" \
+  "$(mk_job "Export Dependabot alerts" completed '"success"')" \
+  "$(mk_job "Keep latest run per workflow" completed '"success"')" "$SKIP_PURGE"
+expect "jobs: two non-skipped jobs stay unresolved" \
+  "$(resolve_job_name_from_jobs < "$tmp/jobs-ambiguous.json")" ""
+
+# All three skipped (run cancelled before any job started).
+jobs_fixture "$tmp/jobs-allskipped.json" \
+  "$(mk_job "Export Dependabot alerts" completed '"skipped"')" "$SKIP_CLEANUP" "$SKIP_PURGE"
+expect "jobs: all skipped stays unresolved" \
+  "$(resolve_job_name_from_jobs < "$tmp/jobs-allskipped.json")" ""
+
+# Run still queued: the jobs list is empty.
+printf '{"total_count": 0, "jobs": []}\n' > "$tmp/jobs-empty.json"
+expect "jobs: empty job list stays unresolved" \
+  "$(resolve_job_name_from_jobs < "$tmp/jobs-empty.json")" ""
+
+# Unexpected shape: no jobs key at all.
+printf '{}\n' > "$tmp/jobs-missing.json"
+expect "jobs: missing .jobs stays unresolved" \
+  "$(resolve_job_name_from_jobs < "$tmp/jobs-missing.json")" ""
+
+# ---------------------------------------------------------------------------
+# End-to-end: a Maintenance run whose job set could not be resolved (as
+# above) is absent from the operations input, and the planner quarantines
+# it — preserved and reported, never a deletion candidate — while the
+# resolvable run of the same workflow is still preserved per operation.
+# ---------------------------------------------------------------------------
+cat > "$tmp/quarantine-runs.json" <<'EOF'
+[
+  {"id": 50, "workflow_id": 222, "name": "Maintenance", "event": "workflow_dispatch", "status": "completed", "conclusion": "success", "created_at": "2026-09-15T00:00:00Z", "head_branch": "main"},
+  {"id": 51, "workflow_id": 222, "name": "Maintenance", "event": "workflow_dispatch", "status": "completed", "conclusion": "success", "created_at": "2026-09-16T00:00:00Z", "head_branch": "main"}
+]
+EOF
+echo '[{"id": 51, "operation": "export-dependabot"}]' > "$tmp/quarantine-ops.json"
+out_q="$tmp/plan-quarantine"
+mkdir -p "$out_q"
+GITHUB_RUN_ID=99 bash "$PLAN_SCRIPT" "$tmp/quarantine-runs.json" "$tmp/quarantine-ops.json" "$out_q" >/dev/null 2>&1 \
+  && pass=$((pass + 1)) || fail_case "planner must succeed with an unresolved Maintenance run"
+expect "unresolved run is quarantined" "$(tsv_ids "$out_q/quarantined-runs.tsv")" "50"
+expect "unresolved run is never deleted" "$(tsv_ids "$out_q/delete-runs.tsv")" ""
+expect "resolved run of the same workflow still preserved" "$(tsv_ids "$out_q/kept-runs.tsv" 3)" "51"
+
+# ---------------------------------------------------------------------------
 # Cross-file identity: every operation choice in maintenance.yml has a job
 # whose name the operations resolver recognizes, and the set is exactly the
 # three operations.
 # ---------------------------------------------------------------------------
-# shellcheck disable=SC1091
-source "$OPS_SCRIPT"
 declare -f job_name_for_operation >/dev/null 2>&1 || fail_case "job_name_for_operation not exposed by the resolver"
+declare -f resolve_job_name_from_jobs >/dev/null 2>&1 || fail_case "resolve_job_name_from_jobs not exposed by the resolver"
 
 options="$(grep -E '^\s+- (export-dependabot|cleanup-workflow-runs|purge-actions-caches)\s*$' "$MAINT_WORKFLOW" | sed -E 's/^\s+- //' | sort)"
 expect "maintenance.yml options" "$options" "$(printf 'cleanup-workflow-runs\nexport-dependabot\npurge-actions-caches\n')"

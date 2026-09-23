@@ -5,9 +5,11 @@
 #
 # The Actions API run object identifies a workflow by name; after the
 # consolidation (Issue #52) all three maintenance operations share the one
-# "Maintenance" workflow_id, so the explicit operation identity is the run's
-# non-skipped job name: a dispatched run executes exactly one of the
-# operation jobs, and each job name is defined in
+# "Maintenance" workflow_id, so the explicit operation identity is the job
+# name of the run's single non-skipped job: a dispatched run contains all
+# three conditional jobs, exactly one of which executes (the other two
+# complete with status=completed, conclusion=skipped — GitHub's model for a
+# skipped job; there is no status "skipped"). Each job name is defined in
 # .github/workflows/maintenance.yml.
 #
 # A run whose operation cannot be determined (queued before its jobs exist,
@@ -29,6 +31,22 @@ job_name_for_operation() {
     purge-actions-caches) echo "Delete all GitHub Actions caches" ;;
     *) return 1 ;;
   esac
+}
+
+# Pure resolver seam (the testable core of the operation identity): reads a
+# /actions/runs/{id}/jobs API response on stdin and prints the selected
+# operation's job name if — and only if — exactly one job is not skipped.
+# GitHub models a skipped job as status=completed, conclusion=skipped (there
+# is no status "skipped"), so the filter is on conclusion, never on status:
+#   * selected job still running → status queued/in_progress, conclusion null
+#   * selected job finished      → status completed, conclusion success/…
+#   * unselected conditional job → status completed, conclusion skipped
+# Any ambiguous or unexpected shape (zero or two+ non-skipped jobs, a
+# missing job list, …) prints nothing, so the caller leaves the operation
+# unresolved and the planner quarantines the run instead of deleting it.
+resolve_job_name_from_jobs() {
+  jq -r '[(.jobs // [])[] | select(.conclusion != "skipped") | .name]
+         | if length == 1 then .[0] else "" end'
 }
 
 resolve_all() {
@@ -54,15 +72,15 @@ resolve_all() {
   for id in $ids; do
     [ -n "$id" ] || continue
 
-    # A dispatched Maintenance run has exactly one non-skipped job: the
-    # operation that was selected. Anything else (queued, failed startup,
-    # unexpected shape) leaves the operation unresolved.
+    # A dispatched Maintenance run contains all three conditional jobs; the
+    # selected operation is the one job whose conclusion is not "skipped".
+    # Anything else (queued before its jobs exist, failed startup, ambiguous
+    # or unexpected job set, API failure) leaves the operation unresolved.
     job_name="$(gh api \
       -H "Accept: application/vnd.github+json" \
       -H "X-GitHub-Api-Version: 2022-11-28" \
       "/repos/${GITHUB_REPOSITORY}/actions/runs/${id}/jobs" \
-      --jq '[.jobs[] | select(.status != "skipped") | .name] | if length == 1 then .[0] else "" end' \
-      2>/dev/null || true)"
+      2>/dev/null | resolve_job_name_from_jobs || true)"
 
     op=""
     for cand in export-dependabot cleanup-workflow-runs purge-actions-caches; do
