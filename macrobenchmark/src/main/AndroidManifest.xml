@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Test-only module. It declares no permission from the release.md allowlist and
+  contributes nothing to any shipped artifact.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />

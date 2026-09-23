@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Welcome copy (docs/architecture/ui-ux.md#onboarding): core value proposition,
+  a short privacy/local-control reassurance, and one primary action.
+  Ordinary language only: no protocol vocabulary, no address, no port.
+-->
+<resources>
+    <string name="app_name">AppT</string>
+
+    <string name="welcome_value_proposition">Your TV remote, on your phone</string>
+    <string name="welcome_privacy_reassurance">AppT controls your television directly over your home network. Your televisions and your settings stay on this phone.</string>
+    <string name="welcome_primary_action">Find my TV</string>
+    <!-- Decorative brand mark. Hidden from the semantics tree; carries no meaning. -->
+    <string name="welcome_mascot_glyph" translatable="false">📺</string>
+</resources>

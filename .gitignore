@@ -1,0 +1,30 @@
+# Build output
+build/
+.gradle/
+local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Node
+node_modules/
+backend/lib/
+backend/coverage/
+*.tsbuildinfo
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Keys, certificates and credentials never enter the tree
+# (docs/architecture/release.md: secret scanning fails on any keystore,
+# certificate or key file appearing in the tree).
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+google-services.json
+service-account*.json

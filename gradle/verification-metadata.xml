@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Gradle dependency verification (docs/architecture/release.md#gradle:
+  "Dependency verification metadata committed. CI uses strict verification.").
+
+  This file holds the *policy*, which is a human decision and belongs in
+  review. The per-component checksum entries below it are generated, and are
+  populated by resolving the graph once against google() and mavenCentral():
+
+      ./gradlew --write-verification-metadata sha256 \
+        assembleDebug testDebugUnitTest lintDebug :macrobenchmark:assembleBenchmark
+
+  Run that command, review the generated <components> block in the diff exactly
+  as you would review a lockfile, and commit it. CI then runs with
+  `--verify-dependencies`, so an artifact whose checksum does not match is
+  rejected rather than used. See docs/BUILD.md.
+
+  Policy choices recorded here:
+    * verify-metadata: module metadata (POM/Gradle module files) is verified as
+      well as artifacts, so a tampered POM cannot pull a substitute artifact.
+    * verify-signatures: false for now. PGP signature coverage across the
+      Android/AndroidX artifact set is uneven, and turning it on without first
+      validating that coverage would be exactly the unvalidated-provider-fact
+      failure docs/architecture/README.md warns about. SHA-256 checksum
+      verification of every artifact is the enforced floor; signature
+      verification is revisited as a reviewed change once coverage is
+      established.
+    * No trusted-artifact wildcards: nothing is exempted from verification.
+-->
+<verification-metadata xmlns="https://schema.gradle.org/dependency-verification"
+                       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                       xsi:schemaLocation="https://schema.gradle.org/dependency-verification https://schema.gradle.org/dependency-verification/dependency-verification-1.3.xsd">
+   <configuration>
+      <verify-metadata>true</verify-metadata>
+      <verify-signatures>false</verify-signatures>
+   </configuration>
+   <components/>
+</verification-metadata>

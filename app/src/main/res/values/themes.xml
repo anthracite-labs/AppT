@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Dark-first (ui-ux.md). Compose owns the in-app colours via AppTTheme and
+      the token set; this platform theme only covers the pre-Compose window.
+    -->
+    <style name="Theme.AppT" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/appt_surface</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

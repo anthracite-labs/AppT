@@ -1,0 +1,33 @@
+{
+  "name": "appt-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AppT Entitlement Backend — standalone TypeScript package for the future Cloud Functions 2nd gen service. S01 is a non-deploying skeleton.",
+  "license": "MIT",
+  "engines": {
+    "node": "22"
+  },
+  "type": "commonjs",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+    "lint": "eslint .",
+    "test": "jest --config jest.config.js",
+    "clean": "rimraf lib",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.1",
+    "@types/jest": "29.5.14",
+    "@types/node": "22.19.0",
+    "eslint": "9.39.1",
+    "globals": "15.14.0",
+    "jest": "29.7.0",
+    "prettier": "3.4.2",
+    "rimraf": "6.0.1",
+    "ts-jest": "29.2.5",
+    "typescript": "5.7.3",
+    "typescript-eslint": "8.46.3"
+  }
+}
