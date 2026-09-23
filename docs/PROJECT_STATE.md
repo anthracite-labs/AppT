@@ -17,13 +17,13 @@ Phase: `implementation`
 
 ## Current objective
 
-Objective: `Execute the accepted V1 implementation route one vertical slice at a time from docs/architecture/slices.md, beginning with S01. No implementation slice is active or dispatched yet.`
+Objective: `Reconcile the implementation slice map and project Markdown through Issue #23 before S01 is compiled or dispatched. No implementation slice is active or dispatched.`
 
 Success condition: `Each implementation slice is compiled from the accepted architecture into one self-contained Arena Issue, implemented and reviewed before the next dependent slice is dispatched, while the accepted privacy, reliability, accessibility, licensing, and Samsung-control contracts remain intact.`
 
 ## Active work
 
-Primary: `Architecture closure PR #21 is merged at 289eeef21f730c0ef22db02046f3d773541967a7 and explicitly accepted by the human. The implementation route is S01-S16 in docs/architecture/slices.md. No implementation slice is active or dispatched yet.`
+Primary: `Pre-S01 planning reconciliation Issue #23 is ready for Arena: audit architecture-to-slice coverage, repair tracer-bullet dependencies/ownership, line-review all project-owned Markdown, then run the pinned Slopless review. No implementation slice is active or dispatched.`
 
 Secondary:
 
@@ -109,7 +109,7 @@ Secondary:
 
 ## Recent change
 
-- `The human explicitly accepted the closed architecture map and authorized the architecture → implementation phase transition after PR #21 merged. GitHub Issue #19 is complete; implementation will now proceed one slice at a time from docs/architecture/slices.md, beginning with S01.`
+- `Opened Issue #23 as a documentation/planning-only pre-S01 reconciliation pass after the accepted slice map audit found coverage and dependency defects. S01 remains undispatched until the Issue #23 PR is reviewed and accepted.`
 
 ## Relevant canonical references
 
@@ -128,10 +128,10 @@ Secondary:
 
 ## Next
 
-`Compile S01 from docs/architecture/slices.md into one self-contained Arena implementation Issue under .agents/ARENA-DISPATCH.md. Do not compile or dispatch S02 until S01 is accepted.`
+`Arena executes Issue #23 and returns one documentation/planning PR. Review and accept the revised slice map before compiling S01.`
 
 ## After that
 
-1. `Dispatch S01 to Arena after its Issue passes the pre-dispatch check.`
-2. `Review the S01 pull request against its Issue plus the canonical architecture and merge only if accepted.`
-3. `Compile the next dependency-ready slice only after the current slice is accepted.`
+1. `Review the Issue #23 PR against accepted product/architecture truth and tracer-bullet planning rules.`
+2. `After explicit acceptance, compile the first dependency-ready implementation slice through .agents/ARENA-DISPATCH.md.`
+3. `Review each implementation PR before compiling the next dependency-ready slice.`
