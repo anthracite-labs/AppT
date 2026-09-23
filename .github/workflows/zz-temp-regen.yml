@@ -18,10 +18,16 @@
 #   differs.
 #
 # What this file is NOT:
-#   * Not part of the CI floor. It has exactly one trigger, workflow_dispatch, so
-#     it can never run on a pull request or a push. It is not a self-healing
-#     path: nothing in CI calls it, and a failed regeneration leaves the committed
-#     artifacts untouched.
+#   * Not part of the CI floor. Its only triggers are workflow_dispatch and a
+#     push scoped to the single PR branch this change is developed on, so it can
+#     never run for any other branch, any pull request, or main. It is not a
+#     self-healing path: nothing in CI calls it, and a failed regeneration leaves
+#     the committed artifacts untouched.
+#
+#     The push trigger exists because GitHub will not register a workflow_dispatch
+#     workflow for dispatch unless the file is on the default branch, and putting
+#     a one-off bootstrap on main is exactly what must not happen. Scoping the
+#     trigger to this branch gives the same manual control without touching main.
 #   * Not a weakening of strict verification. It writes artifacts with
 #     verification switched OFF for that one resolution pass — unavoidable, since
 #     the checksums being written are the ones strict mode would demand — and
@@ -38,8 +44,12 @@ on:
     inputs:
       reason:
         description: 'Why this regeneration is being run (recorded in the log)'
-        required: true
+        required: false
         default: 'Add detekt: new buildscript artifacts + new lockable detekt configuration'
+  # Scoped to this branch alone. See the trigger note above.
+  push:
+    branches:
+      - arena/01a0ce78-appt
 
 permissions:
   contents: read
