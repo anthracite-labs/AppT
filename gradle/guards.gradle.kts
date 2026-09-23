@@ -343,10 +343,13 @@ tasks.register("dependencyLockCheck") {
                 .filter { it.isCanBeResolved }
                 .filter { it.name.contains("RuntimeClasspath") || it.name.contains("CompileClasspath") }
                 .forEach { configuration ->
-                    // `files` forces full resolution, so a lock mismatch or a
-                    // missing lockfile surfaces here rather than being deferred
-                    // to a later task.
-                    runCatching { configuration.files }
+                    // Resolving the graph forces lock-state validation, so a
+                    // drifted or missing lockfile surfaces here rather than being
+                    // deferred to a later task. Deliberately NOT `files`: that also
+                    // forces artifact selection, which is ambiguous for
+                    // configurations seeing several variants of `:app` and would
+                    // fail for a reason unrelated to the lock state.
+                    runCatching { configuration.incoming.resolutionResult.root }
                         .onSuccess { resolved++ }
                         .onFailure { failure ->
                             failures += "${subproject.path}:${configuration.name}: ${failure.message}"

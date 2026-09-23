@@ -39,10 +39,18 @@ tasks.register("resolveAndLockAll") {
         }
     }
     doLast {
+        // Resolve the dependency GRAPH, not the artifact files. Dependency
+        // locking records the resolved graph, and `resolve()`/`files` additionally
+        // forces artifact selection, which is ambiguous for configurations such
+        // as `:app:debugAndroidTestCompileClasspath` that see several variants of
+        // `:app` itself and would need an `artifactType` to disambiguate. Graph
+        // resolution is exactly what locking needs and is what AGP supports here.
         subprojects.forEach { subproject ->
             subproject.configurations
                 .filter { it.isCanBeResolved }
-                .forEach { it.resolve() }
+                .forEach { configuration ->
+                    configuration.incoming.resolutionResult.root
+                }
         }
     }
 }
