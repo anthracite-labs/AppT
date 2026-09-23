@@ -19,7 +19,9 @@ Runtime: Kotlin, Android Gradle Plugin, Compose BOM, Navigation Compose, kotlinx
 
 Test: JUnit, coroutines-test, Compose UI test, AndroidX test, Macrobenchmark (in the test-only `:macrobenchmark` module owned by [modules.md](modules.md#shape)), Robolectric for DataStore and migration tests, Firebase emulator suite for backend functions.
 
-Backend toolchain: TypeScript on the Cloud Functions 2nd gen Node.js LTS runtime, owned by `backend/`, with `npm` and a committed `package-lock.json` (`npm ci` in CI), ESLint and Prettier configuration in the same directory, and Jest plus `firebase-functions-test` for the unit and emulator tests described in [testing.md](testing.md). The backend is not a Gradle module and never enters the Android dependency graph; the only contract between the two is the HTTPS API in [sync.md](sync.md).
+Backend toolchain: TypeScript on the Cloud Functions 2nd gen Node.js LTS runtime, owned by `backend/`, with `npm` and a committed `package-lock.json` (`npm ci --prefix backend` in CI), ESLint and Prettier configuration in the same directory, and Jest plus `firebase-functions-test` for the unit and emulator tests described in [testing.md](testing.md). The backend is not a Gradle module and never enters the Android dependency graph; the only contract between the two is the HTTPS API in [sync.md](sync.md).
+
+**Backend commands are always package-prefixed and run from the repository root**, so no documented command depends on the caller's working directory: `npm ci --prefix backend`, `npm run typecheck --prefix backend`, `npm run lint --prefix backend`, `npm test --prefix backend`, and `npm run test:emulator --prefix backend` (which starts the Firestore and Functions emulators from `backend/firebase.json` and runs the emulator suite). The Firebase CLI is a `backend/` devDependency, so emulator and deploy runs go through that package rather than a globally installed CLI, and CI calls `npm run deploy --prefix backend` with an explicit `--project` per environment. The script names are owned by `backend/package.json`; [sync.md](sync.md#backend-source-architecture) records the same set.
 
 Not in the graph: `firebase-firestore` (server-only; the client never talks to Firestore directly), `firebase-analytics`, `firebase-crashlytics` or any other crash reporter, advertising and attribution SDKs, ACRA, Whisperlink, Cast, Consumer IR, and any Samsung reference library. Protocol code is written in this repository.
 
@@ -38,9 +40,10 @@ Three environments, three isolated Google Cloud and Firebase projects, one Play 
 | Entitlement service | Emulator plus dev functions | Internal functions | Production functions |
 | Marker and fingerprint keys (Secret Manager) | Development key versions | Internal key versions | Production key versions, separate rotation schedule |
 | Proof signing key (Cloud KMS) | Development key | Internal key | Production key, non-exportable, distinct key set |
-| App Check | Debug provider with registered debug tokens | Play Integrity provider, enforcement on | Play Integrity provider, enforcement on |
-| Play Billing | Fake adapter; no real billing | Licence testers on the production candidate (Play internal testing track) plus the tester build against the internal backend | Play production |
-| Play Integrity | Fake verdicts | Real verdicts, internal package | Real verdicts, production package |
+| Signing identity | Debug keystore, generated per machine | Internal signing key, a distinct certificate registered only in this project | Play App Signing: the app-signing key is held by Google, CI holds only the upload key |
+| App Check | Debug provider with registered debug tokens | Play Integrity provider registered for an app distributed **exclusively outside Google Play**, enforcement on | Play Integrity provider registered for an app distributed **on Google Play**, enforcement on |
+| Play Billing | Fake adapter; no real billing | No real billing from the outside-Play tester build, which Play cannot sell to; the tester build runs the purchase path against the fake billing adapter, and licence-testers purchase on the Play-distributed candidate | Play production |
+| Play Integrity | Fake verdicts | Real verdicts for the internal signing certificate; the Play Integrity API is linked to this project | Real verdicts for the Play app-signing certificate; the Play Integrity API is linked to this project |
 | Diagnostics | Local only; the diagnostics path has no network client and no environment-specific endpoint | Same | Same |
 | Backend URL resolved by app | `dev` | `internal` | `production` |
 
@@ -50,6 +53,7 @@ Isolation rules:
 - Production credentials never appear in the repository. CI authenticates to Google Cloud with Workload Identity Federation; repository secrets hold no long-lived Google key.
 - Each environment has its own service accounts with least privilege: the verification function holds only the Play publisher scope it needs, and the notification handler can read and write only its own collections.
 - Development and internal environments may use narrower integrity enforcement so engineers are not blocked; production enforcement is not weakened.
+- Certificate registration is per environment and is never shared: the internal signing certificate is registered only in `appt-internal`, only the Play app-signing certificate authenticates production clients, and the debug certificate reaches neither real environment. A CI check fails if a registration fingerprint recorded for one environment appears in another.
 
 ### Play and RTDN are shared by design
 
@@ -95,7 +99,8 @@ Workflow on pull request and on `main`, actions pinned to immutable commit SHAs 
 10. `:app` dependency insight excludes any Firestore client artifact and any crash-reporting, analytics, advertising, or attribution artifact.
 11. No `firebase-analytics`, crash reporter, advertising SDK, or `AD_ID` in the merged manifest or the merged dependency graph.
 11a. Neither production module depends on `:macrobenchmark`, and `:macrobenchmark` is absent from the release artifact.
-11b. Backend typecheck, lint, unit tests, and emulator tests pass; `package-lock.json` is committed and `npm ci` is used.
+11b. Backend checks pass from the repository root against the `backend/` package: `npm ci --prefix backend`, `npm run typecheck --prefix backend`, `npm run lint --prefix backend`, `npm test --prefix backend`, `npm run test:emulator --prefix backend`. `package-lock.json` is committed and `npm ci` is the only install.
+11c. Signing identity per channel: the tester artifact is signed with the internal certificate, the bundle uploaded to Play with the upload certificate, neither with a debug certificate, and the registered App Check fingerprints match the Play app-signing certificate for production and the internal certificate for internal.
 12. Production sources contain no sync record, tombstone, or mutation queue.
 13. Environment guard: debug cannot resolve production identifiers; release cannot resolve development identifiers.
 14. Secret scanning over the tree and the diff.
@@ -118,7 +123,15 @@ Anything else fails CI until the architecture map is changed. In particular the 
 
 ## Release path and artifact identity
 
-The release artifact is an Android App Bundle. Production signing is Play App Signing. The upload key used by CI is a GitHub Actions secret or Play's upload mechanism. It is not committed.
+The release artifact is an Android App Bundle. Signing is deliberately split across three identities, and AppT never signs an artifact with a production app-signing key:
+
+| Identity | Key | Held by | Signs |
+|---|---|---|---|
+| Play app-signing key | The Google-managed Play App Signing key | Google. AppT never receives, stores, or uses it | Every APK Play generates and delivers, on every track, including the internal testing track and staged production |
+| Upload key | AppT's upload certificate | CI secret; not committed | The `productionRelease` bundle CI uploads to Play. Play verifies it, then re-signs the delivered APKs with the app-signing key |
+| Internal signing key | A separate AppT keystore, distinct from the upload key and from any debug key | CI secret plus the organisation's credential store; not committed | The `internalRelease` tester build distributed outside Play |
+
+Keeping the app-signing key Google-managed is the chosen strategy. The rejected alternative — retaining the app-signing key ourselves and using it to sign the outside-Play tester build — would put the key that protects every production install on an artifact distributed outside Play, and would give tester and store artifacts one custody model. The cost of the choice is one extra signing identity and one extra certificate registration, both made explicit below.
 
 **Baked versus resolved configuration.** The Firebase configuration file and the backend URL are compiled into the artifact, so an artifact cannot change its environment after it is built. Promotion therefore moves the artifact that was tested, and the environment is chosen before the build rather than at promotion time:
 
@@ -128,19 +141,45 @@ The release artifact is an Android App Bundle. Production signing is Play App Si
 | `internalRelease` | `internal` | Testers, outside the Play production tracks (Firebase App Distribution or direct install from CI) |
 | `productionRelease` | `production` | **The only artifact uploaded to Play** |
 
-One application id and one signing key are shared by all three, so Play Billing and Play Integrity behave the same way everywhere; each variant embeds only its own environment's Firebase configuration, and the production artifact contains no development or internal configuration. Version codes are distinct and monotonically increasing per build so a tester can replace an installed artifact with another; Play only ever sees the production artifact, so its version-code sequence is contiguous and promotion cannot collide with a tester build. Artifact identity is recorded in the deployment log together with the commit SHA.
+### Signing identity and distribution channel
+
+Signing and registration follow the distribution channel, because Firebase App Check registers an app by its signing-certificate SHA-256 fingerprint and the two channels do not share a certificate:
+
+| Artifact | Distributed through | Signed with | Certificate registered in its Firebase project | App Check advanced settings |
+|---|---|---|---|---|
+| `dev` | Developer machines and the emulator suite only | Debug keystore, generated per machine | `appt-dev`: the debug certificate fingerprint, plus registered App Check debug tokens | Debug provider. No real verdicts |
+| `internalRelease` | Outside Play: Firebase App Distribution or direct install from CI | The internal signing key | `appt-internal`: the internal signing certificate fingerprint | Play Integrity provider for an app distributed **exclusively outside Google Play**: `PLAY_RECOGNIZED` not required, `LICENSED` not required, minimum accepted device integrity `MEETS_DEVICE_INTEGRITY` |
+| `productionRelease` | Play only: internal testing track candidate, then staged production | The upload key for the bundle CI uploads; Play re-signs delivered APKs with the Play app-signing key | `appt-prod`: the **Play app-signing certificate** fingerprint | Play Integrity provider for an app distributed on Google Play: `PLAY_RECOGNIZED` required, `LICENSED` required, no explicit device-integrity minimum |
+
+Details that are easy to get wrong, so they are stated rather than implied:
+
+- App Check stores a signing-certificate SHA-256 fingerprint and nothing else about the build. Registering the upload certificate in `appt-prod` would be wrong, because customers install APKs signed by the app-signing certificate. Registering the internal certificate there would let an outside-Play build authenticate to production.
+- The Play Integrity API is linked per environment from Play Console (Release, then App integrity, then Play Integrity API) to the matching Cloud project: `appt-prod` for the production app and `appt-internal` for the internal app. Both use the same Play app entry and the same product catalogue; only the certificate registration and the verdict requirements differ.
+- The three certificates are not interchangeable: the debug certificate appears in no environment but `appt-dev`, the internal certificate is accepted only by `appt-internal`, and `appt-prod` accepts only the Play-signed app.
+- The `appt-internal` registration covers a build Play never distributes, so Firebase's "exclusively outside Google Play" settings apply to it. The `appt-prod` registration covers the app Play delivers, so the "on Google Play" settings apply. The "both channels" row applies to no single registration here, because no certificate is registered in two projects.
+- The release candidate installed from the Play internal testing track is re-signed by Play, so it satisfies the `appt-prod` registration while it is still a candidate. That is what lets internal testing exercise production App Check enforcement before promotion.
+- Consequence for billing and Play services: Play Billing only serves apps installed from Play, so the outside-Play tester build can never complete a real purchase and never receives an install-sourced Play verdict. Its purchase path runs against the fake `PlayBilling` adapter, and every piece of real purchase evidence — including the withheld-test-purchase check — comes from the Play-distributed candidate.
+- Fingerprints live in the console and in the deployment log, never in the repository. Secret scanning fails on any keystore, certificate, or key file appearing in the tree.
+
+One application id is shared by all three builds, so Play Billing and Play Integrity resolve the same product and the same app entry everywhere, and each variant embeds only its own environment's Firebase configuration. The signing identities differ, which has one visible consequence: with one application id and different certificates, a device cannot hold the internal-signed tester build and a Play-signed build at the same time, so moving between them needs an uninstall. Version codes stay distinct and monotonically increasing per build, and Play only ever sees production bundles, so Play's version-code sequence is contiguous and promotion cannot collide with a tester build. Artifact identity is recorded in the deployment log together with the commit SHA and the signing certificate fingerprint.
 
 Workflows, manual dispatch only:
 
 | Workflow | Result |
 |---|---|
-| Tester build | Builds and distributes `internalRelease` to testers against the `internal` backend. Never uploaded to Play |
+| Tester build | Builds `internalRelease` against the `internal` backend, signs it with the internal signing key, and distributes it to testers outside Play. Never uploaded to Play |
 | Candidate upload | Builds `productionRelease` from the tested commit and uploads it to the **Play internal testing track**, pointed at the `production` backend, as a release candidate |
 | Production promote | Promotes **that same uploaded bundle** to a production track with Play staged rollout. No rebuild, no re-pointing, no environment change |
 
 So the tested artifact and the promoted artifact are the same artifact: the candidate that passes internal testing is the one that is promoted. Internal-environment testing does not use a Play track, which is what makes that possible.
 
-CI proves the difference between the two release artifacts is configuration only: both variants are built from the same commit in the same job, the same release unit tests and accessibility checks run against both, and a check fails if any file outside the environment configuration differs.
+**Comparing the release artifacts.** The two release variants are signed with different identities, so comparing signed artifacts byte for byte would fail for a reason that is not the code. `releaseArtifactsDifferOnlyByConfig` therefore normalizes before it compares:
+
+1. Both variants are built from the same commit in the same job, and the same release unit tests and accessibility checks run against both.
+2. Signature material is stripped: the entry list and the uncompressed entry contents are compared with every `META-INF/` signature entry removed, so the comparison is between unsigned build contents.
+3. The only entries allowed to differ are the environment configuration files, in either direction: the Firebase configuration `google-services.json`, the resolved backend URL, and their generated resources. Any other differing entry fails the check, including a development or internal configuration file appearing in the production artifact.
+4. Signing identity is asserted separately instead of by byte comparison: the tester artifact carries the internal certificate, the bundle uploaded to Play carries the upload certificate, the two certificates differ, and neither is a debug certificate.
+5. Certificate registration is asserted against the environment: the production project's App Check registration carries the Play app-signing certificate fingerprint recorded in the deployment log, and the internal project's carries the internal certificate fingerprint. Fingerprints are compared as recorded values, never committed as files.
 
 Staged rollout starts below 100 percent. Promotion is a human action. Halt if the Play Console Android vitals crash or ANR rate rises, or an entitlement error rate rises. Exact percentages are release operations, not product intent, and are chosen at promote time within Play's staged rollout.
 
@@ -179,5 +218,7 @@ Incompatible-license Samsung reference code stays reference. Do not vendor it. T
 | Locked, verified dependencies | Unreviewed protocol or tracker code does not slide in |
 | Action SHA pins | CI cannot be retargeted by a moving tag |
 | Environment guard | A test build cannot touch production data or purchases |
+| Signing identity per channel | The tester build and the uploaded bundle cannot be confused, and no debug certificate reaches a real environment |
+| Certificate registration per environment | An outside-Play build cannot authenticate to production |
 | Secret scanning | No long-lived credential enters the tree |
 | Backend schema test on forbidden fields | No television or personalization field can be added silently |

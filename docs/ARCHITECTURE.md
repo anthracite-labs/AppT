@@ -159,7 +159,7 @@ Use the highest useful seam and test external behavior rather than internal impl
 - Pull requests compile and run relevant static checks/tests.
 - `main` stays releasable.
 - Release artifact: Android App Bundle.
-- Production signing uses Google Play App Signing.
+- Production signing uses Google Play App Signing, with the app-signing key held by Google and only the upload key held by CI. The outside-Play internal tester build is signed with a separate internal signing key whose certificate is registered only in the internal environment.
 - Releases move through Internal testing before deliberate promotion; production rollout is staged.
 - Development, internal, and production Firebase/Cloud, Play Billing, Play Integrity, and backend environments are separated, and production credentials never enter the repository. See `docs/architecture/release.md`.
 - Use a Gradle version catalog.

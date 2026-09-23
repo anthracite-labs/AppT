@@ -90,7 +90,9 @@ Secondary:
 - `Development, internal, and production Firebase/Cloud/Play environments are separated; production credentials never enter the repository.`
 - `Play carries one artifact: a production-flavoured release candidate is uploaded to the internal testing track and promoted from there, while internal-environment builds are distributed outside Play, so the promoted build is the build that was tested.`
 - `Account deletion freezes the purchase binding before the Firebase Auth user is deleted and releases it only after, so the purchase is never re-bindable while the previous account can still authenticate; a scheduled job finishes deletions that stopped early.`
-- `Backend source is TypeScript on the Cloud Functions 2nd gen Node.js runtime, owned by backend/, with its own lockfile and emulator-suite tests.`
+- `Backend source is TypeScript on the Cloud Functions 2nd gen Node.js runtime, owned by backend/, with its own lockfile and emulator-suite tests, and every backend command is package-prefixed from the repository root as `npm <script> --prefix backend` (ci, typecheck, lint, test, test:emulator, deploy).`
+- `Production signing stays with Google-managed Play App Signing and CI holds only the upload key; the outside-Play internal tester build is signed with a separate internal signing key whose certificate is registered only in the internal Firebase project, so each App Check registration matches the certificate of the build that talks to it.`
+- `The internal and production release artifacts are compared with signature material stripped, so a signing-certificate difference can never be mistaken for a configuration difference, and signing identity plus certificate registration are asserted by their own checks.`
 - `AppT application data is excluded from Android backup and device transfer, so a new phone starts its remote state clean.`
 - `The implementation route is the rebuilt sixteen-slice map in docs/architecture/slices.md, which replaces the old S01-S15 route and contains no television-sync slice.`
 - `Phase transition to implementation requires explicit human approval.`
@@ -105,7 +107,7 @@ Secondary:
 
 ## Recent change
 
-- `Applied the architecture-closure review: cloud crash reporting was removed from V1 by human decision, and the release artifact/promotion model, account-deletion durability, trial attach, provisional local key, forget lifecycle, Activity recreation, the test-only benchmark module, and the backend source layout were settled; the slice route was reordered so the licensing gate exists before any slice that routes to it. docs/architecture/ is internally consistent and ready for human review; implementation remains unauthorized.`
+- `Applied the second architecture-closure review: the outside-Play internal build now has its own signing identity and per-environment App Check registration while production keeps Google-managed Play App Signing, the release-artifact comparison strips signature material before comparing and asserts signing and registration separately, and every backend command is package-prefixed against backend/ so no install or test command depends on the caller's working directory. Earlier this closure round, cloud crash reporting was removed from V1 by human decision, and the release artifact/promotion model, account-deletion durability, trial attach, provisional local key, forget lifecycle, Activity recreation, the test-only benchmark module, and the backend source layout were settled. docs/architecture/ is internally consistent and ready for human review; implementation remains unauthorized.`
 
 ## Relevant canonical references
 

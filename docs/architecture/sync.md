@@ -134,7 +134,7 @@ data class LicensingSnapshot(
 
 ## Backend API surface
 
-All endpoints require a Firebase ID token. All require an App Check token. The uid always comes from the verified token, never from a body field.
+All endpoints require a Firebase ID token. All require an App Check token. The uid always comes from the verified token, never from a body field. App Check tokens are minted by the registration that matches the build's signing certificate, which is why production, internal, and debug builds are registered separately in [release.md](release.md#signing-identity-and-distribution-channel); the backend side of enforcement is identical in `internal` and `production`.
 
 | Endpoint | Purpose | Request | Success response | Failure responses |
 |---|---|---|---|---|
@@ -162,9 +162,10 @@ Rules that hold for every endpoint:
 | Location | `backend/` at the repository root, sibling to the Android modules and outside both |
 | Package layout | `backend/src/handlers/` (one file per endpoint), `backend/src/domain/` (trial, binding, deletion, proof rules with no provider types), `backend/src/adapters/` (Play Developer API, integrity decoder, marker keys, KMS signer, Firestore access), `backend/src/http/` (auth, App Check, validation, error mapping) |
 | Rules and indexes | `backend/firestore.rules` and `backend/firestore.indexes.json`, deployed as versioned artifacts |
-| Toolchain ownership | `backend/package.json` plus a committed `package-lock.json`; ESLint and Prettier configuration in `backend/`; `npm ci` only, never an unlocked install |
+| Toolchain ownership | `backend/package.json` plus a committed `package-lock.json`; ESLint and Prettier configuration in `backend/`; `npm ci --prefix backend` only, never an unlocked install |
+| Commands | Always package-prefixed and run from the repository root: `npm ci --prefix backend`, `npm run typecheck --prefix backend`, `npm run lint --prefix backend`, `npm test --prefix backend`, `npm run test:emulator --prefix backend`, `npm run deploy --prefix backend`. The Firebase CLI is a `backend/` devDependency, so the emulator and deploy scripts are invoked through that package |
 | Test organization | `backend/test/` for unit tests of domain rules with fake adapters, `backend/test/fixtures/` for the JSON request/response and RTDN fixtures, and emulator-suite tests for handler behaviour, rules, and idempotency |
-| CI | [release.md](release.md#pull-request-checks) runs typecheck, lint, unit tests, and emulator tests for every change that touches `backend/` |
+| CI | [release.md](release.md#pull-request-checks) runs typecheck, lint, unit tests, and emulator tests for every change that touches `backend/`, using the prefixed commands above from the repository root |
 
 The seam to the app is the HTTPS API below and nothing else. Dependencies are ordinary npm dependencies, pinned by the lockfile and reviewed like Android dependencies; the backend never imports Android code and the app never imports backend code.
 

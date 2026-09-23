@@ -139,6 +139,8 @@ Provider and deployment facts that the map relies on. Each must be confirmed aga
 | Current Google Play Developer API method for one-time product state (`purchases.products.get` versus the v2 product-purchase lookup) | [sync.md](sync.md) |
 | `purchaseType` behaviour for licence-test, promo, and rewarded purchases at verification time | [sync.md](sync.md), [release.md](release.md) |
 | Play Integrity verdict vocabulary, standard-request nonce binding, and App Check enforcement modes per environment | [sync.md](sync.md), [security.md](security.md), [release.md](release.md) |
+| Firebase App Check console flow for an app distributed exclusively outside Google Play: registering the internal signing certificate and setting the `PLAY_RECOGNIZED`, `LICENSED`, and device-integrity advanced settings for that registration | [release.md](release.md), [security.md](security.md) |
+| Play App Signing app-signing key rotation or key upgrade, and the App Check and Play Integrity re-registration it forces | [release.md](release.md) |
 | App-scoped Android ID stability across reinstall, restore, and signing-key rotation | [sync.md](sync.md) |
 | Whether Play Console supports more than one RTDN topic per app | [release.md](release.md) |
 | Play Console Android vitals crash and ANR coverage for an app with no crash-reporting SDK, and Play's acceptance of an R8 mapping upload | [release.md](release.md), [diagnostics.md](diagnostics.md) |

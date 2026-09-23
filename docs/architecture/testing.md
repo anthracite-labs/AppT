@@ -87,6 +87,8 @@ A slice that needs a missing fixture captures a redacted trace or generates a sy
 
 Backend fixtures are JSON request/response pairs under `backend/test/fixtures/`, including a Play verifier response for a standard purchase, a `purchaseType` test purchase, a pending purchase, a revoked purchase, RTDN one-time-purchased, one-time-canceled, and voided-purchase messages, and a duplicate-delivery pair.
 
+Backend checks run from the repository root and always name the package: `npm ci --prefix backend`, `npm run typecheck --prefix backend`, `npm run lint --prefix backend`, `npm test --prefix backend`, and `npm run test:emulator --prefix backend`. No documented backend command requires the caller to change directory first, and no command is written without the `--prefix backend` target.
+
 ## Required behavioral contracts
 
 These names are the contract. Implementation may split them; it may not drop the assertion.
@@ -246,8 +248,10 @@ Backend tests run against the Firebase emulator suite with a fake Play verifier 
 |---|---|
 | `debugVariantCannotReachProduction` | A debug build cannot resolve production backend or Firebase identifiers |
 | `releaseVariantCannotReachDevelopment` | A release build cannot resolve development identifiers |
-| `noCredentialFilesInRepo` | Secret scanning finds no service-account key, signing key, or upload credential in the tree |
-| `releaseArtifactsDifferOnlyByConfig` | The internal and production release artifacts from one commit differ only in environment configuration, and neither contains the other's configuration |
+| `noCredentialFilesInRepo` | Secret scanning finds no service-account key, signing key, upload credential, keystore, or certificate file in the tree |
+| `releaseArtifactsDifferOnlyByConfig` | The internal and production release artifacts from one commit are compared after signature material is stripped: the only entries that differ are the environment configuration files, in either direction, and neither contains the other's configuration |
+| `signingIdentityMatchesChannel` | The tester artifact carries the internal certificate, the bundle uploaded to Play carries the upload certificate, the two differ, and neither is a debug certificate |
+| `appCheckRegistrationMatchesChannel` | The App Check registration fingerprint recorded for `appt-prod` is the Play app-signing certificate, the one recorded for `appt-internal` is the internal certificate, and no fingerprint appears in more than one environment |
 | `noProductionModuleDependsOnBenchmark` | `:app` and `:samsung` do not depend on `:macrobenchmark`, and `:macrobenchmark` is absent from the release artifact |
 
 ## Physical acceptance matrix
