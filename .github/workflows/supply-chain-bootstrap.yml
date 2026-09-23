@@ -127,8 +127,17 @@ jobs:
           awk '/\* What went wrong:/{f=1} f{print} /\* Try:/{f=0}' first.log \
             | grep -v "^\s*at " | head -n 14 \
             | while IFS= read -r line; do echo "::error::WHY: $line"; done
-          grep -nE "^e: |error:|Unresolved reference|> Task .* FAILED" first.log \
-            | head -n 6 | while IFS= read -r line; do echo "::error::FIRSTBUILD: $line"; done
+          # Group every distinct compiler error into as few annotations as
+          # possible (the annotation list is capped), so one CI cycle reports
+          # the whole error set rather than a handful at a time.
+          grep -E "^e: " first.log | sed 's|^e: file://[^ ]*/AppT/||' | sort -u > errs.txt || true
+          echo "distinct compiler errors: $(wc -l < errs.txt)"
+          cat errs.txt
+          paste -sd '\n' errs.txt | split -l 12 - /tmp/errchunk_ || true
+          for chunk in /tmp/errchunk_*; do
+            [ -f "$chunk" ] || continue
+            echo "::error::ERRORS:%0A$(sed 's/$/%0A/' "$chunk" | tr -d '\n')"
+          done
           test "${{ steps.firstbuild.outputs.status }}" = "0"
 
       - name: Generate dependency lockfiles
