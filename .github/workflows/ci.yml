@@ -86,16 +86,22 @@ jobs:
       - name: Set up Gradle
         # gradle/actions/setup-gradle v4.4.2
         uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3
+        with:
+          # Installs the pinned Gradle CLI and puts it on PATH, which is what
+          # materializes the wrapper below. The version matches the pin in
+          # gradle/wrapper/gradle-wrapper.properties exactly.
+          gradle-version: '8.13'
 
       - name: Materialize the pinned Gradle wrapper
-        # The distribution version is pinned in
-        # gradle/wrapper/gradle-wrapper.properties; this step only generates the
-        # wrapper scripts and jar when they are not committed, so the commands
-        # below are always the documented ./gradlew commands.
+        # gradlew and gradle-wrapper.jar are generated, not committed; see
+        # docs/BUILD.md. Generating them from the pinned version keeps every
+        # documented ./gradlew command identical to what CI runs.
         run: |
+          set -euo pipefail
           if [ ! -f ./gradlew ]; then
             gradle wrapper --gradle-version 8.13 --distribution-type bin
           fi
+          ./gradlew --version
 
       # Strict dependency verification and dependency locking are only
       # meaningful once the generated lockfiles and checksum metadata are
