@@ -228,6 +228,12 @@ jobs:
             -camera-back none
           disable-animations: true
           script: |
+            # The emulator action runs `script` in its own shell; mirror the
+            # early environment into annotations, because job-log download is
+            # not available to the agent authoring this branch.
+            echo "::error::PWD: $(pwd)"
+            echo "::error::LS: $(ls | tr '\n' ' ')"
+            echo "::error::GRADLEW: $(test -f ./gradlew && echo present || echo MISSING)"
             set -x
             chmod +x ./gradlew
             adb devices
