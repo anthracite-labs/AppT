@@ -166,12 +166,12 @@ jobs:
         if: steps.need.outputs.needed == 'true'
         run: |
           tools/ci/run-step.sh strict-build \
-            ./gradlew --no-daemon --verify-dependencies \
+            ./gradlew --no-daemon --dependency-verification=strict \
               assembleDebug lintDebug testDebugUnitTest dependencyLockCheck
           tools/ci/run-step.sh strict-guards \
-            ./gradlew --no-daemon --verify-dependencies appTGuards
+            ./gradlew --no-daemon --dependency-verification=strict appTGuards
           tools/ci/run-step.sh strict-benchmark \
-            ./gradlew --no-daemon --verify-dependencies :macrobenchmark:assembleBenchmark
+            ./gradlew --no-daemon --dependency-verification=strict :macrobenchmark:assembleBenchmark
 
       # Re-reads every recorded status and fails the job if any step failed.
       # The per-step `continue-on-error` above exists only so one cycle can

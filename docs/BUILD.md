@@ -42,7 +42,7 @@ Android floor, from the repository root:
 
 `gradle/verification-metadata.xml` is committed with SHA-256 checksums for every
 resolved component, and CI runs every Gradle command with
-`--verify-dependencies`. An artifact whose checksum does not match is rejected
+`--dependency-verification=strict`. An artifact whose checksum does not match is rejected
 rather than used.
 
 `gradle/verification-metadata.template.xml` records the reviewed *policy* header

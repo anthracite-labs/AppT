@@ -127,7 +127,7 @@ jobs:
       # dependency verification against the committed checksums.
       - name: Assemble debug, unit tests, lint and dependency lock check
         run: >-
-          ./gradlew --no-daemon --verify-dependencies
+          ./gradlew --no-daemon --dependency-verification=strict
           assembleDebug lintDebug testDebugUnitTest dependencyLockCheck
 
       - name: Privacy, supply-chain and module guards
@@ -135,7 +135,7 @@ jobs:
         # noProductionModuleDependsOnBenchmark, the permission allowlist, the
         # Firestore/crash-reporting checks, the :samsung boundary, the no-Log
         # rule, the no-sync-record rule and the version-catalog pin check.
-        run: ./gradlew --no-daemon --verify-dependencies appTGuards
+        run: ./gradlew --no-daemon --dependency-verification=strict appTGuards
 
       - name: ':app dependency insight — no Firestore client'
         run: >-
@@ -152,7 +152,7 @@ jobs:
           && ! grep -qi 'crashlytics:' crashlytics-insight.txt
 
       - name: ':macrobenchmark compiles as a test-only module'
-        run: ./gradlew --no-daemon --verify-dependencies :macrobenchmark:assembleBenchmark
+        run: ./gradlew --no-daemon --dependency-verification=strict :macrobenchmark:assembleBenchmark
 
       - name: Upload reports
         if: always()
