@@ -41,7 +41,22 @@ MODE="${1:-all}"
 # The exact strict build used for CodeQL's manual Kotlin extraction, in one
 # place so the workflow and this script cannot drift apart. Keep this in sync
 # with .github/workflows/codeql.yml ("Build Kotlin for extraction").
-GRADLE_STRICT_FLAGS=(--no-daemon --dependency-verification=strict)
+#
+# --no-daemon, --no-build-cache, -Dorg.gradle.parallel=false and
+# -Pkotlin.compiler.execution.strategy=in-process are all extraction
+# requirements rather than build policy: gradle.properties enables both the
+# build cache and parallel execution for CI speed, and the Kotlin daemon is the
+# Kotlin plugin's default compile strategy. Any of the three lets compilation
+# happen outside the JVM CodeQL traces, and CodeQL then fails with "could not
+# process any code written in Java/Kotlin". Running the identical command here
+# means a green local `build` is real evidence about the extraction build.
+GRADLE_STRICT_FLAGS=(
+  --no-daemon
+  --no-build-cache
+  -Dorg.gradle.parallel=false
+  -Pkotlin.compiler.execution.strategy=in-process
+  --dependency-verification=strict
+)
 GRADLE_BUILD_TASKS=(assembleDebug)
 
 log()  { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
@@ -70,8 +85,9 @@ Modes:
              the second argument to also scan the diff against it:
                  tools/security/run.sh secrets origin/main
   detekt     Kotlin static analysis via the Gradle detekt task.
-  build      The exact strict Gradle build used for CodeQL Kotlin extraction:
-                 ./gradlew --no-daemon --dependency-verification=strict assembleDebug
+  build      The exact strict Gradle build used for CodeQL Kotlin extraction.
+             The command is printed below rather than documented by hand, so
+             this help text cannot drift from what the script actually runs.
   help       This message.
 
 Notes:
@@ -82,6 +98,8 @@ Notes:
   * CodeQL is intentionally not driven from here; see
     .github/workflows/codeql.yml.
 USAGE
+  printf '\nThe strict Gradle build command:\n    ./gradlew %s %s\n' \
+    "${GRADLE_STRICT_FLAGS[*]}" "${GRADLE_BUILD_TASKS[*]}"
 }
 
 check_secrets() {

@@ -95,6 +95,13 @@ jobs:
         uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
+          # The build cache is disabled for extraction on purpose. gradle.properties
+          # sets org.gradle.caching=true for CI speed, and setup-gradle restores a
+          # cached build cache across runs. A compile task served FROM-CACHE emits
+          # no compiler invocation, so CodeQL traces nothing and fails with
+          # "CodeQL could not process any code written in Java/Kotlin". Extraction
+          # needs the compiler to actually run, so this job opts out of every cache.
+          cache-disabled: true
 
       - name: Initialize CodeQL
         # github/codeql-action v3.38.1
@@ -118,11 +125,33 @@ jobs:
       # so extraction sees exactly what CI compiles. `assembleDebug` also runs
       # the merged-manifest guard, so a build that extracts is a build that
       # passed the permission allowlist.
+      #
+      # The three flags after --no-daemon are extraction requirements, not build
+      # policy, and each exists because without it CodeQL traces no compilation:
+      #
+      #   --no-build-cache
+      #     gradle.properties sets org.gradle.caching=true. A compile task served
+      #     from the build cache emits no compiler invocation at all.
+      #   -Dorg.gradle.parallel=false
+      #     gradle.properties sets org.gradle.parallel=true. Parallel worker
+      #     processes compile outside the traced foreground invocation.
+      #   -Pkotlin.compiler.execution.strategy=in-process
+      #     The Kotlin daemon is the Kotlin Gradle plugin's default strategy. It
+      #     runs the Kotlin compiler in a separate long-lived JVM that the
+      #     extractor does not attach to, which for a Kotlin-only module set is
+      #     exactly the "could not process any code written in Java/Kotlin"
+      #     failure. In-process puts the compiler inside the traced JVM.
+      #
+      # tools/security/run.sh `build` carries the identical flag set, so the
+      # local reproduction and the extraction build cannot drift apart.
       - name: Build Kotlin for extraction
         if: matrix.language == 'java-kotlin'
         run: >-
           chmod +x ./gradlew
-          && ./gradlew --no-daemon --dependency-verification=strict
+          && ./gradlew --no-daemon --no-build-cache
+          -Dorg.gradle.parallel=false
+          -Pkotlin.compiler.execution.strategy=in-process
+          --dependency-verification=strict
           assembleDebug
 
       - name: Perform CodeQL analysis
