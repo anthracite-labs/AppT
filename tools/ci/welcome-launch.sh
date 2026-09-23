@@ -74,7 +74,9 @@ start_out="$(adb shell am start -W -S \
   -c android.intent.category.LAUNCHER \
   -n dev.anthracite.appt/.MainActivity 2>&1 | tr -d '\r')"
 echo "${start_out}"
-echo "${start_out}" | head -n 8 | annotate AMSTART
+echo "${start_out}" | head -n 8 | while IFS= read -r line; do
+  printf '::notice::AMSTART: %s\\n' "$line"
+done
 
 # Wait for the window manager to report AppT focused, rather than assuming a
 # fixed sleep is long enough on a cold emulator.
