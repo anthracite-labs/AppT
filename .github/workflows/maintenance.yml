@@ -17,7 +17,15 @@
 # export job is never widened to cover the destructive operations.
 #
 # The implementations are first-party (gh api + jq), as before; no third-party
-# cleanup or export action is added.
+# cleanup or export action is added. The decision logic for the export report
+# and the run-cleanup plan lives in tested first-party scripts under tools/ci:
+#   * export-dependabot-report.sh — severity buckets (the API reports `medium`,
+#     never `moderate`) plus a fail-closed reconciliation to TOTAL;
+#   * maintenance-cleanup-operations.sh / maintenance-cleanup-plan.sh — the
+#     cleanup keeps the newest run per workflow AND, for this workflow, per
+#     operation, identified by the run's non-skipped job name; active/queued
+#     runs are never deleted and unresolved runs are quarantined, never
+#     deleted. Both are pinned by tools/ci/test/maintenance-cleanup.test.sh.
 
 name: Maintenance
 
@@ -50,6 +58,12 @@ jobs:
   # Read-only export of the open Dependabot alerts as a Markdown + JSON
   # artifact. Not a CI gate; it exists so the alert position is reviewable on
   # demand.
+  #
+  # Severity contract (Issue #52 review fix): the Dependabot alerts API
+  # reports `low`, `medium`, `high`, `critical` — never `moderate`. The report
+  # shows all four buckets plus an explicit Unknown bucket and fails closed if
+  # they do not reconcile to TOTAL, so a severity class can never silently
+  # vanish from the export again.
   # ---------------------------------------------------------------------------
   export-dependabot:
     if: github.event.inputs.operation == 'export-dependabot'
@@ -59,6 +73,10 @@ jobs:
       contents: read
       vulnerability-alerts: read
     steps:
+      - name: Check out
+        # actions/checkout v4.3.0
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
       - name: Fetch open Dependabot alerts
         env:
           GH_TOKEN: ${{ github.token }}
@@ -68,73 +86,12 @@ jobs:
           gh api             --paginate             --slurp             -H "Accept: application/vnd.github+json"             -H "X-GitHub-Api-Version: 2022-11-28"             "/repos/${GITHUB_REPOSITORY}/dependabot/alerts?state=open&per_page=100"             | jq 'add // []'             > dependabot-alerts.json
 
       - name: Generate Markdown report
+        # First-party, tested: tools/ci/test/export-dependabot-report.test.sh.
+        # Fails closed if the severity buckets do not reconcile to TOTAL.
         run: |
           set -euo pipefail
 
-          TOTAL="$(jq 'length' dependabot-alerts.json)"
-          CRITICAL="$(jq '[.[] | select(.security_advisory.severity == "critical")] | length' dependabot-alerts.json)"
-          HIGH="$(jq '[.[] | select(.security_advisory.severity == "high")] | length' dependabot-alerts.json)"
-          MODERATE="$(jq '[.[] | select(.security_advisory.severity == "moderate")] | length' dependabot-alerts.json)"
-          LOW="$(jq '[.[] | select(.security_advisory.severity == "low")] | length' dependabot-alerts.json)"
-
-          cat > dependabot-alerts.md <<EOF
-          # AppT Dependabot Alert Export
-
-          Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-
-          Repository: \`${GITHUB_REPOSITORY}\`
-
-          Source commit: \`${GITHUB_SHA}\`
-
-          ## Summary
-
-          | Severity | Open alerts |
-          | --- | ---: |
-          | Critical | ${CRITICAL} |
-          | High | ${HIGH} |
-          | Moderate | ${MODERATE} |
-          | Low | ${LOW} |
-          | **Total** | **${TOTAL}** |
-
-          ## Alerts
-
-          EOF
-
-          jq -r '
-            def severity_rank:
-              if . == "critical" then 0
-              elif . == "high" then 1
-              elif . == "moderate" then 2
-              elif . == "low" then 3
-              else 4
-              end;
-
-            sort_by(
-              (.security_advisory.severity | severity_rank),
-              .dependency.package.name,
-              .number
-            )
-            | .[]
-            |
-            "### Alert #\(.number) — \(.dependency.package.name)\n\n" +
-            "- **Severity:** \(.security_advisory.severity)\n" +
-            "- **Package:** `\(.dependency.package.name)`\n" +
-            "- **Ecosystem:** \(.dependency.package.ecosystem)\n" +
-            "- **Manifest:** `\(.dependency.manifest_path)`\n" +
-            "- **Scope:** \(.dependency.scope // "unknown")\n" +
-            "- **Relationship:** \(.dependency.relationship // "unknown")\n" +
-            "- **GHSA:** \(.security_advisory.ghsa_id)\n" +
-            "- **CVE:** \(.security_advisory.cve_id // "None")\n" +
-            "- **CVSS:** \(.security_advisory.cvss.score // "Not listed")\n" +
-            "- **Vulnerable versions:** `\(.security_vulnerability.vulnerable_version_range)`\n" +
-            "- **First patched version:** `" +
-              (.security_vulnerability.first_patched_version.identifier // "No patched version listed") +
-            "`\n" +
-            "- **Summary:** " +
-              ((.security_advisory.summary // "No summary") | gsub("\n"; " ")) +
-            "\n" +
-            "- **GitHub:** \(.html_url)\n"
-          ' dependabot-alerts.json >> dependabot-alerts.md
+          bash tools/ci/export-dependabot-report.sh dependabot-alerts.json dependabot-alerts.md
 
       - name: Add report to workflow summary
         run: |
@@ -153,9 +110,20 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Destructive: deletes older COMPLETED workflow runs, keeping the newest run
-  # per workflow and preserving every older run that is still active. Manual
+  # per workflow — and, for the Maintenance workflow, the newest run per
+  # OPERATION, so a cleanup run can never delete the latest export or
+  # cache-purge evidence. Active/queued runs are never deleted, the current
+  # run is never a candidate, and a Maintenance run whose operation cannot be
+  # resolved is quarantined (preserved, reported, never deleted). Manual
   # only.
+  #
+  # The decision logic is first-party and tested (tools/ci/test/
+  # maintenance-cleanup.test.sh): the operations resolver identifies each
+  # Maintenance run by its single non-skipped job name, and the planner writes
+  # the keep/delete plans this job then executes.
   # ---------------------------------------------------------------------------
+  # Job name is the operation identity for the cleanup planner (see
+  # tools/ci/maintenance-cleanup-operations.sh); do not rename it.
   cleanup-workflow-runs:
     if: github.event.inputs.operation == 'cleanup-workflow-runs'
     name: Keep latest run per workflow
@@ -164,7 +132,11 @@ jobs:
       contents: read
       actions: write
     steps:
-      - name: Find duplicate completed workflow runs
+      - name: Check out
+        # actions/checkout v4.3.0
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Fetch all workflow runs
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -172,80 +144,26 @@ jobs:
 
           gh api             --paginate             --slurp             -H "Accept: application/vnd.github+json"             -H "X-GitHub-Api-Version: 2022-11-28"             "/repos/${GITHUB_REPOSITORY}/actions/runs?per_page=100"             | jq '[.[].workflow_runs[]]'             > all-runs.json
 
-          jq -r '
-            group_by(.workflow_id)
-            | .[]
-            | sort_by(.created_at, .id)
-            | reverse
-            | .[0]
-            | [
-                (.workflow_id | tostring),
-                .name,
-                (.id | tostring),
-                .status,
-                (.conclusion // ""),
-                .created_at,
-                (.head_branch // ""),
-                .event
-              ]
-            | @tsv
-          ' all-runs.json > kept-runs.tsv
+      - name: Resolve Maintenance run operations
+        # Identifies each Maintenance run by its single non-skipped job name
+        # (the operation selected at dispatch time). Runs that cannot be
+        # resolved are omitted; the planner quarantines them.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
 
-          jq -r --arg current "${GITHUB_RUN_ID}" '
-            group_by(.workflow_id)
-            | .[]
-            | sort_by(.created_at, .id)
-            | reverse
-            | .[1:][]
-            | select(.status == "completed")
-            | select((.id | tostring) != $current)
-            | [
-                (.id | tostring),
-                (.workflow_id | tostring),
-                .name,
-                (.conclusion // ""),
-                .created_at,
-                (.head_branch // ""),
-                .event
-              ]
-            | @tsv
-          ' all-runs.json > delete-runs.tsv
+          bash tools/ci/maintenance-cleanup-operations.sh all-runs.json > operations.json
 
-          jq -r --arg current "${GITHUB_RUN_ID}" '
-            group_by(.workflow_id)
-            | .[]
-            | sort_by(.created_at, .id)
-            | reverse
-            | .[1:][]
-            | select(.status != "completed")
-            | select((.id | tostring) != $current)
-            | [
-                (.id | tostring),
-                (.workflow_id | tostring),
-                .name,
-                .status,
-                .created_at,
-                (.head_branch // ""),
-                .event
-              ]
-            | @tsv
-          ' all-runs.json > active-older-runs.tsv
+      - name: Plan which runs to keep and delete
+        # Keeps the newest run per (workflow, operation); writes
+        # kept-runs.tsv, delete-runs.tsv, active-older-runs.tsv and
+        # quarantined-runs.tsv. Fails closed if the current run ever appears
+        # in the delete plan.
+        run: |
+          set -euo pipefail
 
-          total="$(jq 'length' all-runs.json)"
-          workflows="$(jq 'group_by(.workflow_id) | length' all-runs.json)"
-          duplicates="$(wc -l < delete-runs.tsv | tr -d ' ')"
-          active_older="$(wc -l < active-older-runs.tsv | tr -d ' ')"
-
-          {
-            echo "### Workflow run cleanup plan"
-            echo
-            echo "- Total runs found: **${total}**"
-            echo "- Distinct workflows: **${workflows}**"
-            echo "- Older completed runs to delete: **${duplicates}**"
-            echo "- Older active runs preserved: **${active_older}**"
-            echo
-            echo "The newest run for every workflow is always preserved."
-          } >> "$GITHUB_STEP_SUMMARY"
+          bash tools/ci/maintenance-cleanup-plan.sh all-runs.json operations.json . >> "$GITHUB_STEP_SUMMARY"
 
       - name: Delete older completed workflow runs
         env:
@@ -256,10 +174,10 @@ jobs:
           deleted=0
           failed=0
 
-          while IFS=$'\t' read -r run_id workflow_id name conclusion created_at head_branch event; do
+          while IFS=$'\t' read -r run_id workflow_id name conclusion created_at head_branch event operation; do
             [ -n "$run_id" ] || continue
 
-            echo "Deleting run ${run_id}: workflow=${name} workflow_id=${workflow_id} conclusion=${conclusion} branch=${head_branch} event=${event} created=${created_at}"
+            echo "Deleting run ${run_id}: workflow=${name} workflow_id=${workflow_id} operation=${operation:-<n/a>} conclusion=${conclusion} branch=${head_branch} event=${event} created=${created_at}"
 
             success=false
             for attempt in 1 2 3; do

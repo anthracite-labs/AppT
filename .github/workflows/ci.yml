@@ -25,6 +25,11 @@
 #     GitHub-managed head snapshot (Automatic Dependency Submission,
 #     `submit-gradle`) instead of racing it. No repository-owned workflow
 #     produces dependency snapshots.
+#   * Concurrency: one cancellation domain per event class (PR, push,
+#     schedule, dispatch) plus ref, so a scheduled or manual CodeQL run can
+#     never cancel a main-push validation run, or vice versa; superseded
+#     runs of the same class and ref still cancel (see the concurrency
+#     group expression below).
 #
 # Every external action is pinned to an immutable commit SHA, with the
 # human-readable release tag retained in a trailing comment, so CI cannot be
@@ -56,8 +61,13 @@ permissions:
   contents: read
   pull-requests: read
 
+# One cancellation domain per event/trigger class (Issue #52 review fix):
+# with a single shared group, a weekly or manual CodeQL run could cancel an
+# in-progress main-push validation (and a main push could cancel a
+# CodeQL-only run). Superseded runs of the SAME class and ref still cancel,
+# as before. The mapping is pinned by tools/ci/test/concurrency-group.test.sh.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && 'pr' || github.event_name == 'push' && 'push' || github.event_name == 'schedule' && 'schedule' || 'dispatch' }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
