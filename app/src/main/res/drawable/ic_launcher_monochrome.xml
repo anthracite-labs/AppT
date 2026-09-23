@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Monochrome launcher layer. The system supplies the colour, so the path is
+  drawn in a single opaque tone and carries no brand colour of its own.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M30,40h48a4,4 0 0 1 4,4v24a4,4 0 0 1 -4,4h-48a4,4 0 0 1 -4,-4v-24a4,4 0 0 1 4,-4zM44,30l10,8 10,-8" />
+</vector>
