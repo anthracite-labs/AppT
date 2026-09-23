@@ -17,13 +17,13 @@ Phase: `implementation`
 
 ## Current objective
 
-Objective: `S01 is human-authorized for Arena execution from GitHub Issue #27. Arena must claim/assign the Issue in its execution environment, implement only S01, and return a pull request for review before any dependent slice is compiled or dispatched.`
+Objective: `Repair and review S01 implementation in PR #30 against GitHub Issue #27. S01 is not accepted until the Android build, guards, benchmark compilation, dependency-lock/verification floor, and install/launch evidence all pass.`
 
 Success condition: `Each implementation slice is compiled from the accepted architecture into one self-contained Arena Issue, implemented and reviewed before the next dependent slice is dispatched, while the accepted privacy, reliability, accessibility, licensing, and Samsung-control contracts remain intact.`
 
 ## Active work
 
-Primary: `Human dispatch authorization for S01 was recorded on GitHub Issue #27. The connected GitHub integration exposes no identifiable Arena assignee, so Arena must claim/assign Issue #27 as its first execution action; implementation has not yet been observed as started.`
+Primary: `Arena returned S01 PR #30 from Issue #27. Backend and secret-scanning jobs pass, but the Android CI job fails because Gradle reports that :app has no assembleDebug task; downstream Android guards and macrobenchmark verification are skipped. S01 remains active and unaccepted.`
 
 Secondary:
 
@@ -109,7 +109,7 @@ Secondary:
 
 ## Recent change
 
-- `The human authorized S01 dispatch on 2026-09-23 and ChatGPT recorded that authorization on GitHub Issue #27. Arena's first execution action must be to claim/assign the Issue before implementation.`
+- `Arena opened PR #30 for S01. Its first CI run is red: backend and secret scanning pass, while the Android job fails before acceptance checks complete because :app exposes no assembleDebug task.`
 
 ## Relevant canonical references
 
@@ -122,17 +122,17 @@ Secondary:
 - `docs/architecture/slices.md — the accepted S01–S17 implementation route merged through PR #25.`
 - `docs/HARVEST.md — harvested research disposition: ADOPT / HARVEST / REJECT.`
 - `GitHub Issue #23 — pre-S01 planning reconciliation work order that produced the revised slice route.`
-- `GitHub Issue #27 — compiled S01 Arena work order; pre-dispatch check passed and human dispatch authorization recorded; Arena must claim/assign it before implementation.`
+- `GitHub Issue #27 — S01 Arena work order; implementation returned as PR #30 and remains open until all acceptance criteria pass.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
 - `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
 - `AGENTS.md — repository operating entry point.`
 
 ## Next
 
-`Arena claims/assigns GitHub Issue #27 and executes the S01 work order, returning a pull request. Do not compile or dispatch S02 before S01 is accepted.`
+`Repair PR #30 until the Android CI floor is green and the missing S01 acceptance evidence is supplied; then run the repository-defined review pass. Do not compile or dispatch S02 before S01 is accepted.`
 
 ## After that
 
-1. `Arena implements S01 from Issue #27 and returns a pull request with the required verification evidence.`
-2. `Review the S01 pull request against Issue #27 plus the canonical architecture; merge only if accepted, then update docs/PROJECT_STATE.md.`
+1. `Review PR #30 against Issue #27 plus canonical architecture using code-review, and require all material findings resolved.`
+2. `Merge S01 only after every acceptance criterion and verification obligation is satisfied, then update docs/PROJECT_STATE.md.`
 3. `Compile the next dependency-ready slice only after S01 is accepted; keep provider needs-validation facts and the two external gates visible until resolved.`
