@@ -9,6 +9,18 @@
 # the artifact we reviewed?"; this check answers "does the thing we are about to
 # add have a known vulnerability?".
 #
+# Ordering is part of the gate. GitHub's guidance for using the dependency
+# submission API and the dependency review API together is to run the
+# submission in the same workflow as the review, so submission deterministically
+# precedes review ("Best practices for using the dependency review API and the
+# dependency submission API together"). Issue #40 showed what happens
+# otherwise: run 35891384530 judged 5d5af7e with no head snapshot and passed
+# without screening the introduced detekt dependency graph at all. This
+# workflow therefore submits the snapshot itself, waits until the compare
+# endpoint actually serves it, and only then reviews — failing closed at any
+# point in that chain rather than ever passing on "No snapshots were found for
+# the head SHA".
+#
 # Every external action is pinned to an immutable commit SHA with the release tag
 # in a trailing comment (docs/architecture/release.md).
 
@@ -18,8 +30,10 @@ on:
   pull_request:
     branches: [main]
 
-# dependency-review-action reads the diff and posts its report as a pull-request
-# comment, so it needs exactly these two and nothing more.
+# The review job reads the diff and posts its report as a pull-request comment.
+# The submit job's `contents: write` is the documented minimum for the
+# Dependency Submission API and is scoped to that one job below; it can publish
+# a dependency snapshot and nothing else. Everything else stays read-only.
 permissions:
   contents: read
   pull-requests: write
@@ -28,11 +42,66 @@ concurrency:
   group: dependency-review-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Matches ci.yml and codeql.yml exactly: the version pins in
+  # gradle/libs.versions.toml and gradle/wrapper/gradle-wrapper.properties
+  # (distributionSha256Sum) are the reviewed values.
+  JAVA_VERSION: '17'
+  GRADLE_VERSION: '8.13'
+
 jobs:
-  dependency-review:
-    name: Dependency review
+  # ---------------------------------------------------------------------------
+  # 1. Submit this head's dependency snapshot FIRST. Repository-owned and
+  #    ordered in this workflow, so dependency review no longer races a
+  #    parallel submission it does not control. Resolution runs on GitHub's
+  #    runner under the repository's strict verification floor.
+  # ---------------------------------------------------------------------------
+  submit-dependency-snapshot:
+    name: Submit dependency snapshot
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # Scoped escalation: the Dependency Submission API requires contents:write
+    # to attach a snapshot to this commit. Confined to this job; the review
+    # job below keeps the read-only workflow permissions.
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out the head of the change
+        # actions/checkout v4.3.0
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Set up Java
+        # actions/setup-java v4.7.1
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Resolve and submit the Gradle dependency snapshot
+        # gradle/actions/dependency-submission v4.4.2
+        #
+        # Same monorepo and the same immutable commit already pinned for
+        # gradle/actions/setup-gradle in ci.yml and codeql.yml — this step adds
+        # no new pinned surface.
+        uses: gradle/actions/dependency-submission@017a9effdb900e5b5b2fddfb590a105619dca3c3
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+          # Resolve under the same strict verification CI enforces everywhere
+          # else, so the submission path can never quietly accept an artifact
+          # whose checksum is not in gradle/verification-metadata.xml.
+          additional-arguments: --dependency-verification=strict
+
+  # ---------------------------------------------------------------------------
+  # 2. Review — only after the submission above, and only once the snapshot is
+  #    actually visible to the compare endpoint. The gate must never judge the
+  #    diff without the head snapshot.
+  # ---------------------------------------------------------------------------
+  dependency-review:
+    name: Dependency review
+    needs: submit-dependency-snapshot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
 
     steps:
       - name: Check out the base and head of the change
@@ -41,6 +110,61 @@ jobs:
         with:
           # The action diffs base against head, so both must be present.
           fetch-depth: 0
+
+      # A submitted snapshot is not instantly readable. Measured on this
+      # repository: the head snapshot for 5a0bd9f7 was ACCEPTED at 18:31:07Z,
+      # but the dependency-graph compare endpoint kept answering "No snapshots
+      # were found for the head SHA" through 18:35:56Z and only served the
+      # snapshot afterwards — about five minutes of visibility lag, longer than
+      # any sane in-action retry budget. So gate on the exact signal the action
+      # consumes: the x-github-dependency-graph-snapshot-warnings header of
+      # GET /dependency-graph/compare/{base}...{head} must be empty. If the
+      # snapshot never becomes visible within the bound, this step fails and
+      # the check is red: dependency review does not run blind.
+      - name: Wait until the head dependency snapshot is visible
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}/dependency-graph/compare/${BASE_SHA}...${HEAD_SHA}"
+          deadline=$((SECONDS + 600))
+          attempt=0
+          while :; do
+            attempt=$((attempt + 1))
+            if curl --fail --silent --show-error \
+                -H "Authorization: Bearer ${GH_TOKEN}" \
+                -H 'Accept: application/vnd.github+json' \
+                -H 'X-GitHub-Api-Version: 2022-11-28' \
+                -D /tmp/compare-headers.txt -o /tmp/compare-body.json \
+                "${api}"; then
+              # The same signal dependency-review-action reads: any non-empty
+              # snapshot-warnings header means the head (or base) snapshot is
+              # not being served yet. Empty means both sides are snapshotted.
+              warnings="$(tr -d '\r' < /tmp/compare-headers.txt \
+                | sed -n 's/^[Xx]-[Gg]ithub-[Dd]ependency-[Gg]raph-[Ss]napshot-[Ww]arnings:[[:space:]]*//p' \
+                | tail -n 1)"
+            else
+              warnings="(compare API request failed)"
+            fi
+            if [ -z "${warnings}" ]; then
+              changes="$(grep -c '"package_url"' /tmp/compare-body.json || true)"
+              manifests="$(grep -o '"manifest": *"[^"]*"' /tmp/compare-body.json \
+                | sed 's/.*: *"//; s/"$//' | sort -u | paste -sd ', ' - || true)"
+              echo "Head dependency snapshot is visible for ${HEAD_SHA}."
+              echo "Dependency changes to evaluate: ${changes} (manifests: ${manifests:-none})."
+              exit 0
+            fi
+            if [ "${SECONDS}" -ge "${deadline}" ]; then
+              decoded="$(printf '%s' "${warnings}" | base64 -d 2>/dev/null || printf '%s' "${warnings}")"
+              echo "::error::No head dependency snapshot visible after 600 s. Last warning: ${decoded}"
+              echo "Refusing to run dependency review without the head snapshot; failing closed."
+              exit 1
+            fi
+            echo "Attempt ${attempt}: snapshot not visible yet; retrying in 15 s..."
+            sleep 15
+          done
 
       # Severity threshold: LOW.
       #
@@ -74,21 +198,11 @@ jobs:
           # Name the check explicitly so a red dependency review is legible in
           # the checks list rather than appearing as a generic job.
           comment-summary-in-pr: always
-          # Wait for this head's Gradle dependency snapshot instead of judging
-          # the diff before the snapshot exists.
-          #
-          # The snapshot for a head SHA is submitted asynchronously by GitHub's
-          # "Automatic Dependency Submission (Gradle)" workflow, which starts
-          # beside this job and has taken 40-135 s in practice. Without a retry
-          # this job completes first and can pass on "No snapshots were found
-          # for the head SHA" without screening the introduced dependency graph
-          # (observed at 5d5af7e: the review closed 16:49:31Z, the head
-          # snapshot landed 16:49:55Z). retry-on-snapshot-warnings re-queries
-          # the dependency-graph compare API every 10 seconds until the head
-          # snapshot is present, so fail-on-severity: low really does screen
-          # the newly introduced dependencies.
-          # The timeout is an explicit bound rather than the 120 s default:
-          # 300 s clears the slowest observed submission (~135 s) with room for
-          # runner queueing, and still fits inside timeout-minutes: 15 above.
+          # Second layer on top of the visibility gate above: the action's own
+          # snapshot retry (a 10-second poll of the compare endpoint). The
+          # explicit 300 s bound is GitHub's documented fallback for review
+          # that runs alongside submission; here it also covers the tail of the
+          # measured post-acceptance visibility lag if the gate above were ever
+          # removed. warn-only stays off — fail-on-severity: low is enforced.
           retry-on-snapshot-warnings: true
           retry-on-snapshot-warnings-timeout: 300
