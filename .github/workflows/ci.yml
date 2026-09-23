@@ -98,22 +98,18 @@ jobs:
         # documented ./gradlew command identical to what CI runs.
         run: |
           set -uo pipefail
-          if [ ! -f ./gradlew ]; then
-            gradle wrapper --gradle-version 8.13 --distribution-type bin --stacktrace > wrapper.log 2>&1
-            status=$?
-          else
-            status=0
-          fi
+          {
+            echo "--- gradle wrapper ---"
+            gradle wrapper --gradle-version 8.13 --distribution-type bin --stacktrace 2>&1
+            echo "--- gradlew --version ---"
+            ./gradlew --version 2>&1
+          } > wrapper.log
+          status=$?
+          cat wrapper.log
           if [ "$status" -ne 0 ]; then
-            # Surface the failure as annotations so it is readable without
-            # downloading the run log.
-            tail -n 60 wrapper.log | while IFS= read -r line; do
-              echo "::error::$line"
-            done
-            cat wrapper.log
+            tail -n 80 wrapper.log | while IFS= read -r line; do echo "::error::$line"; done
             exit "$status"
           fi
-          ./gradlew --version
 
       # Strict dependency verification and dependency locking are only
       # meaningful once the generated lockfiles and checksum metadata are
