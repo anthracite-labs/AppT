@@ -107,6 +107,9 @@ jobs:
             gradle --version || true
             if [ ! -f ./gradlew ]; then
               scratch="$(mktemp -d)"
+              # Gradle 8.13 refuses to run in a directory that is not a build,
+              # so the scratch directory needs an (empty) settings file.
+              : > "$scratch/settings.gradle.kts"
               ( cd "$scratch" && gradle wrapper --gradle-version 8.13 --distribution-type bin --stacktrace )
               ls -la "$scratch" "$scratch/gradle/wrapper" || true
               cp "$scratch/gradlew" ./gradlew
