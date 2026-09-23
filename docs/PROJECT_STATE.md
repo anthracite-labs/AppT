@@ -17,13 +17,13 @@ Phase: `implementation`
 
 ## Current objective
 
-Objective: `Complete the final S01 acceptance pass on PR #30 now that CI and real API 29 install/launch-to-Welcome evidence are green; require the final review record and current PR completion report before human acceptance and merge.`
+Objective: `Compile S02 — Local-network explanation and bounded discovery — from the accepted architecture into one self-contained Arena work order. S07 is now dependency-ready in parallel but is not active or authorized.`
 
 Success condition: `Each implementation slice is compiled from the accepted architecture into one self-contained Arena Issue, implemented and reviewed before the next dependent slice is dispatched, while the accepted privacy, reliability, accessibility, licensing, and Samsung-control contracts remain intact.`
 
 ## Active work
 
-Primary: `PR #30 has a fully green CI run including a real API 29 emulator acceptance job: connectedDebugAndroidTest passes, the debug APK cold-launches dev.anthracite.appt/.MainActivity, and AppT is focused/resumed on Welcome. Arena reported Standards clean except one non-blocking duplication judgement call and Spec clean. The PR description is still stale, and Arena has one unpushed cosmetic annotation-severity fix due to its expired GitHub token. S01 remains unaccepted pending cleanup and final human review.`
+Primary: `S01 is accepted and merged through PR #30 at merge commit 58a1a2f604a50e2109711d48b6b1a2901eabd4c0; Issue #27 is closed. Final PR HEAD 7108fde passed all four CI jobs, including API 29 install/launch-to-Welcome runtime acceptance. No implementation slice is active.`
 
 Secondary:
 
@@ -99,6 +99,7 @@ Secondary:
 - `AppT application data is excluded from Android backup and device transfer, so a new phone starts its remote state clean.`
 - `The implementation route is the accepted seventeen-slice map in docs/architecture/slices.md, merged through PR #25; it replaces the sixteen-slice map and contains no television-sync slice.`
 - `Architecture closure was explicitly accepted by the human on 2026-09-23; implementation is now authorized, one accepted slice at a time.`
+- `S01 — Walking skeleton and CI floor — is the accepted implementation baseline, merged through PR #30 with green Android, runtime-emulator, backend, and secret-scanning checks.`
 
 ## Blockers / Unknowns
 
@@ -109,7 +110,7 @@ Secondary:
 
 ## Recent change
 
-- `PR #30 now has genuine runtime acceptance evidence on an API 29 x86_64 emulator in CI: connectedDebugAndroidTest passes and a cold launcher start resumes dev.anthracite.appt/.MainActivity on Welcome. The current green PR head is a66aac5; Arena's later cosmetic annotation fix was not pushed because its GitHub token expired.`
+- `S01 was accepted and squash-merged through PR #30. Final CI run #47 was fully green, including real API 29 emulator installation, connectedDebugAndroidTest, and a cold launcher start that focused/resumed dev.anthracite.appt/.MainActivity on Welcome; Issue #27 closed automatically.`
 
 ## Relevant canonical references
 
@@ -122,17 +123,17 @@ Secondary:
 - `docs/architecture/slices.md — the accepted S01–S17 implementation route merged through PR #25.`
 - `docs/HARVEST.md — harvested research disposition: ADOPT / HARVEST / REJECT.`
 - `GitHub Issue #23 — pre-S01 planning reconciliation work order that produced the revised slice route.`
-- `GitHub Issue #27 — S01 Arena work order; implementation returned as PR #30 and remains open until all acceptance criteria pass.`
+- `GitHub Issue #27 — completed S01 Arena work order; closed by merged PR #30.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
 - `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
 - `AGENTS.md — repository operating entry point.`
 
 ## Next
 
-`Reconnect Arena's GitHub access, push the cosmetic annotation-only fix if still desired, require the resulting HEAD to stay green, update PR #30's stale completion report, and complete the final human acceptance review. Do not compile or dispatch S02 before S01 is accepted.`
+`Compile S02 — Local-network explanation and bounded discovery — into a self-contained Arena Issue and run the pre-dispatch check. Keep it unassigned until explicit human dispatch authorization.`
 
 ## After that
 
-1. `Review PR #30 against Issue #27 plus canonical architecture using code-review, and require all material findings resolved.`
-2. `Merge S01 only after every acceptance criterion and verification obligation is satisfied, then update docs/PROJECT_STATE.md.`
-3. `Compile the next dependency-ready slice only after S01 is accepted; keep provider needs-validation facts and the two external gates visible until resolved.`
+1. `After explicit human authorization, dispatch S02 by assigning its compiled Issue to Arena; implement and review it against its Issue and canonical architecture.`
+2. `Accept and merge S02 only after all acceptance criteria and verification evidence pass, then update docs/PROJECT_STATE.md.`
+3. `S07 is also dependency-ready after S01 and may run in parallel with the control spine, but compile/dispatch it only when explicitly chosen and authorized; keep provider needs-validation facts and the two external public-release gates visible.`
