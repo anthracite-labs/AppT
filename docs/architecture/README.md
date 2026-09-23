@@ -1,12 +1,10 @@
 # Architecture map
 
-Detailed elaboration of the accepted baseline in `docs/ARCHITECTURE.md`. **This map is the V1 architecture closure for the current architecture round.** The superseded Firestore TV-personalization sync model has been removed from every live document; the remaining gate is human review of this map, not further architecture reconciliation.
+Detailed elaboration of the accepted baseline in `docs/ARCHITECTURE.md`. **This map is the V1 architecture closure for the current architecture round, accepted by the human on 2026-09-23.** The superseded Firestore TV-personalization sync model has been removed from every live document. The pre-S01 gate is human review of the reconciled implementation route in [slices.md](slices.md) (Issue #23), not further architecture reconciliation.
 
 `docs/ARCHITECTURE.md` owns decisions and invariants. This directory owns concrete modules, state, data, presentation, environments, and slices. If a document here conflicts with the baseline, the baseline wins until a later architecture decision changes it.
 
 Product intent stays in `docs/PRODUCT.md`. Canonical domain language is in `CONTEXT.md`. Harvest dispositions stay in `docs/HARVEST.md`. This map does not reopen them.
-
-Architecture baseline for this closure round: the branch was cut from `main` at `20b4d1ea5e837986d953b804ceb7cb9f6f0ec117`, which is the fixed point for the closing review.
 
 ## Read by branch
 
@@ -157,4 +155,4 @@ Pre-existing and not blockers for this map:
 - the focused Samsung vendor-terms and legal review before public release;
 - physical-device evidence that tunes the reliability targets in [reliability.md](reliability.md).
 
-The next gate is human review and acceptance of this map. Phase transition to implementation requires explicit human approval; completing these documents does not itself approve the architecture.
+This map was accepted with the architecture closure on 2026-09-23, which authorized the phase transition to implementation. The next gate is human review and acceptance of the reconciled implementation route in [slices.md](slices.md) before S01 is compiled; the current position lives in `docs/PROJECT_STATE.md`.

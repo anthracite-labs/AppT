@@ -8,7 +8,7 @@ The immediate problem is simple: the physical remote may be lost, broken, inconv
 
 AppT should make television control feel immediate, dependable, familiar, and effortless. The physical remote is the reliability baseline.
 
-“Universal” means AppT is designed to support multiple television ecosystems behind one consistent experience. It does not mean every television is guaranteed to work.
+"Universal" means AppT is designed to support multiple television ecosystems behind one consistent experience. It does not mean every television is guaranteed to work.
 
 V1 begins with **Samsung Smart TVs**. Other televisions may be discovered and experimentally probed, but Samsung is the first ecosystem intentionally targeted.
 
@@ -168,7 +168,7 @@ They use platform-appropriate secure storage and are excluded from ordinary logs
 
 Where a persistent television security identity can be established, reconnect behavior fails closed if that identity changes unexpectedly and requires explicit re-pairing rather than silently trusting a replacement.
 
-AppT does not provide a global certificate-verification bypass or generic “ignore security errors” mode.
+AppT does not provide a global certificate-verification bypass or generic "ignore security errors" mode.
 
 The exact Samsung protocol and vendor-terms position receives focused legal/vendor review before public release. This review does not block early product or architecture work.
 
