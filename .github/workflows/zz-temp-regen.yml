@@ -1,0 +1,144 @@
+# TEMPORARY — supply-chain regeneration bootstrap. DELETE BEFORE MERGE.
+#
+# Why this exists at all, given ci.yml's comment that "there is no bootstrap or
+# self-healing path here on purpose":
+#
+#   Adding the detekt Gradle plugin (Issue #36) puts new artifacts on the
+#   buildscript classpath and adds a new lockable `detekt` configuration. The
+#   repository resolves under dependencyLocking { lockAllConfigurations() } and
+#   CI runs --dependency-verification=strict, so gradle/verification-metadata.xml
+#   and every *.gradle.lockfile must be regenerated BEFORE the plugin can build.
+#   Their contents are SHA-256 checksums of a resolved graph, which can only be
+#   produced by resolving it — and the development sandbox for this change has no
+#   JVM and no reachable Maven repository.
+#
+#   So the regeneration is performed here, once, on a GitHub-hosted runner, and
+#   the results are committed as a reviewed diff. That is the same accepted
+#   process as any other dependency change (docs/BUILD.md); only the machine
+#   differs.
+#
+# What this file is NOT:
+#   * Not part of the CI floor. It has exactly one trigger, workflow_dispatch, so
+#     it can never run on a pull request or a push. It is not a self-healing
+#     path: nothing in CI calls it, and a failed regeneration leaves the committed
+#     artifacts untouched.
+#   * Not a weakening of strict verification. It writes artifacts with
+#     verification switched OFF for that one resolution pass — unavoidable, since
+#     the checksums being written are the ones strict mode would demand — and
+#     then re-resolves under --dependency-verification=strict as a gate before the
+#     artifacts are allowed to leave the runner. If that gate fails, the job fails
+#     and nothing is uploaded.
+#   * Not able to modify the branch. `permissions: contents: read`; there is no
+#     commit or push step. A human downloads the artifact and commits it.
+
+name: TEMP regen supply-chain (delete before merge)
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Why this regeneration is being run (recorded in the log)'
+        required: true
+        default: 'Add detekt: new buildscript artifacts + new lockable detekt configuration'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tmp-regen-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regenerate:
+    name: Regenerate lockfiles and verification metadata
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out
+        # actions/checkout v4.3.0
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Record the reason
+        run: |
+          echo "Regeneration reason: ${{ inputs.reason }}"
+          echo "Ref: ${{ github.ref }} @ ${{ github.sha }}"
+
+      - name: Set up JDK
+        # actions/setup-java v4.7.1
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        # gradle/actions/setup-gradle v4.4.2
+        uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3
+        with:
+          gradle-version: '8.13'
+          # No cache: a stale restored build cache could let a resolution pass
+          # skip work and leave an artifact unrecorded.
+          cache-disabled: true
+
+      # Step 1 — lockfiles. Verification is off for this pass only, because the
+      # detekt artifacts being resolved are precisely the ones not yet in the
+      # metadata file. Nothing is committed by this step.
+      - name: Refresh the committed lockfiles
+        run: >-
+          chmod +x ./gradlew
+          && ./gradlew --no-daemon --dependency-verification=off
+          resolveAndLockAll --write-locks
+
+      # Step 2 — verification metadata, over the same task set CI exercises, so
+      # the regenerated file still covers everything the old one did. Gradle
+      # merges into the existing file; the diff in the next step is what proves
+      # nothing was dropped.
+      - name: Regenerate verification metadata (sha256)
+        run: >-
+          ./gradlew --no-daemon --dependency-verification=off
+          --write-verification-metadata sha256
+          assembleDebug lintDebug testDebugUnitTest
+          :macrobenchmark:assembleBenchmark detekt
+
+      # Step 3 — the gate. If the regenerated artifacts do not satisfy the real
+      # CI conditions, this fails and nothing is uploaded.
+      - name: Prove the regenerated state satisfies strict verification
+        run: >-
+          ./gradlew --no-daemon --dependency-verification=strict
+          dependencyLockCheck appTGuards
+
+      # Findings are surfaced here so the reviewer sees them before committing,
+      # rather than discovering them on the CI floor.
+      - name: Run detekt against the regenerated state
+        run: ./gradlew --no-daemon --dependency-verification=strict detekt
+
+      - name: Show exactly what changed
+        run: |
+          echo "=== git diff --stat ==="
+          git --no-pager diff --stat
+          echo
+          echo "=== non-detekt components added to verification metadata ==="
+          git --no-pager diff -U0 gradle/verification-metadata.xml \
+            | grep -E '^\+.*<component ' | grep -vi detekt | head -40
+          echo
+          echo "=== detekt components added ==="
+          git --no-pager diff -U0 gradle/verification-metadata.xml \
+            | grep -E '^\+.*<component ' | grep -ci detekt
+          echo
+          echo "=== components REMOVED (must be none) ==="
+          git --no-pager diff -U0 gradle/verification-metadata.xml \
+            | grep -E '^-.*<component ' || echo "  none"
+
+      - name: Upload the regenerated artifacts
+        # actions/upload-artifact v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: supply-chain-regenerated
+          path: |
+            gradle/verification-metadata.xml
+            app/gradle.lockfile
+            samsung/gradle.lockfile
+            macrobenchmark/gradle.lockfile
+            settings-gradle.lockfile
+            **/build/reports/detekt/**
+          if-no-files-found: error
+          retention-days: 14

@@ -28,6 +28,14 @@ androidx-test-uiautomator = "2.3.0"
 kotlinx-serialization = "1.8.0"
 junit = "4.13.2"
 robolectric = "4.14.1"
+# detekt is AppT's Kotlin static-analysis floor (Issue #36). Pinned to the
+# latest STABLE release: the 2.0.0 line is entirely alpha as of this pin
+# (2.0.0-alpha.6, 2026-08-04), and a pre-release analysis engine is not an
+# acceptable floor for a security gate. 1.23.8 (2025-02-21) post-dates
+# Kotlin 2.1.0 and its embedded 2.0.21 compiler parses this codebase's source
+# without type resolution, which is how the `detekt` task runs here.
+# Updates arrive as reviewed pull requests, like every other pin.
+detekt = "1.23.8"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
@@ -60,3 +68,4 @@ android-test = { id = "com.android.test", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }

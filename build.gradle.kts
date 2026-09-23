@@ -12,6 +12,11 @@ plugins {
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.kotlin.serialization) apply false
+    // Declared at the root so the version comes from the catalog exactly once,
+    // and applied only in the production Kotlin modules (:app, :samsung).
+    // :macrobenchmark is a test-only com.android.test module, not production
+    // Kotlin, so Issue #36's detekt scope does not reach it.
+    alias(libs.plugins.detekt) apply false
 }
 
 // Dependency locking, enabled repository-wide (release.md#gradle).

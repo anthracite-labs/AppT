@@ -1,0 +1,102 @@
+# AppT detekt configuration — repository-owned (Issue #36).
+#
+# This file is the single detekt configuration for the production Kotlin
+# modules. It is committed, reviewed, and is not generated.
+#
+# Two things this file deliberately is NOT:
+#
+#   * NOT a baseline. There is no baseline.xml anywhere in this repository and
+#     none may be added. A generated baseline would freeze every existing
+#     finding as permanently acceptable, which is the opposite of a gate.
+#     Issue #36 forbids it explicitly.
+#
+#   * NOT a suppression surface. Rules are not switched off to make a run
+#     green. Every override below carries the reason it exists, and each is
+#     scoped as narrowly as the reason allows. If a rule is genuinely wrong for
+#     AppT, it is turned off here with a justification a reviewer can argue
+#     with — never with a `@Suppress` scattered through the source.
+#
+# Scope: production Kotlin only. The `detekt` tasks in :app and :samsung point
+# their `source` at src/main, matching Issue #36's requirement that detekt cover
+# production Kotlin. Test sources are covered by the JVM test suites and Android
+# Lint instead; pulling them in here would mix "production code quality gate"
+# with test-helper style, which is a different contract.
+#
+# The defaults are inherited (`buildUponDefaultConfig = true` in the modules),
+# so a rule that is not mentioned below is active at detekt's own default
+# threshold. Only the deltas are written here, which keeps this file readable
+# and makes every deviation visible in review.
+
+config:
+  # Fail the build if this file itself is malformed or references a rule that
+  # does not exist in the pinned detekt version. Without this, a typo silently
+  # disables a rule.
+  validation: true
+  # A detekt warning must fail CI exactly like an error does, or "warnings only"
+  # becomes a place findings go to be ignored.
+  warningsAsErrors: true
+  # Report every applicable rule rather than stopping at the first match per
+  # category, so one run shows the whole picture.
+  checkExhaustiveness: false
+
+complexity:
+  active: true
+  # Compose screens legitimately decompose into several small composables in one
+  # file. The default threshold of 11 is reached by a single screen plus its
+  # preview; 20 still catches a file that has become a dumping ground.
+  TooManyFunctions:
+    active: true
+    thresholdInFiles: 20
+    thresholdInClasses: 20
+    thresholdInInterfaces: 20
+    thresholdInObjects: 20
+    thresholdInEnums: 20
+  # Compose composables take their state, modifiers and callbacks as parameters.
+  # The default of 6 is reached by an ordinary stateless composable.
+  LongParameterList:
+    active: true
+    functionThreshold: 8
+    constructorThreshold: 8
+    ignoreDefaultParameters: true
+    ignoreDataClasses: true
+
+style:
+  active: true
+  MagicNumber:
+    active: true
+    # app/src/main/java/dev/anthracite/appt/tokens/Tokens.kt exists precisely to
+    # give numbers names. Flagging `val TouchTargetMin = 48.dp` as a magic number
+    # inverts the rule's intent: the token declaration IS the fix the rule asks
+    # for. Usages elsewhere still must reference the token.
+    ignorePropertyDeclaration: true
+    # Enum ordinals and named constants are already named by their declaration.
+    ignoreEnums: true
+    ignoreConstantDeclaration: true
+  # Wildcard imports hide which symbol a file actually depends on, which matters
+  # when a privacy-sensitive API is involved.
+  WildcardImport:
+    active: true
+  ReturnCount:
+    active: true
+    max: 3
+  # Kotlin's `also`/`let`/`run` are used for scope-limited side effects in the
+  # Compose code; the default of 2 chained calls is reached by ordinary theming.
+  MaxLineLength:
+    active: true
+    maxLineLength: 120
+
+potential-bugs:
+  active: true
+  # A lateinit property read before assignment is a crash on a television with
+  # no visible diagnostic. This stays on at its default.
+  LateinitUsage:
+    active: true
+
+naming:
+  active: true
+  # Compose composables are PascalCase functions by convention, which detekt's
+  # default FunctionNaming would reject. This is the standard, documented
+  # Compose accommodation and applies only to @Composable functions.
+  FunctionNaming:
+    active: true
+    ignoreAnnotated: ['Composable']
