@@ -1,7 +1,7 @@
 package dev.anthracite.appt.tokens
 
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.isSp
+import androidx.compose.ui.unit.TextUnitType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -57,8 +57,16 @@ class TokensTest {
     fun `every type role is declared in scalable units`() {
         listOf(TypeTokens.display, TypeTokens.title, TypeTokens.body, TypeTokens.label)
             .forEach { style ->
-                assertTrue("text size $style is not scalable sp", style.fontSize.isSp)
-                assertTrue("line height $style is not scalable sp", style.lineHeight.isSp)
+                assertEquals(
+                    "text size $style must be declared in scalable sp, not dp",
+                    TextUnitType.Sp,
+                    style.fontSize.type,
+                )
+                assertEquals(
+                    "line height $style must be declared in scalable sp, not dp",
+                    TextUnitType.Sp,
+                    style.lineHeight.type,
+                )
             }
     }
 

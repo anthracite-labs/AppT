@@ -6,10 +6,9 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertTouchHeightIsAtLeast
-import androidx.compose.ui.test.assertTouchWidthIsAtLeast
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodes
 import androidx.compose.ui.test.onNodeWithTag
@@ -22,6 +21,7 @@ import dev.anthracite.appt.tokens.LocalMotionDurationScale
 import dev.anthracite.appt.tokens.SizeTokens
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -63,6 +63,35 @@ class WelcomeScreenTest {
         .onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
         .fetchSemanticsNodes()
         .size
+
+    /**
+     * presentation.md's accessibility contract: "Targets are at least 48dp".
+     *
+     * Asserted over each clickable node's *touch* bounds, which is what the
+     * platform actually dispatches against, and compared to the token that owns
+     * the floor rather than to a literal.
+     */
+    private fun assertEveryClickableMeetsTheTouchTargetFloor() {
+        val nodes = composeRule
+            .onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
+            .fetchSemanticsNodes()
+        assertTrue("expected at least one interactive control", nodes.isNotEmpty())
+
+        val floorPx = with(composeRule.density) { SizeTokens.minimumTouchTarget.toPx() }
+        nodes.forEach { node ->
+            val bounds = node.touchBoundsInRoot
+            assertTrue(
+                "touch width ${bounds.width}px is below the " +
+                    "${SizeTokens.minimumTouchTarget} floor (${floorPx}px)",
+                bounds.width + 0.5f >= floorPx,
+            )
+            assertTrue(
+                "touch height ${bounds.height}px is below the " +
+                    "${SizeTokens.minimumTouchTarget} floor (${floorPx}px)",
+                bounds.height + 0.5f >= floorPx,
+            )
+        }
+    }
 
     // --- product shape (ui-ux.md#onboarding) --------------------------------
 
@@ -122,12 +151,7 @@ class WelcomeScreenTest {
     @Test
     fun `every interactive control meets the 48dp touch target floor`() {
         setWelcome()
-        val matcher = SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick)
-        repeat(clickableNodeCount()) { index ->
-            composeRule.onAllNodes(matcher)[index]
-                .assertTouchWidthIsAtLeast(SizeTokens.minimumTouchTarget)
-                .assertTouchHeightIsAtLeast(SizeTokens.minimumTouchTarget)
-        }
+        assertEveryClickableMeetsTheTouchTargetFloor()
     }
 
     @Test
@@ -158,8 +182,7 @@ class WelcomeScreenTest {
         composeRule.onNodeWithTag(WelcomeTestTags.VALUE_PROPOSITION).assertExists()
         composeRule.onNodeWithTag(WelcomeTestTags.REASSURANCE).assertExists()
         composeRule.onNodeWithTag(WelcomeTestTags.PRIMARY_ACTION).assertExists()
-        composeRule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))[0]
-            .assertTouchHeightIsAtLeast(SizeTokens.minimumTouchTarget)
+        assertEveryClickableMeetsTheTouchTargetFloor()
     }
 
     @Test
