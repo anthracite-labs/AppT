@@ -136,26 +136,38 @@ jobs:
           # reached, which is exactly what happened in run 35886418690. Fail-fast
           # is therefore suspended explicitly around the pipeline, the status is
           # captured, and fail-fast is restored before anything else runs.
-          set -o pipefail
+          # Fail-fast stays OFF for this whole step. Two separate reasons:
+          #   * the Gradle pipeline must not abort before its status is read; and
+          #   * the reporting greps legitimately match nothing on a clean pass,
+          #     and a grep with no match exits 1 — under `set -e` with pipefail
+          #     that alone would fail the step, which is what happened in run
+          #     35888294156 (no annotations were emitted, because the shell died
+          #     on the reporting grep rather than on Gradle).
           set +e
+          set -o pipefail
           ./gradlew --no-daemon --continue \
             --dependency-verification=lenient \
             --write-verification-metadata sha256 \
             assembleDebug lintDebug testDebugUnitTest \
             :macrobenchmark:assembleBenchmark detekt 2>&1 | tee /tmp/regen.log
           status=${PIPESTATUS[0]}
-          set -e
           echo "resolution pass exit status: $status"
           # Surface what went wrong through annotations: this sandbox cannot read
           # runner logs, and annotations are reachable over the ordinary API.
+          # `|| true` because no matches is the good case, not an error.
           grep -E "FAILED$|^FAILURE|error:|\.kt:[0-9]+:[0-9]+:|What went wrong" /tmp/regen.log \
-            | tail -30 | while IFS= read -r l; do echo "::warning title=resolution pass::${l}"; done
+            | tail -30 | while IFS= read -r l; do echo "::warning title=resolution pass::${l}"; done || true
           if [ "$status" -ne 0 ]; then
-            echo "::notice::Resolution pass exited $status. Continuing deliberately: this pass exists to WRITE checksums, and a detekt or lint finding must not stop that. Genuine resolution errors are caught by the strict gate in the next step, which will fail if any checksum is missing."
+            echo "::notice::Resolution pass exited $status. Continuing deliberately: this pass exists to WRITE checksums, and a detekt or lint finding must not stop that. Genuine resolution errors are caught by the strict gate in the next step, which fails if any checksum is missing."
           fi
-          # The checksum file must exist and have grown, or the pass did nothing.
+          # Hard assertions on the actual result, so a pass that wrote nothing
+          # cannot look like success.
+          set -e
           test -s gradle/verification-metadata.xml
-          grep -c '<component ' gradle/verification-metadata.xml
+          components=$(grep -c '<component ' gradle/verification-metadata.xml || true)
+          echo "components recorded in verification-metadata.xml: $components"
+          test "$components" -ge 500
+          echo "metadata pass finished."
 
       # Step 3 — the gate. If the regenerated artifacts do not satisfy the real
       # CI conditions, this fails and nothing is committed.
@@ -168,18 +180,21 @@ jobs:
       # allowed to fail the job: a real finding must stop the commit.
       - name: Run detekt under strict verification
         run: |
-          # Same fail-fast handling as above: suspend around the pipeline so the
-          # exit status can be captured and reported before the step decides.
-          set -o pipefail
+          # Fail-fast stays off for the whole step: the reporting greps match
+          # nothing when detekt is clean, and a no-match grep exits 1. The step's
+          # real verdict is Gradle's own status, which is what it exits with.
           set +e
+          set -o pipefail
           ./gradlew --no-daemon --dependency-verification=strict detekt 2>&1 | tee /tmp/detekt.log
           status=${PIPESTATUS[0]}
-          set -e
           echo "detekt exit status: $status"
           grep -E "\.kt:[0-9]+:[0-9]+:" /tmp/detekt.log | head -60 \
-            | while IFS= read -r l; do echo "::error title=detekt finding::${l}"; done
+            | while IFS= read -r l; do echo "::error title=detekt finding::${l}"; done || true
           grep -E "Build failed with|weighted issues|^FAILURE" /tmp/detekt.log | tail -5 \
-            | while IFS= read -r l; do echo "::error title=detekt::${l}"; done
+            | while IFS= read -r l; do echo "::error title=detekt::${l}"; done || true
+          if [ "$status" -eq 0 ]; then
+            echo "detekt: clean under strict dependency verification."
+          fi
           exit "$status"
 
       # Step 5 — the point of the whole exercise. If the detekt plugin marker or
@@ -187,25 +202,39 @@ jobs:
       # fail on the next run and committing would be actively harmful.
       - name: Confirm detekt is actually recorded in the verification metadata
         run: |
-          set -euo pipefail
-          echo "plugin marker:"
-          grep -c 'io.gitlab.arturbosch.detekt.gradle.plugin' gradle/verification-metadata.xml
-          echo "detekt components recorded:"
-          grep -c 'group="io.gitlab.arturbosch.detekt"' gradle/verification-metadata.xml
-          echo "sha256 entries recorded for detekt:"
-          awk '/<component group="io.gitlab.arturbosch.detekt/,/<\/component>/' \
-            gradle/verification-metadata.xml | grep -c 'sha256 value='
+          # No `set -e`: grep -c exits 1 on zero matches, and here zero matches is
+          # a finding to report, not a reason to die without saying why.
+          set -uo pipefail
+          count() { grep -c "$1" gradle/verification-metadata.xml || true; }
+
+          marker=$(count 'io.gitlab.arturbosch.detekt.gradle.plugin')
+          comps=$(count 'group="io.gitlab.arturbosch.detekt"')
+          sums=$(awk '/<component group="io.gitlab.arturbosch.detekt/,/<\/component>/' \
+                   gradle/verification-metadata.xml | grep -c 'sha256 value=' || true)
+          total=$(count '<component ')
+
+          echo "plugin marker entries : $marker"
+          echo "detekt components     : $comps"
+          echo "detekt sha256 entries : $sums"
+          echo "total components      : $total"
           echo
-          echo "components in the regenerated file: $(grep -c '<component ' gradle/verification-metadata.xml)"
-          echo
-          echo "=== components REMOVED relative to HEAD (must be none) ==="
-          git --no-pager diff -U0 gradle/verification-metadata.xml \
-            | grep -E '^-.*<component ' && { echo "::error::verification components were removed"; exit 1; } \
-            || echo "  none removed"
-          # Hard requirement, not a report.
-          test "$(grep -c 'io.gitlab.arturbosch.detekt.gradle.plugin' gradle/verification-metadata.xml)" -ge 1
-          test "$(grep -c 'group="io.gitlab.arturbosch.detekt"' gradle/verification-metadata.xml)" -ge 5
-          echo "detekt artifacts are recorded."
+
+          removed=$(git --no-pager diff -U0 gradle/verification-metadata.xml \
+                      | grep -E '^-.*<component ' || true)
+          if [ -n "$removed" ]; then
+            echo "$removed"
+            echo "::error::verification components were REMOVED by this regeneration"
+            exit 1
+          fi
+          echo "no verification components removed."
+
+          fail=0
+          [ "$marker" -ge 1 ] || { echo "::error::detekt plugin marker is missing from the verification metadata"; fail=1; }
+          [ "$comps" -ge 5 ]  || { echo "::error::expected at least 5 detekt components, found $comps"; fail=1; }
+          [ "$sums" -ge 5 ]   || { echo "::error::expected at least 5 detekt sha256 entries, found $sums"; fail=1; }
+          [ "$total" -ge 500 ] || { echo "::error::total component count collapsed to $total"; fail=1; }
+          if [ "$fail" -eq 0 ]; then echo "detekt artifacts are recorded and nothing was lost."; fi
+          exit "$fail"
 
       - name: Show exactly what changed
         run: |
