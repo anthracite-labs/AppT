@@ -59,10 +59,12 @@ adb shell am force-stop dev.anthracite.appt
 # `monkey` returns before the activity is actually resumed and can bounce off
 # the launcher, so start the LAUNCHER intent directly and wait for it. -W
 # blocks until the launch completes; -S forces a cold start.
-adb shell am start -W -S \
+start_out="$(adb shell am start -W -S \
   -a android.intent.action.MAIN \
   -c android.intent.category.LAUNCHER \
-  -n dev.anthracite.appt/.MainActivity | tr -d '\r'
+  -n dev.anthracite.appt/.MainActivity 2>&1 | tr -d '\r')"
+echo "${start_out}"
+echo "${start_out}" | head -n 8 | annotate AMSTART
 
 # Wait for the window manager to report AppT focused, rather than assuming a
 # fixed sleep is long enough on a cold emulator.
@@ -89,6 +91,9 @@ case "${focus}${resumed}" in
   *dev.anthracite.appt/*MainActivity*) ;;
   *)
     echo "::error::Cold launch did not resume dev.anthracite.appt/.MainActivity"
+    adb logcat -d -t 400 2>/dev/null \
+      | grep -iE "AndroidRuntime|FATAL|appt|ActivityManager.*appt" \
+      | tail -n 20 | head -n 8 | annotate COLDLOG
     exit 1
     ;;
 esac
