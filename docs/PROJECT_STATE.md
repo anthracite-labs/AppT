@@ -17,13 +17,13 @@ Phase: `implementation`
 
 ## Current objective
 
-Objective: `Human review and acceptance of the Issue #23 reconciliation PR — the revised S01–S17 implementation route and Markdown corrections — before S01 is compiled or dispatched. No implementation slice is active or dispatched.`
+Objective: `Compile the accepted S01 implementation slice from docs/architecture/slices.md into one self-contained Arena Issue. No implementation slice is active or dispatched yet.`
 
 Success condition: `Each implementation slice is compiled from the accepted architecture into one self-contained Arena Issue, implemented and reviewed before the next dependent slice is dispatched, while the accepted privacy, reliability, accessibility, licensing, and Samsung-control contracts remain intact.`
 
 ## Active work
 
-Primary: `Issue #23 was executed and its documentation-only PR is under human review: the reconciled seventeen-slice route in docs/architecture/slices.md, the architecture coverage matrix, a line-by-line review of all project-owned Markdown, and the pinned Slopless pass. No implementation slice is active or dispatched.`
+Primary: `The Issue #23 reconciliation is accepted and merged. The authoritative implementation route is S01–S17 in docs/architecture/slices.md. S01 is the next slice to compile; no implementation slice is active or dispatched yet.`
 
 Secondary:
 
@@ -97,7 +97,7 @@ Secondary:
 - `A frozen purchase binding and its account record share one random deletion-scoped deletionId written at freeze, so an interrupted account deletion is always reconcilable and a frozen binding can never be permanently orphaned.`
 - `An accountDeleted release of a purchase binding requires an Auth-removal proof timestamp: reconciliation releases only after Firebase Auth confirms the user is gone, and while the identity can still authenticate it leaves the binding frozen and raises an alert instead of releasing.`
 - `AppT application data is excluded from Android backup and device transfer, so a new phone starts its remote state clean.`
-- `The implementation route is the reconciled seventeen-slice map in docs/architecture/slices.md, returned in the Issue #23 PR and under human review; it replaces the sixteen-slice map and contains no television-sync slice.`
+- `The implementation route is the accepted seventeen-slice map in docs/architecture/slices.md, merged through PR #25; it replaces the sixteen-slice map and contains no television-sync slice.`
 - `Architecture closure was explicitly accepted by the human on 2026-09-23; implementation is now authorized, one accepted slice at a time.`
 
 ## Blockers / Unknowns
@@ -109,7 +109,7 @@ Secondary:
 
 ## Recent change
 
-- `Arena returned the Issue #23 documentation-only PR: a reconciled seventeen-slice route (environments moved before account and purchase, purchase-binding deletion moved to the purchase slice, Forget split, Settings ownership assigned, closure blockers completed, flows.md wired in) plus stale-statement corrections. S01 remains undispatched until the PR is reviewed and accepted.`
+- `The human accepted and merged PR #25, completing Issue #23. The reconciled S01–S17 route is now authoritative; S01 remains undispatched until its Arena Issue is compiled and explicitly dispatched.`
 
 ## Relevant canonical references
 
@@ -119,7 +119,7 @@ Secondary:
 - `docs/architecture/README.md — detailed architecture map, settled-decision ownership, invariant pointers, and the needs-validation register.`
 - `docs/architecture/sync.md — account, trial, purchase, and entitlement architecture (file name is historical).`
 - `docs/architecture/presentation.md — routes, screen state contracts, restoration, responsive rules, tokens, accessibility.`
-- `docs/architecture/slices.md — the reconciled S01–S17 implementation route (Issue #23 PR, under human review).`
+- `docs/architecture/slices.md — the accepted S01–S17 implementation route merged through PR #25.`
 - `docs/HARVEST.md — harvested research disposition: ADOPT / HARVEST / REJECT.`
 - `GitHub Issue #23 — pre-S01 planning reconciliation work order that produced the revised slice route.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
@@ -128,10 +128,10 @@ Secondary:
 
 ## Next
 
-`Review and accept the Issue #23 reconciliation PR (revised S01–S17 route and Markdown corrections) before compiling S01.`
+`Compile S01 from docs/architecture/slices.md into one self-contained Arena implementation Issue under .agents/ARENA-DISPATCH.md. Do not compile or dispatch S02 until S01 is accepted.`
 
 ## After that
 
-1. `After explicit acceptance, compile the first dependency-ready implementation slice through .agents/ARENA-DISPATCH.md.`
-2. `Review each implementation PR before compiling the next dependency-ready slice.`
-3. `Keep provider needs-validation facts and the two external gates visible until the slice that resolves them.`
+1. `Dispatch S01 to Arena after its Issue passes the pre-dispatch check.`
+2. `Review the S01 pull request against its Issue plus the canonical architecture and merge only if accepted.`
+3. `Compile the next dependency-ready slice only after the current slice is accepted; keep provider needs-validation facts and the two external gates visible until resolved.`
