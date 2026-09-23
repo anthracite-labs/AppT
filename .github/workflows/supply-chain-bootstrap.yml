@@ -184,8 +184,20 @@ jobs:
           for f in .ci-status/*; do
             [ -f "$f" ] || continue
             s="$(cat "$f")"
-            echo "$(basename "$f"): $s"
-            [ "$s" = "0" ] || rc=1
+            label="$(basename "$f")"
+            echo "${label}: ${s}"
+            if [ "$s" != "0" ]; then
+              rc=1
+              echo "::error::STATUS: step ${label} exited ${s}"
+              # Some Gradle failures print no 'What went wrong' block, so the
+              # per-step reporter stays silent; show the tail here instead.
+              if [ -f "step-${label}.log" ]; then
+                tail -n 25 "step-${label}.log" | grep -v "^[[:space:]]*at " \
+                  | while IFS= read -r line; do
+                      echo "::error::TAIL ${label}: ${line}"
+                    done
+              fi
+            fi
           done
           exit "$rc"
 
