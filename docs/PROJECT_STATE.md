@@ -17,13 +17,13 @@ Phase: `implementation`
 
 ## Current objective
 
-Objective: `Compile S02 — Local-network explanation and bounded discovery — from the accepted architecture into one self-contained Arena work order. S07 is now dependency-ready in parallel but is not active or authorized.`
+Objective: `Complete the security baseline in GitHub Issue #36 — full security audit followed by automated code-scanning/tooling implementation — before resuming S02. S07 remains dependency-ready but is not active or authorized.`
 
-Success condition: `Each implementation slice is compiled from the accepted architecture into one self-contained Arena Issue, implemented and reviewed before the next dependent slice is dispatched, while the accepted privacy, reliability, accessibility, licensing, and Samsung-control contracts remain intact.`
+Success condition: `Issue #36 completes a validated full security audit and lands the accepted CodeQL/detekt/dependency-review/Dependabot/security-script baseline without weakening existing privacy or supply-chain controls; its resulting PR is reviewed and accepted before S02 resumes.`
 
 ## Active work
 
-Primary: `S01 is accepted and merged through PR #30 at merge commit 58a1a2f604a50e2109711d48b6b1a2901eabd4c0; Issue #27 is closed. Final PR HEAD 7108fde passed all four CI jobs, including API 29 install/launch-to-Welcome runtime acceptance. No implementation slice is active.`
+Primary: `Security baseline Issue #36 is compiled, labelled ready-for-agent, and intentionally unassigned pending explicit human Arena dispatch. S01 remains the accepted implementation baseline through PR #30; no product implementation slice is active.`
 
 Secondary:
 
@@ -100,6 +100,8 @@ Secondary:
 - `The implementation route is the accepted seventeen-slice map in docs/architecture/slices.md, merged through PR #25; it replaces the sixteen-slice map and contains no television-sync slice.`
 - `Architecture closure was explicitly accepted by the human on 2026-09-23; implementation is now authorized, one accepted slice at a time.`
 - `S01 — Walking skeleton and CI floor — is the accepted implementation baseline, merged through PR #30 with green Android, runtime-emulator, backend, and secret-scanning checks.`
+- `Before S02, AppT will run the dedicated Arena security baseline in Issue #36: a full standard-profile security audit first, then implementation of CodeQL for Java/Kotlin and JavaScript/TypeScript, detekt for Kotlin, GitHub dependency review, Dependabot version-update configuration, and a repository-owned security script while preserving the existing secret scanner.`
+- `Generic Semgrep is deferred; add it only for a later AppT-specific invariant that CodeQL, detekt, Android lint, existing Gradle guards, or simple repository checks cannot express cleanly.`
 
 ## Blockers / Unknowns
 
@@ -110,7 +112,7 @@ Secondary:
 
 ## Recent change
 
-- `S01 was accepted and squash-merged through PR #30. Final CI run #47 was fully green, including real API 29 emulator installation, connectedDebugAndroidTest, and a cold launcher start that focused/resumed dev.anthracite.appt/.MainActivity on Welcome; Issue #27 closed automatically.`
+- `The human reprioritized the next action on 2026-09-23: security baseline Issue #36 now precedes S02 and is compiled ready-for-agent but unassigned pending explicit Arena dispatch.`
 
 ## Relevant canonical references
 
@@ -124,16 +126,17 @@ Secondary:
 - `docs/HARVEST.md — harvested research disposition: ADOPT / HARVEST / REJECT.`
 - `GitHub Issue #23 — pre-S01 planning reconciliation work order that produced the revised slice route.`
 - `GitHub Issue #27 — completed S01 Arena work order; closed by merged PR #30.`
+- `GitHub Issue #36 — security baseline Arena work order: full audit followed by automated code scanning/tooling; ready-for-agent and unassigned.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
 - `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
 - `AGENTS.md — repository operating entry point.`
 
 ## Next
 
-`Compile S02 — Local-network explanation and bounded discovery — into a self-contained Arena Issue and run the pre-dispatch check. Keep it unassigned until explicit human dispatch authorization.`
+`After explicit human authorization, dispatch Issue #36 to Arena. Arena must run the full standard-profile security audit to a valid terminal state before implementing the agreed automated security baseline and returning a PR.`
 
 ## After that
 
-1. `After explicit human authorization, dispatch S02 by assigning its compiled Issue to Arena; implement and review it against its Issue and canonical architecture.`
-2. `Accept and merge S02 only after all acceptance criteria and verification evidence pass, then update docs/PROJECT_STATE.md.`
-3. `S07 is also dependency-ready after S01 and may run in parallel with the control spine, but compile/dispatch it only when explicitly chosen and authorized; keep provider needs-validation facts and the two external public-release gates visible.`
+1. `Review Issue #36's audit evidence and security-tooling PR; accept and merge only after its audit and automation acceptance criteria pass, then update docs/PROJECT_STATE.md.`
+2. `Resume S02 — Local-network explanation and bounded discovery — as the next product implementation slice after the security baseline is accepted.`
+3. `S07 remains dependency-ready after S01 and may run in parallel with the control spine, but compile/dispatch it only when explicitly chosen and authorized; keep provider needs-validation facts and the two external public-release gates visible.`
