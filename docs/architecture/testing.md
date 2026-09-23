@@ -188,7 +188,7 @@ These names are the contract. Implementation may split them; it may not drop the
 | `noTelemetryDependency` | No crash-reporting, analytics, advertising, or attribution artifact appears in the merged graph |
 | `localRecordIsBoundedAndRedacted` | Both sources cap at 200 events, the rolling file caps at its bound, and every stored field is on the allowlist |
 | `diagnosticFileIsExcludedFromBackup` | Backup and device-transfer rules exclude the diagnostics path |
-| `exportRequiresUserConfirmation` | Nothing leaves the phone before the preview is shown and the user confirms |
+| `exportRequiresUserConfirmation` | No report leaves the phone before the preview is shown and the user confirms |
 | `clearLocalHistoryDeletesRecordAndFile` | Both sources and the rolling file are empty afterwards |
 | `noDiagnosticsUploadPath` | The diagnostics package contains no HTTP client and the backend endpoint inventory contains no diagnostics endpoint |
 | `adIdAbsentFromManifest` | `AD_ID` does not appear in the merged manifest |

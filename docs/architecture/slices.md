@@ -326,7 +326,7 @@ Every implementation-relevant architecture document has an owning slice. A slice
 | Test strategy and the physical acceptance matrix | [testing.md](testing.md) | S01, S15, S17 |
 | Cross-module flows | [flows.md](flows.md) | S02, S03, S06, S08, S09, S10, S13 |
 | Product intent and canonical domain language | [PRODUCT.md](../PRODUCT.md), [CONTEXT.md](../../CONTEXT.md) | every slice, as the contract it implements |
-| Harvest dispositions | [HARVEST.md](../HARVEST.md) | S01 guards the REJECT rows as dependency checks |
+| Harvest dispositions (ADOPT / HARVEST / REJECT register) | [HARVEST.md](../HARVEST.md) | A cross-cutting reference register, not one slice's work. S01 enforces the REJECTs expressible as dependency, manifest, and supply-chain checks (no advertising, crash-reporting, telemetry, or Firestore artifact; the manifest allowlist). Product, protocol, scope, monetization, sync, and UI REJECTs are honored by the slices where each first becomes real |
 
 Cross-cutting invariants are not a single slice's work; each is introduced where it first becomes real and closed where stated.
 
@@ -335,7 +335,8 @@ Cross-cutting invariants are not a single slice's work; each is introduced where
 | Accessibility floor (48dp targets, TalkBack semantics, scalable text, contrast, no color-only meaning, gesture alternatives, reduced motion) | introduced by every UI-adding slice; closed by S14 |
 | Responsive rules (rotation, landscape, foldables, tablets) | introduced from S05; closed by S14 |
 | Reliability and performance measured against targets | S15 harness; S17 supplies the physical evidence |
-| Nothing leaves the phone without an explicit user action | S08 (no upload path), S13 (confirmed export) |
+| Diagnostic and support data leave the phone only through an explicit user preview and confirmed share | S13 (confirmed export) |
+| TV identity, pairing, personalization, preferences, diagnostics, and usage data are never uploaded to the account backend | S08 (`backendStoresNoTelevisionField`); kept device-local in S04 (pairing), S05 (preferences), S10 (personalization), S11 (favourites), S13 (diagnostics) |
 | No TV-personalization sync, no cloud crash reporting, no analytics or ad SDK | S01 dependency guards; enforced across S04, S10, S13 |
 | The licensing gate is active on every remote entry | S08 (the gate); S10 (launch routing passes through it) |
 | TV/personalization/diagnostic state excluded from Android backup and device transfer | S04 (pairing), S10 (personalization), S13 (diagnostic file) |

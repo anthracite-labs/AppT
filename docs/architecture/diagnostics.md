@@ -2,7 +2,7 @@
 
 V1 has a **bounded, always-redacted local diagnostic record** and an **explicit, user-confirmed diagnostic export**. It has no cloud crash reporting, no crash-reporting SDK, no behavioral analytics, no diagnostic upload service, and no diagnostic data on the Entitlement Backend.
 
-**Decision recorded this round:** cloud crash reporting (Firebase Crashlytics) was in the earlier draft of this map and has been **removed from V1 entirely**. It conflicted with the settled rule that nothing leaves the phone without an explicit user action, and with the rule that no persistent installation or user identifier is created. The replacement is local-only: the record stays on the phone, and a report leaves only when the customer builds a preview and shares it.
+**Decision recorded this round:** cloud crash reporting (Firebase Crashlytics) was in the earlier draft of this map and has been **removed from V1 entirely**. It conflicted with the settled rule that diagnostic and support data leave the phone only through an explicit user preview and confirmed share, and with the rule that no persistent installation or user identifier is created. The replacement is local-only: the record stays on the phone, and a report leaves only when the customer builds a preview and shares it.
 
 Owning files elsewhere: the Diagnostics surface contract is in [presentation.md](presentation.md#diagnostics), redaction and privacy tests are in [testing.md](testing.md), the threat-model view is in [security.md](security.md), and the dependency rules are in [release.md](release.md) and [modules.md](modules.md).
 
