@@ -126,31 +126,9 @@ jobs:
       # The full S01 Android verification set from Issue #27, under strict
       # dependency verification against the committed checksums.
       - name: Assemble debug, unit tests, lint and dependency lock check
-        id: androidbuild
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          ./gradlew --no-daemon --dependency-verification=strict \
-            assembleDebug lintDebug testDebugUnitTest dependencyLockCheck \
-            2>&1 | tee android-build.log
-          echo "status=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
-
-      # Log download is not available to every reviewer of this branch, so the
-      # failure reason is mirrored into annotations. The step below re-asserts
-      # the recorded status, so this never softens the gate.
-      - name: Report the Android build failure
-        if: always()
-        run: |
-          set -uo pipefail
-          if [ -f android-build.log ]; then
-            awk '/\* What went wrong:/{f=1} f{print} /\* Try:/{f=0}' android-build.log \
-              | grep -v "^[[:space:]]*at " | head -n 20 \
-              | while IFS= read -r line; do echo "::error::WHY: $line"; done
-            grep -E "checksum is missing from verification metadata|Dependency verification failed|expected a '(sha256|sha512)' checksum|is not in its lock state|Resolved '.*' which is not part of the lock state" \
-              android-build.log | sort -u | head -n 10 \
-              | while IFS= read -r line; do echo "::error::DETAIL: $line"; done
-          fi
-          test "${{ steps.androidbuild.outputs.status }}" = "0"
+        run: >-
+          ./gradlew --no-daemon --dependency-verification=strict
+          assembleDebug lintDebug testDebugUnitTest dependencyLockCheck
 
       # Lint writes its findings to an XML/HTML report; surfacing errors as
       # annotations means a lint failure is readable in the checks UI without
