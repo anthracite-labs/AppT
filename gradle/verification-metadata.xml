@@ -7,12 +7,15 @@
   review. The per-component checksum entries below it are generated, and are
   populated by resolving the graph once against google() and mavenCentral():
 
-      ./gradlew --write-verification-metadata sha256 \
+      ./gradlew [dash][dash]write-verification-metadata sha256 \
         assembleDebug testDebugUnitTest lintDebug :macrobenchmark:assembleBenchmark
 
+  (XML comments cannot contain a double hyphen, so the flag is written above
+  with [dash][dash] standing in for the two leading hyphens.)
+
   Run that command, review the generated <components> block in the diff exactly
-  as you would review a lockfile, and commit it. CI then runs with
-  `--verify-dependencies`, so an artifact whose checksum does not match is
+  as you would review a lockfile, and commit it. CI then runs with the
+  verify-dependencies flag, so an artifact whose checksum does not match is
   rejected rather than used. See docs/BUILD.md.
 
   Policy choices recorded here:
