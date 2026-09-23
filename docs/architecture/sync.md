@@ -61,7 +61,7 @@ flowchart TD
 | Secret Manager | HMAC keys for eligibility markers and purchase fingerprints | Versioned; never leaves the backend |
 | Cloud KMS | Non-exportable ES256 key that signs entitlement proofs | Public keys exposed through `GET /v1/keys` for offline verification |
 | Play Integrity decode API | Server-side verdicts for trial and purchase decisions | Provider fact; see needs validation |
-| Scheduled reconciliation | Daily Cloud Scheduler job that finalises deletions which stopped after the Auth user was removed | Backend-only; the Android client never triggers or observes it directly |
+| Scheduled reconciliation | Daily Cloud Scheduler job that finalises deletions which stopped after the Auth user was removed, releasing frozen bindings only once Firebase Auth confirms the user is gone | Backend-only; the Android client never triggers or observes it directly |
 | Google Play Developer API | Authoritative purchase verification and acknowledgement | Service account with the narrow publisher scope |
 | Cloud Pub/Sub + RTDN | Refund, chargeback, and cancellation signals | One Play-managed topic per Play app; at-least-once, unordered |
 
@@ -179,6 +179,7 @@ accounts/{uid}
   updatedAt         int
   deletedAt         int | null
   deletionStartedAt int | null
+  deletionId        string | null          // random, deletion-scoped; set with "deleting", cleared at "deleted"
   username          string | null          // 1..32 after trim, non-unique
   usernameUpdatedAt int | null
   trial             { state: "none"|"active"|"expired", activatedAt: int|null, expiresAt: int|null }
@@ -195,19 +196,21 @@ trialMarkers/{scope}.{keyVersion}.{hmacHex}
   clearReason       string | null
 
 purchaseBindings/{purchaseFingerprint}
-  purchaseFingerprint string               // HMAC of packageName + purchaseToken
-  packageName         string
-  productId           string
-  state               "bound" | "frozen" | "released"
-  boundUid            string | null        // present only while "bound"; dropped when frozen
-  boundAt             int
-  frozenAt            int | null           // set when the owning account starts deleting
-  releasedAt          int | null
-  releaseReason       "accountDeleted" | "support" | null
-  revokedAt           int | null
-  revokeReason        "refund" | "chargeback" | "policy" | null
-  lastVerifiedAt      int
-  keyVersion          string
+  purchaseFingerprint     string           // HMAC of packageName + purchaseToken
+  packageName             string
+  productId               string
+  state                   "bound" | "frozen" | "released"
+  boundUid                string | null    // present only while "bound"; dropped when frozen
+  boundAt                 int
+  deletionId              string | null    // set at freeze to the owning account's deletion-scoped id; cleared at release
+  frozenAt                int | null       // set when the owning account starts deleting
+  authRemovalConfirmedAt  int | null       // proof that the Firebase Auth user is gone; required before an "accountDeleted" release, kept after it
+  releasedAt              int | null
+  releaseReason           "accountDeleted" | "support" | null
+  revokedAt               int | null
+  revokeReason            "refund" | "chargeback" | "policy" | null
+  lastVerifiedAt          int
+  keyVersion              string
 
 supportActions/{actionId}
   at                int
@@ -363,7 +366,7 @@ Verification rules:
 - The first authoritative verification binds the purchase to exactly one Customer Account (`boundUid` set, `state: bound`).
 - While the binding is live, verification from a different live account returns `bound_elsewhere`. The purchase is not freely transferable between unrelated accounts.
 - Restore on another supported Android device signed into the same account succeeds with no device roster and no cap.
-- A binding moves `bound → frozen → released`. `frozen` exists only for the delete path and is never a usable state.
+- A binding moves `bound → frozen → released`. `frozen` exists only for the delete path and is never a usable state. Freezing drops `boundUid` and writes a random, deletion-scoped `deletionId` on the binding and on the account record in the same transaction, so the deletion that froze the binding stays identifiable. A retained raw uid would be an identifier outliving the deletion, and a keyed uid hash would add marker-key rotation surface for the same correlation, so the link is an opaque token that exists only while the deletion does: it is cleared from the binding at release and from the account at finish.
 - Only a `released` binding can be bound again. The next authoritative verification of that same Play purchase may bind it to a newly created account, which preserves "a legitimate purchaser may restore after recreating their identity" without allowing transfer between two live accounts.
 - An audited `releasePurchaseBinding` support action exists for genuine ownership disputes. It moves a `bound` binding to `released` and records the operator reference in `supportActions`.
 
@@ -375,6 +378,8 @@ Verification rules:
 | A binding owned by an account that can still authenticate is never re-bindable | A partial deletion cannot hand the purchase to a new account while the old one is still usable |
 | Every state change is idempotent and recorded with a timestamp | Re-running deletion or a retry loop converges instead of duplicating work |
 | A `frozen` binding is invisible to entitlement decisions as a grant and visible as a denial reason `deletion_pending` | Neither the deleting account nor anyone else gets access through it |
+| A `frozen` binding always names the deletion that froze it, and that account record names the same `deletionId` | Reconciliation has a defined lookup key, so an interrupted deletion can never leave a permanently orphaned binding |
+| An `accountDeleted` release requires a non-null `authRemovalConfirmedAt` | No path can return a purchase to the bindable pool before Firebase Auth confirms the previous identity is gone |
 
 ### Refunds, chargebacks, and revocation
 
@@ -496,17 +501,21 @@ The trial follows the account with its original expiry. Signing in on the second
 Deleting an account is one resumable backend operation, ordered so that the purchase can never become re-bindable while the deleted identity still works:
 
 ```text
-1. mark      accounts/{uid}.status = "deleting", deletionStartedAt = now
+1. mark      accounts/{uid}.status = "deleting", deletionStartedAt = now,
+             deletionId = a fresh random identifier
              every endpoint except delete-retry and a status read now rejects this account
-2. freeze    every purchaseBindings record with boundUid = uid
-             -> state = "frozen", frozenAt = now, boundUid dropped
+2. freeze    every purchaseBindings record with boundUid = uid, each in one transaction with the
+             account record:
+             -> state = "frozen", frozenAt = now, boundUid dropped, deletionId = the account's id
              the purchase is neither usable nor bindable by anyone
 3. delete    Firebase Auth user
              if this fails: stop with status still "deleting" and the binding still "frozen",
              return { state: "auth_delete_pending", retryable: true }, and change nothing else
-4. release   after Auth deletion is confirmed: state = "released",
-             releasedAt = now, releaseReason = "accountDeleted"
-5. finish    accounts/{uid}.status = "deleted", deletedAt = now; Username, trial dates,
+4. release   only after Auth removal is proven, per binding:
+             authRemovalConfirmedAt = now (first write wins, never overwritten),
+             state = "released", releasedAt = now, releaseReason = "accountDeleted",
+             deletionId cleared
+5. finish    accounts/{uid}.status = "deleted", deletedAt = now; deletionId, Username, trial dates,
              and entitlement state are removed from the record
 ```
 
@@ -514,14 +523,17 @@ Retry behaviour:
 
 - The endpoint is idempotent and re-entrant. A retry resumes from the recorded phase instead of starting over, so a partially completed deletion completes on the next attempt.
 - Freezing happens **before** the Auth user is deleted, so there is no window in which the old account can still authenticate while the purchase is bindable elsewhere.
-- If the client disappears after phase 3, the daily reconciliation function finishes phase 4 and 5: it finds `frozen` bindings whose owning account no longer exists, releases them, and completes the deletion. This is the only automated `frozen → released` path.
+- If the client disappears after phase 3, the daily reconciliation function finishes phases 4 and 5. It queries `accounts` where `status == "deleting"`, and for each one whose `deletionId` names frozen bindings it confirms the Firebase Auth user is gone, then releases those bindings and finishes the account. This is the only automated `frozen → released` path.
+- The reconciliation never deletes a Firebase Auth user and never releases a binding whose identity can still authenticate. When the Auth read still returns the user, the account stays `deleting` and its binding stays `frozen`, both records keep their `deletionId`, and the deletion resumes when the user retries from the Account surface (the gate offers Retry deletion) or when an audited support action completes it. That state denies use and denies re-binding, and an operator alert fires once an account has been `deleting` for more than seven days.
+- A frozen binding whose `deletionId` is null or names no `deleting` account is a corruption signal. The job releases nothing, it raises an operator alert, and an audited support action resolves it. No automated path can release a binding without the Auth-removal proof.
+- The reconciliation query uses equality on `status` plus a range on `deletionStartedAt`, so the composite index it needs is declared in `backend/firestore.indexes.json` like every other index.
 - A frozen binding denies the previous account's own requests with `deletion_pending`, so a half-deleted account cannot use the purchase either.
 - Nothing in this sequence touches device-local television state, and the client clears nothing locally beyond its own cached entitlement for the deleted identity.
 
 After a completed deletion the backend retains only:
 
 - pseudonymous `trialMarkers` for as long as the free-trial program operates;
-- the `released` `purchaseBindings` record, so the purchase stays non-transferable between live accounts while remaining restorable by its legitimate Play owner;
+- the `released` `purchaseBindings` record, so the purchase stays non-transferable between live accounts while remaining restorable by its legitimate Play owner. After release it carries no uid, no `deletionId`, no television or personalization field, and no Username; `authRemovalConfirmedAt` stays as the audit trail that the release followed a verified Auth removal;
 - `supportActions` audit entries.
 
 Retained records contain no Username, no raw email, no television, no personalization, no diagnostics, and no usage history. Device-local televisions and personalization stay on the phone; the user may separately use **Forget this TV** or clear app data.
@@ -573,8 +585,11 @@ No implementation slice may recreate the removed TV-personalization sync model.
 | `testPurchaseDoesNotGrantLifetime` | A `purchaseType` test purchase is rejected for a durable Lifetime Entitlement in every environment |
 | `trialAttachIsIdempotent` | Refreshing from a second phone returns the original expiry and writes the device marker exactly once |
 | `deletionFreezesBeforeAuthDelete` | The binding is `frozen` before the Auth user is removed, and `deletion_pending` denies use meanwhile |
+| `frozenBindingRetainsOwnerCorrelation` | Freezing writes one deletion-scoped `deletionId` across the binding and the account, so the reconciliation lookups are defined |
+| `releaseRequiresAuthRemovalProof` | An `accountDeleted` release fails unless `authRemovalConfirmedAt` is already set |
 | `deletionRetryConverges` | A retry after any phase completes the deletion exactly once |
-| `reconciliationReleasesOrphanedBindings` | A frozen binding whose account no longer exists is released by the scheduled job |
+| `reconciliationRequiresAuthRemoval` | A frozen binding whose Auth user still exists is left frozen, with an alert, and is never released |
+| `reconciliationReleasesOrphanedBindings` | A frozen binding whose `deletionId` names a `deleting` account whose Auth user is gone is released by the scheduled job alone |
 | `provisionalUsesLocalKey` | The provisional record never contains a server fingerprint or a raw purchase token |
 | `onePurchaseBindsToOneLiveAccount` | Verification from a different live account returns `bound_elsewhere` |
 | `restoreAfterAccountDeletionSucceeds` | After deletion, the same Play purchase binds to the recreated account |

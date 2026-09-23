@@ -350,10 +350,10 @@ sequenceDiagram
   App->>Lic: deleteAccount()
   Lic->>Fn: POST /v1/account/delete (resumable)
   Fn->>Fn: phase 1: mark accounts/{uid}.status = deleting, refuse every other call from this account
-  Fn->>Fn: phase 2: freeze every binding owned by this uid, dropping the uid
+  Fn->>Fn: phase 2: freeze every binding owned by this uid, drop the uid, write one deletion-scoped deletionId on the binding and the account record
   alt Auth deletion succeeds
     Fn->>Auth: phase 3: delete the Auth user
-    Fn->>Fn: phase 4-5: release the binding, mark the account deleted
+    Fn->>Fn: phase 4-5: release the binding only now that Auth removal is proven, mark the account deleted
     Fn-->>Lic: state completed, retained trial markers and released binding
     Lic->>Lic: clear cached proof, drop identity
   else Auth deletion fails
@@ -365,7 +365,7 @@ sequenceDiagram
   App-->>User: Deleted. Local televisions remain on this phone
 ```
 
-Freezing before deleting the Auth user is what makes the sequence safe: while the old identity can still authenticate, the purchase is bound to nobody and usable by nobody. The daily reconciliation job finishes any deletion that stopped after the Auth user was removed.
+Freezing before deleting the Auth user is what makes the sequence safe: while the old identity can still authenticate, the purchase is bound to nobody and usable by nobody. The deletion-scoped `deletionId` written at freeze is what lets the daily reconciliation find the frozen bindings again, and it releases them only after an Auth read confirms the user is gone, recording `authRemovalConfirmedAt` as the proof; while the user still exists it leaves the binding frozen and raises an alert instead of releasing.
 
 The account backend retains only pseudonymous trial markers and the released purchase binding. Television data was never there to delete.
 

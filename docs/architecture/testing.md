@@ -127,7 +127,10 @@ These names are the contract. Implementation may split them; it may not drop the
 | `trialAttachIsIdempotent` | Refresh from a second phone returns the original expiry, creates the device marker once, and never extends the window |
 | `deletionFreezesBeforeAuthDelete` | A binding is `frozen` before the Auth user is removed, and `deletion_pending` denies use in that state |
 | `deletionRetryConverges` | A retry after any phase completes the deletion exactly once, and the binding becomes re-bindable only after Auth deletion |
-| `reconciliationReleasesOrphanedBindings` | A frozen binding whose account no longer exists is released by the scheduled job alone |
+| `frozenBindingRetainsOwnerCorrelation` | Freezing drops `boundUid` and writes the same random `deletionId` on the binding and the account record in one transaction, so the reconciliation lookup is defined without retaining an identifier |
+| `reconciliationRequiresAuthRemoval` | A frozen binding whose account still has an Auth user is not released: the account stays `deleting`, the binding stays `frozen`, the correlation is kept, and the stuck-deletion alert fires |
+| `releaseRequiresAuthRemovalProof` | No release with `releaseReason = "accountDeleted"` succeeds while `authRemovalConfirmedAt` is null, in the delete endpoint and in the reconciliation job |
+| `reconciliationReleasesOrphanedBindings` | A frozen binding whose `deletionId` names a `deleting` account whose Auth user is gone is released by the scheduled job alone, and the release records the proof |
 | `provisionalUsesLocalKey` | The provisional record holds the device-computed key, never the server fingerprint and never a raw token |
 | `onePurchaseBindsToOneLiveAccount` | Verification from a different live account returns `bound_elsewhere` |
 | `restoreAfterAccountDeletionSucceeds` | After deletion the same Play purchase binds to the recreated account |
@@ -237,7 +240,7 @@ Welcome to explanation to cards; card has no IP text; approval state; one comman
 | Markers | No raw value stored; key rotation lookup across versions; support clear writes an audit record |
 | Purchase | Standard purchase granted and acknowledged; pending grants nothing; `purchaseType` test/promo/rewarded rejected; package/product mismatch rejected; second live account `bound_elsewhere`; replay resolves to the existing binding; raw token absent from all stored documents and logs |
 | Revocation | Voided-purchase and one-time-canceled handlers revoke; duplicate delivery is idempotent; out-of-order delivery converges |
-| Deletion | Phase order is mark, freeze, delete Auth, release, finish; the binding is frozen before the Auth user is removed; a frozen binding denies with `deletion_pending`; a retry after any phase converges; the reconciliation job releases orphaned frozen bindings; markers retained; no endpoint accepts a request from an account in `deleting` state |
+| Deletion | Phase order is mark, freeze, delete Auth, release, finish; the binding is frozen before the Auth user is removed; freezing writes one `deletionId` across the binding and the account; a frozen binding denies with `deletion_pending`; an `accountDeleted` release cannot happen without `authRemovalConfirmedAt`; a retry after any phase converges; the reconciliation job releases only frozen bindings whose Auth user is confirmed gone and alerts instead of releasing while the user still exists; a frozen binding naming no account is alerted, not released; markers retained; no endpoint accepts a request from an account in `deleting` state |
 | Retention | Stored fields are limited to the documented shapes; a schema test fails on a forbidden field name |
 
 Backend tests run against the Firebase emulator suite with a fake Play verifier and a fake integrity decoder. No live Google API is called in CI.
@@ -249,7 +252,8 @@ Backend tests run against the Firebase emulator suite with a fake Play verifier 
 | `debugVariantCannotReachProduction` | A debug build cannot resolve production backend or Firebase identifiers |
 | `releaseVariantCannotReachDevelopment` | A release build cannot resolve development identifiers |
 | `noCredentialFilesInRepo` | Secret scanning finds no service-account key, signing key, upload credential, keystore, or certificate file in the tree |
-| `releaseArtifactsDifferOnlyByConfig` | The internal and production release artifacts from one commit are compared after signature material is stripped: the only entries that differ are the environment configuration files, in either direction, and neither contains the other's configuration |
+| `releaseArtifactsDifferOnlyByConfig` | The internal and production release artifacts from one commit are compared after signature material is stripped: the only entries that differ are the environment configuration files, in either direction, neither contains the other's configuration, and any other difference — a version code included — fails the comparison |
+| `releaseVariantsShareVersionCode` | The internal and production release artifacts from one commit carry the same `versionCode` and `versionName`, and both are higher than the previous release's |
 | `signingIdentityMatchesChannel` | The tester artifact carries the internal certificate, the bundle uploaded to Play carries the upload certificate, the two differ, and neither is a debug certificate |
 | `appCheckRegistrationMatchesChannel` | The App Check registration fingerprint recorded for `appt-prod` is the Play app-signing certificate, the one recorded for `appt-internal` is the internal certificate, and no fingerprint appears in more than one environment |
 | `noProductionModuleDependsOnBenchmark` | `:app` and `:samsung` do not depend on `:macrobenchmark`, and `:macrobenchmark` is absent from the release artifact |
