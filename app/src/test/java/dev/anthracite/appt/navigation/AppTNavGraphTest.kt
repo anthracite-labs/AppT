@@ -2,6 +2,7 @@ package dev.anthracite.appt.navigation
 
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.rememberNavController
@@ -9,6 +10,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.anthracite.appt.tokens.AppTTheme
 import dev.anthracite.appt.welcome.WelcomeTestTags
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,10 +44,17 @@ class AppTNavGraphTest {
             destinations.size,
         )
 
-        val startDestination = navController.currentBackStackEntry?.destination
+        // ...and that one destination is WelcomeRoute itself, not merely
+        // "some single route".
+        assertTrue(
+            "the only destination must be WelcomeRoute, but was ${destinations.single().route}",
+            destinations.single().hasRoute<WelcomeRoute>(),
+        )
+
+        // The start destination is that same route, so the app opens on Welcome.
         assertEquals(
             navController.graph.findStartDestination().id,
-            startDestination?.id,
+            navController.currentBackStackEntry?.destination?.id,
         )
     }
 

@@ -337,20 +337,29 @@ tasks.register("dependencyLockCheck") {
     dependsOn(tasks.named("versionCatalogPinned"))
     doLast {
         var resolved = 0
+        val failures = mutableListOf<String>()
         subprojects.forEach { subproject ->
             subproject.configurations
                 .filter { it.isCanBeResolved }
                 .filter { it.name.contains("RuntimeClasspath") || it.name.contains("CompileClasspath") }
                 .forEach { configuration ->
-                    runCatching { configuration.incoming.resolutionResult.root }
+                    // `files` forces full resolution, so a lock mismatch or a
+                    // missing lockfile surfaces here rather than being deferred
+                    // to a later task.
+                    runCatching { configuration.files }
                         .onSuccess { resolved++ }
                         .onFailure { failure ->
-                            throw GradleException(
-                                "dependencyLockCheck failed for ${subproject.path}:${configuration.name}: " +
-                                    "${failure.message}",
-                            )
+                            failures += "${subproject.path}:${configuration.name}: ${failure.message}"
                         }
                 }
+        }
+        if (failures.isNotEmpty()) {
+            throw GradleException(
+                "dependencyLockCheck failed. Lockfiles are committed and must match the " +
+                    "resolved graph (docs/architecture/release.md#gradle); refresh them with " +
+                    "`./gradlew resolveAndLockAll --write-locks` as a reviewed change.\n" +
+                    failures.joinToString("\n") { "  $it" },
+            )
         }
         logger.lifecycle("dependencyLockCheck: OK — $resolved locked configurations match the committed lockfiles.")
     }
