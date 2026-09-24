@@ -330,23 +330,18 @@ jobs:
           echo "dependency-review: ${{ needs.dependency-review.result }}"
           echo "quality-platform:  ${{ needs.quality-platform.result }}"
 
-          failed=0
-          for job in quality android backend device quality-platform; do
-            res=$(eval echo "\${{ needs.$job.result }}")
-            if [ "$res" != "success" ]; then
-              echo "::error::Mandatory job '$job' failed with status: $res"
-              failed=1
-            fi
-          done
-
-          # dependency-review runs on PRs only; on push it is skipped
-          dep_res="${{ needs.dependency-review.result }}"
-          if [ "$dep_res" != "success" ] && [ "$dep_res" != "skipped" ]; then
-            echo "::error::Mandatory job 'dependency-review' failed with status: $dep_res"
-            failed=1
+          if [ "${{ needs.quality.result }}" != "success" ] || \
+             [ "${{ needs.android.result }}" != "success" ] || \
+             [ "${{ needs.backend.result }}" != "success" ] || \
+             [ "${{ needs.device.result }}" != "success" ] || \
+             [ "${{ needs.quality-platform.result }}" != "success" ]; then
+            echo "::error::One or more mandatory verification groups failed."
+            exit 1
           fi
 
-          if [ "$failed" -ne 0 ]; then
+          dep_res="${{ needs.dependency-review.result }}"
+          if [ "$dep_res" != "success" ] && [ "$dep_res" != "skipped" ]; then
+            echo "::error::Dependency review failed with status: $dep_res"
             exit 1
           fi
 
