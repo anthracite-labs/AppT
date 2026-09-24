@@ -71,7 +71,7 @@ internal class FixtureTransport(
 
     override suspend fun deviceInfo(lan: Lan, host: String, port: Int): String? {
         outbound += Request(host, port)
-        val served = fixture.deviceInfo[host to port] ?: return awaitCancellation()
+        val served = fixture.deviceInfo[host to port] ?: awaitCancellation()
         delay(served.delayMs)
         return served.document
     }

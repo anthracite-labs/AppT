@@ -6,8 +6,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * modules.md / samsung-interface.md: `app` depends on `dev.anthracite.appt.samsung` only and never
- * on `dev.anthracite.appt.samsung.internal`. Gradle runs unit tests from the module directory.
+ * modules.md / samsung-interface.md: `app` depends on the public `dev.anthracite.appt.samsung`
+ * package only, never on the module's `internal` package. Gradle runs unit tests from the module
+ * directory.
  */
 class ModuleBoundaryTest {
     private val forbidden = "dev.anthracite.appt.samsung" + ".internal"

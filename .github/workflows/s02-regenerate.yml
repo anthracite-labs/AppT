@@ -137,7 +137,7 @@ jobs:
           def esc(t):
               return t.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
           text = pathlib.Path('s02-results/summary.txt').read_text(errors='replace')
-          size = 12000
+          size = 4000
           chunks = [text[i:i + size] for i in range(0, len(text), size)][:30]
           levels = ['notice'] * 10 + ['warning'] * 10 + ['error'] * 10
           for n, chunk in enumerate(chunks):
@@ -151,7 +151,7 @@ jobs:
           python3 - <<'PY'
           import pathlib
           data = pathlib.Path('/tmp/patch.b64').read_text().strip()
-          size = 12000
+          size = 4000
           chunks = [data[i:i + size] for i in range(0, len(data), size)]
           print(f"::notice title=patch meta::chunks={len(chunks)} b64len={len(data)}")
           levels = ['notice'] * 9 + ['warning'] * 10
