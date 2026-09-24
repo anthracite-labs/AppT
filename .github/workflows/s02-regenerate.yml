@@ -3,8 +3,8 @@ name: s02-regenerate (temporary, deleted before PR)
 # One-shot helper for S02 (Issue #73): the implementation sandbox has no JDK or
 # Android SDK, so lockfile + verification-metadata regeneration and the focused
 # verification commands run here. The sandbox cannot download artifacts or
-# logs, so the job commits the regenerated state plus a plain-text result
-# summary (s02-results/) back to this same session branch.
+# logs, so the job also emits its result summary and the regenerated patch
+# (gzip + base64) as check-run annotations, which the API does expose.
 # This file is removed before the S02 pull request is opened (same pattern as
 # the deleted bootstrap workflow described in docs/BUILD.md).
 
@@ -25,7 +25,7 @@ jobs:
     name: Regenerate locks and run S02 verification
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: read
     steps:
       - name: Check out
         # actions/checkout v7.0.1
@@ -129,16 +129,35 @@ jobs:
           tail -c 100000 /tmp/metadata.log > s02-results/metadata-tail.log || true
           tail -c 30000 /tmp/locks.log > s02-results/locks-tail.log || true
 
-      - name: Commit regenerated state and results to the session branch
+      - name: Emit summary as annotations
         if: always()
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A -- . ':!**/build/**' ':!.gradle/**' ':!.kotlin/**'
-          git commit -m "ci: S02 regenerated state and verification summary (temporary)" || exit 0
-          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:arena/01a0d558-appt
+          python3 - <<'PY'
+          import pathlib
+          def esc(t):
+              return t.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          text = pathlib.Path('s02-results/summary.txt').read_text(errors='replace')
+          size = 12000
+          chunks = [text[i:i + size] for i in range(0, len(text), size)][:30]
+          levels = ['notice'] * 10 + ['warning'] * 10 + ['error'] * 10
+          for n, chunk in enumerate(chunks):
+              print(f"::{levels[n]} title=summary {n + 1}/{len(chunks)}::{esc(chunk)}")
+          PY
+
+      - name: Emit regenerated patch as annotations
+        if: always()
+        run: |
+          gzip -9 -c /tmp/regenerated.patch | base64 -w0 > /tmp/patch.b64 || true
+          python3 - <<'PY'
+          import pathlib
+          data = pathlib.Path('/tmp/patch.b64').read_text().strip()
+          size = 12000
+          chunks = [data[i:i + size] for i in range(0, len(data), size)]
+          print(f"::notice title=patch meta::chunks={len(chunks)} b64len={len(data)}")
+          levels = ['notice'] * 9 + ['warning'] * 10
+          for n, chunk in enumerate(chunks[:19]):
+              print(f"::{levels[n]} title=patch {n + 1}/{len(chunks)}::{chunk}")
+          PY
 
       - name: Upload results
         if: always()
