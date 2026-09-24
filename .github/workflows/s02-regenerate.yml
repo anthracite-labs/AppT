@@ -2,7 +2,9 @@ name: s02-regenerate (temporary, deleted before PR)
 
 # One-shot helper for S02 (Issue #73): the implementation sandbox has no JDK or
 # Android SDK, so lockfile + verification-metadata regeneration and the focused
-# verification commands run here. It only uploads artifacts; it never pushes.
+# verification commands run here. The sandbox cannot download artifacts or
+# logs, so the job commits the regenerated state plus a plain-text result
+# summary (s02-results/) back to this same session branch.
 # This file is removed before the S02 pull request is opened (same pattern as
 # the deleted bootstrap workflow described in docs/BUILD.md).
 
@@ -23,7 +25,7 @@ jobs:
     name: Regenerate locks and run S02 verification
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
+      contents: write
     steps:
       - name: Check out
         # actions/checkout v7.0.1
@@ -66,6 +68,77 @@ jobs:
           ./gradlew --no-daemon --dependency-verification=strict ciCheck :samsung:testDebugUnitTest --continue 2>&1 | tee /tmp/strict.log || true
           grep -E "BUILD (SUCCESSFUL|FAILED)" /tmp/strict.log || true
           grep -A 40 "What went wrong" /tmp/strict.log | head -n 120 || true
+
+      - name: Summarize results
+        if: always()
+        run: |
+          mkdir -p s02-results
+          python3 - <<'PY'
+          import glob, re, pathlib, xml.etree.ElementTree as ET
+          out = []
+          strict = pathlib.Path('/tmp/strict.log').read_text(errors='replace') if pathlib.Path('/tmp/strict.log').exists() else ''
+          lines = strict.splitlines()
+          out.append('== strict: build result ==')
+          out += [l for l in lines if re.search(r'BUILD (SUCCESSFUL|FAILED)', l)]
+          out.append('== strict: task failures ==')
+          out += [l for l in lines if l.startswith('> Task') and 'FAILED' in l]
+          out.append('== strict: compiler errors/warnings ==')
+          out += [l for l in lines if re.match(r'^[ew]: ', l)][:300]
+          out.append('== strict: what went wrong ==')
+          for i, l in enumerate(lines):
+              if 'What went wrong' in l:
+                  out += lines[i:i+25]
+          out.append('== strict: detekt / guards / spotless / kover lines ==')
+          out += [l for l in lines if re.search(r'detekt|\.kt:\d+:\d+|guard|violat|Rule violated|coverage|spotless', l, re.I)][:300]
+          out.append('== unit test failures ==')
+          for f in glob.glob('*/build/test-results/**/*.xml', recursive=True):
+              try:
+                  root = ET.parse(f).getroot()
+              except Exception as e:
+                  out.append(f'unparsable {f}: {e}'); continue
+              for tc in root.iter('testcase'):
+                  for fail in list(tc.findall('failure')) + list(tc.findall('error')):
+                      text = (fail.text or '')[:3000]
+                      out.append(f"FAIL {tc.get('classname')}.{tc.get('name')}: {fail.get('message','')[:500]}\n{text}")
+          out.append('== lint issues ==')
+          for f in glob.glob('*/build/reports/lint-results-*.xml') + glob.glob('*/build/intermediates/lint_intermediate_text_report/**/*.txt', recursive=True):
+              if f.endswith('.xml'):
+                  try:
+                      for issue in ET.parse(f).getroot().iter('issue'):
+                          loc = issue.find('location')
+                          where = f"{loc.get('file')}:{loc.get('line')}" if loc is not None else ''
+                          out.append(f"{f}: {issue.get('severity')} {issue.get('id')} {where} {issue.get('message')}")
+                  except Exception as e:
+                      out.append(f'unparsable {f}: {e}')
+          out.append('== kover ==')
+          for f in glob.glob('build/reports/kover/*.xml'):
+              try:
+                  root = ET.parse(f).getroot()
+                  for c in root.findall('counter'):
+                      out.append(f"{f} {c.get('type')} missed={c.get('missed')} covered={c.get('covered')}")
+                  for pkg in root.iter('package'):
+                      for cls in pkg.iter('class'):
+                          for c in cls.findall('counter'):
+                              if c.get('type') == 'LINE':
+                                  out.append(f"  {cls.get('name')} LINE missed={c.get('missed')} covered={c.get('covered')}")
+              except Exception as e:
+                  out.append(f'unparsable {f}: {e}')
+          pathlib.Path('s02-results/summary.txt').write_text('\n'.join(out) + '\n')
+          PY
+          tail -c 200000 /tmp/strict.log > s02-results/strict-tail.log || true
+          tail -c 100000 /tmp/metadata.log > s02-results/metadata-tail.log || true
+          tail -c 30000 /tmp/locks.log > s02-results/locks-tail.log || true
+
+      - name: Commit regenerated state and results to the session branch
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- . ':!**/build/**' ':!.gradle/**' ':!.kotlin/**'
+          git commit -m "ci: S02 regenerated state and verification summary (temporary)" || exit 0
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:arena/01a0d558-appt
 
       - name: Upload results
         if: always()
