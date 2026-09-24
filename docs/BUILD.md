@@ -187,9 +187,11 @@ Regenerate them only after an actual reviewed dependency change requires it.
 ## CodeQL static analysis
 
 CodeQL static analysis keeps pull-request synchronization build-free: PR updates
-scan GitHub Actions and JavaScript/TypeScript only. Java/Kotlin CodeQL, which
-requires an Android/Kotlin build, runs only when explicitly dispatched, on
-pushes to `main`, and on the scheduled security run.
+scan GitHub Actions and JavaScript/TypeScript, plus the `java-kotlin` category in
+`build-mode: none` so the branch rule receives CodeQL evidence without an Android
+build. In that PR mode CodeQL analyzes Java only; Kotlin analysis runs when the
+workflow is explicitly dispatched, on pushes to `main`, and on the scheduled
+security run.
 
 Because GitHub-managed Default Setup uses CodeQL bundle 2.27.0 which does not
 support Kotlin 2.4.20 (supported starting in CodeQL CLI / bundle 2.27.1), AppT
