@@ -1,0 +1,103 @@
+=== VERIFY METADATA LOG ===
+> Task :macrobenchmark:processBenchmarkNavigationResources
+> Task :app:processDebugMainManifest
+> Task :samsung:extractDebugAnnotations
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_2-1790235083809.json
+
+[Incubating] Problems report is available at: file:///home/runner/work/AppT/AppT/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':spotlessKotlinCheck' (registered in build file 'build.gradle.kts').
+> The following files had format violations:
+      app/src/androidTest/java/dev/anthracite/appt/WelcomeLaunchTest.kt
+          @@ -1,49 +1,44 @@
+           package·dev.anthracite.appt
+           
+          +import·androidx.compose.ui.test.assertIsDisplayed
+          +import·androidx.compose.ui.test.junit4.createEmptyComposeRule
+          +import·androidx.compose.ui.test.onNodeWithTag
+           import·androidx.test.core.app.ActivityScenario
+           import·androidx.test.ext.junit.runners.AndroidJUnit4
+           import·androidx.test.filters.LargeTest
+          -import·androidx.compose.ui.test.assertIsDisplayed
+          -import·androidx.compose.ui.test.junit4.createEmptyComposeRule
+          -import·androidx.compose.ui.test.onNodeWithTag
+           import·dev.anthracite.appt.welcome.WelcomeTestTags
+           import·org.junit.Rule
+           import·org.junit.Test
+           import·org.junit.runner.RunWith
+           
+           /**
+          -·*·Runtime·acceptance·for·Issue·#27:·"A·debug·APK·builds,·installs·on·an·Android
+          -·*·device/emulator,·and·opens·to·Welcome."
+          +·*·Runtime·acceptance·for·Issue·#27:·"A·debug·APK·builds,·installs·on·an·Android·device/emulator,
+          +·*·and·opens·to·Welcome."
+           ·*
+          -·*·This·runs·on·a·real·device/emulator·against·the·installed·debug·APK,·so·it·is
+          -·*·evidence·of·the·launched·application·rather·than·of·a·composable·rendered·in
+          -·*·isolation.·It·deliberately·launches·[MainActivity]·the·way·the·launcher·does
+          -·*·—·through·the·activity's·own·lifecycle,·with·the·real·theme,·the·real
+          -·*·navigation·graph·and·the·real·start·destination·—·and·then·asserts·on·what
+          -·*·the·user·actually·sees.
+          +·*·This·runs·on·a·real·device/emulator·against·the·installed·debug·APK,·so·it·is·evidence·of·the
+          +·*·launched·application·rather·than·of·a·composable·rendered·in·isolation.·It·deliberately·launches
+          +·*·[MainActivity]·the·way·the·launcher·does·—·through·the·activity's·own·lifecycle,·with·the·real
+          +·*·theme,·the·real·navigation·graph·and·the·real·start·destination·—·and·then·asserts·on·what·the
+          +·*·user·actually·sees.
+           ·*
+          -·*·`createEmptyComposeRule`·is·used·rather·than·`createAndroidComposeRule`
+          -·*·because·the·latter·would·set·its·own·content;·here·the·activity·must·supply
+          -·*·its·own,·or·the·test·would·not·be·testing·app·launch·at·all.
+          +·*·`createEmptyComposeRule`·is·used·rather·than·`createAndroidComposeRule`·because·the·latter·would
+          +·*·set·its·own·content;·here·the·activity·must·supply·its·own,·or·the·test·would·not·be·testing·app
+          +·*·launch·at·all.
+           ·*/
+           @LargeTest
+           @RunWith(AndroidJUnit4::class)
+           class·WelcomeLaunchTest·{
+           
+          -····@get:Rule
+          -····val·composeRule·=·createEmptyComposeRule()
+          +····@get:Rule·val·composeRule·=·createEmptyComposeRule()
+      ... (18 more lines that didn't fit)
+  Violations also present in 12 other files.
+  Run './gradlew :spotlessApply' to fix these violations.
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.7.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 34s
+34 actionable tasks: 32 executed, 1 from cache, 1 up-to-date
+=== LOCKS LOG ===
+Starting a Gradle Daemon (subsequent builds will be faster)
+> Task :samsung:resolveAndLockAll
+> Task :app:resolveAndLockAll
+> Task :macrobenchmark:resolveAndLockAll
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790235118199.json
+Persisted dependency lock state for unknown
+Persisted dependency lock state for buildscript of root project 'AppT'
+Persisted dependency lock state for project ':app'
+Persisted dependency lock state for project ':macrobenchmark'
+Persisted dependency lock state for project ':samsung'
+
+[Incubating] Problems report is available at: file:///home/runner/work/AppT/AppT/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.7.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 14s
+3 actionable tasks: 3 executed
