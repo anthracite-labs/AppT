@@ -103,7 +103,7 @@ Secondary:
 - `S01 — Walking skeleton and CI floor — is the accepted implementation baseline, merged through PR #30 with green Android, runtime-emulator, backend, and secret-scanning checks.`
 - `The pre-S02 security baseline is accepted through merged PR #38 / closed Issue #36: full standard-profile audit evidence was produced, and CodeQL for Java/Kotlin plus JavaScript/TypeScript, detekt, GitHub dependency review, Dependabot configuration, and the repository-owned security script are now part of the repository floor while preserving the existing secret scanner.`
 - `Generic Semgrep is deferred; add it only for a later AppT-specific invariant that CodeQL, detekt, Android lint, existing Gradle guards, or simple repository checks cannot express cleanly.`
-- `Verification architecture is one-owner by concern: GitHub owns repository-host security controls, Gradle owns Android verification, the backend package owns TypeScript verification, AppT guards own product-specific invariants, and repository workflow YAML exposes one stable `verify / gate` interface without a path classifier unless measured cost later justifies one.`
+- `Verification architecture is one-owner by concern: GitHub owns repository-host security controls, Gradle owns Android verification, the backend package owns TypeScript verification, AppT guards own product-specific invariants, and repository workflow YAML exposes one stable verify/gate interface without a path classifier unless measured cost later justifies one.`
 
 ## Blockers / Unknowns
 
@@ -114,7 +114,7 @@ Secondary:
 
 ## Recent change
 
-- `Dependency/toolchain modernization Issue #54 was accepted on 2026-09-24 through merged PR #55 at `63475518`; S02 remains the next product slice while the separately authorized CI verification redesign is tracked in Issue #56.`
+- `Dependency/toolchain modernization Issue #54 was accepted on 2026-09-24 through merged PR #55 at 63475518; S02 remains the next product slice while the separately authorized CI verification redesign is tracked in Issue #56.`
 
 ## Relevant canonical references
 
@@ -130,7 +130,7 @@ Secondary:
 - `GitHub Issue #27 — completed S01 Arena work order; closed by merged PR #30.`
 - `GitHub Issue #36 — completed security-baseline Arena work order; closed by merged PR #38.`
 - `GitHub Issue #54 / PR #55 — completed one-pass dependency and toolchain modernization.`
-- `GitHub Issue #56 — authorized repository-side implementation of the accepted clean verification architecture; dispatch waits for the architecture-doc change to land on `main`.`
+- `GitHub Issue #56 — authorized repository-side implementation of the accepted clean verification architecture; dispatch waits for the architecture-doc change to land on main.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
 - `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
 - `AGENTS.md — repository operating entry point.`
@@ -143,5 +143,4 @@ Secondary:
 
 1. `Implement and review S02 against the accepted architecture/slice contract.`
 2. `Implement the separately authorized CI verification redesign in Issue #56 after its architecture source is merged; do not mix it into S02 product scope.`
-3. `Keep the confirmed security-audit follow-up findings visible for separate hardening work; do not silently fold them into unrelated product slices.`
-4. `S07 remains dependency-ready after S01 and may run in parallel with the control spine, but compile/dispatch it only when explicitly chosen and authorized; keep provider needs-validation facts and the two external public-release gates visible.`
+3. `Keep the confirmed security-audit follow-up findings, S07's explicit authorization gate, provider needs-validation facts, and the two external public-release gates visible; do not silently fold them into unrelated work.`
