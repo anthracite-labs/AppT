@@ -160,6 +160,9 @@ jobs:
         # component's POM, parent-POM chain and imported-BOM POMs are fetched
         # and hashed — the file set a CI run lands on when a repo fallback
         # takes the POM path (the five artifacts PR CI could not verify).
+        # gradlePluginPortal keeps its defaults: the portal repository spec
+        # exposes no metadataSources DSL, it is last in repo order, and every
+        # affected artifact resolves from MavenRepo.
         run: |
           set -euo pipefail
           fail() {
@@ -191,13 +194,10 @@ jobs:
               elif re.match(r"\s*mavenCentral\(\)", line):
                   line = re.sub(r"mavenCentral\(\)", "mavenCentral { " + src + " }", line)
                   count += 1
-              elif re.match(r"\s*gradlePluginPortal\(\)", line):
-                  line = re.sub(r"gradlePluginPortal\(\)", "gradlePluginPortal { " + src + " }", line)
-                  count += 1
               out.append(line)
           p.write_text("".join(out))
           print(f"pom-world metadataSources inserted: {count}")
-          assert count == 5, count
+          assert count == 4, count
           PY
           export GRADLE_USER_HOME="$RUNNER_TEMP/gh-write-b"
           cp -a "$RUNNER_TEMP/gh-seed" "$GRADLE_USER_HOME"
@@ -245,13 +245,10 @@ jobs:
               elif re.match(r"\s*mavenCentral\(\)", line):
                   line = re.sub(r"mavenCentral\(\)", "mavenCentral { " + src + " }", line)
                   count += 1
-              elif re.match(r"\s*gradlePluginPortal\(\)", line):
-                  line = re.sub(r"gradlePluginPortal\(\)", "gradlePluginPortal { " + src + " }", line)
-                  count += 1
               out.append(line)
           p.write_text("".join(out))
           print(f"module-world metadataSources inserted: {count}")
-          assert count == 5, count
+          assert count == 4, count
           PY
           export GRADLE_USER_HOME="$RUNNER_TEMP/gh-write-c"
           cp -a "$RUNNER_TEMP/gh-seed" "$GRADLE_USER_HOME"
@@ -357,12 +354,9 @@ jobs:
               elif re.match(r"\s*mavenCentral\(\)", line):
                   line = re.sub(r"mavenCentral\(\)", "mavenCentral { " + src + " }", line)
                   count += 1
-              elif re.match(r"\s*gradlePluginPortal\(\)", line):
-                  line = re.sub(r"gradlePluginPortal\(\)", "gradlePluginPortal { " + src + " }", line)
-                  count += 1
               out.append(line)
           p.write_text("".join(out))
-          assert count == 5, count
+          assert count == 4, count
           PY
           export GRADLE_USER_HOME="$RUNNER_TEMP/gh-proof-b"
           cp -a "$RUNNER_TEMP/gh-seed" "$GRADLE_USER_HOME"
@@ -407,12 +401,9 @@ jobs:
               elif re.match(r"\s*mavenCentral\(\)", line):
                   line = re.sub(r"mavenCentral\(\)", "mavenCentral { " + src + " }", line)
                   count += 1
-              elif re.match(r"\s*gradlePluginPortal\(\)", line):
-                  line = re.sub(r"gradlePluginPortal\(\)", "gradlePluginPortal { " + src + " }", line)
-                  count += 1
               out.append(line)
           p.write_text("".join(out))
-          assert count == 5, count
+          assert count == 4, count
           PY
           export GRADLE_USER_HOME="$RUNNER_TEMP/gh-proof-c"
           cp -a "$RUNNER_TEMP/gh-seed" "$GRADLE_USER_HOME"
