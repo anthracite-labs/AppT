@@ -91,7 +91,7 @@ Secondary:
 - `Development, internal, and production Firebase/Cloud/Play environments are separated; production credentials never enter the repository.`
 - `Play carries one artifact: a production-flavoured release candidate is uploaded to the internal testing track and promoted from there, while internal-environment builds are distributed outside Play, so the promoted build is the build that was tested.`
 - `Account deletion freezes the purchase binding before the Firebase Auth user is deleted and releases it only after, so the purchase is never re-bindable while the previous account can still authenticate; a scheduled job finishes deletions that stopped early.`
-- `Backend source is TypeScript on the Cloud Functions 2nd gen Node.js runtime, owned by backend/, with its own lockfile and emulator-suite tests, and every backend command is package-prefixed from the repository root as `npm <script> --prefix backend` (ci, typecheck, lint, test, test:emulator, deploy).`
+- Backend source is TypeScript on the Cloud Functions 2nd gen Node.js runtime, owned by backend/, with its own lockfile and emulator-suite tests, and every backend command is package-prefixed from the repository root as `npm <script> --prefix backend` (ci, typecheck, lint, test, test:emulator, deploy).
 - `Production signing stays with Google-managed Play App Signing and CI holds only the upload key; the outside-Play internal tester build is signed with a separate internal signing key whose certificate is registered only in the internal Firebase project, so each App Check registration matches the certificate of the build that talks to it.`
 - `The internal and production release artifacts are compared with signature material stripped, so a signing-certificate difference can never be mistaken for a configuration difference, and signing identity plus certificate registration are asserted by their own checks.`
 - `Both release variants from one commit carry the same versionCode and versionName, because the version identifies a release rather than an environment, so the artifact comparison needs no version-code exception and allows environment configuration to differ and nothing else.`
@@ -105,6 +105,7 @@ Secondary:
 - `Generic Semgrep is deferred; add it only for a later AppT-specific invariant that CodeQL, detekt, Android lint, existing Gradle guards, or simple repository checks cannot express cleanly.`
 - `Verification architecture is one-owner by concern: GitHub owns repository-host security controls, Gradle owns Android verification, the backend package owns TypeScript verification, AppT guards own product-specific invariants, and repository workflow YAML exposes one stable verify/gate interface without a path classifier unless measured cost later justifies one.`
 - `AI-authored changes receive no trust discount: native deterministic checks remain authoritative, SonarQube Cloud owns the cross-language maintainability/reliability/new-code coverage/duplication gate once compatibility is proven, CodeRabbit supplies independent issue/scope/custom pre-merge review, and Arena PRs still receive an independent repository code-review pass before the human merge decision.`
+- `CodeQL on Kotlin 2.4.20: GitHub-managed Default Setup uses bundle 2.27.0 which does not support Kotlin 2.4.20 (supported starting in bundle 2.27.1). AppT temporarily operates an Advanced Setup workflow (.github/workflows/codeql.yml) pinned to CodeQL Action v4.38.2 (commit 2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2) and bundle 2.27.1, analyzing java-kotlin via deterministic Gradle extraction under strict dependency verification, plus javascript-typescript and actions with security-extended query suite. Migration-back condition: retire .github/workflows/codeql.yml and re-enable Default Setup once GitHub's managed service reaches CodeQL >= 2.27.1 and passes.`
 
 ## Blockers / Unknowns
 
@@ -112,11 +113,11 @@ Secondary:
 - Final AppT source-license decision remains required before public distribution.
 - Focused Samsung vendor-terms/legal review must be completed before public release.
 - Physical-device evidence is required to tune the reliability targets in `docs/architecture/reliability.md`.
-- SonarQube Cloud and CodeRabbit repository onboarding is now observed on PR #59. Sonar currently runs automatic analysis with a passing quality gate but no imported coverage; Issue #56 must convert it to CI-based analysis and prove Kotlin 2.4.20 compatibility before Kotlin-specific Sonar findings become blocking. CodeRabbit currently runs its default CHILL configuration; Issue #56 must replace that default with the version-controlled AppT review/pre-merge policy.
+- SonarQube Cloud and CodeRabbit repository onboarding is active under PR #60. CI-based Sonar analysis requires repository owner configuration of SONAR_TOKEN and disabling automatic analysis. CodeRabbit repository configuration (.coderabbit.yaml) is version-controlled and pending PR merge to take effect on target branch.
 
 ## Recent change
 
-- `Verification architecture was expanded through PR #59 with the independently researched AI-code assurance stack: deterministic compiler/formatter/linter/coverage/dead-code controls, SonarQube Cloud, CodeRabbit review, and an independent post-Arena code-review pass now define the target for Issue #56.`
+- `Verification architecture and AI-code assurance implementation is active under PR #60 (Issue #56), introducing .github/workflows/verify.yml with proposed required gate verify / gate, root Gradle ciCheck aggregating strict Kotlin diagnostics, Spotless + ktfmt, Kover coverage floor, dependency locks, appTGuards, and macrobenchmark compilation; backend verify interface composing typecheck, ESLint, Prettier, Knip, Jest, and coverage; Gradle Managed Devices (API 29); CI-based SonarQube Cloud quality platform; temporary Advanced Setup .github/workflows/codeql.yml pinned to bundle 2.27.1 for Kotlin 2.4.20 assurance; version-controlled .coderabbit.yaml; weekly coordinated Dependabot policy; and contracting legacy ci.yml and maintenance.yml.`
 
 ## Relevant canonical references
 
@@ -132,14 +133,14 @@ Secondary:
 - `GitHub Issue #27 — completed S01 Arena work order; closed by merged PR #30.`
 - `GitHub Issue #36 — completed security-baseline Arena work order; closed by merged PR #38.`
 - `GitHub Issue #54 / PR #55 — completed one-pass dependency and toolchain modernization.`
-- `GitHub Issue #56 — authorized repository-side implementation of the accepted verification and AI-code assurance architecture; its Arena work order must be compiled from current main and kept separate from S02 product scope.`
+- `GitHub Issue #56 / PR #60 — active implementation of the accepted verification and AI-code assurance architecture; replaces legacy CI/maintenance topology with one-owner verification workflow.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
 - `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
 - `AGENTS.md — repository operating entry point.`
 
 ## Next
 
-`Compile and dispatch S02 — Local-network explanation and bounded discovery — as the next authorized product implementation slice, using the accepted slice/architecture sources and preserving the merged security baseline.`
+`Complete review and address owner feedback on PR #60 for Issue #56, then proceed to dispatch S02 — Local-network explanation and bounded discovery — as the next authorized product implementation slice.`
 
 ## After that
 

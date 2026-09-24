@@ -16,26 +16,23 @@ import androidx.compose.ui.unit.sp
 /**
  * AppT design tokens.
  *
- * This is the design-token **module** in the codebase-design sense: a
- * code/package-level module inside `:app`, not a fourth Gradle module
- * (docs/architecture/modules.md#shape).
+ * This is the design-token **module** in the codebase-design sense: a code/package-level module
+ * inside `:app`, not a fourth Gradle module (docs/architecture/modules.md#shape).
  *
- * docs/architecture/presentation.md#design-tokens owns the categories and the
- * binding floors. S01 creates the categories the walking skeleton needs —
- * `color`, `type`, `space`, `size`, `motion` — with their floors encoded as
- * real values rather than as prose. Categories that no S01 surface consumes
- * (`shape`, `elevation`, `haptic`, `icon`, `brand`) are deliberately not
- * invented here; they arrive with the surfaces that need them.
+ * docs/architecture/presentation.md#design-tokens owns the categories and the binding floors. S01
+ * creates the categories the walking skeleton needs — `color`, `type`, `space`, `size`, `motion` —
+ * with their floors encoded as real values rather than as prose. Categories that no S01 surface
+ * consumes (`shape`, `elevation`, `haptic`, `icon`, `brand`) are deliberately not invented here;
+ * they arrive with the surfaces that need them.
  *
  * Binding floors carried by this file:
- *  * text sizes are declared in `sp`, never `dp`, so they scale;
- *  * every spacing step is a multiple of 4dp;
- *  * [SizeTokens.minimumTouchTarget] is 48dp and [SizeTokens.primaryControl] is 56dp;
- *  * every motion duration has a reduced-motion variant.
+ * * text sizes are declared in `sp`, never `dp`, so they scale;
+ * * every spacing step is a multiple of 4dp;
+ * * [SizeTokens.minimumTouchTarget] is 48dp and [SizeTokens.primaryControl] is 56dp;
+ * * every motion duration has a reduced-motion variant.
  *
- * Final pixel values are an implementation choice reviewed visually
- * (presentation.md, "What this file does not decide"); the roles and the
- * floors are the architecture.
+ * Final pixel values are an implementation choice reviewed visually (presentation.md, "What this
+ * file does not decide"); the roles and the floors are the architecture.
  */
 object AppTTokens {
     val color: ColorTokens = ColorTokens
@@ -46,14 +43,13 @@ object AppTTokens {
 }
 
 /**
- * `color.*` — dark-first surfaces with content roles whose contrast floors are
- * stated beside each value so a later change cannot quietly drop below them.
+ * `color.*` — dark-first surfaces with content roles whose contrast floors are stated beside each
+ * value so a later change cannot quietly drop below them.
  *
- * Contrast ratios below were computed from the WCAG 2.x relative-luminance
- * formula for the exact pairs listed. They are not produced by an automated
- * Compose contrast checker: whether such tooling covers Compose surfaces is an
- * open provider-fact item in docs/architecture/README.md#needs-validation, so
- * S01 does not depend on one.
+ * Contrast ratios below were computed from the WCAG 2.x relative-luminance formula for the exact
+ * pairs listed. They are not produced by an automated Compose contrast checker: whether such
+ * tooling covers Compose surfaces is an open provider-fact item in
+ * docs/architecture/README.md#needs-validation, so S01 does not depend on one.
  */
 @Immutable
 object ColorTokens {
@@ -96,15 +92,19 @@ object ColorTokens {
 }
 
 /**
- * `type.*` — every size is `sp`, so system font scaling applies. No fixed `dp`
- * text size exists anywhere in the token set.
+ * `type.*` — every size is `sp`, so system font scaling applies. No fixed `dp` text size exists
+ * anywhere in the token set.
  */
 @Immutable
 object TypeTokens {
-    val display: TextStyle = TextStyle(fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.SemiBold)
-    val title: TextStyle = TextStyle(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Medium)
-    val body: TextStyle = TextStyle(fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Normal)
-    val label: TextStyle = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
+    val display: TextStyle =
+        TextStyle(fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.SemiBold)
+    val title: TextStyle =
+        TextStyle(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Medium)
+    val body: TextStyle =
+        TextStyle(fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Normal)
+    val label: TextStyle =
+        TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
 
     /** Smallest text size the token set permits, in scalable units. */
     val smallestScalableSize: TextUnit = label.fontSize
@@ -149,9 +149,8 @@ object SizeTokens {
 }
 
 /**
- * `motion.*` — every duration has a reduced-motion variant, and composables
- * read the variant rather than hardcoding a number (presentation.md
- * composition rule 4).
+ * `motion.*` — every duration has a reduced-motion variant, and composables read the variant rather
+ * than hardcoding a number (presentation.md composition rule 4).
  */
 @Immutable
 object MotionTokens {
@@ -171,16 +170,13 @@ object MotionTokens {
 /**
  * The current motion duration scale, where `0f` means "remove animations".
  *
- * presentation.md's accessibility contract says motion tokens read
- * `LocalMotionDurationScale`. Compose itself models this as a
- * [androidx.compose.ui.MotionDurationScale] coroutine-context element rather
- * than a CompositionLocal, so AppT owns the CompositionLocal of that name and
- * `MainActivity` supplies it from the platform setting. Tests provide it
- * directly, which is what makes the reduced-motion assertion possible without
- * a device setting.
+ * presentation.md's accessibility contract says motion tokens read `LocalMotionDurationScale`.
+ * Compose itself models this as a [androidx.compose.ui.MotionDurationScale] coroutine-context
+ * element rather than a CompositionLocal, so AppT owns the CompositionLocal of that name and
+ * `MainActivity` supplies it from the platform setting. Tests provide it directly, which is what
+ * makes the reduced-motion assertion possible without a device setting.
  */
-val LocalMotionDurationScale: ProvidableCompositionLocal<Float> =
-    staticCompositionLocalOf { 1f }
+val LocalMotionDurationScale: ProvidableCompositionLocal<Float> = staticCompositionLocalOf { 1f }
 
 /** True when the platform (or a test) asks for animations to be removed. */
 @Composable
@@ -190,8 +186,7 @@ fun isReducedMotion(): Boolean = LocalMotionDurationScale.current == 0f
 /**
  * Resolves a `motion.*` duration against the current motion duration scale.
  *
- * Composables call this instead of naming a number, so reduced motion is
- * honored by construction.
+ * Composables call this instead of naming a number, so reduced motion is honored by construction.
  */
 @Composable
 @ReadOnlyComposable

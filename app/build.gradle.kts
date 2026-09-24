@@ -14,6 +14,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.detekt)
+    alias(libs.plugins.kover)
 }
 
 android {
@@ -37,9 +38,7 @@ android {
     buildTypes {
         // S01 introduces no dev/internal/production variants and no signing
         // identities; those are S07's. Only AGP's stock debug/release exist.
-        release {
-            isMinifyEnabled = false
-        }
+        release { isMinifyEnabled = false }
     }
 
     buildFeatures {
@@ -64,6 +63,15 @@ android {
             // set in app/src/test/resources/robolectric.properties.
             isIncludeAndroidResources = true
         }
+        managedDevices {
+            localDevices {
+                create("pixel2api29") {
+                    device = "Pixel 2"
+                    apiLevel = 29
+                    systemImageSource = "aosp"
+                }
+            }
+        }
     }
 
     lint {
@@ -79,20 +87,21 @@ android {
         // opposite of that rule. Version currency is handled by reviewed
         // dependency-update pull requests; the pins themselves are still
         // enforced exactly by `versionCatalogPinned`.
-        informational += setOf(
-            "AndroidGradlePluginVersion",
-            "GradleDependency",
-            "NewerVersionAvailable",
-            // Issue #54: compileSdk now tracks the toolchain (37) while
-            // targetSdk deliberately stays at 36 — bumping the target opts
-            // into new runtime behavior and is gated on
-            // docs/architecture/discovery.md (a target-37 bump must adopt
-            // ACCESS_LOCAL_NETWORK through that gate first). OldTargetApi
-            // would fail the build for NOT making that unreviewed bump, so
-            // like the currency checks above it stays informational: the
-            // signal remains visible, the architecture gate stays intact.
-            "OldTargetApi",
-        )
+        informational +=
+            setOf(
+                "AndroidGradlePluginVersion",
+                "GradleDependency",
+                "NewerVersionAvailable",
+                // Issue #54: compileSdk now tracks the toolchain (37) while
+                // targetSdk deliberately stays at 36 — bumping the target opts
+                // into new runtime behavior and is gated on
+                // docs/architecture/discovery.md (a target-37 bump must adopt
+                // ACCESS_LOCAL_NETWORK through that gate first). OldTargetApi
+                // would fail the build for NOT making that unreviewed bump, so
+                // like the currency checks above it stays informational: the
+                // signal remains visible, the architecture gate stays intact.
+                "OldTargetApi",
+            )
         // The Welcome surface is not yet localized beyond the default locale;
         // translation completeness becomes real when store locales are chosen.
         disable += setOf("MissingTranslation")
@@ -104,6 +113,8 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        allWarningsAsErrors.set(true)
+        extraWarnings.set(true)
     }
 }
 
@@ -167,35 +178,33 @@ dependencies {
 
 // The allowlist is owned verbatim by release.md. It is an allowlist, not an
 // instruction to declare these permissions: S01 declares none of them.
-val manifestPermissionAllowlist = setOf(
-    "android.permission.INTERNET",
-    "android.permission.ACCESS_NETWORK_STATE",
-    "android.permission.ACCESS_WIFI_STATE",
-    "android.permission.CHANGE_WIFI_MULTICAST_STATE",
-    "com.android.vending.BILLING",
-)
+val manifestPermissionAllowlist =
+    setOf(
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_WIFI_STATE",
+        "android.permission.CHANGE_WIFI_MULTICAST_STATE",
+        "com.android.vending.BILLING",
+    )
 
 abstract class MergedManifestGuard : DefaultTask() {
-    @get:InputFile
-    abstract val mergedManifest: RegularFileProperty
+    @get:InputFile abstract val mergedManifest: RegularFileProperty
 
-    @get:Input
-    abstract val allowlist: SetProperty<String>
+    @get:Input abstract val allowlist: SetProperty<String>
 
-    @get:Input
-    abstract val applicationId: Property<String>
+    @get:Input abstract val applicationId: Property<String>
 
-    @get:Input
-    abstract val variantName: Property<String>
+    @get:Input abstract val variantName: Property<String>
 
     @TaskAction
     fun check() {
         val text = mergedManifest.get().asFile.readText()
 
-        val declared = Regex("""<uses-permission[^>]*android:name\s*=\s*"([^"]+)"""")
-            .findAll(text)
-            .map { it.groupValues[1] }
-            .toSortedSet()
+        val declared =
+            Regex("""<uses-permission[^>]*android:name\s*=\s*"([^"]+)"""")
+                .findAll(text)
+                .map { it.groupValues[1] }
+                .toSortedSet()
 
         // `AD_ID` must never appear, in any form, regardless of who declared it.
         val adIdOffenders = declared.filter { it.endsWith("AD_ID") }
@@ -203,7 +212,7 @@ abstract class MergedManifestGuard : DefaultTask() {
             throw GradleException(
                 "adIdAbsentFromManifest failed for ${variantName.get()}: AD_ID must never appear " +
                     "in the merged manifest (docs/architecture/diagnostics.md).\n" +
-                    adIdOffenders.joinToString("\n") { "  $it" },
+                    adIdOffenders.joinToString("\n") { "  $it" }
             )
         }
 
@@ -228,17 +237,25 @@ abstract class MergedManifestGuard : DefaultTask() {
         //
         // The allowlist itself is unchanged and still matches
         // docs/architecture/release.md#manifest-allowlist exactly.
-        val signaturePermissions = Regex(
-            """<permission[^>]*android:name\s*=\s*"([^"]+)"[^>]*android:protectionLevel\s*=\s*"signature"""",
-        ).findAll(text).map { it.groupValues[1] }.toSet() +
+        val signaturePermissions =
             Regex(
-                """<permission[^>]*android:protectionLevel\s*=\s*"signature"[^>]*android:name\s*=\s*"([^"]+)"""",
-            ).findAll(text).map { it.groupValues[1] }.toSet()
+                    """<permission[^>]*android:name\s*=\s*"([^"]+)"[^>]*android:protectionLevel\s*=\s*"signature""""
+                )
+                .findAll(text)
+                .map { it.groupValues[1] }
+                .toSet() +
+                Regex(
+                        """<permission[^>]*android:protectionLevel\s*=\s*"signature"[^>]*android:name\s*=\s*"([^"]+)""""
+                    )
+                    .findAll(text)
+                    .map { it.groupValues[1] }
+                    .toSet()
 
         val selfPermissionPrefix = applicationId.get() + "."
-        val (selfPermissions, requested) = declared.partition { permission ->
-            permission.startsWith(selfPermissionPrefix) && permission in signaturePermissions
-        }
+        val (selfPermissions, requested) =
+            declared.partition { permission ->
+                permission.startsWith(selfPermissionPrefix) && permission in signaturePermissions
+            }
 
         val unapproved = requested.toSortedSet() - allowlist.get()
         if (unapproved.isNotEmpty()) {
@@ -247,7 +264,8 @@ abstract class MergedManifestGuard : DefaultTask() {
                     "declares permissions outside the allowlist owned by " +
                     "docs/architecture/release.md#manifest-allowlist.\n" +
                     unapproved.joinToString("\n") { "  $it" } +
-                    "\nAllowlist:\n" + allowlist.get().sorted().joinToString("\n") { "  $it" },
+                    "\nAllowlist:\n" +
+                    allowlist.get().sorted().joinToString("\n") { "  $it" }
             )
         }
 
@@ -255,23 +273,27 @@ abstract class MergedManifestGuard : DefaultTask() {
             "manifestPermissionAllowlist + adIdAbsentFromManifest: OK for ${variantName.get()}. " +
                 "Requested permissions: ${if (requested.isEmpty()) "none" else requested.sorted().joinToString(", ")}. " +
                 "App-scoped signature self-permissions: " +
-                (if (selfPermissions.isEmpty()) "none" else selfPermissions.sorted().joinToString(", ")) + ".",
+                (if (selfPermissions.isEmpty()) "none"
+                else selfPermissions.sorted().joinToString(", ")) +
+                "."
         )
     }
 }
 
 androidComponents.onVariants { variant ->
     val capitalized = variant.name.replaceFirstChar { it.titlecase(Locale.ROOT) }
-    val guard = tasks.register<MergedManifestGuard>("checkMergedManifest$capitalized") {
-        group = "verification"
-        description = "Checks the merged $capitalized manifest against the release.md permission allowlist."
-        mergedManifest.set(
-            variant.artifacts.get(com.android.build.api.artifact.SingleArtifact.MERGED_MANIFEST),
-        )
-        allowlist.set(manifestPermissionAllowlist)
-        applicationId.set(variant.applicationId)
-        variantName.set(variant.name)
-    }
+    val guard =
+        tasks.register<MergedManifestGuard>("checkMergedManifest$capitalized") {
+            group = "verification"
+            description =
+                "Checks the merged $capitalized manifest against the release.md permission allowlist."
+            mergedManifest.set(
+                variant.artifacts.get(com.android.build.api.artifact.SingleArtifact.MERGED_MANIFEST)
+            )
+            allowlist.set(manifestPermissionAllowlist)
+            applicationId.set(variant.applicationId)
+            variantName.set(variant.name)
+        }
     // Manifest guards are part of assembling, so a local build cannot produce
     // an APK whose permissions were never checked.
     //
@@ -281,9 +303,7 @@ androidComponents.onVariants { variant ->
     // yet. `named` resolved them eagerly and failed configuration with
     // "Task with name 'assembleDebug' not found in project ':app'"; `matching`
     // is lazy and wires the dependency when AGP creates the task.
-    tasks.matching { it.name == "assemble$capitalized" }.configureEach {
-        dependsOn(guard)
-    }
+    tasks.matching { it.name == "assemble$capitalized" }.configureEach { dependsOn(guard) }
 }
 
 // Accepted names, aggregating every variant's merged manifest.
@@ -295,7 +315,8 @@ tasks.register("adIdAbsentFromManifest") {
 
 tasks.register("manifestPermissionAllowlist") {
     group = "verification"
-    description = "Fails if any merged manifest declares a permission outside the release.md allowlist."
+    description =
+        "Fails if any merged manifest declares a permission outside the release.md allowlist."
     dependsOn(tasks.withType<MergedManifestGuard>())
 }
 
@@ -330,9 +351,5 @@ configurations.configureEach {
                 listOf("org.bouncycastle:bcprov-jdk18on:1.86")
             else -> emptyList<String>()
         }
-    notations.forEach { notation ->
-        project.dependencies.constraints {
-            add(cfg, notation)
-        }
-    }
+    notations.forEach { notation -> project.dependencies.constraints { add(cfg, notation) } }
 }

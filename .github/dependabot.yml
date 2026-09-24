@@ -1,7 +1,7 @@
 # Dependabot version-update configuration for AppT.
 #
-# Purpose and limits (Issue #36): this produces *reviewed pull requests*. It does
-# not replace, and must not be read as replacing, any of the existing controls:
+# Purpose and limits (Issue #36, Issue #56): this produces *reviewed pull requests*.
+# It does not replace, and must not be read as replacing, any of the existing controls:
 #
 #   * committed Gradle lockfiles, refreshed only through
 #     `./gradlew resolveAndLockAll --write-locks` as a reviewed change;
@@ -21,38 +21,48 @@
 #   * no `insecure` or scheduled security-update-only noise beyond what GitHub
 #     raises separately; this file is about *version* updates.
 #
-# Cadence is monthly with grouped minor/patch updates: a low-noise rhythm that
-# keeps each pull request small enough to actually review, which is the point of
-# a reviewed-update policy.
+# Cadence is weekly with grouped minor/patch updates: a coordinated weekly
+# modernization rhythm that keeps proposals aligned across Gradle, backend npm,
+# and GitHub Actions, small enough to actually review.
 
 version: 2
 
+multi-ecosystem-groups:
+  app-modernization:
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: UTC
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - modernization
+    commit-message:
+      prefix: 'deps(modernization)'
+
 updates:
   # ---------------------------------------------------------------------------
-  # Gradle: gradle/libs.versions.toml is where Dependabot writes its bumps. The
-  # module lockfiles, gradle/verification-metadata.xml and the wrapper
-  # properties belong to this ecosystem, but the lockfiles are NOT assumed to be
-  # maintained automatically — see the REVIEWER NOTE below. The version catalog
-  # is the single place a version is written, so a bump is a one-line diff that
-  # `versionCatalogPinned` still enforces as exact.
+  # Gradle: gradle/libs.versions.toml is where Dependabot writes its bumps.
   # ---------------------------------------------------------------------------
   - package-ecosystem: gradle
     directory: '/'
     schedule:
-      interval: monthly
+      interval: weekly
       day: monday
       time: '06:00'
       timezone: UTC
-    open-pull-requests-limit: 5
-    versioning-strategy: increase
+    cooldown:
+      default-days: 7
     labels:
       - dependencies
       - gradle
-    commit-message:
-      prefix: 'deps(gradle)'
+    patterns:
+      - '*'
+    multi-ecosystem-group: app-modernization
     groups:
-      # AndroidX and Compose move together; keeping them in one pull request
-      # avoids a matrix of individually-broken intermediate states.
       androidx:
         patterns:
           - 'androidx.*'
@@ -61,8 +71,6 @@ updates:
         patterns:
           - 'org.jetbrains.kotlin*'
           - 'com.google.devtools.ksp*'
-      # Everything else stays individual: a lone dependency bump is easier to
-      # reason about and to revert than a mixed bag.
 
     # REVIEWER NOTE — required follow-up for every Gradle bump in this repo.
     #
@@ -84,7 +92,7 @@ updates:
     # (docs/BUILD.md, gradle/verification-metadata.template.xml):
     #
     #   ./gradlew --no-daemon --write-verification-metadata sha256 \
-    #     assembleDebug testDebugUnitTest lintDebug :macrobenchmark:assembleBenchmark
+    #     ciCheck
     #   ./gradlew resolveAndLockAll --write-locks
     #
     # Then review the generated <components> diff exactly as you would review a
@@ -98,19 +106,19 @@ updates:
   - package-ecosystem: npm
     directory: '/backend'
     schedule:
-      interval: monthly
+      interval: weekly
       day: monday
       time: '06:00'
       timezone: UTC
-    open-pull-requests-limit: 5
-    versioning-strategy: increase
+    cooldown:
+      default-days: 7
     labels:
       - dependencies
       - backend
-    commit-message:
-      prefix: 'deps(backend)'
+    patterns:
+      - '*'
+    multi-ecosystem-group: app-modernization
     groups:
-      # The TypeScript toolchain (compiler, ts-jest, types) must move as one set.
       typescript:
         patterns:
           - 'typescript'
@@ -136,13 +144,15 @@ updates:
   - package-ecosystem: github-actions
     directory: '/'
     schedule:
-      interval: monthly
+      interval: weekly
       day: monday
       time: '06:00'
       timezone: UTC
-    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     labels:
       - dependencies
       - ci
-    commit-message:
-      prefix: 'deps(actions)'
+    patterns:
+      - '*'
+    multi-ecosystem-group: app-modernization

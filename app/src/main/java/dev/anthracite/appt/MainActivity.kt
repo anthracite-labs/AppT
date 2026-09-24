@@ -13,8 +13,8 @@ import dev.anthracite.appt.tokens.LocalMotionDurationScale
 /**
  * The single activity (presentation.md#route-graph: "One activity").
  *
- * It declares no `android:configChanges`, so rotation and window resizing
- * recreate it, as lifecycle.md requires.
+ * It declares no `android:configChanges`, so rotation and window resizing recreate it, as
+ * lifecycle.md requires.
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -22,19 +22,16 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             CompositionLocalProvider(
-                LocalMotionDurationScale provides platformMotionDurationScale(),
+                LocalMotionDurationScale provides platformMotionDurationScale()
             ) {
-                AppTTheme {
-                    AppTNavGraph()
-                }
+                AppTTheme { AppTNavGraph() }
             }
         }
     }
 
     /**
-     * Reads the system animator duration scale. A user who has turned
-     * animations off reports `0f`, which the motion tokens translate into
-     * zero-duration variants.
+     * Reads the system animator duration scale. A user who has turned animations off reports `0f`,
+     * which the motion tokens translate into zero-duration variants.
      */
     private fun platformMotionDurationScale(): Float =
         Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)

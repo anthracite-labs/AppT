@@ -8,10 +8,9 @@
 #
 # Scope boundary — what this script deliberately does NOT do:
 #
-#   * It does not orchestrate CodeQL. `init` / `analyze` lifecycle semantics stay
-#     visibly owned by the `codeql` job in .github/workflows/ci.yml, because
-#     hiding them behind a bespoke shell abstraction would make the SAST
-#     pipeline unauditable.
+#   * It does not orchestrate CodeQL. CodeQL SAST lifecycle semantics are
+#     owned by GitHub Actions default setup rather than hidden behind a bespoke
+#     shell abstraction.
 #   * It makes no network calls of its own: no curl, no wget, no downloads, no
 #     registry access. (Gradle resolves dependencies the same way it does for any
 #     other build; that is Gradle's behaviour, not this script's.)
@@ -41,8 +40,8 @@ MODE="${1:-all}"
 
 # The exact strict build used for CodeQL's manual Kotlin extraction, in one
 # place so the workflow and this script cannot drift apart. Keep this in sync
-# with the "Build Kotlin for extraction" step of the `codeql` job in
-# .github/workflows/ci.yml.
+# with the "Build Java and Kotlin targets" step of the `analyze` job in
+# .github/workflows/codeql.yml.
 #
 # --no-daemon, --no-build-cache, -Dorg.gradle.parallel=false and
 # -Pkotlin.compiler.execution.strategy=in-process are all extraction
@@ -59,9 +58,9 @@ GRADLE_STRICT_FLAGS=(
   -Pkotlin.compiler.execution.strategy=in-process
   --dependency-verification=strict
 )
-GRADLE_BUILD_TASKS=(assembleDebug)
+GRADLE_BUILD_TASKS=(assembleDebug :macrobenchmark:assembleBenchmark)
 
-log()  { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
+log() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 info() { printf '    %s\n' "$*"; }
 
 die() {
@@ -99,8 +98,8 @@ Notes:
   * Requires no secrets and makes no network calls of its own.
   * Fails closed: a missing required tool is an error, not a skipped check.
   * Exits non-zero if any constituent check fails.
-  * CodeQL is intentionally not driven from here; see the `codeql` job in
-    .github/workflows/ci.yml.
+  * CodeQL is intentionally not driven from here; CodeQL is owned by
+    GitHub Actions default setup.
 USAGE
   printf '\nThe strict Gradle build command:\n    ./gradlew %s %s\n' \
     "${GRADLE_STRICT_FLAGS[*]}" "${GRADLE_BUILD_TASKS[*]}"
@@ -113,7 +112,7 @@ check_secrets() {
   node --test "tools/secret-scan/test/secret-scan.test.mjs"
 
   log "Secret scan of the tracked tree${base:+ and the diff against $base}"
-  if [[ -n "$base" ]]; then
+  if [[ -n $base ]]; then
     # A missing base ref must fail loudly rather than silently narrow the scan;
     # the scanner itself exits non-zero in that case.
     node tools/secret-scan/secret-scan.mjs --base "$base"
@@ -129,7 +128,7 @@ check_detekt() {
   # Runs against the single repository-owned config/detekt/detekt.yml. There is
   # no baseline file and no --auto-correct, so a finding fails the run.
   #
-  # The task list mirrors the `detekt` job in .github/workflows/ci.yml exactly —
+  # The task list mirrors the detekt checks in ciCheck exactly —
   # detekt plus dependencyLockCheck in one invocation under strict verification —
   # so a green run here is the same evidence CI produces, not a weaker variant.
   info "./gradlew ${GRADLE_STRICT_FLAGS[*]} detekt dependencyLockCheck"
@@ -145,26 +144,26 @@ check_build() {
 }
 
 case "$MODE" in
-  help|-h|--help)
-    usage
-    ;;
-  secrets)
-    check_secrets "${2:-}"
-    ;;
-  detekt)
-    check_detekt
-    ;;
-  build)
-    check_build
-    ;;
-  all)
-    check_secrets ""
-    check_detekt
-    check_build
-    log "All repository-local security checks passed."
-    ;;
-  *)
-    usage >&2
-    die "unknown mode: $MODE"
-    ;;
+help | -h | --help)
+  usage
+  ;;
+secrets)
+  check_secrets "${2:-}"
+  ;;
+detekt)
+  check_detekt
+  ;;
+build)
+  check_build
+  ;;
+all)
+  check_secrets ""
+  check_detekt
+  check_build
+  log "All repository-local security checks passed."
+  ;;
+*)
+  usage >&2
+  die "unknown mode: $MODE"
+  ;;
 esac

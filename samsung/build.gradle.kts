@@ -13,6 +13,7 @@ plugins {
     // No kotlin-android plugin: AGP 9's built-in Kotlin compiles this
     // module's Kotlin sources (docs/BUILD.md, Issue #54).
     alias(libs.plugins.detekt)
+    alias(libs.plugins.kover)
 }
 
 android {
@@ -20,9 +21,7 @@ android {
     // Matches :app's compileSdk (Issue #54 toolchain bump); minSdk stays 29.
     compileSdk = 37
 
-    defaultConfig {
-        minSdk = 29
-    }
+    defaultConfig { minSdk = 29 }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -42,11 +41,8 @@ android {
         // opposite of that rule. Version currency is handled by reviewed
         // dependency-update pull requests; the pins themselves are still
         // enforced exactly by `versionCatalogPinned`.
-        informational += setOf(
-            "AndroidGradlePluginVersion",
-            "GradleDependency",
-            "NewerVersionAvailable",
-        )
+        informational +=
+            setOf("AndroidGradlePluginVersion", "GradleDependency", "NewerVersionAvailable")
     }
 }
 
@@ -55,6 +51,8 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        allWarningsAsErrors.set(true)
+        extraWarnings.set(true)
     }
 }
 
@@ -100,9 +98,5 @@ configurations.configureEach {
                 )
             else -> emptyList<String>()
         }
-    notations.forEach { notation ->
-        project.dependencies.constraints {
-            add(cfg, notation)
-        }
-    }
+    notations.forEach { notation -> project.dependencies.constraints { add(cfg, notation) } }
 }

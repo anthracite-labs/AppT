@@ -56,6 +56,8 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        allWarningsAsErrors.set(true)
+        extraWarnings.set(true)
     }
 }
 
@@ -100,9 +102,5 @@ configurations.configureEach {
                 listOf("com.squareup.wire:wire-runtime:6.4.7")
             else -> emptyList<String>()
         }
-    notations.forEach { notation ->
-        project.dependencies.constraints {
-            add(cfg, notation)
-        }
-    }
+    notations.forEach { notation -> project.dependencies.constraints { add(cfg, notation) } }
 }

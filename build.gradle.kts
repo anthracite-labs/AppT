@@ -13,6 +13,7 @@
 // never resolutionStrategy.force, and match the patched versions already
 // proven on AppT's project graphs.
 buildscript {
+    repositories { mavenCentral() }
     dependencies {
         constraints {
             classpath("org.bouncycastle:bcprov-jdk18on:1.86")
@@ -36,17 +37,44 @@ plugins {
     // :macrobenchmark is a test-only com.android.test module, not production
     // Kotlin, so Issue #36's detekt scope does not reach it.
     alias(libs.plugins.detekt) apply false
+    alias(libs.plugins.spotless)
+    alias(libs.plugins.kover)
+}
+
+spotless {
+    kotlin {
+        target("**/*.kt")
+        targetExclude("**/build/**")
+        ktfmt().kotlinlangStyle()
+    }
+    kotlinGradle {
+        target("**/*.gradle.kts")
+        targetExclude("**/build/**")
+        ktfmt().kotlinlangStyle()
+    }
+}
+
+dependencies {
+    kover(project(":app"))
+    kover(project(":samsung"))
+}
+
+kover {
+    reports {
+        verify {
+            rule {
+                // Reviewed baseline floor: measured 90.58% (125/138 lines) in Kover 0.9.5.
+                minBound(80)
+            }
+        }
+    }
 }
 
 // Dependency locking, enabled repository-wide (release.md#gradle).
 // Lockfiles are committed; CI runs `dependencyLockCheck` in the validating
 // mode so a drifted or missing lock state fails the build rather than
 // silently re-resolving.
-allprojects {
-    dependencyLocking {
-        lockAllConfigurations()
-    }
-}
+allprojects { dependencyLocking { lockAllConfigurations() } }
 
 apply(from = rootProject.file("gradle/guards.gradle.kts"))
 
@@ -78,9 +106,46 @@ subprojects {
             // resolution is exactly what locking needs and is what AGP supports here.
             configurations
                 .filter { it.isCanBeResolved }
-                .forEach { configuration ->
-                    configuration.incoming.resolutionResult.root
-                }
+                .forEach { configuration -> configuration.incoming.resolutionResult.root }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ciCheck — root Android/Kotlin verification lifecycle task (Issue #56)
+// ---------------------------------------------------------------------------
+tasks.register("ciCheck") {
+    group = "verification"
+    description =
+        "Root Android/Kotlin verification interface aggregating the complete verification floor."
+    dependsOn(
+        "spotlessCheck",
+        ":app:assembleDebug",
+        ":app:testDebugUnitTest",
+        ":app:lintDebug",
+        ":samsung:lintDebug",
+        ":app:detekt",
+        ":samsung:detekt",
+        ":macrobenchmark:assembleBenchmark",
+        "appTGuards",
+        "dependencyLockCheck",
+    )
+}
+
+gradle.projectsEvaluated {
+    val koverXml =
+        tasks.findByName("koverXmlReport")
+            ?: project(":app").tasks.findByName("koverXmlReport")
+            ?: tasks.findByName("koverXmlReportDebug")
+            ?: project(":app").tasks.findByName("koverXmlReportDebug")
+    val koverVerify =
+        tasks.findByName("koverVerify")
+            ?: project(":app").tasks.findByName("koverVerify")
+            ?: tasks.findByName("koverVerifyDebug")
+            ?: project(":app").tasks.findByName("koverVerifyDebug")
+
+    tasks.named("ciCheck") {
+        koverXml?.let { dependsOn(it) }
+        koverVerify?.let { dependsOn(it) }
     }
 }

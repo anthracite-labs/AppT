@@ -1,0 +1,434 @@
+name: verify
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '17'
+  NODE_VERSION: '24'
+  GRADLE_VERSION: '9.7.1'
+  ACTIONLINT_VERSION: '1.7.7'
+  SHFMT_VERSION: '3.10.0'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Quality — repository-generic checks outside Android/backend builds
+  # ---------------------------------------------------------------------------
+  quality:
+    name: Repository quality specialists
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        # actions/setup-node v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Security and policy self-tests
+        run: |
+          node --test "tools/secret-scan/test/secret-scan.test.mjs"
+          node --test "tools/security/test/enforce-dependency-policy.test.mjs"
+          node tools/secret-scan/secret-scan.mjs
+
+      - name: Run yamllint
+        run: |
+          pip install --break-system-packages yamllint==1.35.1
+          yamllint -c .yamllint.yml .
+
+      - name: Run markdownlint
+        # DavidAnson/markdownlint-cli2-action v24.2.0
+        uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff
+        with:
+          config: '.markdownlint-cli2.jsonc'
+          globs: |
+            **/*.md
+            !.agents/**
+            !node_modules/**
+            !backend/node_modules/**
+
+      - name: Run ShellCheck
+        run: |
+          set -o pipefail
+          find tools -name "*.sh" -print0 | xargs -0 shellcheck --severity=warning 2>&1 | tee /tmp/shellcheck.log || {
+            echo "::error title=ShellCheck Failure::$(head -n 10 /tmp/shellcheck.log | tr '\n' ' ')"
+            exit 1
+          }
+
+      - name: Install and run shfmt
+        run: |
+          set -euo pipefail
+          base_url="https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}"
+          curl -sSfL -o shfmt "${base_url}/shfmt_v${SHFMT_VERSION}_linux_amd64"
+          curl -sSfL -o sha256sums.txt "${base_url}/sha256sums.txt"
+          tr -d '\r' < sha256sums.txt | grep "shfmt_v${SHFMT_VERSION}_linux_amd64" | awk '{print $1 "  shfmt"}' | sha256sum -c -
+          chmod +x shfmt
+          sudo install -m 0755 shfmt /usr/local/bin/shfmt
+          set -o pipefail
+          shfmt -d -s -i 2 tools 2>&1 | tee /tmp/shfmt.log || {
+            echo "::error title=shfmt Failure::$(head -n 20 /tmp/shfmt.log | tr '\n' ' ')"
+            exit 1
+          }
+
+      - name: Install and run actionlint
+        run: |
+          set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          base_url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}"
+          curl -sSfL -o "${archive}" "${base_url}/${archive}"
+          curl -sSfL -o checksums.txt "${base_url}/actionlint_${ACTIONLINT_VERSION}_checksums.txt"
+          tr -d '\r' < checksums.txt | grep " ${archive}" | sha256sum -c -
+          tar -xzf "${archive}" actionlint
+          sudo install -m 0755 actionlint /usr/local/bin/actionlint
+          set -o pipefail
+          actionlint 2>&1 | tee /tmp/actionlint.log || {
+            echo "::error title=actionlint Failure::$(head -n 20 /tmp/actionlint.log | tr '\n' ' ')"
+            exit 1
+          }
+
+      - name: Run zizmor
+        # zizmorcore/zizmor-action v0.6.4
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482
+        with:
+          advanced-security: false
+          annotations: true
+
+  # ---------------------------------------------------------------------------
+  # 2. Android — root Gradle lifecycle task ciCheck
+  # ---------------------------------------------------------------------------
+  android:
+    name: Android and Kotlin verification
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK
+        # actions/setup-java v6.0.1
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        # gradle/actions/setup-gradle v6.3.0
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+          cache-provider: 'basic'
+
+      - name: Run root Gradle ciCheck under strict dependency verification
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon --dependency-verification=strict ciCheck 2>&1 | tee /tmp/cicheck.log || {
+            echo "::error title=ciCheck Failure::$(grep -A 10 "\* What went wrong:" /tmp/cicheck.log | head -n 10 | tr '\n' ' ')"
+            grep -A 30 "FAILURE: Build failed" /tmp/cicheck.log || true
+            exit 1
+          }
+
+      - name: Upload Kover coverage report
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: kover-coverage-report
+          path: |
+            app/build/reports/kover/**
+            build/reports/kover/**
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload Lint reports
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: lint-reports
+          path: |
+            app/build/reports/lint-results*
+            samsung/build/reports/lint-results*
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload detekt reports
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: detekt-reports
+          path: |
+            app/build/reports/detekt/**
+            samsung/build/reports/detekt/**
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 3. Backend — TypeScript typecheck, lint, prettier, knip, jest + coverage
+  # ---------------------------------------------------------------------------
+  backend:
+    name: Backend typecheck, lint, knip and coverage
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        # actions/setup-node v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install from committed lockfile
+        run: npm ci --prefix backend
+
+      - name: Run backend verify interface
+        run: npm run verify --prefix backend
+
+      - name: Upload backend coverage
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: backend-coverage-report
+          path: backend/coverage/**
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 4. Device — Android Gradle Managed Device API 29 acceptance test
+  # ---------------------------------------------------------------------------
+  device:
+    name: Installed-app acceptance on Gradle Managed Device (API 29)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK
+        # actions/setup-java v6.0.1
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        # gradle/actions/setup-gradle v6.3.0
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+          cache-provider: 'basic'
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -la /dev/kvm
+
+      - name: Run Gradle Managed Device Acceptance Test (API 29)
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon --dependency-verification=strict \
+            -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
+            :app:pixel2api29DebugAndroidTest 2>&1 | tee /tmp/gmd.log || {
+              echo "::error title=GMD Failure::$(grep -A 10 "\* What went wrong:" /tmp/gmd.log | head -n 10 | tr '\n' ' ')"
+              grep -A 30 "FAILURE: Build failed" /tmp/gmd.log || true
+              {
+                echo "### GMD Failure Log"
+                echo '```'
+                tail -n 60 /tmp/gmd.log
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            }
+
+      - name: Upload managed device reports
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: managed-device-report
+          path: |
+            app/build/reports/androidTests/managedDevice/**
+            app/build/outputs/androidTest-results/managedDevice/**
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 5. Dependency Review — PR dependency graph deltas
+  # ---------------------------------------------------------------------------
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    name: Dependency Review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check out the base and head of the change
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        # actions/setup-node v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Dependency review
+        # actions/dependency-review-action v5.0.0
+        id: review
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
+        with:
+          fail-on-severity: low
+          warn-only: true
+          comment-summary-in-pr: always
+          retry-on-snapshot-warnings: true
+          retry-on-snapshot-warnings-timeout: 600
+
+      - name: Enforce strict dependency security policy
+        shell: bash
+        env:
+          VULNERABLE_CHANGES: ${{ steps.review.outputs.vulnerable-changes }}
+        run: node tools/security/enforce-dependency-policy.mjs
+
+  # ---------------------------------------------------------------------------
+  # 6. Quality Platform — CI-based SonarQube Cloud quality gate analysis
+  # ---------------------------------------------------------------------------
+  quality-platform:
+    name: SonarQube Cloud quality platform
+    needs: [android, backend]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download Kover coverage report
+        # actions/download-artifact v7.0.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          name: kover-coverage-report
+          path: .
+
+      - name: Download backend coverage report
+        # actions/download-artifact v7.0.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          name: backend-coverage-report
+          path: backend/coverage
+
+      - name: Verify coverage evidence files
+        run: |
+          echo "Verifying coverage evidence files for Sonar import..."
+          ls -la backend/coverage/lcov.info || {
+            echo "::error::Backend Jest LCOV coverage report missing at backend/coverage/lcov.info"
+            exit 1
+          }
+          find . -name "*kover*.xml" -o -name "report.xml" -o -name "reportDebug.xml" | grep -q . || {
+            echo "::error::Kover XML coverage report missing"
+            exit 1
+          }
+          echo "Coverage evidence verified."
+
+      - name: Check for SonarQube Cloud Token
+        id: check_token
+        run: |
+          if [ -z "${{ secrets.SONAR_TOKEN }}" ]; then
+            echo "::error title=SonarQube Cloud Token Missing::SONAR_TOKEN secret is required for mandatory SonarQube Cloud quality platform analysis. Analysis cannot be bypassed."
+            exit 1
+          fi
+
+      - name: Run SonarQube Cloud Analysis
+        # sonarsource/sonarqube-scan-action v8.2.2
+        uses: sonarsource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # 7. Gate — required status interface for default branch protection (verify / gate)
+  # ---------------------------------------------------------------------------
+  gate:
+    name: gate
+    needs:
+      - quality
+      - android
+      - backend
+      - device
+      - dependency-review
+      - quality-platform
+    if: always()
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Evaluate gate results
+        run: |
+          echo "quality:           ${{ needs.quality.result }}"
+          echo "android:           ${{ needs.android.result }}"
+          echo "backend:           ${{ needs.backend.result }}"
+          echo "device:            ${{ needs.device.result }}"
+          echo "dependency-review: ${{ needs.dependency-review.result }}"
+          echo "quality-platform:  ${{ needs.quality-platform.result }}"
+
+          if [ "${{ needs.quality.result }}" != "success" ] || \
+             [ "${{ needs.android.result }}" != "success" ] || \
+             [ "${{ needs.backend.result }}" != "success" ] || \
+             [ "${{ needs.device.result }}" != "success" ] || \
+             [ "${{ needs.quality-platform.result }}" != "success" ]; then
+            echo "::error::One or more mandatory verification groups failed."
+            exit 1
+          fi
+
+          dep_res="${{ needs.dependency-review.result }}"
+          if [ "$dep_res" != "success" ] && [ "$dep_res" != "skipped" ]; then
+            echo "::error::Dependency review failed with status: $dep_res"
+            exit 1
+          fi
+
+          echo "All verification gates passed successfully."
