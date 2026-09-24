@@ -111,3 +111,8 @@ configurations.configureEach {
         }
     notations.forEach { notation -> project.dependencies.constraints { add(cfg, notation) } }
 }
+
+// Discovery tests include real loopback sockets and threads. A regression must
+// fail the build with a stuck-test report rather than hang CI until the job
+// limit; this is a backstop above the per-test JUnit timeouts.
+tasks.withType<Test>().configureEach { timeout.set(java.time.Duration.ofMinutes(10)) }

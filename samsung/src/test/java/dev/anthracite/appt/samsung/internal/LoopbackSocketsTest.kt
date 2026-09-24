@@ -8,6 +8,7 @@ import java.net.ServerSocket
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.thread
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -16,13 +17,18 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 
 /**
  * The two real socket clients against loopback peers: request shape, bounds, and that
  * cancellation closes sockets promptly instead of waiting for a socket timeout.
  */
 class LoopbackSocketsTest {
+    /** Real sockets and threads: a regression must fail here, never hang the build. */
+    @get:Rule val timeout: Timeout = Timeout.seconds(TEST_TIMEOUT_SECONDS)
+
     private val loopback: InetAddress = InetAddress.getLoopbackAddress()
 
     @Test
@@ -74,11 +80,14 @@ class LoopbackSocketsTest {
             val client = DeviceInfoHttp(readTimeoutMillis = 60_000)
             val started = System.nanoTime()
             val job = launch { client.get(TestLan(), loopback, server.localPort) }
-            peer.join()
+            // Wait for the connection by suspending, never by blocking: runBlocking has one thread,
+            // and Thread.join() here would stop the launched client from ever connecting.
+            withTimeout(5.seconds) { while (accepted.isEmpty()) delay(POLL_MILLIS) }
             job.cancel()
             withTimeout(2.seconds) { job.join() }
             assertTrue((System.nanoTime() - started) / 1_000_000 < 5_000)
             accepted.forEach { it.close() }
+            peer.join()
         }
     }
 
@@ -118,5 +127,10 @@ class LoopbackSocketsTest {
             assertTrue(searches.any { it.contains("ST: ${Ssdp.DIAL}\r\n") })
             assertTrue(searches.none { it.contains("ssdp:all") })
         }
+    }
+
+    private companion object {
+        const val TEST_TIMEOUT_SECONDS = 30L
+        const val POLL_MILLIS = 10L
     }
 }

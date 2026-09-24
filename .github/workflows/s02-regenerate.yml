@@ -24,6 +24,7 @@ jobs:
   regenerate:
     name: Regenerate locks and run S02 verification
     runs-on: ubuntu-24.04
+    timeout-minutes: 40
     permissions:
       contents: read
     steps:
