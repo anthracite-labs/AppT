@@ -312,12 +312,26 @@ jobs:
 
       - name: Dependency review
         # actions/dependency-review-action v5.0.0
+        id: review
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
         with:
           fail-on-severity: low
+          # GHSA-vrpq-qp53-qv56 (CVE-2025-4949): JGit XML external entity (XXE) vulnerability
+          # in experimental repo command and AmazonS3 pack transport. Introduced transitively by
+          # Spotless plugin (com.diffplug.spotless:spotless-plugin-gradle:7.0.2) solely for build-time
+          # Git formatting ratchet; not part of any production or runtime client artifact.
+          allow-ghsas: GHSA-vrpq-qp53-qv56
           comment-summary-in-pr: always
           retry-on-snapshot-warnings: true
           retry-on-snapshot-warnings-timeout: 600
+
+      - name: Report vulnerable dependencies on failure
+        if: failure() && steps.review.conclusion == 'failure'
+        shell: bash
+        env:
+          VULNERABLE_CHANGES: ${{ steps.review.outputs.vulnerable-changes }}
+        run: |
+          echo "::error::Vulnerable dependencies detected: $VULNERABLE_CHANGES"
 
   # ---------------------------------------------------------------------------
   # 6. Quality Platform — CI-based SonarQube Cloud quality gate analysis
