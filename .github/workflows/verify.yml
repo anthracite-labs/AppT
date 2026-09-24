@@ -7,7 +7,6 @@ on:
   push:
     branches:
       - main
-      - 'arena/**'
 
 permissions:
   contents: read

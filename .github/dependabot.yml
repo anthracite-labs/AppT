@@ -56,13 +56,9 @@ updates:
       timezone: UTC
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 5
-    versioning-strategy: increase
     labels:
       - dependencies
       - gradle
-    commit-message:
-      prefix: 'deps(gradle)'
     patterns:
       - '*'
     multi-ecosystem-group: app-modernization
@@ -116,13 +112,9 @@ updates:
       timezone: UTC
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 5
-    versioning-strategy: increase
     labels:
       - dependencies
       - backend
-    commit-message:
-      prefix: 'deps(backend)'
     patterns:
       - '*'
     multi-ecosystem-group: app-modernization
@@ -158,12 +150,9 @@ updates:
       timezone: UTC
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 5
     labels:
       - dependencies
       - ci
-    commit-message:
-      prefix: 'deps(actions)'
     patterns:
       - '*'
     multi-ecosystem-group: app-modernization

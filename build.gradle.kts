@@ -128,6 +128,7 @@ tasks.register("ciCheck") {
         ":samsung:detekt",
         ":macrobenchmark:assembleBenchmark",
         "appTGuards",
+        "dependencyLockCheck",
     )
 }
 
