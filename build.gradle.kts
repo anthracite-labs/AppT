@@ -36,7 +36,8 @@
 //                                      is vulnerable to GHSA-vrpq-qp53-qv56 /
 //                                      CVE-2025-4949, patched in the 6.10 line
 //                                      at 6.10.1.202505221210-r.
-//   org.jdom:jdom2                  <- com.android.tools.build.jetifier:jetifier-processor:1.0.0-beta10
+//   org.jdom:jdom2                  <-
+// com.android.tools.build.jetifier:jetifier-processor:1.0.0-beta10
 //                                      (AGP 9.4.1); 2.0.6 is vulnerable to
 //                                      GHSA-2363-cqg2-863c / CVE-2021-33813,
 //                                      patched in 2.0.6.1.
