@@ -114,6 +114,7 @@ the evidence that they pass.
 
 The backend package, the secret scanner, yamllint, markdownlint, and ShellCheck
 run locally:
+
 - `npm ci/run verify --prefix backend`
 - `node --test "tools/secret-scan/test/secret-scan.test.mjs" && node tools/secret-scan/secret-scan.mjs`
 - `yamllint -c .yamllint.yml .`
