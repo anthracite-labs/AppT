@@ -112,6 +112,11 @@ updates:
       timezone: UTC
     cooldown:
       default-days: 7
+      # Keep the general freshness delay, but never hide the peer family that
+      # must remain resolvable with the committed typescript-eslint version.
+      exclude:
+        - 'typescript-eslint'
+        - '@typescript-eslint/*'
     labels:
       - dependencies
       - backend
