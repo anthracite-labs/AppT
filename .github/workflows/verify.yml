@@ -1,0 +1,353 @@
+name: Verify
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - 'arena/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '17'
+  NODE_VERSION: '24'
+  GRADLE_VERSION: '9.7.1'
+  ACTIONLINT_VERSION: '1.7.7'
+  SHFMT_VERSION: '3.10.0'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Quality — repository-generic checks outside Android/backend builds
+  # ---------------------------------------------------------------------------
+  quality:
+    name: Repository quality specialists
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Node
+        # actions/setup-node v6.1.0
+        uses: actions/setup-node@6044e4da2601fddbba710c439fbc746d8e57976e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Secret scanner self-test and scan
+        run: |
+          node --test "tools/secret-scan/test/secret-scan.test.mjs"
+          node tools/secret-scan/secret-scan.mjs
+
+      - name: Run yamllint
+        run: |
+          pip install --break-system-packages yamllint==1.35.1
+          yamllint -c .yamllint.yml .
+
+      - name: Run markdownlint
+        # DavidAnson/markdownlint-cli2-action v24.2.0
+        uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff
+        with:
+          config: '.markdownlint.jsonc'
+          globs: '**/*.md'
+
+      - name: Run ShellCheck
+        run: |
+          find tools -name "*.sh" -exec /usr/bin/shellcheck {} +
+
+      - name: Install and run shfmt
+        run: |
+          base_url="https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}"
+          curl -sSfL -o shfmt "${base_url}/shfmt_v${SHFMT_VERSION}_linux_amd64"
+          curl -sSfL -o sha256sums.txt "${base_url}/sha256sums.txt"
+          grep "shfmt_v${SHFMT_VERSION}_linux_amd64\$" sha256sums.txt | sed "s/shfmt_v${SHFMT_VERSION}_linux_amd64/shfmt/" | sha256sum -c -
+          chmod +x shfmt
+          sudo install -m 0755 shfmt /usr/local/bin/shfmt
+          shfmt -d -s -i 2 tools
+
+      - name: Install and run actionlint
+        run: |
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          base_url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}"
+          curl -sSfL -o "${archive}" "${base_url}/${archive}"
+          curl -sSfL -o checksums.txt "${base_url}/actionlint_${ACTIONLINT_VERSION}_checksums.txt"
+          grep " ${archive}\$" checksums.txt | sha256sum -c -
+          tar -xzf "${archive}" actionlint
+          sudo install -m 0755 actionlint /usr/local/bin/actionlint
+          actionlint
+
+      - name: Run zizmor
+        # zizmorcore/zizmor-action v0.6.4
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482
+
+  # ---------------------------------------------------------------------------
+  # 2. Android — root Gradle lifecycle task ciCheck
+  # ---------------------------------------------------------------------------
+  android:
+    name: Android and Kotlin verification
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up JDK
+        # actions/setup-java v6.0.1
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        # gradle/actions/setup-gradle v6.3.0
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+          cache-provider: 'basic'
+
+      - name: Run root Gradle ciCheck under strict dependency verification
+        run: |
+          ./gradlew --no-daemon --dependency-verification=strict ciCheck
+
+      - name: Upload Kover coverage report
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: kover-coverage-report
+          path: |
+            app/build/reports/kover/**
+            build/reports/kover/**
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload Lint reports
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: lint-reports
+          path: |
+            app/build/reports/lint-results*
+            samsung/build/reports/lint-results*
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload detekt reports
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: detekt-reports
+          path: |
+            app/build/reports/detekt/**
+            samsung/build/reports/detekt/**
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 3. Backend — TypeScript typecheck, lint, prettier, knip, jest + coverage
+  # ---------------------------------------------------------------------------
+  backend:
+    name: Backend typecheck, lint, knip and coverage
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Node
+        # actions/setup-node v6.1.0
+        uses: actions/setup-node@6044e4da2601fddbba710c439fbc746d8e57976e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install from committed lockfile
+        run: npm ci --prefix backend
+
+      - name: Run backend verify interface
+        run: npm run verify --prefix backend
+
+      - name: Upload backend coverage
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: backend-coverage-report
+          path: backend/coverage/**
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 4. Device — Android Gradle Managed Device API 29 acceptance test
+  # ---------------------------------------------------------------------------
+  device:
+    name: Installed-app acceptance on Gradle Managed Device (API 29)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up JDK
+        # actions/setup-java v6.0.1
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        # gradle/actions/setup-gradle v6.3.0
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+          cache-provider: 'basic'
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -la /dev/kvm
+
+      - name: Run Gradle Managed Device Acceptance Test (API 29)
+        run: |
+          ./gradlew --no-daemon --dependency-verification=strict \
+            -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
+            :app:pixel2api29DebugAndroidTest
+
+      - name: Upload managed device reports
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: managed-device-report
+          path: |
+            app/build/reports/androidTests/managedDevice/**
+            app/build/outputs/androidTest-results/managedDevice/**
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 5. Dependency Review — PR dependency graph deltas
+  # ---------------------------------------------------------------------------
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    name: Dependency Review
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the base and head of the change
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Dependency review
+        # actions/dependency-review-action v4.5.1
+        uses: actions/dependency-review-action@5a5f3e9b25bac68eb04a7db761f0ffc3cf40a455
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: always
+
+  # ---------------------------------------------------------------------------
+  # 6. Quality Platform — CI-based SonarQube Cloud quality gate analysis
+  # ---------------------------------------------------------------------------
+  quality-platform:
+    name: SonarQube Cloud quality platform
+    needs: [android, backend]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Download Kover coverage report
+        # actions/download-artifact v4.1.8
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with:
+          name: kover-coverage-report
+          path: app/build/reports/kover
+
+      - name: Download backend coverage report
+        # actions/download-artifact v4.1.8
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with:
+          name: backend-coverage-report
+          path: backend/coverage
+
+      - name: Run SonarQube Cloud Analysis
+        # sonarsource/sonarcloud-github-action v5.0.0
+        uses: sonarsource/sonarcloud-github-action@ffc3010689be73b8e5ae0c57ce35968afd7909e8
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # 7. Gate — required status interface for default branch protection
+  # ---------------------------------------------------------------------------
+  gate:
+    name: Required verification gate
+    needs:
+      - quality
+      - android
+      - backend
+      - device
+      - dependency-review
+      - quality-platform
+    if: always()
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Evaluate gate results
+        run: |
+          echo "quality:           ${{ needs.quality.result }}"
+          echo "android:           ${{ needs.android.result }}"
+          echo "backend:           ${{ needs.backend.result }}"
+          echo "device:            ${{ needs.device.result }}"
+          echo "dependency-review: ${{ needs.dependency-review.result }}"
+          echo "quality-platform:  ${{ needs.quality-platform.result }}"
+
+          failed=0
+          for job in quality android backend device quality-platform; do
+            res=$(eval echo "\${{ needs.$job.result }}")
+            if [ "$res" != "success" ]; then
+              echo "::error::Mandatory job '$job' failed with status: $res"
+              failed=1
+            fi
+          done
+
+          # dependency-review runs on PRs only; on push it is skipped
+          dep_res="${{ needs.dependency-review.result }}"
+          if [ "$dep_res" != "success" ] && [ "$dep_res" != "skipped" ]; then
+            echo "::error::Mandatory job 'dependency-review' failed with status: $dep_res"
+            failed=1
+          fi
+
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
+
+          echo "All verification gates passed successfully."

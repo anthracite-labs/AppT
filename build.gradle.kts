@@ -36,6 +36,37 @@ plugins {
     // :macrobenchmark is a test-only com.android.test module, not production
     // Kotlin, so Issue #36's detekt scope does not reach it.
     alias(libs.plugins.detekt) apply false
+    alias(libs.plugins.spotless)
+    alias(libs.plugins.kover)
+}
+
+spotless {
+    kotlin {
+        target("**/*.kt")
+        targetExclude("**/build/**")
+        ktfmt().kotlinlangStyle()
+    }
+    kotlinGradle {
+        target("**/*.gradle.kts")
+        targetExclude("**/build/**")
+        ktfmt().kotlinlangStyle()
+    }
+}
+
+dependencies {
+    kover(project(":app"))
+    kover(project(":samsung"))
+}
+
+kover {
+    reports {
+        verify {
+            rule {
+                // Reviewed baseline floor from current main.
+                minBound(50)
+            }
+        }
+    }
 }
 
 // Dependency locking, enabled repository-wide (release.md#gradle).
@@ -84,3 +115,37 @@ subprojects {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// ciCheck — root Android/Kotlin verification lifecycle task (Issue #56)
+// ---------------------------------------------------------------------------
+tasks.register("ciCheck") {
+    group = "verification"
+    description =
+        "Root Android/Kotlin verification interface aggregating the complete verification floor."
+    dependsOn(
+        tasks.named("spotlessCheck"),
+        tasks.named("assembleDebug"),
+        tasks.named("testDebugUnitTest"),
+        tasks.named("lintDebug"),
+        tasks.named("detekt"),
+        tasks.named("dependencyLockCheck"),
+        tasks.named("appTGuards"),
+        project(":macrobenchmark").tasks.named("assembleBenchmark"),
+    )
+}
+
+gradle.projectsEvaluated {
+    val koverXml = tasks.findByName("koverXmlReportDebug")
+        ?: project(":app").tasks.findByName("koverXmlReportDebug")
+        ?: tasks.findByName("koverXmlReport")
+    val koverVerify = tasks.findByName("koverVerifyDebug")
+        ?: project(":app").tasks.findByName("koverVerifyDebug")
+        ?: tasks.findByName("koverVerify")
+
+    tasks.named("ciCheck") {
+        koverXml?.let { dependsOn(it) }
+        koverVerify?.let { dependsOn(it) }
+    }
+}
+

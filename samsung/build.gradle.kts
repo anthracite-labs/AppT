@@ -13,6 +13,7 @@ plugins {
     // No kotlin-android plugin: AGP 9's built-in Kotlin compiles this
     // module's Kotlin sources (docs/BUILD.md, Issue #54).
     alias(libs.plugins.detekt)
+    alias(libs.plugins.kover)
 }
 
 android {
@@ -55,6 +56,8 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        allWarningsAsErrors.set(true)
+        extraWarnings.set(true)
     }
 }
 

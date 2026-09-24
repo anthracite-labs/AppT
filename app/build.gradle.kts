@@ -14,6 +14,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.detekt)
+    alias(libs.plugins.kover)
 }
 
 android {
@@ -64,6 +65,15 @@ android {
             // set in app/src/test/resources/robolectric.properties.
             isIncludeAndroidResources = true
         }
+        managedDevices {
+            localDevices {
+                create<com.android.build.api.dsl.ManagedVirtualDevice>("pixel2api29") {
+                    device = "Pixel 2"
+                    apiLevel = 29
+                    systemImageSource = "aosp"
+                }
+            }
+        }
     }
 
     lint {
@@ -104,6 +114,8 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        allWarningsAsErrors.set(true)
+        extraWarnings.set(true)
     }
 }
 

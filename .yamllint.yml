@@ -1,0 +1,16 @@
+---
+extends: default
+
+ignore: |
+  node_modules/
+  backend/node_modules/
+  .git/
+
+rules:
+  document-start: disable
+  line-length: disable
+  truthy:
+    check-keys: false
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: disable
