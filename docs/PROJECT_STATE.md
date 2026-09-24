@@ -17,13 +17,13 @@ Phase: `implementation`
 
 ## Current objective
 
-Objective: `Resume S02 — Local-network explanation and bounded discovery — now that the pre-S02 security baseline in Issue #36 has been accepted and merged. S07 remains dependency-ready but is not active or authorized.`
+Objective: `Execute S02 — Local-network explanation and bounded discovery — from the Arena-ready work order in Issue #73. S07 remains dependency-ready but is not active or authorized.`
 
 Success condition: `S02 is implemented and accepted against the architecture/slice contract while preserving the merged security baseline, privacy constraints, and supply-chain controls.`
 
 ## Active work
 
-Primary: `S01 remains the accepted product implementation baseline through PR #30, the pre-S02 security baseline is accepted through PR #38, dependency/toolchain modernization is accepted through PR #55, and the verification/AI-assurance redesign is accepted through merged PR #60. S02 is the next product slice to compile and dispatch.`
+Primary: `S01 remains the accepted product implementation baseline through PR #30. S02 is compiled and human-authorized for Arena execution in Issue #73 from current main after the merged pre-S02 security, dependency/toolchain, verification/AI-assurance, and latest supply-chain maintenance baselines through PR #69.`
 
 Secondary:
 
@@ -116,7 +116,7 @@ Secondary:
 
 ## Recent change
 
-- `PR #60 merged as commit 2898b2ace007c84b21a85eed95b496027ac4ef86, completing Issue #56's verification and AI-code assurance redesign: one-owner verify workflow, stable gate, strict Android/backend verification, Gradle Managed Devices, CI-based SonarQube Cloud, temporary Advanced CodeQL bundle 2.27.1 for Kotlin 2.4.20, version-controlled CodeRabbit policy, coordinated Dependabot updates, and retirement of the legacy CI/maintenance topology.`
+- `Issue #73 was compiled and dispatch-authorized for S02 on 2026-09-24 from main commit 8b55e693f18a2c6c19bf3cb1ad5e9b8d7cc9a3bd, after Issue #68 / PR #69 completed the latest Gradle supply-chain remediation.`
 
 ## Relevant canonical references
 
@@ -133,16 +133,18 @@ Secondary:
 - `GitHub Issue #36 — completed security-baseline Arena work order; closed by merged PR #38.`
 - `GitHub Issue #54 / PR #55 — completed one-pass dependency and toolchain modernization.`
 - `GitHub Issue #56 / PR #60 — completed verification and AI-code assurance redesign, merged through commit 2898b2ace007c84b21a85eed95b496027ac4ef86.`
+- `GitHub Issue #68 / PR #69 — completed the latest Gradle supply-chain remediation before S02 dispatch.`
+- `GitHub Issue #73 — active Arena-ready S02 work order: local-network explanation and bounded discovery.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
 - `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
 - `AGENTS.md — repository operating entry point.`
 
 ## Next
 
-`Compile and dispatch S02 — Local-network explanation and bounded discovery — as the next authorized product implementation slice.`
+`Arena claims Issue #73, implements S02 against the accepted architecture/slice contract, and returns a pull request for independent review.`
 
 ## After that
 
-1. `Implement and review S02 against the accepted architecture/slice contract.`
-2. `Observe the merged verification stack on the next ordinary PR, including CodeRabbit target-branch configuration and the stable gate.`
-3. `Keep the confirmed security-audit follow-up findings, S07's explicit authorization gate, provider needs-validation facts, and the two external public-release gates visible; do not silently fold them into unrelated work.`
+1. `Review the returned S02 pull request independently against Issue #73, the architecture sources, and the canonical verification evidence before any merge decision.`
+2. `If S02 is accepted and merged, update this snapshot and prepare S03 as the next control-spine slice; S07 still requires explicit authorization.`
+3. `Keep the confirmed security-audit follow-up findings, provider needs-validation facts, and the two external public-release gates visible; do not silently fold them into unrelated work.`
