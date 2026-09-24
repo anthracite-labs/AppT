@@ -4,18 +4,24 @@
 # services.gradle.org, repo1.maven.org or dl.google.com (docs/BUILD.md, "Where
 # the Android verification runs"), so the verification metadata for the new
 # buildscript classpath constraints cannot be regenerated there. This workflow
-# runs the two documented regeneration commands (docs/BUILD.md) on a canonical
+# runs the documented regeneration commands (docs/BUILD.md) on a canonical
 # GitHub-hosted runner and commits only the generated artifacts back.
 #
 # Contract (.agents/ARENA-DISPATCH.md, "Supply-chain regeneration"):
 #   * immutable action commit-SHA pins, matching verify.yml;
 #   * minimum permissions: contents: write only, so the job can commit back;
 #   * no repository secrets;
-#   * writes only gradle/verification-metadata.xml, the Gradle lockfiles and a
-#     Spotless reformat of build.gradle.kts;
+#   * writes only gradle/verification-metadata.xml, the Gradle lockfiles, a
+#     Spotless reformat of build.gradle.kts, and a failure log under tmp/;
 #   * the regenerated state is then proven with the canonical strict command
 #     `./gradlew --no-daemon --dependency-verification=strict ciCheck`;
 #   * branch-scoped, and removed before merge.
+#
+# `--dependency-verification=lenient` appears only in the regeneration pass.
+# That is the documented bootstrap: Gradle defaults to strict verification
+# whenever a verification metadata file is present, so artifact checksums that
+# do not exist yet must be recorded before any strict build can succeed. Every
+# proof step below still runs under the canonical strict mode.
 name: temporary-issue-68-supply-chain-regen
 
 on:
@@ -67,13 +73,17 @@ jobs:
         run: |
           set -o pipefail
           chmod +x ./gradlew
-          # docs/BUILD.md: Spotless formatting, then the two regeneration
-          # commands. `help` forces configuration so the buildscript classpath
-          # (where the Issue #68 constraints live) is resolved and recorded;
-          # resolveAndLockAll resolves every subproject configuration.
-          ./gradlew --no-daemon spotlessApply 2>&1 | tee /tmp/spotless.log
-          ./gradlew --no-daemon --write-verification-metadata sha256 \
+          # docs/BUILD.md regeneration pair, in the order that can actually
+          # succeed: record the checksums first (lenient, because the new
+          # artifacts do not exist in the metadata yet), then refresh locks.
+          ./gradlew --no-daemon --dependency-verification=lenient \
+            --write-verification-metadata sha256 \
             help resolveAndLockAll --write-locks 2>&1 | tee /tmp/regen.log
+
+      - name: Apply Spotless formatting
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon spotlessApply 2>&1 | tee /tmp/spotless.log
 
       - name: Prove the regenerated state under strict verification
         run: |
@@ -129,6 +139,37 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -- "${paths[@]}"
           git commit -m 'chore(supply-chain): regenerate verification metadata and locks for Issue #68 constraints [skip ci]'
+          git push
+
+      - name: Publish failure logs as a step summary
+        if: failure()
+        run: |
+          set -euo pipefail
+          {
+            echo '### Issue #68 regeneration failure'
+            echo '```text'
+            tail -n 80 /tmp/regen.log 2>/dev/null || true
+            tail -n 80 /tmp/cicheck.log 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Push failure logs to the branch
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p tmp/issue-68
+          for log in regen cicheck spotless buildenv; do
+            if [ -f "/tmp/${log}.log" ]; then
+              tail -n 600 "/tmp/${log}.log" > "tmp/issue-68/${log}.log" || true
+            fi
+          done
+          git --no-pager status --porcelain
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f -- tmp/issue-68
+          git commit -m 'chore(tmp): publish Issue #68 regeneration failure logs [skip ci]' || exit 0
           git push
 
       - name: Upload regeneration evidence
