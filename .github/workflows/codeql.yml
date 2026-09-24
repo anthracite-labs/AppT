@@ -1,15 +1,19 @@
 # CodeQL analysis for AppT (docs/architecture/release.md, Issue #56).
 #
-# Temporary Advanced Setup workflow pinned to CodeQL 2.27.1 (2026-09-22)
-# to analyze Kotlin 2.4.20 while GitHub-managed Default Setup bundles lag at 2.27.0.
+# Pull-request iteration is intentionally cheap: PR synchronization scans only
+# GitHub Actions and JavaScript/TypeScript, which require no Android/Kotlin build.
+# Java/Kotlin CodeQL remains available through manual dispatch and runs on main
+# and the scheduled security pass.
 #
-# Migration-back condition (release.md):
-# Once GitHub Default Setup uses CodeQL 2.27.1 or newer and managed Java/Kotlin analysis
-# passes, this temporary workflow will be retired and Default Setup re-enabled.
+# Temporary Advanced Setup is pinned to CodeQL 2.27.1 while GitHub-managed
+# Default Setup lacks Kotlin 2.4.20 support.
 
 name: CodeQL
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -32,10 +36,10 @@ env:
   CODEQL_BUNDLE_URL: 'https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.27.1/codeql-bundle-linux64.tar.zst'
 
 jobs:
-  analyze:
+  analyze-fast:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 15
     permissions:
       actions: read
       contents: read
@@ -44,13 +48,41 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - language: java-kotlin
-            build-mode: manual
-          - language: javascript-typescript
-            build-mode: none
-          - language: actions
-            build-mode: none
+        language:
+          - javascript-typescript
+          - actions
+
+    steps:
+      - name: Check out repository
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        # github/codeql-action v4.38.2
+        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          tools: ${{ env.CODEQL_BUNDLE_URL }}
+          queries: security-extended
+
+      - name: Perform CodeQL analysis
+        # github/codeql-action v4.38.2
+        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2
+        with:
+          category: '/language:${{ matrix.language }}'
+
+  analyze-kotlin:
+    if: github.event_name != 'pull_request'
+    name: Analyze (java-kotlin)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
 
     steps:
       - name: Check out repository
@@ -60,7 +92,6 @@ jobs:
           persist-credentials: false
 
       - name: Set up JDK
-        if: matrix.language == 'java-kotlin'
         # actions/setup-java v6.0.1
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
         with:
@@ -68,7 +99,6 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
 
       - name: Set up Gradle
-        if: matrix.language == 'java-kotlin'
         # gradle/actions/setup-gradle v6.3.0
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
         with:
@@ -79,13 +109,12 @@ jobs:
         # github/codeql-action v4.38.2
         uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2
         with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
+          languages: java-kotlin
+          build-mode: manual
           tools: ${{ env.CODEQL_BUNDLE_URL }}
           queries: security-extended
 
       - name: Build Java and Kotlin targets
-        if: matrix.language == 'java-kotlin'
         run: |
           chmod +x ./gradlew
           ./gradlew --no-daemon --no-build-cache \
@@ -98,4 +127,4 @@ jobs:
         # github/codeql-action v4.38.2
         uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2
         with:
-          category: '/language:${{ matrix.language }}'
+          category: '/language:java-kotlin'
