@@ -12,6 +12,33 @@
 // when the owning plugin cannot be upgraded further. These are constraints,
 // never resolutionStrategy.force, and match the patched versions already
 // proven on AppT's project graphs.
+//
+// Issue #68 (Dependabot alerts #15, #17, #58): the same reasoning covers the
+// three coordinates that remained. None of them is declared by any AppT module,
+// so they appear in no `*.gradle.lockfile` and nowhere in
+// `gradle/libs.versions.toml`; they reach the dependency graph only as
+// transitives of the plugins this file applies. The buildscript classpath is
+// therefore the only seam that owns them, and it is also the only seam
+// Dependabot's Gradle updater can read and mutate: its file parser harvests
+// literal `group:name:version` declarations, so a coordinate that is not
+// written down here is invisible to it and any security update for it dies with
+// `dependency_not_found`. A constraint is a floor in Gradle conflict
+// resolution, never a downgrade, so these stay correct when a later plugin bump
+// moves the same transitive further forward.
+//
+// Owners, read off the repository dependency graph, which records exactly these
+// DEPENDS_ON edges:
+//   jose4j      <- com.android.tools.build:bundletool:1.18.3 (AGP 9.4.1)
+//                  0.9.5 -> GHSA-3677-xxcr-wjqv / CVE-2024-29371, fixed in 0.9.6
+//   jgit        <- com.diffplug.spotless:spotless-lib-extra:3.0.2 (Spotless 7.0.2)
+//                  6.10.0.202406032230-r -> GHSA-vrpq-qp53-qv56 / CVE-2025-4949,
+//                  fixed in the 6.10 line at 6.10.1.202505221210-r
+//   jdom2       <- jetifier-processor:1.0.0-beta10 (AGP 9.4.1), that is
+//                  com.android.tools.build.jetifier:jetifier-processor
+//                  2.0.6 -> GHSA-2363-cqg2-863c / CVE-2021-33813, fixed in 2.0.6.1
+//
+// `tools/security/enforce-gradle-tooling-constraints.mjs` keeps this block and
+// the regenerated verification metadata honest.
 buildscript {
     repositories { mavenCentral() }
     dependencies {
@@ -20,6 +47,9 @@ buildscript {
             classpath("org.bouncycastle:bcpkix-jdk18on:1.86")
             classpath("org.apache.commons:commons-lang3:3.20.0")
             classpath("org.apache.httpcomponents:httpclient:4.5.14")
+            classpath("org.bitbucket.b_c:jose4j:0.9.6")
+            classpath("org.eclipse.jgit:org.eclipse.jgit:6.10.1.202505221210-r")
+            classpath("org.jdom:jdom2:2.0.6.1")
         }
     }
 }

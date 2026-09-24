@@ -48,7 +48,9 @@ jobs:
         run: |
           node --test "tools/secret-scan/test/secret-scan.test.mjs"
           node --test "tools/security/test/enforce-dependency-policy.test.mjs"
+          node --test "tools/security/test/enforce-gradle-tooling-constraints.test.mjs"
           node tools/secret-scan/secret-scan.mjs
+          node tools/security/enforce-gradle-tooling-constraints.mjs
 
       - name: Run yamllint
         run: |
