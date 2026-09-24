@@ -8,10 +8,9 @@
 #
 # Scope boundary — what this script deliberately does NOT do:
 #
-#   * It does not orchestrate CodeQL. `init` / `analyze` lifecycle semantics stay
-#     visibly owned by the `codeql` job in .github/workflows/ci.yml, because
-#     hiding them behind a bespoke shell abstraction would make the SAST
-#     pipeline unauditable.
+#   * It does not orchestrate CodeQL. CodeQL SAST lifecycle semantics are
+#     owned by GitHub Actions default setup rather than hidden behind a bespoke
+#     shell abstraction.
 #   * It makes no network calls of its own: no curl, no wget, no downloads, no
 #     registry access. (Gradle resolves dependencies the same way it does for any
 #     other build; that is Gradle's behaviour, not this script's.)
@@ -99,8 +98,8 @@ Notes:
   * Requires no secrets and makes no network calls of its own.
   * Fails closed: a missing required tool is an error, not a skipped check.
   * Exits non-zero if any constituent check fails.
-  * CodeQL is intentionally not driven from here; see the `codeql` job in
-    .github/workflows/ci.yml.
+  * CodeQL is intentionally not driven from here; CodeQL is owned by
+    GitHub Actions default setup.
 USAGE
   printf '\nThe strict Gradle build command:\n    ./gradlew %s %s\n' \
     "${GRADLE_STRICT_FLAGS[*]}" "${GRADLE_BUILD_TASKS[*]}"
@@ -129,7 +128,7 @@ check_detekt() {
   # Runs against the single repository-owned config/detekt/detekt.yml. There is
   # no baseline file and no --auto-correct, so a finding fails the run.
   #
-  # The task list mirrors the `detekt` job in .github/workflows/ci.yml exactly —
+  # The task list mirrors the detekt checks in ciCheck exactly —
   # detekt plus dependencyLockCheck in one invocation under strict verification —
   # so a green run here is the same evidence CI produces, not a weaker variant.
   info "./gradlew ${GRADLE_STRICT_FLAGS[*]} detekt dependencyLockCheck"
