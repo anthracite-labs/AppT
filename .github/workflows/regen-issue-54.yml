@@ -101,6 +101,11 @@ jobs:
             fail "gradle CLI is not runnable" "$RUNNER_TEMP/gradle-version.txt"
 
           scratch="$(mktemp -d)"
+          # Gradle 9 no longer treats a directory without a settings file as an
+          # implicit empty build, so give the scratch build an empty settings
+          # file (still configuring nothing of AppT — docs/BUILD.md's
+          # scratch-build requirement).
+          : > "$scratch/settings.gradle"
           ( cd "$scratch" && gradle wrapper --gradle-version 9.7.1 --distribution-type bin ) \
             > "$RUNNER_TEMP/wrapper-gen.txt" 2>&1 ||
             fail "'gradle wrapper --gradle-version 9.7.1 --distribution-type bin' failed in scratch build" \
