@@ -5,6 +5,24 @@
 // CI to enforce from S01 onward. The individual guards live in
 // gradle/guards.gradle.kts so this file stays a readable index of them.
 
+// Issue #54 final security closure: AGP 9.4.1 is the newest stable plugin,
+// but its plugin/buildscript classpath still declares older vulnerable
+// transitives. Gradle's dependency-submission guidance explicitly supports
+// constraining plugin-classpath transitives through the buildscript classpath
+// when the owning plugin cannot be upgraded further. These are constraints,
+// never resolutionStrategy.force, and match the patched versions already
+// proven on AppT's project graphs.
+buildscript {
+    dependencies {
+        constraints {
+            classpath("org.bouncycastle:bcprov-jdk18on:1.86")
+            classpath("org.bouncycastle:bcpkix-jdk18on:1.86")
+            classpath("org.apache.commons:commons-lang3:3.20.0")
+            classpath("org.apache.httpcomponents:httpclient:4.5.14")
+        }
+    }
+}
+
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false

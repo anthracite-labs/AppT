@@ -513,9 +513,16 @@ jobs:
           # invocation under strict dependency verification.
           - language: java-kotlin
             build-mode: manual
+            # Stable CodeQL 2.27.1 (2026-09-22) adds Kotlin 2.4.20 support.
+            # The action's current default bundle is still 2.27.0, so pin the
+            # immutable release asset explicitly rather than downgrading Kotlin
+            # or using a nightly CodeQL build.
+            tools: https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.27.1/codeql-bundle-java-linux64.tar.zst
           # TypeScript needs no build step; the extractor reads source directly.
           - language: javascript-typescript
             build-mode: none
+            # Keep both matrix legs on the same stable CodeQL release.
+            tools: https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.27.1/codeql-bundle-javascript-linux64.tar.zst
 
     steps:
       - name: Check out
@@ -560,6 +567,7 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
+          tools: ${{ matrix.tools }}
           # security-extended for both language families: the default suite
           # optimises for precision at the cost of coverage, and AppT wants the
           # wider security query set as its SAST floor.
