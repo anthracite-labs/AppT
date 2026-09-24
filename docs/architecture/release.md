@@ -129,20 +129,26 @@ protection.
 
 The workflow contains these responsibility groups:
 
-1. **quality** — narrow repository-generic checks only: `actionlint` for
-   workflow correctness, ShellCheck for authored shell, repository-owned policy
-   tests, and jscpd as the sole duplication detector. jscpd begins as reporting
-   evidence until a reviewed baseline establishes a useful regression threshold;
-   it must not force premature abstraction.
+1. **quality** — repository-generic checks that do not belong to a language
+   build: `actionlint` for workflow correctness, `zizmor` for GitHub Actions
+   security posture, ShellCheck plus `shfmt` for authored shell, `yamllint`
+   for generic YAML, `markdownlint` for canonical Markdown, and
+   repository-owned policy/self-tests. These tools run directly or through
+   package-native entrypoints rather than through MegaLinter or Super-Linter.
 2. **android** — one Gradle lifecycle task, `ciCheck`, under strict dependency
-   verification. `ciCheck` aggregates debug assembly, JVM/Robolectric tests,
-   Android Lint, detekt, dependency-lock validation, `appTGuards`, and
-   macrobenchmark compilation. Gradle remains the owner of detekt and Android
-   Lint; no linter bundle ships alternate copies of those tools.
+   verification. `ciCheck` aggregates strict Kotlin compiler diagnostics
+   (extra warnings promoted to errors), deterministic Kotlin formatting through
+   Spotless + ktfmt, debug assembly, JVM/Robolectric tests, Android Lint, detekt,
+   Kover coverage generation/verification, dependency-lock validation,
+   `appTGuards`, meaningful architecture tests where a current non-duplicated
+   architecture law exists, and macrobenchmark compilation. Gradle remains the
+   owner of Android/Kotlin verification.
 3. **backend** — `npm ci --prefix backend` followed by one package-owned
-   `npm run verify --prefix backend` interface aggregating TypeScript
-   typechecking, ESLint, Prettier checking and Jest. Firebase emulator tests join
-   the backend verification surface when the backend slice makes them real.
+   `npm run verify --prefix backend` interface aggregating strict TypeScript
+   typechecking, typed ESLint, Prettier checking, Knip dead-code/dependency
+   analysis, Jest tests, and LCOV coverage generation/verification. Firebase
+   emulator tests join the backend verification surface when the backend slice
+   makes them real.
 4. **device** — Android Gradle Managed Devices, initially one API 29 device
    because API 29 is AppT's `minSdk`, running the installed-app instrumentation
    smoke/acceptance surface. No third-party emulator-runner Action is part of
@@ -150,14 +156,26 @@ The workflow contains these responsibility groups:
 5. **dependency-review** — GitHub Dependency Review on pull requests that change
    dependency inputs. It consumes the GitHub dependency graph and does not
    replace Gradle locking or strict verification.
-6. **gate** — depends on every mandatory repository verification group and
-   succeeds only when all required groups succeeded. This is the sole required
-   repository status check.
+6. **quality-platform** — CI-based SonarQube Cloud analysis after Android and
+   backend verification have produced coverage reports. Sonar owns the
+   cross-language maintainability/reliability, new-code coverage and duplication
+   quality gate; it does not replace CodeQL as AppT's authoritative security
+   SAST. The CI job waits for the Sonar quality-gate result before succeeding.
+7. **gate** — depends on every mandatory repository verification group and
+   succeeds only when all required groups succeeded. This is the sole stable
+   repository-owned status intended for default-branch protection.
 
 The Android verification floor preserved behind `ciCheck` includes:
 
+- Kotlin compiler extra diagnostics with warnings treated as errors, without a
+  blanket suppression/baseline used merely to make CI green;
+- deterministic Spotless + ktfmt checking;
 - assembly and unit/Robolectric tests;
 - Android Lint and detekt;
+- Kover coverage reports plus a reviewed, baseline-derived no-regression floor;
+- architecture tests only for concrete source/bytecode laws that are not already
+  owned by Gradle dependency guards; do not install an empty architecture
+  framework merely to claim coverage;
 - dependency lock validation and strict dependency verification;
 - the manifest permission allowlist and `AD_ID` prohibition;
 - no telemetry/crash-reporting/advertising/attribution artifact;
@@ -170,24 +188,86 @@ The Android verification floor preserved behind `ciCheck` includes:
 
 The backend verification floor remains package-owned and reproducible from the
 repository root. `package-lock.json` is committed and `npm ci` is the only
-CI install mode.
+CI install mode. The package emits Jest LCOV coverage and treats Knip findings
+as dead-code/dependency failures rather than allowing agent-generated residue to
+accumulate.
+
+Coverage is evidence, not proof of test quality. Sonar's new-code quality gate
+owns the cross-language coverage threshold once its AppT integration is proven;
+Kover/Jest remain the producers of coverage evidence and retain local
+baseline/no-regression checks so a vendor outage cannot turn coverage into an
+unobserved concern.
 
 ### Checks that deliberately stay separate
 
-CodeQL remains the single SAST owner; generic Semgrep or a second SAST engine is
-not added without a concrete AppT invariant CodeQL and the project-native tools
-cannot express. GitHub secret protection owns provider/generic secret detection;
-the repository may retain only the narrow first-party file/policy guard needed
-to forbid AppT-specific credential material such as keystores, certificates and
-Firebase/service-account files. Android Lint, detekt, ESLint and Prettier remain
-native to their project toolchains rather than being re-hosted through
-MegaLinter or Super-Linter.
+CodeQL remains the authoritative security SAST owner; generic Semgrep or another
+general SAST engine is not added without a concrete AppT invariant CodeQL and the
+project-native tools cannot express. SonarQube Cloud owns a different concern:
+cross-language maintainability/reliability, new-code coverage and duplication
+quality-gate evidence. A Sonar security finding is useful additional evidence but
+does not replace CodeQL or change CodeQL's merge threshold.
+
+GitHub secret protection owns provider/generic secret detection; the repository
+may retain only the narrow first-party file/policy guard needed to forbid
+AppT-specific credential material such as keystores, certificates and
+Firebase/service-account files.
+
+Android Lint, detekt, Spotless/ktfmt, Kover, ESLint, Prettier, Knip and Jest
+remain native to their project toolchains. actionlint, zizmor, ShellCheck,
+shfmt, yamllint and markdownlint remain narrow repository specialists. None is
+re-hosted through MegaLinter or Super-Linter.
+
+Duplication has one blocking owner. Prefer Sonar's new-code duplication gate once
+the live AppT Sonar integration is proven. Until then, a narrow local detector
+such as jscpd may remain transitional evidence, but it must not become a second
+permanent blocking owner beside Sonar.
 
 Macrobenchmark code compiles on pull requests, but emulator timing is not release
 performance evidence. Performance acceptance is added on controlled physical
 hardware when the reliability slice makes it real. Protocol fuzz/property tests,
 Firebase emulator integration and physical Samsung acceptance are added only
 when their corresponding implementation surfaces exist.
+
+Mutation testing is a later deep-verification concern, not a ceremonial PR gate.
+When enough non-trivial pure business/protocol logic exists to produce a useful
+mutation score, `deep.yml` may add a reviewed mutation-testing owner (for
+example StrykerJS for backend logic). Do not create mutation infrastructure over
+a skeleton merely to report an impressive empty score.
+
+### Agent-authored change assurance
+
+Code produced by ChatGPT, Arena, another coding agent, or a human is held to the
+same repository evidence. Agent authorship never lowers a gate and never counts
+as evidence that the implementation is correct.
+
+SonarQube Cloud is the independent deterministic quality platform. AppT uses
+CI-based analysis so Kotlin/JVM and backend coverage reports can be imported.
+The project should be marked as containing AI-generated code and use Sonar's
+AI-qualified quality gate. The repository scanner waits for the quality-gate
+result so `verify / gate` cannot go green while Sonar is red.
+
+External-tool compatibility is proven rather than assumed. If Sonar's published
+Kotlin support lags AppT's pinned Kotlin version, the implementation must run a
+real compatibility proof before making Kotlin-specific Sonar findings blocking.
+An unsupported or incomplete Sonar Kotlin analysis does not justify downgrading
+Kotlin, suppressing native findings, or weakening `ciCheck`; native Kotlin
+verification remains authoritative while Sonar may be scoped to supported
+surfaces until upstream compatibility catches up.
+
+CodeRabbit is an independent PR-review layer, configured in version-controlled
+`.coderabbit.yaml`. Automatic reviews, linked-issue assessment and focused
+pre-merge checks evaluate whether the diff satisfies its Issue, stays in scope,
+preserves verification/security controls and avoids placeholder/stub work.
+CodeRabbit's slop detector is enabled as advisory evidence, but it is never the
+sole AI-code guard because service/automation authors may be exempt from that
+detector. New CodeRabbit pre-merge checks begin in warning mode and may move to
+blocking/error only after their signal has been observed on real AppT PRs.
+
+An Arena implementation PR is never self-approved or self-merged. After Arena
+returns its PR and machine checks are green, ChatGPT runs the repository
+`code-review` capability against the fixed base and originating Issue, keeping
+Standards and Spec findings separate. Review findings are resolved, verification
+is rerun, and the human remains the merge decision-maker.
 
 ### Trust domains beyond pull requests
 
@@ -216,23 +296,35 @@ The replacement is an expand-contract migration; verification coverage must not
 be silently dropped while infrastructure changes.
 
 1. Introduce the project-owned verification interfaces (`ciCheck` and backend
-   `verify`) and `verify.yml` while the accepted existing CI still runs.
-2. Prove the new workflow produces equivalent-or-stronger evidence for every
+   `verify`), the narrow quality-tool surface, coverage producers, and
+   `verify.yml` while the accepted existing CI still runs.
+2. Connect CI-based SonarQube Cloud analysis to the generated coverage evidence
+   and prove the quality gate on a real pull request. Configure CodeRabbit's
+   repository review policy and prove that it reviews a real AppT PR. Any
+   required vendor/GitHub administration or secret setup is an owner action, not
+   a reason to weaken repository checks.
+3. Prove the new workflow produces equivalent-or-stronger evidence for every
    currently accepted gate, including runtime device acceptance and dependency
-   review.
-3. Remove the path classifier, standalone detekt job, duplicated workflow-level
+   review, and establish the old→new owner map before contraction.
+4. Remove the path classifier, standalone detekt job, duplicated workflow-level
    backend lint/format orchestration, third-party emulator runner, maintenance
    cleanup/export plumbing that has no remaining product purpose, and any other
    superseded CI-only code.
-   Until that contraction lands, the repository Actions allowlist must continue to permit every transitional third-party Action still referenced by the accepted workflow. For actions exposed from a repository subdirectory, the selected-action pattern must match the workflow reference shape, for example `gradle/actions/setup-gradle@*`.
-4. Migrate CodeQL from repository advanced setup to GitHub default setup. This is
+   Until that contraction lands, the repository Actions allowlist must continue
+   to permit every transitional third-party Action still referenced by the
+   accepted workflow. For actions exposed from a repository subdirectory, the
+   selected-action pattern must match the workflow reference shape, for example
+   `gradle/actions/setup-gradle@*`.
+5. Migrate CodeQL from repository advanced setup to GitHub default setup. This is
    a repository-owner setting change: the advanced CodeQL workflow is removed,
    default setup is enabled for Java/Kotlin, JavaScript/TypeScript and GitHub
    Actions, the first default-setup analysis must finish successfully, and CodeQL
    merge protection is then confirmed before further merges.
-5. After `verify / gate` has completed successfully, add it as the required
-   status check and require the branch to be up to date before merging.
-6. Update `docs/BUILD.md` and any CI comments to the final commands and delete
+6. After `verify / gate` has completed successfully, add it as the required
+   status check and require the branch to be up to date before merging. Promote
+   CodeRabbit checks from warning to blocking only after their AppT signal is
+   observed and the human explicitly accepts that owner-setting change.
+7. Update `docs/BUILD.md` and any CI comments to the final commands and delete
    stale implementation documentation. `main` must finish with no parallel
    legacy CI topology.
 

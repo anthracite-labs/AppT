@@ -27,7 +27,7 @@ Primary: `S01 remains the accepted product implementation baseline through PR #3
 
 Secondary:
 
-- CI verification architecture has been deliberately redesigned around one-owner controls and one ordinary `verify.yml` workflow; repository-side implementation is tracked separately in Issue #56 and does not change S02 product intent.
+- CI verification architecture has been deliberately redesigned around one-owner controls and one ordinary `verify.yml` workflow; Issue #56 now also carries the independent AI-code assurance stack (strict compiler/formatting, dead-code and coverage evidence, workflow security, SonarQube Cloud, CodeRabbit, and an independent post-Arena review) without changing S02 product intent.
 - Provider facts recorded as needs validation in docs/architecture/README.md must be confirmed in the slice where they first become implementation-relevant.
 - Final AppT source-license decision remains a pre-public-release gate.
 - Focused Samsung vendor-terms/legal review remains a pre-public-release gate.
@@ -104,6 +104,7 @@ Secondary:
 - `The pre-S02 security baseline is accepted through merged PR #38 / closed Issue #36: full standard-profile audit evidence was produced, and CodeQL for Java/Kotlin plus JavaScript/TypeScript, detekt, GitHub dependency review, Dependabot configuration, and the repository-owned security script are now part of the repository floor while preserving the existing secret scanner.`
 - `Generic Semgrep is deferred; add it only for a later AppT-specific invariant that CodeQL, detekt, Android lint, existing Gradle guards, or simple repository checks cannot express cleanly.`
 - `Verification architecture is one-owner by concern: GitHub owns repository-host security controls, Gradle owns Android verification, the backend package owns TypeScript verification, AppT guards own product-specific invariants, and repository workflow YAML exposes one stable verify/gate interface without a path classifier unless measured cost later justifies one.`
+- `AI-authored changes receive no trust discount: native deterministic checks remain authoritative, SonarQube Cloud owns the cross-language maintainability/reliability/new-code coverage/duplication gate once compatibility is proven, CodeRabbit supplies independent issue/scope/custom pre-merge review, and Arena PRs still receive an independent repository code-review pass before the human merge decision.`
 
 ## Blockers / Unknowns
 
@@ -111,10 +112,11 @@ Secondary:
 - Final AppT source-license decision remains required before public distribution.
 - Focused Samsung vendor-terms/legal review must be completed before public release.
 - Physical-device evidence is required to tune the reliability targets in `docs/architecture/reliability.md`.
+- SonarQube Cloud and CodeRabbit repository onboarding is now observed on PR #59. Sonar currently runs automatic analysis with a passing quality gate but no imported coverage; Issue #56 must convert it to CI-based analysis and prove Kotlin 2.4.20 compatibility before Kotlin-specific Sonar findings become blocking. CodeRabbit currently runs its default CHILL configuration; Issue #56 must replace that default with the version-controlled AppT review/pre-merge policy.
 
 ## Recent change
 
-- `Dependency/toolchain modernization Issue #54 was accepted on 2026-09-24 through merged PR #55 at 63475518; S02 remains the next product slice while the separately authorized CI verification redesign is tracked in Issue #56.`
+- `Verification architecture was expanded through PR #59 with the independently researched AI-code assurance stack: deterministic compiler/formatter/linter/coverage/dead-code controls, SonarQube Cloud, CodeRabbit review, and an independent post-Arena code-review pass now define the target for Issue #56.`
 
 ## Relevant canonical references
 
@@ -130,7 +132,7 @@ Secondary:
 - `GitHub Issue #27 — completed S01 Arena work order; closed by merged PR #30.`
 - `GitHub Issue #36 — completed security-baseline Arena work order; closed by merged PR #38.`
 - `GitHub Issue #54 / PR #55 — completed one-pass dependency and toolchain modernization.`
-- `GitHub Issue #56 — authorized repository-side implementation of the accepted clean verification architecture; dispatch waits for the architecture-doc change to land on main.`
+- `GitHub Issue #56 — authorized repository-side implementation of the accepted verification and AI-code assurance architecture; its Arena work order must be compiled from current main and kept separate from S02 product scope.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
 - `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
 - `AGENTS.md — repository operating entry point.`
@@ -142,5 +144,5 @@ Secondary:
 ## After that
 
 1. `Implement and review S02 against the accepted architecture/slice contract.`
-2. `Implement the separately authorized CI verification redesign in Issue #56 after its architecture source is merged; do not mix it into S02 product scope.`
+2. `Dispatch and implement the separately authorized verification/AI-assurance redesign in Issue #56; do not mix it into S02 product scope.`
 3. `Keep the confirmed security-audit follow-up findings, S07's explicit authorization gate, provider needs-validation facts, and the two external public-release gates visible; do not silently fold them into unrelated work.`
