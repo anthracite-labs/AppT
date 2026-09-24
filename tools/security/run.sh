@@ -81,10 +81,14 @@ AppT security entrypoint — deterministic, repository-local checks.
 Usage: tools/security/run.sh [mode]
 
 Modes:
-  all        (default) Every check this script owns: secrets, detekt, build.
+  all        (default) Every check this script owns: secrets, deps, detekt, build.
   secrets    Secret-scanner self-tests, then a full tree scan. Pass a git ref as
              the second argument to also scan the diff against it:
                  tools/security/run.sh secrets origin/main
+  deps       Gradle build-time tooling constraint floor (Issue #68): self-tests,
+             then the repository-state check that every known tooling advisory
+             is constrained at a Dependabot-mutable seam and resolved at a
+             patched version in gradle/verification-metadata.xml.
   detekt     Kotlin static analysis over the production Kotlin in :app and
              :samsung, against config/detekt/detekt.yml, plus
              dependencyLockCheck. Mirrors the `detekt` CI job exactly.
@@ -121,6 +125,18 @@ check_secrets() {
   fi
 }
 
+check_deps() {
+  log "Gradle build-time tooling constraint floor (Issue #68)"
+  require node
+  node --test "tools/security/test/enforce-gradle-tooling-constraints.test.mjs"
+  # Repository-state check, so it runs against the committed tree exactly as
+  # the `quality` job does: every known build-time tooling advisory must be
+  # constrained at a Dependabot-mutable seam AND resolved at a patched version
+  # in gradle/verification-metadata.xml.
+  info "node tools/security/enforce-gradle-tooling-constraints.mjs"
+  node tools/security/enforce-gradle-tooling-constraints.mjs
+}
+
 check_detekt() {
   log "detekt — Kotlin static analysis (production Kotlin in :app and :samsung)"
   require java
@@ -150,6 +166,9 @@ help | -h | --help)
 secrets)
   check_secrets "${2:-}"
   ;;
+deps)
+  check_deps
+  ;;
 detekt)
   check_detekt
   ;;
@@ -158,6 +177,7 @@ build)
   ;;
 all)
   check_secrets ""
+  check_deps
   check_detekt
   check_build
   log "All repository-local security checks passed."
