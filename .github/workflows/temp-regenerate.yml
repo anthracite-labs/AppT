@@ -37,29 +37,33 @@ jobs:
         run: |
           ./gradlew --no-daemon spotlessApply || true
 
-      - name: Regenerate verification metadata and lockfiles
+      - name: Regenerate verification metadata
         run: |
-          ./gradlew tasks --group=verification > /tmp/tasks.txt
-          cat /tmp/tasks.txt | grep -i kover || true
           ./gradlew --no-daemon --write-verification-metadata sha256 \
             assembleDebug testDebugUnitTest lintDebug :macrobenchmark:assembleBenchmark appTGuards \
-            spotlessCheck koverXmlReport 2>&1 | tee /tmp/gradle-verify.log || true
+            spotlessCheck > /tmp/verify-meta.log 2>&1 || true
+          tail -n 60 /tmp/verify-meta.log
 
-          ./gradlew resolveAndLockAll --write-locks 2>&1 | tee /tmp/gradle-locks.log || true
+      - name: Regenerate lockfiles
+        run: |
+          ./gradlew resolveAndLockAll --write-locks > /tmp/locks.log 2>&1 || true
+          tail -n 60 /tmp/locks.log
 
       - name: Commit and push changes
+        if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "arena-ai-coding-agent[bot]"
           git config user.email "arena-ai-coding-agent[bot]@users.noreply.github.com"
-          git add gradle/verification-metadata.xml
-          git add **/*.lockfile
-          git add app/src/
-          git add macrobenchmark/src/
-          if [ -f /tmp/gradle-verify.log ]; then
-            tail -n 80 /tmp/gradle-verify.log > build-summary.txt
-            git add build-summary.txt
-          fi
-          git commit -m "ci(supply-chain): commit regenerated verification metadata, lockfiles and spotless format" || echo "No changes to commit"
+          git add gradle/verification-metadata.xml || true
+          git add **/*.lockfile || true
+          git add app/src/ || true
+          git add macrobenchmark/src/ || true
+          echo "=== VERIFY METADATA LOG ===" > build-summary.txt
+          tail -n 80 /tmp/verify-meta.log >> build-summary.txt 2>/dev/null || true
+          echo "=== LOCKS LOG ===" >> build-summary.txt
+          tail -n 80 /tmp/locks.log >> build-summary.txt 2>/dev/null || true
+          git add build-summary.txt
+          git commit -m "ci(supply-chain): commit regenerated verification metadata and lockfiles" || echo "No changes"
           git push origin HEAD:arena/01a0d233-appt || echo "Push failed"
