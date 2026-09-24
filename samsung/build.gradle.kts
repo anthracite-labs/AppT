@@ -10,13 +10,15 @@
 
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
+    // No kotlin-android plugin: AGP 9's built-in Kotlin compiles this
+    // module's Kotlin sources (docs/BUILD.md, Issue #54).
     alias(libs.plugins.detekt)
 }
 
 android {
     namespace = "dev.anthracite.appt.samsung"
-    compileSdk = 36
+    // Matches :app's compileSdk (Issue #54 toolchain bump); minSdk stays 29.
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 29
@@ -79,4 +81,28 @@ dependencies {
     // the S01 skeleton. OkHttp and kotlinx-serialization arrive with the
     // session and protocol work that uses them.
     testImplementation(libs.junit)
+}
+
+// Issue #54 — same narrow lint-classpath security constraints as :app; see
+// the comment block in app/build.gradle.kts for the advisory-by-advisory
+// rationale. :samsung has no unit-test Bouncy Castle edge of its own, so only
+// `androidLintTool` is constrained here.
+configurations.configureEach {
+    val cfg = name
+    val notations =
+        when {
+            cfg == "androidLintTool" ->
+                listOf(
+                    "org.bouncycastle:bcprov-jdk18on:1.86",
+                    "org.bouncycastle:bcpkix-jdk18on:1.86",
+                    "org.apache.commons:commons-lang3:3.20.0",
+                    "org.apache.httpcomponents:httpclient:4.5.14",
+                )
+            else -> emptyList<String>()
+        }
+    notations.forEach { notation ->
+        project.dependencies.constraints {
+            add(cfg, notation)
+        }
+    }
 }

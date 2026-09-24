@@ -12,12 +12,14 @@
 
 plugins {
     alias(libs.plugins.android.test)
-    alias(libs.plugins.kotlin.android)
+    // No kotlin-android plugin: AGP 9's built-in Kotlin compiles this
+    // module's Kotlin sources (docs/BUILD.md, Issue #54).
 }
 
 android {
     namespace = "dev.anthracite.appt.macrobenchmark"
-    compileSdk = 36
+    // Matches :app's compileSdk (Issue #54 toolchain bump); minSdk stays 29.
+    compileSdk = 37
 
     defaultConfig {
         // Macrobenchmark requires API 29+, which matches the AppT baseline.
@@ -70,5 +72,37 @@ androidComponents {
         // Only the benchmark variant is enabled, so no benchmark code is built
         // into a debug or release pipeline.
         it.enable = it.buildType == "benchmark"
+    }
+}
+
+// Issue #54 — narrow security constraints (never resolutionStrategy.force),
+// applied only on the configurations that resolve each family:
+//   * androidLintTool — AGP 9.4.1's lint tooling classpath; same
+//     advisory-fixed set as :app (see app/build.gradle.kts comment block):
+//     bcprov/bcpkix 1.86, commons-lang3 3.20.0, httpclient 4.5.14.
+//   * wire-runtime 6.4.7 — androidx.benchmark (latest 1.5.0) transitively
+//     resolves Wire 6.4.0, which carries GHSA-9rm7-3qhh-h2mc (patched in
+//     6.4.5); 6.4.7 is the latest stable 6.x. `implementationDependenciesMetadata`
+//     resolves the same family outside the variant classpaths, so it is
+//     constrained to keep a single Wire version across the module.
+configurations.configureEach {
+    val cfg = name
+    val notations =
+        when {
+            cfg == "androidLintTool" ->
+                listOf(
+                    "org.bouncycastle:bcprov-jdk18on:1.86",
+                    "org.bouncycastle:bcpkix-jdk18on:1.86",
+                    "org.apache.commons:commons-lang3:3.20.0",
+                    "org.apache.httpcomponents:httpclient:4.5.14",
+                )
+            cfg.contains("benchmark") || cfg == "implementationDependenciesMetadata" ->
+                listOf("com.squareup.wire:wire-runtime:6.4.7")
+            else -> emptyList<String>()
+        }
+    notations.forEach { notation ->
+        project.dependencies.constraints {
+            add(cfg, notation)
+        }
     }
 }
