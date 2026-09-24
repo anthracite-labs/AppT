@@ -326,7 +326,7 @@ test('a comment on a declaration-free line is removed, not merged into code', ()
 `;
   const stripped = stripComments(surface);
 
-  assert.doesNotMatch(stripped, /jdom2/);
+  assert.equal(stripped.includes('jdom2'), false);
   assert.equal(declaredCoordinates(surface).size, 0);
 });
 
@@ -338,7 +338,7 @@ repositories { maven { url = uri("https://repo1.maven.org/maven2") } }
 classpath("org.jdom:jdom2:2.0.6.1")
 `;
 
-  assert.match(stripComments(surface), /https:\/\/repo1\.maven\.org\/maven2/);
+  assert.equal(stripComments(surface).includes('https://repo1.maven.org/maven2'), true);
   assert.deepEqual(declaredCoordinates(surface).get('org.jdom:jdom2'), new Set(['2.0.6.1']));
 });
 
@@ -353,8 +353,8 @@ test('a block-comment marker inside a string cannot swallow a later declaration'
     '',
   ].join('\n');
 
-  assert.match(stripComments(surface), /jdom2:2\.0\.6\.1/);
-  assert.doesNotMatch(stripComments(surface), /a real trailing comment/);
+  assert.equal(stripComments(surface).includes('jdom2:2.0.6.1'), true);
+  assert.equal(stripComments(surface).includes('a real trailing comment'), false);
   assert.deepEqual(declaredCoordinates(surface).get('org.jdom:jdom2'), new Set(['2.0.6.1']));
 });
 
