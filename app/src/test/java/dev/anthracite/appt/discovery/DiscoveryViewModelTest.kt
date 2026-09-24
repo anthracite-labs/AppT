@@ -208,4 +208,49 @@ class DiscoveryViewModelTest {
             assertEquals(ScanPhase.Finished, restored.state.value.scan)
             assertEquals("exactly one fresh bounded scan, then it stops", 1, tvs.discoverCalls)
         }
+
+    @Test
+    fun leavingTheForegroundCancelsTheScanAndReturningStartsOneFreshScan() =
+        runTest(mainRule.dispatcher) {
+            val viewModel = viewModel()
+            runCurrent()
+            viewModel.onStarted()
+            runCurrent()
+            assertEquals("the first start does not duplicate the scan", 1, tvs.discoverCalls)
+            tvs.latest.send(FakeSamsungTvs.found())
+            runCurrent()
+
+            viewModel.onStopped()
+            runCurrent()
+            assertTrue("no scan runs in the background", tvs.latest.cancelled)
+            assertEquals(1, tvs.discoverCalls)
+
+            viewModel.onStarted()
+            runCurrent()
+            assertEquals(2, tvs.discoverCalls)
+            assertEquals(
+                "the resumed scan is fresh",
+                DiscoveryUiState.Initial,
+                viewModel.state.value,
+            )
+
+            viewModel.onStarted()
+            runCurrent()
+            assertEquals("the interrupted scan is resumed once", 2, tvs.discoverCalls)
+        }
+
+    @Test
+    fun aFinishedScanIsNotRestartedOnReturn() =
+        runTest(mainRule.dispatcher) {
+            val viewModel = viewModel()
+            runCurrent()
+            tvs.latest.send(DiscoveryEvent.Finished)
+            runCurrent()
+
+            viewModel.onStopped()
+            viewModel.onStarted()
+            runCurrent()
+            assertEquals(1, tvs.discoverCalls)
+            assertEquals(ScanPhase.Finished, viewModel.state.value.scan)
+        }
 }

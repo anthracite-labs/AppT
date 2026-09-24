@@ -9,6 +9,7 @@ import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import dev.anthracite.appt.tokens.SizeTokens
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 
 /** An IPv4 dotted quad, a UUID, or a MAC address: none may reach the screen. */
@@ -40,6 +41,24 @@ fun ComposeContentTestRule.assertEveryClickableMeetsTheTouchTargetFloor() {
             "touch height ${bounds.height}px is below ${floorPx}px",
             bounds.height + HALF_PIXEL >= floorPx,
         )
+    }
+}
+
+/**
+ * presentation.md: "Every interactive element has a role, label, state, and action for TalkBack".
+ * Each clickable node (merged, as TalkBack reads it) must have a role and a spoken label; its
+ * action is the click it was found by, and its enabled state is always exposed by Compose.
+ */
+fun ComposeContentTestRule.assertEveryControlIsDescribedForTalkBack() {
+    val nodes = clickableNodes()
+    assertTrue("expected at least one interactive control", nodes.isNotEmpty())
+    nodes.forEach { node ->
+        val config = node.config
+        val texts = config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text }
+        val descriptions = config.getOrNull(SemanticsProperties.ContentDescription).orEmpty()
+        val label = (texts + descriptions).joinToString(" ")
+        assertTrue("a control has no spoken label", label.isNotBlank())
+        assertNotNull("control \"$label\" has no role", config.getOrNull(SemanticsProperties.Role))
     }
 }
 

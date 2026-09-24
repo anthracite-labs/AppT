@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.anthracite.appt.R
@@ -137,9 +138,17 @@ private fun Header(scan: ScanPhase) {
     }
 }
 
+/**
+ * One TalkBack stop per card (presentation.md: every interactive element has a role, label, state,
+ * and action): the merged node's label is the name, its state description is the ordinary-language
+ * status, and choosable cards add the Button role and the "Choose this television" action.
+ * Unsupported cards are merged the same way but have no role and no action.
+ */
 @Composable
 private fun TvCard(card: TvCardUi, onPick: (TvId) -> Unit) {
     val label = card.label.ifBlank { stringResource(R.string.discovery_card_unnamed) }
+    val status = CardStatusStyle.of(card.state)
+    val statusText = stringResource(status.text)
     val interactive =
         if (card.state == CardState.Unsupported) {
             // No control affordance on an Unsupported card: not clickable, no button.
@@ -162,6 +171,7 @@ private fun TvCard(card: TvCardUi, onPick: (TvId) -> Unit) {
                 .defaultMinSize(minHeight = SizeTokens.minimumTouchTarget)
                 .clip(shape)
                 .then(interactive)
+                .semantics(mergeDescendants = true) { stateDescription = statusText }
                 .testTag(DiscoveryTestTags.CARD),
     ) {
         Column(
@@ -174,7 +184,7 @@ private fun TvCard(card: TvCardUi, onPick: (TvId) -> Unit) {
                 color = ColorTokens.contentPrimary,
                 modifier = Modifier.testTag(DiscoveryTestTags.CARD_LABEL),
             )
-            CardStatus(card.state)
+            CardStatus(status, statusText)
             if (card.remembered) {
                 Text(
                     text = stringResource(R.string.discovery_card_remembered),
@@ -186,39 +196,47 @@ private fun TvCard(card: TvCardUi, onPick: (TvId) -> Unit) {
     }
 }
 
+/** A card status: its icon glyph and text (string resources) and the icon's colour. */
+private data class CardStatusStyle(val glyph: Int, val text: Int, val color: Color) {
+    companion object {
+        fun of(state: CardState): CardStatusStyle =
+            when (state) {
+                CardState.Ready ->
+                    CardStatusStyle(
+                        R.string.discovery_status_glyph_ready,
+                        R.string.discovery_card_ready,
+                        ColorTokens.statusReady,
+                    )
+                CardState.NeedsPairing ->
+                    CardStatusStyle(
+                        R.string.discovery_status_glyph_needs_pairing,
+                        R.string.discovery_card_needs_pairing,
+                        ColorTokens.statusAttention,
+                    )
+                CardState.Unsupported ->
+                    CardStatusStyle(
+                        R.string.discovery_status_glyph_unsupported,
+                        R.string.discovery_card_unsupported,
+                        ColorTokens.statusUnavailable,
+                    )
+            }
+    }
+}
+
 @Composable
-private fun CardStatus(state: CardState) {
-    val (glyph, text, color) =
-        when (state) {
-            CardState.Ready ->
-                Triple(
-                    R.string.discovery_status_glyph_ready,
-                    R.string.discovery_card_ready,
-                    ColorTokens.statusReady,
-                )
-            CardState.NeedsPairing ->
-                Triple(
-                    R.string.discovery_status_glyph_needs_pairing,
-                    R.string.discovery_card_needs_pairing,
-                    ColorTokens.statusAttention,
-                )
-            CardState.Unsupported ->
-                Triple(
-                    R.string.discovery_status_glyph_unsupported,
-                    R.string.discovery_card_unsupported,
-                    ColorTokens.statusUnavailable,
-                )
-        }
+private fun CardStatus(style: CardStatusStyle, text: String) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(SpaceTokens.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        StatusGlyph(stringResource(glyph), color)
+        StatusGlyph(stringResource(style.glyph), style.color)
         Text(
-            text = stringResource(text),
+            text = text,
             style = TypeTokens.label,
             color = ColorTokens.contentSecondary,
-            modifier = Modifier.testTag(DiscoveryTestTags.CARD_STATUS_LABEL),
+            // Spoken once, as the card's state description, rather than twice.
+            modifier =
+                Modifier.testTag(DiscoveryTestTags.CARD_STATUS_LABEL).clearAndSetSemantics {},
         )
     }
 }

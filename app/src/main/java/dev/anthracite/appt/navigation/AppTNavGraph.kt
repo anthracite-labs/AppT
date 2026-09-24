@@ -1,10 +1,12 @@
 package dev.anthracite.appt.navigation
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -94,6 +96,13 @@ private fun DiscoveryDestination(
     onDenied: () -> Unit,
 ) {
     val viewModel = viewModel { DiscoveryViewModel(samsungTvs, gate) }
+    val activity = LocalActivity.current
+    // Scans run only while Discovery is in the foreground (discovery.md). A configuration change
+    // keeps the ViewModel and its scan, so it is not treated as leaving the foreground.
+    LifecycleStartEffect(viewModel) {
+        viewModel.onStarted()
+        onStopOrDispose { if (activity?.isChangingConfigurations != true) viewModel.onStopped() }
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val gatePhase by gate.phase.collectAsStateWithLifecycle()
     val currentOnDenied by rememberUpdatedState(onDenied)

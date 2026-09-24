@@ -5,13 +5,13 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import java.net.InetAddress
-import kotlin.coroutines.resume
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * `NsdManager` browse for `_airplay._tcp`, keeping only services whose TXT record names
@@ -65,26 +65,44 @@ internal class NsdAirPlayBrowser(private val nsd: NsdManager, private val networ
     }
 
     /**
+     * Resolves one service, bounded by [RESOLVE_TIMEOUT] so a resolve that never calls back cannot
+     * hold up the services queued behind it for the rest of the scan.
+     *
+     * When the wait ends without an outcome (timeout, or the scan ending), the pending resolution
+     * is withdrawn with `stopServiceResolution` on API 34+, so the listener is not left registered
+     * and an immediate Scan again does not find the resolver busy. Before API 34 there is no way to
+     * withdraw a resolve; the bound still keeps the queue moving, and a resolver that is still busy
+     * can only fail the next resolve (`FAILURE_ALREADY_ACTIVE`), which then yields no candidate.
+     *
      * `resolveService` is deprecated from API 34 in favour of `registerServiceInfoCallback`, but it
      * remains functional there and is the only resolve API across minSdk 29..33, so one code path
      * serves every supported level.
      */
     @Suppress("DEPRECATION")
     private suspend fun resolve(service: NsdServiceInfo): NsdServiceInfo? =
-        suspendCancellableCoroutine { continuation ->
-            nsd.resolveService(
-                service,
+        awaitCallback<NsdServiceInfo>(RESOLVE_TIMEOUT) { deliver ->
+            val listener =
                 object : NsdManager.ResolveListener {
-                    override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
-                        continuation.resume(serviceInfo)
-                    }
+                    override fun onServiceResolved(serviceInfo: NsdServiceInfo) =
+                        deliver(serviceInfo)
 
-                    override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-                        continuation.resume(null)
-                    }
-                },
-            )
+                    override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) =
+                        deliver(null)
+                }
+            nsd.resolveService(service, listener)
+            val withdraw: () -> Unit = { stopResolution(listener) }
+            withdraw
         }
+
+    private fun stopResolution(listener: NsdManager.ResolveListener) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            try {
+                nsd.stopServiceResolution(listener)
+            } catch (ignored: IllegalArgumentException) {
+                // The resolution already finished; there is nothing left to withdraw.
+            }
+        }
+    }
 
     /** `NsdServiceInfo.host` is deprecated from API 34, where `hostAddresses` replaces it. */
     @Suppress("DEPRECATION")
@@ -94,6 +112,11 @@ internal class NsdAirPlayBrowser(private val nsd: NsdManager, private val networ
         } else {
             service.host
         }
+
+    private companion object {
+        /** Per-resolve bound: a small fraction of the 10-second scan, so several services fit. */
+        val RESOLVE_TIMEOUT: Duration = 2.seconds
+    }
 
     private class DiscoveryCallbacks(private val onFound: (NsdServiceInfo) -> Unit) :
         NsdManager.DiscoveryListener {

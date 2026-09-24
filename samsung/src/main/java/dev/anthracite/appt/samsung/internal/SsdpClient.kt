@@ -26,11 +26,13 @@ import kotlinx.coroutines.launch
  *   responder in tests.
  * @param resendAt offsets (from the start of the scan) at which the searches are repeated, since
  *   UDP may drop a datagram. All fall well inside the scan bound.
+ * @param newSocket creates the scan's ephemeral-port socket; a seam for tests only.
  */
 internal class SsdpClient(
     private val target: InetSocketAddress,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val resendAt: List<Long> = RESEND_AT_MILLIS,
+    private val newSocket: () -> DatagramSocket = { DatagramSocket(0) },
 ) {
     /** Replies whose response already identifies a Samsung device, as (sender, probe). */
     fun replies(lan: Lan): Flow<Pair<InetAddress, Probe>> = channelFlow {
@@ -48,7 +50,7 @@ internal class SsdpClient(
 
     private fun open(lan: Lan): DatagramSocket =
         try {
-            DatagramSocket(0).also { socket ->
+            newSocket().also { socket ->
                 try {
                     lan.bind(socket)
                     socket.soTimeout = RECEIVE_POLL_MILLIS
@@ -99,6 +101,9 @@ internal class SsdpClient(
             }
         } catch (ignored: SocketTimeoutException) {
             null
+        } catch (denied: SecurityException) {
+            // Like open and send: a blocked local network is a scan failure, never a raw crash.
+            throw ScanAbort(LanPolicy.failureFor(denied), denied)
         } catch (failed: IOException) {
             throw ScanAbort(LanPolicy.failureFor(failed), failed)
         }

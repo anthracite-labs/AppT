@@ -1,12 +1,15 @@
 package dev.anthracite.appt.discovery
 
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -19,6 +22,7 @@ import dev.anthracite.appt.samsung.TvFailure
 import dev.anthracite.appt.samsung.TvId
 import dev.anthracite.appt.testing.FakeSamsungTvs
 import dev.anthracite.appt.testing.assertEveryClickableMeetsTheTouchTargetFloor
+import dev.anthracite.appt.testing.assertEveryControlIsDescribedForTalkBack
 import dev.anthracite.appt.testing.assertNoTechnicalIdentifierIsExposed
 import dev.anthracite.appt.testing.clickableNodes
 import dev.anthracite.appt.tokens.AppTTheme
@@ -55,15 +59,26 @@ class DiscoveryScreenTest {
     private fun scanning(vararg cards: TvCardUi) =
         DiscoveryUiState(ScanPhase.Scanning, cards.toList(), false)
 
+    private fun SemanticsNode.texts(): List<String> =
+        config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text }
+
     @Test
     fun cardsShowFriendlyNamesAndStatesButNoTechnicalIds() {
         setDiscovery(scanning(ready, needsPairing, unsupported))
         composeRule.onNodeWithText("Living Room TV").assertIsDisplayed()
-        composeRule.onNodeWithText("Ready to use").assertIsDisplayed()
+        composeRule.onNode(hasStateDescription("Ready to use")).assertIsDisplayed()
         composeRule.onNodeWithText("Samsung TV").assertIsDisplayed()
-        composeRule.onNodeWithText("Needs setting up").assertIsDisplayed()
+        composeRule.onNode(hasStateDescription("Needs setting up")).assertIsDisplayed()
         composeRule.onNodeWithText("Saved on this phone").assertIsDisplayed()
         composeRule.assertNoTechnicalIdentifierIsExposed("local-7c1e", "local-")
+    }
+
+    @Test
+    fun aNameCarryingAnAddressFallsBackToTheGenericLabel() {
+        val found = FakeSamsungTvs.found(name = "Den 192.0.2.20:8001")
+        setDiscovery(DiscoveryUiState.Initial.reduce(found))
+        composeRule.onNodeWithText("Samsung TV").assertIsDisplayed()
+        composeRule.assertNoTechnicalIdentifierIsExposed("8001", FakeSamsungTvs.LIVING_ROOM_ID)
     }
 
     @Test
@@ -79,7 +94,9 @@ class DiscoveryScreenTest {
     @Test
     fun unsupportedCardHasNoControlAffordance() {
         setDiscovery(scanning(unsupported))
-        composeRule.onNodeWithText("AppT can't control this television yet").assertIsDisplayed()
+        composeRule
+            .onNode(hasStateDescription("AppT can't control this television yet"))
+            .assertIsDisplayed()
         val card = composeRule.onNodeWithTag(DiscoveryTestTags.CARD).fetchSemanticsNode()
         assertNull(
             "an Unsupported card must not be clickable",
@@ -94,6 +111,36 @@ class DiscoveryScreenTest {
 
         composeRule.onNodeWithTag(DiscoveryTestTags.CARD).performClick()
         assertEquals(emptyList<TvId>(), picks)
+    }
+
+    /** Each card is one TalkBack stop with a label, a state, and (unless Unsupported) an action. */
+    @Test
+    @Config(qualifiers = "w360dp-h1200dp")
+    fun everyCardExposesItsNameStatusAndOnlyChoosableCardsAct() {
+        setDiscovery(scanning(ready, needsPairing, unsupported))
+        val cards = composeRule.onAllNodesWithTag(DiscoveryTestTags.CARD).fetchSemanticsNodes()
+
+        assertEquals(
+            listOf(
+                listOf("Living Room TV"),
+                listOf("Samsung TV", "Saved on this phone"),
+                listOf("Older TV"),
+            ),
+            cards.map { it.texts() },
+        )
+        assertEquals(
+            listOf("Ready to use", "Needs setting up", "AppT can't control this television yet"),
+            cards.map { it.config.getOrNull(SemanticsProperties.StateDescription) },
+        )
+        cards.take(2).forEach { card ->
+            assertEquals(Role.Button, card.config.getOrNull(SemanticsProperties.Role))
+            assertEquals(
+                "Choose this television",
+                card.config.getOrNull(SemanticsActions.OnClick)?.label,
+            )
+        }
+        assertNull(cards[2].config.getOrNull(SemanticsProperties.Role))
+        assertNull(cards[2].config.getOrNull(SemanticsActions.OnClick))
     }
 
     @Test
@@ -131,6 +178,7 @@ class DiscoveryScreenTest {
         composeRule.onNodeWithTag(DiscoveryTestTags.RESCAN).assertHasClickAction()
         assertEquals(3, composeRule.clickableNodes().size)
         composeRule.assertEveryClickableMeetsTheTouchTargetFloor()
+        composeRule.assertEveryControlIsDescribedForTalkBack()
     }
 
     @Test

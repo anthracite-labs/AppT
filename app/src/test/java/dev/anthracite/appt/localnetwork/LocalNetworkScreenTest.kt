@@ -7,6 +7,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.anthracite.appt.gate.LocalNetworkPhase
 import dev.anthracite.appt.testing.assertEveryClickableMeetsTheTouchTargetFloor
+import dev.anthracite.appt.testing.assertEveryControlIsDescribedForTalkBack
 import dev.anthracite.appt.testing.assertNoTechnicalIdentifierIsExposed
 import dev.anthracite.appt.testing.clickableNodes
 import dev.anthracite.appt.tokens.AppTTheme
@@ -48,6 +49,7 @@ class LocalNetworkScreenTest {
         composeRule.onNodeWithTag(LocalNetworkTestTags.CONTINUE).performClick()
         assertEquals(1, continues)
         composeRule.assertEveryClickableMeetsTheTouchTargetFloor()
+        composeRule.assertEveryControlIsDescribedForTalkBack()
         composeRule.assertNoTechnicalIdentifierIsExposed()
     }
 
@@ -61,6 +63,7 @@ class LocalNetworkScreenTest {
         assertEquals(1, settings)
         assertEquals("Continue is not offered once denied", 0, continues)
         composeRule.assertEveryClickableMeetsTheTouchTargetFloor()
+        composeRule.assertEveryControlIsDescribedForTalkBack()
     }
 
     @Test

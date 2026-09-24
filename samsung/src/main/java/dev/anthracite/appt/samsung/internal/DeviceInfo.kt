@@ -71,9 +71,10 @@ internal object DeviceInfoParser {
         }
 
     /**
-     * Trims, removes control and invisible formatting characters (so a name cannot reorder or hide
-     * the surrounding UI text), and caps the result at [MAX_NAME_CODE_POINTS] code points without
-     * splitting a surrogate pair.
+     * Removes control and invisible formatting characters (so a name cannot reorder or hide the
+     * surrounding UI text), removes any address, port, UUID, or MAC ([NameScrubber]), trims, and
+     * caps the result at [MAX_NAME_CODE_POINTS] code points without splitting a surrogate pair.
+     * Identifiers are removed before the cap, so a cut can never leave part of one behind.
      */
     fun sanitizeName(raw: String?): String {
         if (raw == null) return ""
@@ -89,7 +90,7 @@ internal object DeviceInfoParser {
             }
             index += Character.charCount(codePoint)
         }
-        val trimmed = visible.toString().trim()
+        val trimmed = NameScrubber.scrub(visible.toString()).trim()
         val codePoints = trimmed.codePointCount(0, trimmed.length)
         return if (codePoints <= MAX_NAME_CODE_POINTS) {
             trimmed

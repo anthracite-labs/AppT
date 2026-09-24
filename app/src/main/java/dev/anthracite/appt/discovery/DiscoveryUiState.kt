@@ -45,8 +45,9 @@ sealed interface ScanPhase {
  * One television card: a friendly label and an ordinary-language state, never an address, port,
  * UUID, MAC, or protocol generation. [tvId] is opaque and is never rendered.
  *
- * @property label the television's own name; blank when it reports none, in which case the screen
- *   shows a localized generic label rather than anything technical.
+ * @property label the television's own name; blank when it reports none or when the name carries an
+ *   identifier ([DisplayLabel]), in which case the screen shows a localized generic label rather
+ *   than anything technical.
  */
 data class TvCardUi(
     val tvId: TvId,
@@ -58,7 +59,7 @@ data class TvCardUi(
         fun of(tv: DiscoveredTv): TvCardUi =
             TvCardUi(
                 tvId = tv.id,
-                label = tv.name,
+                label = DisplayLabel.of(tv.name),
                 state =
                     when (tv.availability) {
                         ControlAvailability.ReadyToOpen -> CardState.Ready

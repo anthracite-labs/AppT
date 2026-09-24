@@ -1,5 +1,6 @@
 package dev.anthracite.appt.samsung.internal
 
+import dev.anthracite.appt.samsung.TvFailure
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -136,6 +137,33 @@ class LoopbackSocketsTest {
             assertTrue(searches.any { it.contains("ST: ${Ssdp.REMOTE_CONTROL_RECEIVER}\r\n") })
             assertTrue(searches.any { it.contains("ST: ${Ssdp.DIAL}\r\n") })
             assertTrue(searches.none { it.contains("ssdp:all") })
+        }
+    }
+
+    @Test
+    fun ssdpReceiveBlockedByThePlatformFailsAsLocalNetworkDenied() = runBlocking {
+        // Android can report a blocked local-network socket as a SecurityException on receive.
+        val blocked =
+            object : DatagramSocket(0, loopback) {
+                override fun receive(p: DatagramPacket): Unit =
+                    throw SecurityException("local network access blocked")
+            }
+        DatagramSocket(0, loopback).use { sink ->
+            val client =
+                SsdpClient(
+                    InetSocketAddress(loopback, sink.localPort),
+                    resendAt = listOf(0L),
+                    newSocket = { blocked },
+                )
+            val failure =
+                try {
+                    withTimeout(5.seconds) { client.replies(TestLan()).first() }
+                    null
+                } catch (abort: ScanAbort) {
+                    abort.failure
+                }
+            assertEquals(TvFailure.LocalNetworkDenied, failure)
+            assertTrue("the scan's socket is closed", blocked.isClosed)
         }
     }
 

@@ -54,6 +54,54 @@ class DeviceInfoParserTest {
         assertFalse(Character.isHighSurrogate(capped.last()))
     }
 
+    /** presentation.md/discovery.md: a label never shows an address, port, UUID, or MAC. */
+    @Test
+    fun namesNeverCarryAddressesPortsUuidsOrMacs() {
+        val cases =
+            mapOf(
+                "192.0.2.20" to "",
+                "Living Room (192.0.2.20)" to "Living Room",
+                "Bedroom 192.0.2.20:8001" to "Bedroom",
+                "Garage - 192.0.2.9" to "Garage",
+                "uuid:3f2d1c0b-8a7e-4b5c-9d6e-1f2a3b4c5d6e" to "",
+                "Bedroom 3F2D1C0B-8A7E-4B5C-9D6E-1F2A3B4C5D6E" to "Bedroom",
+                "Den 02:00:5E:00:53:01" to "Den",
+                "Den 02-00-5e-00-53-01" to "Den",
+                "Kitchen:8001" to "Kitchen",
+                "Study port 8002" to "Study",
+                "Lounge fe80::1c2b:3d4e" to "Lounge",
+                "[2001:db8::7]:8002 Office" to "Office",
+                "::ffff:192.0.2.1" to "",
+                "Hall wss://tv.example:8002/api" to "Hall",
+            )
+        cases.forEach { (raw, expected) ->
+            assertEquals(raw, expected, DeviceInfoParser.sanitizeName(raw))
+        }
+        val parsed = DeviceInfoParser.parse(document(""""name":"Living Room (192.0.2.20)""""))
+        assertEquals("Living Room", parsed!!.name)
+    }
+
+    @Test
+    fun ordinaryNamesAreLeftAlone() {
+        listOf(
+                "[TV] Samsung 7 Series (55)",
+                "Samsung Q80 Series (65)",
+                "Mum & Dad's TV",
+                "Samsung 8 Series: 75",
+                "Den :: Main",
+            )
+            .forEach { name -> assertEquals(name, DeviceInfoParser.sanitizeName(name)) }
+    }
+
+    @Test
+    fun identifiersAreRemovedBeforeTheCapSoNoFragmentRemains() {
+        // Capping first would leave "Big Living Room Television Set 192.0.2." on the card.
+        assertEquals(
+            "Big Living Room Television Set",
+            DeviceInfoParser.sanitizeName("Big Living Room Television Set 192.0.2.200"),
+        )
+    }
+
     @Test
     fun nonTizenExplicitOsIsUnsupportedAndAbsentOsNeedsPairing() {
         fun availability(os: String?) =
