@@ -1,0 +1,85 @@
+name: s02-regenerate (temporary, deleted before PR)
+
+# One-shot helper for S02 (Issue #73): the implementation sandbox has no JDK or
+# Android SDK, so lockfile + verification-metadata regeneration and the focused
+# verification commands run here. It only uploads artifacts; it never pushes.
+# This file is removed before the S02 pull request is opened (same pattern as
+# the deleted bootstrap workflow described in docs/BUILD.md).
+
+on:
+  push:
+    branches:
+      - arena/01a0d558-appt
+
+permissions:
+  contents: read
+
+concurrency:
+  group: s02-regenerate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regenerate:
+    name: Regenerate locks and run S02 verification
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK
+        # actions/setup-java v6.0.1
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        # gradle/actions/setup-gradle v6.3.0
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+        with:
+          gradle-version: '9.7.1'
+          cache-provider: 'basic'
+
+      - name: Regenerate lockfiles
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon --dependency-verification=lenient resolveAndLockAll --write-locks 2>&1 | tee /tmp/locks.log || true
+
+      - name: Regenerate verification metadata and apply formatting
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon --write-verification-metadata sha256 spotlessApply ciCheck :samsung:testDebugUnitTest --continue 2>&1 | tee /tmp/metadata.log || true
+
+      - name: Capture regenerated diff
+        run: |
+          git diff --binary > /tmp/regenerated.patch || true
+          git diff --stat | tail -n 40
+
+      - name: Strict verification with regenerated state
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon --dependency-verification=strict ciCheck :samsung:testDebugUnitTest --continue 2>&1 | tee /tmp/strict.log || true
+          grep -E "BUILD (SUCCESSFUL|FAILED)" /tmp/strict.log || true
+          grep -A 40 "What went wrong" /tmp/strict.log | head -n 120 || true
+
+      - name: Upload results
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: s02-results
+          path: |
+            /tmp/*.log
+            /tmp/regenerated.patch
+            app/build/reports/**
+            samsung/build/reports/**
+            app/build/test-results/**
+            samsung/build/test-results/**
+            build/reports/kover/**
+          if-no-files-found: warn
+          retention-days: 3
