@@ -1,9 +1,9 @@
 # CodeQL analysis for AppT (docs/architecture/release.md, Issue #56).
 #
-# Pull-request iteration is intentionally cheap: PR synchronization scans only
-# GitHub Actions and JavaScript/TypeScript, which require no Android/Kotlin build.
-# Java/Kotlin CodeQL remains available through manual dispatch and runs on main
-# and the scheduled security pass.
+# Pull-request iteration is intentionally cheap: PR synchronization runs
+# build-free GitHub Actions and JavaScript/TypeScript analysis plus the
+# java-kotlin CodeQL category in build-mode none. That category analyzes Java
+# only on PRs; Kotlin extraction is reserved for manual/main/scheduled full scans.
 #
 # Temporary Advanced Setup is pinned to CodeQL 2.27.1 while GitHub-managed
 # Default Setup lacks Kotlin 2.4.20 support.
@@ -75,7 +75,6 @@ jobs:
           category: '/language:${{ matrix.language }}'
 
   analyze-kotlin:
-    if: github.event_name != 'pull_request'
     name: Analyze (java-kotlin)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -92,6 +91,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up JDK
+        if: github.event_name != 'pull_request'
         # actions/setup-java v6.0.1
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
         with:
@@ -99,6 +99,7 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
 
       - name: Set up Gradle
+        if: github.event_name != 'pull_request'
         # gradle/actions/setup-gradle v6.3.0
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
         with:
@@ -110,11 +111,12 @@ jobs:
         uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2
         with:
           languages: java-kotlin
-          build-mode: manual
+          build-mode: ${{ github.event_name == 'pull_request' && 'none' || 'manual' }}
           tools: ${{ env.CODEQL_BUNDLE_URL }}
           queries: security-extended
 
       - name: Build Java and Kotlin targets
+        if: github.event_name != 'pull_request'
         run: |
           chmod +x ./gradlew
           ./gradlew --no-daemon --no-build-cache \
