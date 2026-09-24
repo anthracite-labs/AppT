@@ -81,10 +81,37 @@ jobs:
         # Running `gradle wrapper` inside this repository would configure the
         # AppT build (and resolve AGP) before the wrapper meant to run that
         # build exists — docs/BUILD.md requires the scratch-build pattern.
+        # Failures are echoed as ::error:: annotations so they are readable
+        # through the check-run annotations API.
         run: |
           set -euo pipefail
+          fail() {
+            echo "::error::$1"
+            shift
+            for f in "$@"; do
+              [ -f "$f" ] || continue
+              head -n 40 "$f" | while IFS= read -r line; do
+                echo "::error::$(printf '%s' "$line" | tr -d '\r')"
+              done
+            done
+            exit 1
+          }
+
+          gradle --version > "$RUNNER_TEMP/gradle-version.txt" 2>&1 ||
+            fail "gradle CLI is not runnable" "$RUNNER_TEMP/gradle-version.txt"
+
           scratch="$(mktemp -d)"
-          (cd "$scratch" && gradle wrapper --gradle-version 9.7.1 --distribution-type bin)
+          ( cd "$scratch" && gradle wrapper --gradle-version 9.7.1 --distribution-type bin ) \
+            > "$RUNNER_TEMP/wrapper-gen.txt" 2>&1 ||
+            fail "'gradle wrapper --gradle-version 9.7.1 --distribution-type bin' failed in scratch build" \
+              "$RUNNER_TEMP/wrapper-gen.txt"
+
+          ls -la "$scratch" > "$RUNNER_TEMP/scratch-ls.txt" 2>&1
+          ls -la "$scratch/gradle/wrapper" >> "$RUNNER_TEMP/scratch-ls.txt" 2>&1 || true
+
+          [ -f "$scratch/gradlew" ] && [ -f "$scratch/gradlew.bat" ] && [ -f "$scratch/gradle/wrapper/gradle-wrapper.jar" ] ||
+            fail "wrapper generation did not produce the expected files" "$RUNNER_TEMP/scratch-ls.txt"
+
           cp "$scratch/gradlew" "$scratch/gradlew.bat" "$GITHUB_WORKSPACE"/
           cp "$scratch/gradle/wrapper/gradle-wrapper.jar" "$GITHUB_WORKSPACE"/gradle/wrapper/
           chmod +x "$GITHUB_WORKSPACE"/gradlew
@@ -92,12 +119,30 @@ jobs:
           # carries the policy comments and distributionSha256Sum), so it is
           # intentionally NOT copied; only assert the generated distribution
           # URL agrees with the committed pin.
-          grep -q 'gradle-9\.7\.1-bin\.zip' "$scratch/gradle/wrapper/gradle-wrapper.properties"
-          grep -q 'gradle-9\.7\.1-bin\.zip' "$GITHUB_WORKSPACE"/gradle/wrapper/gradle-wrapper.properties
-          "$GITHUB_WORKSPACE"/gradlew --version
+          grep -q 'gradle-9\.7\.1-bin\.zip' "$scratch/gradle/wrapper/gradle-wrapper.properties" ||
+            fail "generated wrapper properties do not reference gradle-9.7.1-bin.zip" "$scratch/gradle/wrapper/gradle-wrapper.properties"
+          grep -q 'gradle-9\.7\.1-bin\.zip' "$GITHUB_WORKSPACE"/gradle/wrapper/gradle-wrapper.properties ||
+            fail "committed wrapper properties do not reference gradle-9.7.1-bin.zip"
+
+          "$GITHUB_WORKSPACE"/gradlew --version > "$RUNNER_TEMP/gradlew-version.txt" 2>&1 ||
+            fail "./gradlew --version failed (distribution download/checksum or launcher problem)" \
+              "$RUNNER_TEMP/gradlew-version.txt"
+          echo "Wrapper generation OK:" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/gradlew-version.txt" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Regenerate the Gradle dependency lock state
-        run: ./gradlew resolveAndLockAll --write-locks
+        run: |
+          set -euo pipefail
+          ./gradlew resolveAndLockAll --write-locks > "$RUNNER_TEMP/locks.txt" 2>&1 || {
+            echo "::error::resolveAndLockAll --write-locks failed"
+            tail -n 60 "$RUNNER_TEMP/locks.txt" | while IFS= read -r line; do
+              echo "::error::$(printf '%s' "$line" | tr -d '\r')"
+            done
+            exit 1
+          }
+          echo "Lock regeneration OK" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Regenerate verification metadata for the final graph
         # Start from no verification file so the committed result contains
@@ -109,7 +154,14 @@ jobs:
           rm -f gradle/verification-metadata.xml
           ./gradlew --no-daemon --write-verification-metadata sha256 \
             assembleDebug lintDebug testDebugUnitTest dependencyLockCheck \
-            :macrobenchmark:assembleBenchmark appTGuards detekt
+            :macrobenchmark:assembleBenchmark appTGuards detekt \
+            > "$RUNNER_TEMP/write-verification.txt" 2>&1 || {
+            echo "::error::write-verification-metadata build failed"
+            tail -n 80 "$RUNNER_TEMP/write-verification.txt" | while IFS= read -r line; do
+              echo "::error::$(printf '%s' "$line" | tr -d '\r')"
+            done
+            exit 1
+          }
           python3 - <<'PY'
           import pathlib, re, sys
           template = pathlib.Path("gradle/verification-metadata.template.xml").read_text()
@@ -130,10 +182,19 @@ jobs:
           PY
 
       - name: Prove the result under strict verification and committed locks
-        run: >-
-          ./gradlew --no-daemon --dependency-verification=strict
-          assembleDebug lintDebug testDebugUnitTest dependencyLockCheck
-          :macrobenchmark:assembleBenchmark appTGuards detekt
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon --dependency-verification=strict \
+            assembleDebug lintDebug testDebugUnitTest dependencyLockCheck \
+            :macrobenchmark:assembleBenchmark appTGuards detekt \
+            > "$RUNNER_TEMP/strict-proof.txt" 2>&1 || {
+            echo "::error::strict verification proof failed"
+            tail -n 80 "$RUNNER_TEMP/strict-proof.txt" | while IFS= read -r line; do
+              echo "::error::$(printf '%s' "$line" | tr -d '\r')"
+            done
+            exit 1
+          }
+          echo "Strict proof OK" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summarize baseline alerted families from the generated state
         run: |
