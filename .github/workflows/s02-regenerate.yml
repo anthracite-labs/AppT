@@ -108,6 +108,23 @@ jobs:
                   for fail in list(tc.findall('failure')) + list(tc.findall('error')):
                       text = (fail.text or '')[:3000]
                       out.append(f"FAIL {tc.get('classname')}.{tc.get('name')}: {fail.get('message','')[:500]}\n{text}")
+          out.append('== unit test totals ==')
+          per_class = {}
+          for mod in ('app', 'samsung'):
+              t = f_ = e = sk = 0
+              for f in glob.glob(f'{mod}/build/test-results/testDebugUnitTest/*.xml'):
+                  try:
+                      r = ET.parse(f).getroot()
+                  except Exception:
+                      continue
+                  t += int(r.get('tests', 0)); f_ += int(r.get('failures', 0)); e += int(r.get('errors', 0)); sk += int(r.get('skipped', 0))
+                  per_class[r.get('name')] = (int(r.get('tests', 0)), int(r.get('failures', 0)) + int(r.get('errors', 0)), int(r.get('skipped', 0)))
+              out.append(f'{mod}: tests={t} failures={f_} errors={e} skipped={sk}')
+          for name in sorted(per_class):
+              tests, bad, sk = per_class[name]
+              out.append(f'  {name}: tests={tests} failed={bad} skipped={sk}')
+          out.append('== kover files ==')
+          out += sorted(glob.glob('**/reports/kover/**/*.xml', recursive=True))
           out.append('== lint issues ==')
           for f in glob.glob('*/build/reports/lint-results-*.xml') + glob.glob('*/build/intermediates/lint_intermediate_text_report/**/*.txt', recursive=True):
               if f.endswith('.xml'):
@@ -119,16 +136,15 @@ jobs:
                   except Exception as e:
                       out.append(f'unparsable {f}: {e}')
           out.append('== kover ==')
-          for f in glob.glob('build/reports/kover/*.xml'):
+          for f in sorted(glob.glob('**/reports/kover/**/*.xml', recursive=True)):
               try:
                   root = ET.parse(f).getroot()
                   for c in root.findall('counter'):
                       out.append(f"{f} {c.get('type')} missed={c.get('missed')} covered={c.get('covered')}")
                   for pkg in root.iter('package'):
-                      for cls in pkg.iter('class'):
-                          for c in cls.findall('counter'):
-                              if c.get('type') == 'LINE':
-                                  out.append(f"  {cls.get('name')} LINE missed={c.get('missed')} covered={c.get('covered')}")
+                      for c in pkg.findall('counter'):
+                          if c.get('type') == 'LINE':
+                              out.append(f"  {pkg.get('name')} LINE missed={c.get('missed')} covered={c.get('covered')}")
               except Exception as e:
                   out.append(f'unparsable {f}: {e}')
           pathlib.Path('s02-results/summary.txt').write_text('\n'.join(out) + '\n')

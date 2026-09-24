@@ -27,9 +27,9 @@ import org.junit.Test
  * [DiscoveryScan]) against recorded fixtures. Time is virtual, so the 10-second bound is real.
  *
  * Scans are launched as ordinary test coroutines, not in `backgroundScope`: `advanceUntilIdle()`
- * stops once only background work remains, so a background scan would never run to its bound.
- * Every scan here ends by itself (bound, failure) or is cancelled by the test, and `runTest`
- * additionally fails if one were left running.
+ * stops once only background work remains, so a background scan would never run to its bound. Every
+ * scan here ends by itself (bound, failure) or is cancelled by the test, and `runTest` additionally
+ * fails if one were left running.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SamsungTvsDiscoveryTest {
