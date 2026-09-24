@@ -190,8 +190,11 @@ esac
 echo '[]' > "$tmp/empty-runs.json"
 out_dir2="$tmp/plan-empty"
 mkdir -p "$out_dir2"
-GITHUB_RUN_ID="$CURRENT_RUN" bash "$PLAN_SCRIPT" "$tmp/empty-runs.json" "$tmp/operations.json" "$out_dir2" >/dev/null 2>&1 \
-  && pass=$((pass + 1)) || fail_case "planner must succeed with zero runs"
+if GITHUB_RUN_ID="$CURRENT_RUN" bash "$PLAN_SCRIPT" "$tmp/empty-runs.json" "$tmp/operations.json" "$out_dir2" >/dev/null 2>&1; then
+  pass=$((pass + 1))
+else
+  fail_case "planner must succeed with zero runs"
+fi
 expect "empty delete ids" "$(tsv_ids "$out_dir2/delete-runs.tsv")" ""
 
 # ---------------------------------------------------------------------------
@@ -201,8 +204,11 @@ expect "empty delete ids" "$(tsv_ids "$out_dir2/delete-runs.tsv")" ""
 make_fixture_page_shape "$tmp/paged-runs.json"
 out_dir3="$tmp/plan-paged"
 mkdir -p "$out_dir3"
-GITHUB_RUN_ID="$CURRENT_RUN" bash "$PLAN_SCRIPT" "$tmp/paged-runs.json" "$tmp/operations.json" "$out_dir3" >/dev/null 2>&1 \
-  && pass=$((pass + 1)) || fail_case "planner must succeed with page-shaped input"
+if GITHUB_RUN_ID="$CURRENT_RUN" bash "$PLAN_SCRIPT" "$tmp/paged-runs.json" "$tmp/operations.json" "$out_dir3" >/dev/null 2>&1; then
+  pass=$((pass + 1))
+else
+  fail_case "planner must succeed with page-shaped input"
+fi
 expect "page-shape delete ids" "$(tsv_ids "$out_dir3/delete-runs.tsv")" "$(tsv_ids "$out_dir/delete-runs.tsv")"
 expect "page-shape kept ids" "$(tsv_ids "$out_dir3/kept-runs.tsv" 3)" "$(tsv_ids "$out_dir/kept-runs.tsv" 3)"
 
@@ -292,8 +298,11 @@ EOF
 echo '[{"id": 51, "operation": "export-dependabot"}]' > "$tmp/quarantine-ops.json"
 out_q="$tmp/plan-quarantine"
 mkdir -p "$out_q"
-GITHUB_RUN_ID=99 bash "$PLAN_SCRIPT" "$tmp/quarantine-runs.json" "$tmp/quarantine-ops.json" "$out_q" >/dev/null 2>&1 \
-  && pass=$((pass + 1)) || fail_case "planner must succeed with an unresolved Maintenance run"
+if GITHUB_RUN_ID=99 bash "$PLAN_SCRIPT" "$tmp/quarantine-runs.json" "$tmp/quarantine-ops.json" "$out_q" >/dev/null 2>&1; then
+  pass=$((pass + 1))
+else
+  fail_case "planner must succeed with an unresolved Maintenance run"
+fi
 expect "unresolved run is quarantined" "$(tsv_ids "$out_q/quarantined-runs.tsv")" "50"
 expect "unresolved run is never deleted" "$(tsv_ids "$out_q/delete-runs.tsv")" ""
 expect "resolved run of the same workflow still preserved" "$(tsv_ids "$out_q/kept-runs.tsv" 3)" "51"
