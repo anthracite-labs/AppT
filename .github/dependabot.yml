@@ -115,6 +115,7 @@ updates:
       # Keep the general freshness delay, but never hide the peer family that
       # must remain resolvable with the committed typescript-eslint version.
       exclude:
+        - 'typescript'
         - 'typescript-eslint'
         - '@typescript-eslint/*'
     labels:
