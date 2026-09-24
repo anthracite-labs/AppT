@@ -43,9 +43,9 @@ robolectric = "4.17"
 # Updates arrive as reviewed pull requests, like every other pin.
 detekt = "1.23.8"
 # Spotless deterministic Kotlin formatting (Spotless + ktfmt) (Issue #56).
-spotless = "7.0.2"
+spotless = "8.10.2"
 # Kover coverage report generation and verification floor (Issue #56).
-kover = "0.9.5"
+kover = "0.9.9"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
