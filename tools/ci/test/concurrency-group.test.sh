@@ -57,10 +57,10 @@ expect() { # <case> <actual> <expected>
 group_for() { # <event-name> <ref>
   local event="$1" ref="$2" class
   case "$event" in
-    pull_request) class=pr ;;
-    push) class=push ;;
-    schedule) class=schedule ;;
-    workflow_dispatch) class=dispatch ;;
+    pull_request) class="pr" ;;
+    push) class="push" ;;
+    schedule) class="schedule" ;;
+    workflow_dispatch) class="dispatch" ;;
     *) return 2 ;;
   esac
   echo "ci-${class}-${ref}"

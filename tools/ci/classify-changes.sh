@@ -151,7 +151,7 @@ while IFS= read -r path; do
   esac
 
   case "$path" in
-    *.gradle.kts | settings.gradle.kts | gradle.properties | gradle/libs.versions.toml | *.gradle.lockfile | settings-gradle.lockfile | gradle/verification-metadata.xml | gradle/wrapper/gradle-wrapper.properties | backend/package.json | backend/package-lock.json)
+    *.gradle.kts | gradle.properties | gradle/libs.versions.toml | *.gradle.lockfile | settings-gradle.lockfile | gradle/verification-metadata.xml | gradle/wrapper/gradle-wrapper.properties | backend/package.json | backend/package-lock.json)
       dependency=true
       ;;
   esac
