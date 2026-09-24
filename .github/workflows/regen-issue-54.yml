@@ -1,0 +1,409 @@
+# TEMPORARY — Issue #54 supply-chain regeneration, corrective pass
+# (branch-scoped).
+#
+# PR #55's canonical CI proved the first generated state incomplete: writing
+# verification metadata from a *populated* Gradle cache records fewer
+# checksums than a cold runner downloads (gradle/gradle#19228), and
+# repository metadata-source fallbacks (Gradle Module Metadata vs POM worlds)
+# make the file set environment-dependent. This pass fixes both:
+#   * every write/proof step runs in its own FRESH GRADLE_USER_HOME (fully
+#     cold, like a CI runner) with setup-gradle caching disabled;
+#   * three accumulating write passes cover each component's POM world
+#     (pom + parent/BOM chain), module world (Gradle Module Metadata), and
+#     the default resolution, so any future repo fallback is covered;
+#   * three strict proofs against the committed state (default world
+#     reproduces PR CI exactly; pom/module worlds prove the union).
+#
+# Arena's development sandbox has no JDK, no Android SDK and no egress to
+# services.gradle.org / dl.google.com / repo1.maven.org, so lockfiles and
+# verification metadata are regenerated here on a canonical GitHub runner,
+# exactly as allowed by .agents/ARENA-DISPATCH.md ("Supply-chain
+# regeneration").
+#
+# Contract:
+#   * workflow_dispatch, plus this branch's push event for bootstrap; the job
+#     skips its own "regen:" commits so the bot's generated-state push does
+#     not re-trigger;
+#   * immutable full-SHA action pins, tag in the comment;
+#   * minimum permissions: the job gets `contents: write` for the single
+#     purpose of pushing the regenerated artifacts back to this branch, and
+#     nothing else; no repository secrets are referenced;
+#   * writes ONLY the intended generated supply-chain artifacts
+#     (*.gradle.lockfile, gradle/verification-metadata.xml);
+#   * proves the result under the repository's normal strict verification and
+#     committed lock state (cold, all three metadata worlds) before pushing;
+#   * this file MUST be deleted before the Issue #54 pull request is
+#     considered complete.
+
+name: Regenerate Gradle supply-chain state (Issue #54, temporary)
+
+on:
+  push:
+    branches: [arena/01a0d0d6-appt]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-54-regenerate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  regenerate:
+    name: Regenerate locks and verification metadata
+    if: >-
+      github.ref == 'refs/heads/arena/01a0d0d6-appt' &&
+      (github.event_name == 'workflow_dispatch' ||
+       !startsWith(github.event.head_commit.message, 'regen:'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the implementation branch
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up JDK
+        # actions/setup-java v6.0.1
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up pinned Gradle CLI
+        # gradle/actions/setup-gradle v6.3.0
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+        with:
+          gradle-version: '9.7.1'
+          # Writing verification metadata from a restored/warm cache records a
+          # SMALLER checksum set than a cold download (gradle/gradle#19228) —
+          # that is exactly how the first generated state came up short in
+          # PR CI. Caching is therefore disabled outright here.
+          cache-disabled: 'true'
+
+      - name: Regenerate the Gradle dependency lock state
+        # The committed verification metadata records checksums for the OLD
+        # graph only, and dependency verification defaults to strict whenever
+        # the file exists — so it is removed first and regenerated (for the
+        # final graph only) in the next step. Locks are refreshed by their
+        # owning tool exactly as docs/BUILD.md prescribes.
+        run: |
+          set -euo pipefail
+          fail() {
+            echo "::error::$1"
+            sed -n '/FAILURE: Build failed/,/^\* Try:/p' "$2" 2>/dev/null \
+              | head -c 4000 | tr '\n' ' ' | tr -d '\r' \
+              | awk '{print "::error::" $0}'
+            exit 1
+          }
+          rm -f gradle/verification-metadata.xml
+          export GRADLE_USER_HOME="$RUNNER_TEMP/gh-locks"
+          ./gradlew resolveAndLockAll --write-locks > "$RUNNER_TEMP/locks.txt" 2>&1 ||
+            fail "resolveAndLockAll --write-locks failed" "$RUNNER_TEMP/locks.txt"
+          echo "Lock regeneration OK" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write verification metadata — cold default world (pass A)
+        run: |
+          set -euo pipefail
+          fail() {
+            echo "::error::$1"
+            sed -n '/FAILURE: Build failed/,/^\* Try:/p' "$2" 2>/dev/null \
+              | head -c 4000 | tr '\n' ' ' | tr -d '\r' \
+              | awk '{print "::error::" $0}'
+            exit 1
+          }
+          # Fresh Gradle user home: every artifact is downloaded and hashed,
+          # exactly like a cold CI runner (gradle/gradle#19228).
+          export GRADLE_USER_HOME="$RUNNER_TEMP/gh-write-a"
+          ./gradlew --no-daemon --write-verification-metadata sha256 \
+            assembleDebug lintDebug testDebugUnitTest dependencyLockCheck \
+            :macrobenchmark:assembleBenchmark appTGuards detekt \
+            > "$RUNNER_TEMP/write-a.txt" 2>&1 ||
+            fail "cold default-world write-verification-metadata failed" "$RUNNER_TEMP/write-a.txt"
+          echo "Pass A (default world) OK" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write verification metadata — cold POM world (pass B)
+        # Forces mavenPom()-only metadata sources on every repository so each
+        # component's POM, parent-POM chain and imported-BOM POMs are fetched
+        # and hashed — the file set a CI run lands on when a repo fallback
+        # takes the POM path (the five artifacts PR CI could not verify).
+        run: |
+          set -euo pipefail
+          fail() {
+            echo "::error::$1"
+            sed -n '/FAILURE: Build failed/,/^\* Try:/p' "$2" 2>/dev/null \
+              | head -c 4000 | tr '\n' ' ' | tr -d '\r' \
+              | awk '{print "::error::" $0}'
+            exit 1
+          }
+          python3 - <<'PY'
+          import pathlib, re
+          p = pathlib.Path("settings.gradle.kts")
+          src = "metadataSources { mavenPom(); artifact() }"
+          out, count = [], 0
+          for line in p.read_text().splitlines(keepends=True):
+              if line.lstrip().startswith("//"):
+                  out.append(line)
+                  continue
+              if re.match(r"\s*google\s*\{", line):
+                  line = line.replace("google {", "google { " + src + " ", 1)
+                  count += 1
+              elif re.match(r"\s*google\(\)", line):
+                  line = re.sub(r"google\(\)", "google { " + src + " }", line)
+                  count += 1
+              elif re.match(r"\s*mavenCentral\(\)", line):
+                  line = re.sub(r"mavenCentral\(\)", "mavenCentral { " + src + " }", line)
+                  count += 1
+              elif re.match(r"\s*gradlePluginPortal\(\)", line):
+                  line = re.sub(r"gradlePluginPortal\(\)", "gradlePluginPortal { " + src + " }", line)
+                  count += 1
+              out.append(line)
+          p.write_text("".join(out))
+          print(f"pom-world metadataSources inserted: {count}")
+          assert count == 5, count
+          PY
+          export GRADLE_USER_HOME="$RUNNER_TEMP/gh-write-b"
+          ./gradlew --no-daemon --write-verification-metadata sha256 \
+            dependencyLockCheck appTGuards detekt \
+            > "$RUNNER_TEMP/write-b.txt" 2>&1 || {
+            git checkout -- settings.gradle.kts || true
+            fail "cold POM-world write-verification-metadata failed" "$RUNNER_TEMP/write-b.txt"
+          }
+          git checkout -- settings.gradle.kts
+          echo "Pass B (POM world) OK" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write verification metadata — cold module world (pass C)
+        # Gradle-Module-Metadata-first sources: hashes the .module files a CI
+        # run lands on when the repo fallback takes the module path, with pom
+        # as the fallback for components that publish no module metadata.
+        run: |
+          set -euo pipefail
+          fail() {
+            echo "::error::$1"
+            sed -n '/FAILURE: Build failed/,/^\* Try:/p' "$2" 2>/dev/null \
+              | head -c 4000 | tr '\n' ' ' | tr -d '\r' \
+              | awk '{print "::error::" $0}'
+            exit 1
+          }
+          python3 - <<'PY'
+          import pathlib, re
+          p = pathlib.Path("settings.gradle.kts")
+          src = "metadataSources { gradleMetadata(); mavenPom(); artifact() }"
+          out, count = [], 0
+          for line in p.read_text().splitlines(keepends=True):
+              if line.lstrip().startswith("//"):
+                  out.append(line)
+                  continue
+              if re.match(r"\s*google\s*\{", line):
+                  line = line.replace("google {", "google { " + src + " ", 1)
+                  count += 1
+              elif re.match(r"\s*google\(\)", line):
+                  line = re.sub(r"google\(\)", "google { " + src + " }", line)
+                  count += 1
+              elif re.match(r"\s*mavenCentral\(\)", line):
+                  line = re.sub(r"mavenCentral\(\)", "mavenCentral { " + src + " }", line)
+                  count += 1
+              elif re.match(r"\s*gradlePluginPortal\(\)", line):
+                  line = re.sub(r"gradlePluginPortal\(\)", "gradlePluginPortal { " + src + " }", line)
+                  count += 1
+              out.append(line)
+          p.write_text("".join(out))
+          print(f"module-world metadataSources inserted: {count}")
+          assert count == 5, count
+          PY
+          export GRADLE_USER_HOME="$RUNNER_TEMP/gh-write-c"
+          ./gradlew --no-daemon --write-verification-metadata sha256 \
+            dependencyLockCheck appTGuards detekt \
+            > "$RUNNER_TEMP/write-c.txt" 2>&1 || {
+            git checkout -- settings.gradle.kts || true
+            fail "cold module-world write-verification-metadata failed" "$RUNNER_TEMP/write-c.txt"
+          }
+          git checkout -- settings.gradle.kts
+          echo "Pass C (module world) OK" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Restore the repository-owned verification policy header
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib, re, sys
+          template = pathlib.Path("gradle/verification-metadata.template.xml").read_text()
+          generated = pathlib.Path("gradle/verification-metadata.xml")
+          body = generated.read_text()
+          policy = re.search(r"<configuration>.*?</configuration>", template, re.S)
+          current = re.search(r"<configuration>.*?</configuration>", body, re.S)
+          if not policy or not current:
+              sys.exit("missing <configuration> block in template or generated file")
+          if policy.group(0) != current.group(0):
+              print("restoring repository-owned verification policy header from template")
+              body = body[: current.start()] + policy.group(0) + body[current.end():]
+              generated.write_text(body)
+          else:
+              print("generated policy header already matches the template")
+          if "<component " not in generated.read_text():
+              sys.exit("verification metadata contains no component checksums")
+          # The corrective passes must have absorbed the artifacts PR CI
+          # reported as unverifiable.
+          body = generated.read_text()
+          required = [
+              "guava-parent-33.4.0-jre.pom",
+              "junit-bom-5.10.2.module",
+              "junit-bom-5.11.0-M2.module",
+              "kotlin-gradle-plugins-bom-2.2.10.pom",
+              "kotlin-gradle-plugins-bom-2.2.10.module",
+          ]
+          missing = [r for r in required if r not in body]
+          if missing:
+              sys.exit(f"corrective passes missed PR-CI artifacts: {missing}")
+          print("all five PR-CI-failing artifacts are now recorded")
+          PY
+
+      - name: Prove strict verification — cold default world, full canonical set
+        # This is PR CI's exact shape: cold Gradle user home, default settings,
+        # committed locks + metadata, strict mode, the full task set.
+        run: |
+          set -euo pipefail
+          fail() {
+            echo "::error::$1"
+            sed -n '/FAILURE: Build failed/,/^\* Try:/p' "$2" 2>/dev/null \
+              | head -c 4000 | tr '\n' ' ' | tr -d '\r' \
+              | awk '{print "::error::" $0}'
+            exit 1
+          }
+          export GRADLE_USER_HOME="$RUNNER_TEMP/gh-proof-a"
+          ./gradlew --no-daemon --dependency-verification=strict \
+            assembleDebug lintDebug testDebugUnitTest dependencyLockCheck \
+            :macrobenchmark:assembleBenchmark appTGuards detekt \
+            > "$RUNNER_TEMP/proof-a.txt" 2>&1 ||
+            fail "strict proof (default world, cold) failed" "$RUNNER_TEMP/proof-a.txt"
+          echo "Strict proof A (default world) OK" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prove strict verification — cold POM world, graph-level
+        run: |
+          set -euo pipefail
+          fail() {
+            echo "::error::$1"
+            sed -n '/FAILURE: Build failed/,/^\* Try:/p' "$2" 2>/dev/null \
+              | head -c 4000 | tr '\n' ' ' | tr -d '\r' \
+              | awk '{print "::error::" $0}'
+            exit 1
+          }
+          python3 - <<'PY'
+          import pathlib, re
+          p = pathlib.Path("settings.gradle.kts")
+          src = "metadataSources { mavenPom(); artifact() }"
+          out, count = [], 0
+          for line in p.read_text().splitlines(keepends=True):
+              if line.lstrip().startswith("//"):
+                  out.append(line)
+                  continue
+              if re.match(r"\s*google\s*\{", line):
+                  line = line.replace("google {", "google { " + src + " ", 1)
+                  count += 1
+              elif re.match(r"\s*google\(\)", line):
+                  line = re.sub(r"google\(\)", "google { " + src + " }", line)
+                  count += 1
+              elif re.match(r"\s*mavenCentral\(\)", line):
+                  line = re.sub(r"mavenCentral\(\)", "mavenCentral { " + src + " }", line)
+                  count += 1
+              elif re.match(r"\s*gradlePluginPortal\(\)", line):
+                  line = re.sub(r"gradlePluginPortal\(\)", "gradlePluginPortal { " + src + " }", line)
+                  count += 1
+              out.append(line)
+          p.write_text("".join(out))
+          assert count == 5, count
+          PY
+          export GRADLE_USER_HOME="$RUNNER_TEMP/gh-proof-b"
+          ./gradlew --no-daemon --dependency-verification=strict \
+            dependencyLockCheck appTGuards detekt \
+            > "$RUNNER_TEMP/proof-b.txt" 2>&1 || {
+            git checkout -- settings.gradle.kts || true
+            fail "strict proof (POM world, cold) failed" "$RUNNER_TEMP/proof-b.txt"
+          }
+          git checkout -- settings.gradle.kts
+          echo "Strict proof B (POM world) OK" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prove strict verification — cold module world, graph-level
+        run: |
+          set -euo pipefail
+          fail() {
+            echo "::error::$1"
+            sed -n '/FAILURE: Build failed/,/^\* Try:/p' "$2" 2>/dev/null \
+              | head -c 4000 | tr '\n' ' ' | tr -d '\r' \
+              | awk '{print "::error::" $0}'
+            exit 1
+          }
+          python3 - <<'PY'
+          import pathlib, re
+          p = pathlib.Path("settings.gradle.kts")
+          src = "metadataSources { gradleMetadata(); mavenPom(); artifact() }"
+          out, count = [], 0
+          for line in p.read_text().splitlines(keepends=True):
+              if line.lstrip().startswith("//"):
+                  out.append(line)
+                  continue
+              if re.match(r"\s*google\s*\{", line):
+                  line = line.replace("google {", "google { " + src + " ", 1)
+                  count += 1
+              elif re.match(r"\s*google\(\)", line):
+                  line = re.sub(r"google\(\)", "google { " + src + " }", line)
+                  count += 1
+              elif re.match(r"\s*mavenCentral\(\)", line):
+                  line = re.sub(r"mavenCentral\(\)", "mavenCentral { " + src + " }", line)
+                  count += 1
+              elif re.match(r"\s*gradlePluginPortal\(\)", line):
+                  line = re.sub(r"gradlePluginPortal\(\)", "gradlePluginPortal { " + src + " }", line)
+                  count += 1
+              out.append(line)
+          p.write_text("".join(out))
+          assert count == 5, count
+          PY
+          export GRADLE_USER_HOME="$RUNNER_TEMP/gh-proof-c"
+          ./gradlew --no-daemon --dependency-verification=strict \
+            dependencyLockCheck appTGuards detekt \
+            > "$RUNNER_TEMP/proof-c.txt" 2>&1 || {
+            git checkout -- settings.gradle.kts || true
+            fail "strict proof (module world, cold) failed" "$RUNNER_TEMP/proof-c.txt"
+          }
+          git checkout -- settings.gradle.kts
+          echo "Strict proof C (module world) OK" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summarize constrained families from the generated state
+        run: |
+          {
+            echo "### Resolved versions for Issue #54 alerted families (from generated state)"
+            echo
+            echo '```'
+            for f in app/gradle.lockfile samsung/gradle.lockfile macrobenchmark/gradle.lockfile; do
+              grep -hE 'bcprov|bcpkix|commons-lang3|httpclient|wire-runtime|netty-|protobuf|commons-compress' "$f" 2>/dev/null \
+                | cut -d= -f1 | sort -u | sed "s|^|$f: |" || true
+            done
+            grep -oE '<component group="[^"]+" name="(jose4j|jdom2|commons-compress|kotlin-gradle-plugin|bcprov-jdk18on|netty-[a-z0-9-]+|protobuf-[a-z-]+|wire-runtime[a-z-]*)"[^>]*' \
+              gradle/verification-metadata.xml | sort -u | sed 's|^|verification-metadata: |'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit and push the regenerated supply-chain artifacts
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # settings.gradle.kts was patched only transiently (git checkout
+          # restores it above) and must never be committed from this job.
+          git diff --quiet -- settings.gradle.kts || {
+            echo "::error::settings.gradle.kts is dirty — transient world patch was not restored"
+            exit 1
+          }
+          git add \
+            gradle/verification-metadata.xml \
+            app/gradle.lockfile \
+            samsung/gradle.lockfile \
+            macrobenchmark/gradle.lockfile \
+            settings-gradle.lockfile
+          if git diff --cached --quiet; then
+            echo "Generated state already matches the committed state; nothing to push."
+            exit 0
+          fi
+          git commit -m "regen: locks and verification metadata, cold multi-world proof (Issue #54)"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

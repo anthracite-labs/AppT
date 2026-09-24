@@ -298,3 +298,41 @@ tasks.register("manifestPermissionAllowlist") {
     description = "Fails if any merged manifest declares a permission outside the release.md allowlist."
     dependsOn(tasks.withType<MergedManifestGuard>())
 }
+
+// ---------------------------------------------------------------------------
+// Issue #54 — narrow security constraints (never resolutionStrategy.force)
+// ---------------------------------------------------------------------------
+//
+// Some transitive versions on AGP 9.4.1's own lint tooling classpath
+// (`androidLintTool`) and on the unit-test classpaths carry GitHub security
+// advisories, and their parent graph (AGP lint / the test stack) cannot move
+// until Google or the upstream publisher releases. Each family gets the
+// narrowest constraint that reaches a patched release:
+//   * bcprov-jdk18on 1.86 — GHSA-9pwp-9qqc-pr26, GHSA-qp49-qgx5-5m26,
+//     GHSA-c3fc-8qff-9hwx (fixed well before 1.85; 1.86 is the latest stable)
+//   * bcpkix-jdk18on 1.86 — GHSA-wg6q-6289-32hp (patched in 1.84)
+//   * commons-lang3 3.20.0 — GHSA-j288-q9x7-2f5v (patched in 3.18.0)
+//   * httpclient 4.5.14 — GHSA-7r82-7xv7-xcpj (patched in 4.5.13)
+// The configuration-name match keeps the constraint attached exactly where
+// those families resolve; everything else keeps resolving untouched.
+configurations.configureEach {
+    val cfg = name
+    val notations =
+        when {
+            cfg == "androidLintTool" ->
+                listOf(
+                    "org.bouncycastle:bcprov-jdk18on:1.86",
+                    "org.bouncycastle:bcpkix-jdk18on:1.86",
+                    "org.apache.commons:commons-lang3:3.20.0",
+                    "org.apache.httpcomponents:httpclient:4.5.14",
+                )
+            cfg.contains("UnitTest") || cfg == "testImplementationDependenciesMetadata" ->
+                listOf("org.bouncycastle:bcprov-jdk18on:1.86")
+            else -> emptyList<String>()
+        }
+    notations.forEach { notation ->
+        project.dependencies.constraints {
+            add(cfg, notation)
+        }
+    }
+}

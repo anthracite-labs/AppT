@@ -82,3 +82,27 @@ dependencies {
     // session and protocol work that uses them.
     testImplementation(libs.junit)
 }
+
+// Issue #54 — same narrow lint-classpath security constraints as :app; see
+// the comment block in app/build.gradle.kts for the advisory-by-advisory
+// rationale. :samsung has no unit-test Bouncy Castle edge of its own, so only
+// `androidLintTool` is constrained here.
+configurations.configureEach {
+    val cfg = name
+    val notations =
+        when {
+            cfg == "androidLintTool" ->
+                listOf(
+                    "org.bouncycastle:bcprov-jdk18on:1.86",
+                    "org.bouncycastle:bcpkix-jdk18on:1.86",
+                    "org.apache.commons:commons-lang3:3.20.0",
+                    "org.apache.httpcomponents:httpclient:4.5.14",
+                )
+            else -> emptyList<String>()
+        }
+    notations.forEach { notation ->
+        project.dependencies.constraints {
+            add(cfg, notation)
+        }
+    }
+}
