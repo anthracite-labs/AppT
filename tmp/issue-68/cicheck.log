@@ -1,0 +1,274 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.7.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Task :noLogInSamsungSource
+noLogInSamsungSource: OK — no direct android.util.Log call in :samsung.
+
+> Task :samsung:noTelemetryDependency
+noTelemetryDependency (:samsung): OK — no telemetry artifact in the production graph.
+
+> Task :noProductionModuleDependsOnBenchmark
+noProductionModuleDependsOnBenchmark: OK — :macrobenchmark is test-only and unreferenced by production modules.
+
+> Task :samsung:samsungDependencyBoundary
+samsungDependencyBoundary: OK — :samsung graph is clean.
+
+> Task :samsung:preBuild UP-TO-DATE
+> Task :samsung:preDebugBuild UP-TO-DATE
+
+> Task :noSyncRecordInProductionSource
+noSyncRecordInProductionSource: OK — no sync record, tombstone or mutation queue.
+
+> Task :samsungDependencyBoundary
+
+> Task :versionCatalogPinned
+versionCatalogPinned: OK — every declared version is exact.
+
+> Task :koverGenerateArtifact
+> Task :samsung:extractDeepLinksDebug
+> Task :spotlessInternalRegisterDependencies UP-TO-DATE
+
+> Task :macrobenchmark:dependencyLockCheck
+dependencyLockCheck: OK — :macrobenchmark: 2 locked configurations match the committed lockfiles.
+
+> Task :macrobenchmark:preBuild UP-TO-DATE
+> Task :macrobenchmark:preBenchmarkBuild UP-TO-DATE
+> Task :macrobenchmark:checkTestedAppObfuscationBenchmark
+> Task :samsung:preReleaseBuild UP-TO-DATE
+
+> Task :app:noCrashReportingInApp
+noCrashReportingInApp: OK — no crash-reporting artifact on :app.
+
+> Task :app:noFirestoreClientInApp
+noFirestoreClientInApp: OK — no Firestore client artifact on :app.
+
+> Task :samsung:extractDeepLinksRelease FROM-CACHE
+
+> Task :app:noTelemetryDependency
+noTelemetryDependency (:app): OK — no telemetry artifact in the production graph.
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:extractDeepLinksDebug
+> Task :app:preReleaseBuild UP-TO-DATE
+> Task :app:extractDeepLinksRelease FROM-CACHE
+> Task :samsung:processReleaseManifest
+> Task :samsung:processDebugManifest
+> Task :macrobenchmark:generateBenchmarkResources
+
+> Task :samsung:dependencyLockCheck
+dependencyLockCheck: OK — :samsung: 8 locked configurations match the committed lockfiles.
+
+> Task :samsung:processDebugNavigationResources
+> Task :samsung:generateDebugResources FROM-CACHE
+> Task :macrobenchmark:packageBenchmarkResources
+> Task :samsung:packageDebugResources
+
+> Task :app:dependencyLockCheck
+dependencyLockCheck: OK — :app: 8 locked configurations match the committed lockfiles.
+
+> Task :spotlessKotlin UP-TO-DATE
+> Task :noCrashReportingInApp
+> Task :noFirestoreClientInApp
+> Task :noTelemetryDependency
+> Task :dependencyLockCheck
+> Task :spotlessKotlinCheck UP-TO-DATE
+> Task :samsung:parseDebugLocalResources
+> Task :samsung:generateDebugRFile
+> Task :samsung:compileDebugKotlin NO-SOURCE
+> Task :samsung:javaPreCompileDebug
+> Task :samsung:compileDebugJavaWithJavac NO-SOURCE
+> Task :samsung:bundleLibCompileToJarDebug
+> Task :samsung:writeDebugAarMetadata
+> Task :samsung:mapDebugSourceSetPaths
+> Task :spotlessKotlinGradle
+> Task :spotlessKotlinGradleCheck
+> Task :spotlessCheck
+> Task :samsung:generateDebugAssets UP-TO-DATE
+> Task :samsung:compileDebugLibraryResources
+> Task :samsung:mergeDebugAssets
+> Task :samsung:bundleLibRuntimeToJarDebug
+> Task :samsung:processDebugJavaRes NO-SOURCE
+> Task :samsung:processReleaseNavigationResources FROM-CACHE
+> Task :samsung:generateReleaseResources FROM-CACHE
+> Task :samsung:packageReleaseResources
+> Task :samsung:parseReleaseLocalResources FROM-CACHE
+> Task :samsung:generateReleaseRFile FROM-CACHE
+> Task :samsung:compileReleaseKotlin NO-SOURCE
+> Task :samsung:javaPreCompileRelease FROM-CACHE
+> Task :samsung:compileReleaseJavaWithJavac NO-SOURCE
+> Task :samsung:preDebugUnitTestBuild UP-TO-DATE
+> Task :samsung:bundleLibCompileToJarRelease
+> Task :samsung:javaPreCompileDebugUnitTest FROM-CACHE
+> Task :samsung:koverFindJar
+> Task :samsung:koverGenerateArtifactRelease
+> Task :samsung:bundleLibRuntimeToDirDebug
+> Task :samsung:generateDebugUnitTestStubRFile
+> Task :samsung:compileDebugUnitTestKotlin NO-SOURCE
+> Task :samsung:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :samsung:processDebugUnitTestJavaRes NO-SOURCE
+> Task :samsung:testDebugUnitTest NO-SOURCE
+> Task :samsung:koverGenerateArtifactDebug
+> Task :samsung:koverGenerateArtifact
+> Task :samsung:mergeDebugJniLibFolders
+> Task :samsung:mergeDebugNativeLibs NO-SOURCE
+> Task :samsung:checkDebugAarMetadata
+> Task :samsung:copyDebugJniLibsProjectOnly
+> Task :macrobenchmark:processBenchmarkNavigationResources
+> Task :macrobenchmark:parseBenchmarkLocalResources FROM-CACHE
+> Task :macrobenchmark:javaPreCompileBenchmark FROM-CACHE
+> Task :macrobenchmark:generateBenchmarkAssets UP-TO-DATE
+> Task :macrobenchmark:generateBenchmarkRFile
+> Task :macrobenchmark:mergeBenchmarkAssets
+> Task :app:processDebugMainManifest
+
+> Task :app:checkMergedManifestDebug
+manifestPermissionAllowlist + adIdAbsentFromManifest: OK for debug. Requested permissions: none. App-scoped signature self-permissions: dev.anthracite.appt.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION.
+
+> Task :app:processReleaseMainManifest
+
+> Task :app:checkMergedManifestRelease
+manifestPermissionAllowlist + adIdAbsentFromManifest: OK for release. Requested permissions: none. App-scoped signature self-permissions: dev.anthracite.appt.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION.
+
+> Task :app:adIdAbsentFromManifest
+> Task :app:manifestPermissionAllowlist
+> Task :appTGuards
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:processDebugNavigationResources
+> Task :app:javaPreCompileDebug FROM-CACHE
+> Task :app:parseDebugLocalResources
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugRFile
+> Task :app:compileDebugNavigationResources
+> Task :samsung:extractDebugAnnotations
+> Task :samsung:extractDeepLinksForAarDebug
+> Task :samsung:mergeDebugGeneratedProguardFiles
+> Task :samsung:mergeDebugConsumerProguardFiles
+> Task :samsung:prepareDebugArtProfile
+> Task :samsung:prepareLintJarForPublish
+> Task :samsung:createFullJarDebug
+> Task :samsung:writeDebugLintModelMetadata
+> Task :samsung:extractProguardFiles
+> Task :samsung:mergeDebugJavaResource
+> Task :samsung:generateDebugLintModel
+> Task :samsung:syncDebugLibJars
+> Task :samsung:bundleDebugLocalLintAar
+> Task :samsung:preDebugAndroidTestBuild UP-TO-DATE
+> Task :samsung:generateDebugAndroidTestLintModel
+> Task :samsung:generateDebugUnitTestLintModel
+> Task :samsung:lintAnalyzeDebugAndroidTest
+> Task :macrobenchmark:compileBenchmarkKotlin
+> Task :samsung:lintAnalyzeDebugUnitTest
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:processDebugManifest
+> Task :app:processDebugManifestForPackage
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileDebugUnitTest FROM-CACHE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugResources
+> Task :macrobenchmark:compileBenchmarkJavaWithJavac NO-SOURCE
+> Task :app:mergeDebugAssets
+> Task :app:compileDebugKotlin
+> Task :app:compileDebugJavaWithJavac NO-SOURCE
+> Task :app:processDebugResources
+> Task :macrobenchmark:compressBenchmarkAssets
+> Task :samsung:detekt NO-SOURCE
+> Task :app:mergeDebugUnitTestManifest
+> Task :samsung:generateDebugLintReportModel
+> Task :app:bundleDebugClassesToCompileJar
+> Task :app:bundleDebugClassesToRuntimeJar
+> Task :app:packageDebugUnitTestForUnitTest
+> Task :samsung:lintAnalyzeDebug
+> Task :samsung:lintReportDebug
+> Task :samsung:lintDebug
+> Task :app:processDebugUnitTestManifest
+> Task :app:generateDebugUnitTestConfig
+> Task :app:koverFindJar
+> Task :app:processDebugJavaRes
+> Task :app:generateReleaseResources FROM-CACHE
+> Task :app:packageReleaseResources
+> Task :app:processReleaseNavigationResources FROM-CACHE
+> Task :app:parseReleaseLocalResources FROM-CACHE
+> Task :app:generateReleaseRFile FROM-CACHE
+> Task :app:javaPreCompileRelease FROM-CACHE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:compressDebugAssets
+> Task :app:generateDebugGlobalSynthetics
+> Task :macrobenchmark:generateBenchmarkGlobalSynthetics
+> Task :macrobenchmark:processBenchmarkJavaRes
+> Task :macrobenchmark:mergeBenchmarkJavaResource
+> Task :app:mergeDebugJavaResource
+> Task :app:compileDebugUnitTestKotlin
+> Task :macrobenchmark:desugarBenchmarkFileDependencies
+> Task :macrobenchmark:checkBenchmarkDuplicateClasses
+> Task :macrobenchmark:checkBenchmarkAarMetadata
+> Task :app:checkDebugDuplicateClasses
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDebugUnitTestJavaRes
+> Task :app:compileReleaseKotlin
+> Task :macrobenchmark:mergeExtDexBenchmark
+> Task :app:testDebugUnitTest
+> Task :macrobenchmark:mapBenchmarkSourceSetPaths
+> Task :macrobenchmark:compileBenchmarkNavigationResources FROM-CACHE
+> Task :macrobenchmark:mergeLibDexBenchmark
+> Task :macrobenchmark:mergeBenchmarkResources
+> Task :macrobenchmark:mergeBenchmarkManifest
+> Task :macrobenchmark:processBenchmarkManifest
+> Task :macrobenchmark:mergeBenchmarkJniLibFolders
+> Task :macrobenchmark:processBenchmarkResources
+> Task :macrobenchmark:mergeBenchmarkNativeLibs
+> Task :macrobenchmark:dexBuilderBenchmark
+> Task :macrobenchmark:mergeProjectDexBenchmark
+> Task :macrobenchmark:stripBenchmarkDebugSymbols
+> Task :macrobenchmark:validateSigningBenchmark
+> Task :macrobenchmark:writeBenchmarkSigningConfigVersions
+> Task :macrobenchmark:packageBenchmark
+> Task :macrobenchmark:createBenchmarkApkListingFileRedirect
+> Task :macrobenchmark:assembleBenchmark
+> Task :app:koverGenerateArtifactDebug
+> Task :app:compileReleaseJavaWithJavac NO-SOURCE
+> Task :app:koverGenerateArtifactRelease
+> Task :app:koverGenerateArtifact
+> Task :app:desugarDebugFileDependencies FROM-CACHE
+> Task :koverXmlReport
+> Task :koverCachedVerify
+> Task :koverVerify
+> Task :app:mergeLibDexDebug
+> Task :app:dexBuilderDebug
+> Task :app:mergeDebugJniLibFolders
+> Task :app:mergeProjectDexDebug
+> Task :app:mergeDebugNativeLibs
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:stripDebugDebugSymbols
+> Task :app:mergeExtDexDebug
+> Task :app:detekt
+> Task :app:preDebugAndroidTestBuild SKIPPED
+> Task :app:generateDebugAndroidTestLintModel
+> Task :app:extractProguardFiles
+> Task :app:generateDebugLintReportModel
+> Task :app:generateDebugUnitTestLintModel
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+> Task :app:lintAnalyzeDebugAndroidTest
+> Task :app:lintAnalyzeDebugUnitTest
+> Task :app:lintAnalyzeDebug
+> Task :app:lintReportDebug
+> Task :app:lintDebug
+> Task :ciCheck
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790276004686.json
+
+[Incubating] Problems report is available at: file:///home/runner/work/AppT/AppT/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.7.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 2m 26s
+179 actionable tasks: 156 executed, 20 from cache, 3 up-to-date
