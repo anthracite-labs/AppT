@@ -25,19 +25,25 @@ import org.junit.Test
 /**
  * `SamsungTvs.discover()` behaviour, driven through the production adapter ([SamsungTvsImpl] and
  * [DiscoveryScan]) against recorded fixtures. Time is virtual, so the 10-second bound is real.
+ *
+ * Scans are launched as ordinary test coroutines, not in `backgroundScope`: `advanceUntilIdle()`
+ * stops once only background work remains, so a background scan would never run to its bound.
+ * Every scan here ends by itself (bound, failure) or is cancelled by the test, and `runTest`
+ * additionally fails if one were left running.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SamsungTvsDiscoveryTest {
 
     private var minted = 0
 
-    private fun tvs(transport: FixtureTransport): SamsungTvs =
-        SamsungTvsImpl { DiscoveryScan(transport, mintId = { "local-test-${++minted}" }) }
+    private fun tvs(transport: FixtureTransport): SamsungTvs = SamsungTvsImpl {
+        DiscoveryScan(transport, mintId = { "local-test-${++minted}" })
+    }
 
     /** Runs one full scan of [caseId] to completion and returns its events. */
     private fun TestScope.scan(transport: FixtureTransport): List<DiscoveryEvent> {
         val events = mutableListOf<DiscoveryEvent>()
-        backgroundScope.launch { tvs(transport).discover().toList(events) }
+        launch { tvs(transport).discover().toList(events) }
         advanceUntilIdle()
         return events
     }
@@ -51,7 +57,7 @@ class SamsungTvsDiscoveryTest {
         val events = mutableListOf<DiscoveryEvent>()
         var finishedAt = -1L
         var lockHeldAtFinish = true
-        backgroundScope.launch {
+        launch {
             tvs(transport)
                 .discover()
                 .onEach {
@@ -88,12 +94,12 @@ class SamsungTvsDiscoveryTest {
         val first = mutableListOf<DiscoveryEvent>()
         val second = mutableListOf<DiscoveryEvent>()
 
-        val firstJob = backgroundScope.launch { tvs.discover().toList(first) }
+        val firstJob = launch { tvs.discover().toList(first) }
         advanceTimeBy(1_000)
         runCurrent()
         assertEquals(1, first.found().size)
 
-        val secondJob = backgroundScope.launch { tvs.discover().toList(second) }
+        val secondJob = launch { tvs.discover().toList(second) }
         runCurrent()
         assertTrue("the previous scan is cancelled", firstJob.isCancelled)
         assertTrue(
@@ -117,7 +123,7 @@ class SamsungTvsDiscoveryTest {
     fun cancellingCollectionStopsProbesAndReleasesTheLock() = runTest {
         val transport = FixtureTransport(Fixture.load("late-tv"))
         val events = mutableListOf<DiscoveryEvent>()
-        val job = backgroundScope.launch { tvs(transport).discover().toList(events) }
+        val job = launch { tvs(transport).discover().toList(events) }
         advanceTimeBy(9_950)
         runCurrent()
         assertEquals(1, transport.probesRunning)
@@ -156,7 +162,10 @@ class SamsungTvsDiscoveryTest {
     @Test
     fun ethernetScanDoesNotTakeTheMulticastLock() = runTest {
         val transport =
-            FixtureTransport(Fixture.load("ssdp-tizen-tv"), lan = TestLan(requiresMulticastLock = false))
+            FixtureTransport(
+                Fixture.load("ssdp-tizen-tv"),
+                lan = TestLan(requiresMulticastLock = false),
+            )
         val events = scan(transport)
         assertEquals(DiscoveryEvent.Finished, events.last())
         assertTrue(transport.lockLog.isEmpty())
@@ -211,7 +220,10 @@ class SamsungTvsDiscoveryTest {
 
     @Test
     fun bluRayPlayerProducesNoCard() = runTest {
-        assertEquals(listOf(DiscoveryEvent.Finished), scan(FixtureTransport(Fixture.load("bluray-rcr"))))
+        assertEquals(
+            listOf(DiscoveryEvent.Finished),
+            scan(FixtureTransport(Fixture.load("bluray-rcr"))),
+        )
     }
 
     @Test
@@ -240,9 +252,9 @@ class SamsungTvsDiscoveryTest {
         val tvs = tvs(transport)
         val first = mutableListOf<DiscoveryEvent>()
         val second = mutableListOf<DiscoveryEvent>()
-        backgroundScope.launch { tvs.discover().toList(first) }
+        launch { tvs.discover().toList(first) }
         advanceUntilIdle()
-        backgroundScope.launch { tvs.discover().toList(second) }
+        launch { tvs.discover().toList(second) }
         advanceUntilIdle()
 
         val before = first.found().single()
@@ -250,7 +262,10 @@ class SamsungTvsDiscoveryTest {
         assertEquals("same television, new address, same id", before.id, after.id)
         assertTrue(before.stableIdentity && after.stableIdentity)
         assertEquals(
-            listOf(FixtureTransport.Request("[host-a]", 8001), FixtureTransport.Request("[host-b]", 8001)),
+            listOf(
+                FixtureTransport.Request("[host-a]", 8001),
+                FixtureTransport.Request("[host-b]", 8001),
+            ),
             transport.outbound,
         )
     }

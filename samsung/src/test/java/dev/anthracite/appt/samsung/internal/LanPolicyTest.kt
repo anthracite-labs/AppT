@@ -14,18 +14,28 @@ class LanPolicyTest {
 
     @Test
     fun onlyNonVpnWifiOrEthernetIsUsable() {
-        assertEquals(LanPolicy.Kind.WiFi, LanPolicy.classify(isVpn = false, hasWifi = true, hasEthernet = false))
+        assertEquals(
+            LanPolicy.Kind.WiFi,
+            LanPolicy.classify(isVpn = false, hasWifi = true, hasEthernet = false),
+        )
         assertEquals(
             LanPolicy.Kind.Ethernet,
             LanPolicy.classify(isVpn = false, hasWifi = false, hasEthernet = true),
         )
-        assertNull("a VPN is never bypassed", LanPolicy.classify(isVpn = true, hasWifi = true, hasEthernet = false))
-        assertNull("cellular only", LanPolicy.classify(isVpn = false, hasWifi = false, hasEthernet = false))
+        assertNull(
+            "a VPN is never bypassed",
+            LanPolicy.classify(isVpn = true, hasWifi = true, hasEthernet = false),
+        )
+        assertNull(
+            "cellular only",
+            LanPolicy.classify(isVpn = false, hasWifi = false, hasEthernet = false),
+        )
     }
 
     @Test
     fun onlyLocalIpv4AddressesAreContacted() {
-        fun address(vararg octets: Int) = InetAddress.getByAddress(ByteArray(4) { octets[it].toByte() })
+        fun address(vararg octets: Int) =
+            InetAddress.getByAddress(ByteArray(4) { octets[it].toByte() })
         assertTrue(LanPolicy.isLanAddress(address(192, 168, 1, 20)))
         assertTrue(LanPolicy.isLanAddress(address(10, 0, 0, 5)))
         assertTrue(LanPolicy.isLanAddress(address(172, 16, 4, 1)))
@@ -38,18 +48,28 @@ class LanPolicyTest {
 
     @Test
     fun blockedSocketsMeanLocalNetworkDenied() {
-        assertEquals(TvFailure.LocalNetworkDenied, LanPolicy.failureFor(SecurityException("blocked")))
+        assertEquals(
+            TvFailure.LocalNetworkDenied,
+            LanPolicy.failureFor(SecurityException("blocked")),
+        )
         assertEquals(
             TvFailure.LocalNetworkDenied,
             LanPolicy.failureFor(SocketException("sendto failed: EPERM (Operation not permitted)")),
         )
         assertEquals(
             TvFailure.LocalNetworkDenied,
-            LanPolicy.failureFor(IOException("wrapped", SocketException("connect failed: EACCES (Permission denied)"))),
+            LanPolicy.failureFor(
+                IOException(
+                    "wrapped",
+                    SocketException("connect failed: EACCES (Permission denied)"),
+                )
+            ),
         )
         assertEquals(
             TvFailure.Unreachable,
-            LanPolicy.failureFor(SocketException("sendto failed: ENETUNREACH (Network is unreachable)")),
+            LanPolicy.failureFor(
+                SocketException("sendto failed: ENETUNREACH (Network is unreachable)")
+            ),
         )
         assertEquals(TvFailure.Unreachable, LanPolicy.failureFor(IOException()))
         assertEquals(TvFailure.Unreachable, LanPolicy.failureFor(IllegalStateException("other")))

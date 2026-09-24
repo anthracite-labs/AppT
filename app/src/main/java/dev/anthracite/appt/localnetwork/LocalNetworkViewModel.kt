@@ -27,7 +27,11 @@ class LocalNetworkViewModel(
     val state: StateFlow<LocalNetworkUiState> =
         gate.phase
             .map(LocalNetworkUiState::of)
-            .stateIn(viewModelScope, SharingStarted.Eagerly, LocalNetworkUiState.of(gate.phase.value))
+            .stateIn(
+                viewModelScope,
+                SharingStarted.Eagerly,
+                LocalNetworkUiState.of(gate.phase.value),
+            )
 
     fun onContinue() = gate.acknowledge()
 

@@ -18,8 +18,8 @@ internal class TestLan(override val requiresMulticastLock: Boolean = true) : Lan
  * Replays a [Fixture] through the real classifiers ([Ssdp.classify], [AirPlayTxt]) and records
  * every outbound request, lock acquisition and probe lifetime so tests can assert on them.
  *
- * The transport has no way to send a key, text or launch frame at all: the only outbound
- * operation discovery has is [deviceInfo], and it is recorded in [outbound].
+ * The transport has no way to send a key, text or launch frame at all: the only outbound operation
+ * discovery has is [deviceInfo], and it is recorded in [outbound].
  */
 internal class FixtureTransport(
     private val fixture: Fixture,
@@ -60,7 +60,8 @@ internal class FixtureTransport(
             for ((atMs, candidate) in events.sortedBy { it.first }) {
                 delay(atMs - now)
                 now = atMs
-                if (candidate != null) emit(candidate) else if (abort != null && atMs == abortAtMs) throw abort
+                if (candidate != null) emit(candidate)
+                else if (abort != null && atMs == abortAtMs) throw abort
             }
             // The probes keep listening until the scan ends.
             awaitCancellation()

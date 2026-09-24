@@ -66,9 +66,7 @@ internal class AndroidDiscoveryTransport(context: Context) : DiscoveryTransport 
             } catch (ignored: UnknownHostException) {
                 null
             }
-        return address
-            ?.takeIf(LanPolicy::isLanAddress)
-            ?.let { deviceInfoHttp.get(lan, it, port) }
+        return address?.takeIf(LanPolicy::isLanAddress)?.let { deviceInfoHttp.get(lan, it, port) }
     }
 
     private class AndroidLan(val network: Network, override val requiresMulticastLock: Boolean) :

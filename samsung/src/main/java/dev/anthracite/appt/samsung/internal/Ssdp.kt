@@ -65,7 +65,9 @@ internal object Ssdp {
             .mapNotNull { line ->
                 val colon = line.indexOf(':')
                 if (colon <= 0) null
-                else line.substring(0, colon).trim().uppercase(Locale.ROOT) to line.substring(colon + 1).trim()
+                else
+                    line.substring(0, colon).trim().uppercase(Locale.ROOT) to
+                        line.substring(colon + 1).trim()
             }
             .toMap()
     }

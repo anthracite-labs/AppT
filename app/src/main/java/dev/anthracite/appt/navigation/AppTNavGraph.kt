@@ -27,9 +27,9 @@ import dev.anthracite.appt.welcome.WelcomeScreen
  *
  * S02 flow: Welcome → `Find my TV` → LocalNetwork explanation → Continue grants the gate →
  * Discovery, which scans immediately. The explanation is popped once granted, so Back from
- * Discovery returns to Welcome. A scan that reports local-network access blocked replaces
- * Discovery with the explanation in its Denied phase; Try again returns to Discovery with a fresh
- * scan. Nothing loops on its own.
+ * Discovery returns to Welcome. A scan that reports local-network access blocked replaces Discovery
+ * with the explanation in its Denied phase; Try again returns to Discovery with a fresh scan.
+ * Nothing loops on its own.
  */
 @Composable
 fun AppTNavGraph(
@@ -88,7 +88,11 @@ private fun LocalNetworkDestination(
 }
 
 @Composable
-private fun DiscoveryDestination(samsungTvs: SamsungTvs, gate: PermissionGate, onDenied: () -> Unit) {
+private fun DiscoveryDestination(
+    samsungTvs: SamsungTvs,
+    gate: PermissionGate,
+    onDenied: () -> Unit,
+) {
     val viewModel = viewModel { DiscoveryViewModel(samsungTvs, gate) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val gatePhase by gate.phase.collectAsStateWithLifecycle()

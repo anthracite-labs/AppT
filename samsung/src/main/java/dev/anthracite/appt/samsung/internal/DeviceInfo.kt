@@ -25,7 +25,9 @@ internal data class DeviceInfo(
     val reportedHost: String?,
 )
 
-/** Bounded, tolerant device-info parser. Over-limit or malformed input is "unreadable", not a crash. */
+/**
+ * Bounded, tolerant device-info parser. Over-limit or malformed input is "unreadable", not a crash.
+ */
 internal object DeviceInfoParser {
     /** protocol.md#limits. */
     const val MAX_DEPTH: Int = 8
@@ -79,7 +81,10 @@ internal object DeviceInfoParser {
         var index = 0
         while (index < raw.length) {
             val codePoint = raw.codePointAt(index)
-            if (!Character.isISOControl(codePoint) && Character.getType(codePoint) != Character.FORMAT.toInt()) {
+            if (
+                !Character.isISOControl(codePoint) &&
+                    Character.getType(codePoint) != Character.FORMAT.toInt()
+            ) {
                 visible.appendCodePoint(codePoint)
             }
             index += Character.charCount(codePoint)

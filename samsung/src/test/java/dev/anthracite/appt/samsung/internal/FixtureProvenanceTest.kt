@@ -10,14 +10,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Every fixture carries its provenance and nothing identifying (Issue #73: no IPv4 address, no
- * MAC, no token in any fixture file).
+ * Every fixture carries its provenance and nothing identifying (Issue #73: no IPv4 address, no MAC,
+ * no token in any fixture file).
  */
 class FixtureProvenanceTest {
     private val ipv4 = Regex("""\b(?:\d{1,3}\.){3}\d{1,3}\b""")
     private val mac = Regex("""\b[0-9A-Fa-f]{2}(?:[:-][0-9A-Fa-f]{2}){5}\b""")
     private val token = Regex(""""token"\s*:|[?&]token=""", RegexOption.IGNORE_CASE)
-    private val requiredProvenance = listOf("caseId", "captured", "generation", "sourceRole", "redaction", "notes")
+    private val requiredProvenance =
+        listOf("caseId", "captured", "generation", "sourceRole", "redaction", "notes")
 
     private val directories: List<File> = Fixture.directories()
 
@@ -47,12 +48,14 @@ class FixtureProvenanceTest {
 
     @Test
     fun fixturesContainNoAddressMacOrToken() {
-        directories.flatMap { it.listFiles().orEmpty().toList() }.forEach { file ->
-            val text = file.readText()
-            assertFalse("${file.path}: IPv4 address", ipv4.containsMatchIn(text))
-            assertFalse("${file.path}: MAC address", mac.containsMatchIn(text))
-            assertFalse("${file.path}: token", token.containsMatchIn(text))
-        }
+        directories
+            .flatMap { it.listFiles().orEmpty().toList() }
+            .forEach { file ->
+                val text = file.readText()
+                assertFalse("${file.path}: IPv4 address", ipv4.containsMatchIn(text))
+                assertFalse("${file.path}: MAC address", mac.containsMatchIn(text))
+                assertFalse("${file.path}: token", token.containsMatchIn(text))
+            }
     }
 
     @Test

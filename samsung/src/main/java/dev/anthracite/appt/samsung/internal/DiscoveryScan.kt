@@ -24,8 +24,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  *    or the single failure.
  *
  * The scan deliberately runs on its caller's dispatcher and never switches dispatchers itself: the
- * transport moves blocking socket work off-thread. That keeps the bound on the caller's clock, which
- * is what lets tests run the full 10 seconds in virtual time.
+ * transport moves blocking socket work off-thread. That keeps the bound on the caller's clock,
+ * which is what lets tests run the full 10 seconds in virtual time.
  */
 internal class DiscoveryScan(
     private val transport: DiscoveryTransport,

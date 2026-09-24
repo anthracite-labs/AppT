@@ -15,8 +15,8 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * `NsdManager` browse for `_airplay._tcp`, keeping only services whose TXT record names
- * manufacturer Samsung (docs/architecture/discovery.md#probes). The browse runs only while the
- * flow is collected, i.e. for one scan, and is stopped when collection ends.
+ * manufacturer Samsung (docs/architecture/discovery.md#probes). The browse runs only while the flow
+ * is collected, i.e. for one scan, and is stopped when collection ends.
  */
 internal class NsdAirPlayBrowser(private val nsd: NsdManager, private val network: Network) {
 

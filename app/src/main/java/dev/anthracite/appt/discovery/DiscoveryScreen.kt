@@ -48,8 +48,8 @@ import dev.anthracite.appt.tokens.SpaceTokens
 import dev.anthracite.appt.tokens.TypeTokens
 
 /**
- * Discovery: televisions appear as cards while the bounded scan runs
- * (presentation.md#discovery, ui-ux.md).
+ * Discovery: televisions appear as cards while the bounded scan runs (presentation.md#discovery,
+ * ui-ux.md).
  * * Compact width shows one column of cards; medium and expanded widths show a two-column grid.
  * * A card shows the television's friendly name and an ordinary-language state with a text label
  *   and an icon, never colour alone and never an address or identifier.
@@ -69,7 +69,8 @@ fun DiscoveryScreen(
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columns),
                 modifier = Modifier.fillMaxSize().testTag(DiscoveryTestTags.LIST),
-                contentPadding = PaddingValues(horizontal = SpaceTokens.lg, vertical = SpaceTokens.xl),
+                contentPadding =
+                    PaddingValues(horizontal = SpaceTokens.lg, vertical = SpaceTokens.xl),
                 verticalArrangement = Arrangement.spacedBy(SpaceTokens.md),
                 horizontalArrangement = Arrangement.spacedBy(SpaceTokens.md),
             ) {
@@ -190,7 +191,11 @@ private fun CardStatus(state: CardState) {
     val (glyph, text, color) =
         when (state) {
             CardState.Ready ->
-                Triple(R.string.discovery_status_glyph_ready, R.string.discovery_card_ready, ColorTokens.statusReady)
+                Triple(
+                    R.string.discovery_status_glyph_ready,
+                    R.string.discovery_card_ready,
+                    ColorTokens.statusReady,
+                )
             CardState.NeedsPairing ->
                 Triple(
                     R.string.discovery_status_glyph_needs_pairing,
@@ -285,7 +290,10 @@ private fun RescanButton(onRescan: () -> Unit) {
         onClick = onRescan,
         modifier =
             Modifier.fillMaxWidth()
-                .defaultMinSize(minWidth = SizeTokens.minimumTouchTarget, minHeight = SizeTokens.primaryControl)
+                .defaultMinSize(
+                    minWidth = SizeTokens.minimumTouchTarget,
+                    minHeight = SizeTokens.primaryControl,
+                )
                 .testTag(DiscoveryTestTags.RESCAN),
     ) {
         Text(text = stringResource(R.string.discovery_rescan), style = TypeTokens.label)
@@ -307,8 +315,18 @@ private fun DiscoveryScreenPreview() {
                     scan = ScanPhase.Scanning,
                     cards =
                         listOf(
-                            TvCardUi(TvId("preview-1"), "Living Room TV", CardState.NeedsPairing, remembered = false),
-                            TvCardUi(TvId("preview-2"), "Older TV", CardState.Unsupported, remembered = false),
+                            TvCardUi(
+                                TvId("preview-1"),
+                                "Living Room TV",
+                                CardState.NeedsPairing,
+                                remembered = false,
+                            ),
+                            TvCardUi(
+                                TvId("preview-2"),
+                                "Older TV",
+                                CardState.Unsupported,
+                                remembered = false,
+                            ),
                         ),
                     showEmptyState = false,
                 ),
@@ -323,7 +341,12 @@ private fun DiscoveryScreenPreview() {
 private fun DiscoveryEmptyPreview() {
     AppTTheme {
         DiscoveryScreen(
-            state = DiscoveryUiState(scan = ScanPhase.Finished, cards = emptyList(), showEmptyState = true),
+            state =
+                DiscoveryUiState(
+                    scan = ScanPhase.Finished,
+                    cards = emptyList(),
+                    showEmptyState = true,
+                ),
             onRescan = {},
             onPick = {},
         )

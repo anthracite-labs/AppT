@@ -14,8 +14,8 @@ import kotlinx.coroutines.flow.Flow
  * production adapter is [AndroidDiscoveryTransport]; the test adapter replays
  * `samsung/src/test/resources/samsung/fixtures/<case-id>/trace.jsonl`.
  *
- * This is a test detail of the module (samsung-interface.md: "Internal transports are a test
- * detail of the `samsung` module"), not a caller-facing interface.
+ * This is a test detail of the module (samsung-interface.md: "Internal transports are a test detail
+ * of the `samsung` module"), not a caller-facing interface.
  */
 internal interface DiscoveryTransport {
     /** The active non-VPN Wi-Fi or Ethernet network, or null when none is up. */

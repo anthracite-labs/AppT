@@ -5,11 +5,11 @@ import kotlinx.coroutines.flow.StateFlow
 /**
  * Local-network permission gate phases (docs/architecture/discovery.md#permission-gate).
  * * [Explain]: the explanation must be shown before the first scan.
- * * [Requesting]: a system prompt is on screen. Only used when a chosen API actually shows one;
- *   the V1 probes at targetSdk 36 never do, so the V1 gate never enters it.
+ * * [Requesting]: a system prompt is on screen. Only used when a chosen API actually shows one; the
+ *   V1 probes at targetSdk 36 never do, so the V1 gate never enters it.
  * * [Granted]: discovery may start.
- * * [Denied]: a scan observed that local-network access is blocked; the explanation returns with
- *   a way to retry.
+ * * [Denied]: a scan observed that local-network access is blocked; the explanation returns with a
+ *   way to retry.
  */
 enum class LocalNetworkPhase {
     Explain,

@@ -90,7 +90,11 @@ class AppTNavGraphTest {
         composeRule.waitForIdle()
         composeRule.onNodeWithTag(DiscoveryTestTags.TITLE).assertExists()
         assertEquals("Discovery starts one scan with no separate setup step", 1, tvs.discoverCalls)
-        assertEquals("Back from Discovery returns to Welcome", listOf("Welcome", "Discovery"), backStackRoutes())
+        assertEquals(
+            "Back from Discovery returns to Welcome",
+            listOf("Welcome", "Discovery"),
+            backStackRoutes(),
+        )
     }
 
     @Test

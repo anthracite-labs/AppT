@@ -12,9 +12,9 @@ package dev.anthracite.appt.samsung
 /**
  * A confirmed television.
  *
- * @property name the television's own friendly name, trimmed and capped at 40 characters. It may
- *   be empty when the television reports none; the caller then shows its own localized label and
- *   never an address.
+ * @property name the television's own friendly name, trimmed and capped at 40 characters. It may be
+ *   empty when the television reports none; the caller then shows its own localized label and never
+ *   an address.
  * @property remembered true when a samsung-private record exists for [id]. S02 keeps no record, so
  *   discovery reports `false` until S04 adds the store.
  * @property stableIdentity true only when the television itself supplied [id]; false when the id

@@ -11,7 +11,8 @@ import org.junit.runner.Description
 
 /** Installs a test Main dispatcher so `viewModelScope` runs on virtual time. */
 @OptIn(ExperimentalCoroutinesApi::class)
-class MainDispatcherRule(val dispatcher: TestDispatcher = StandardTestDispatcher()) : TestWatcher() {
+class MainDispatcherRule(val dispatcher: TestDispatcher = StandardTestDispatcher()) :
+    TestWatcher() {
     override fun starting(description: Description) = Dispatchers.setMain(dispatcher)
 
     override fun finished(description: Description) = Dispatchers.resetMain()

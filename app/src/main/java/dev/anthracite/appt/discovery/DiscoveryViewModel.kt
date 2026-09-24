@@ -17,8 +17,8 @@ import kotlinx.coroutines.launch
 /**
  * Collects `SamsungTvs.discover()` for the Discovery screen (presentation.md#discovery).
  * * The first scan starts as soon as the ViewModel exists: Discovery is only reached once the gate
- *   is granted, and discovery.md requires `discover()` immediately after that. There is no
- *   separate setup step.
+ *   is granted, and discovery.md requires `discover()` immediately after that. There is no separate
+ *   setup step.
  * * A ViewModel survives rotation, so recreation never re-scans. After process death a new
  *   ViewModel is created for the restored route, which starts exactly one fresh bounded scan and
  *   then stops ("Scanning restarts once on restoration, then stops").
@@ -28,10 +28,8 @@ import kotlinx.coroutines.launch
  * * `Failed(LocalNetworkDenied)` is reported to the gate, which returns the user to the
  *   explanation; nothing here retries it.
  */
-class DiscoveryViewModel(
-    private val samsungTvs: SamsungTvs,
-    private val gate: PermissionGate,
-) : ViewModel() {
+class DiscoveryViewModel(private val samsungTvs: SamsungTvs, private val gate: PermissionGate) :
+    ViewModel() {
 
     private val mutableState = MutableStateFlow(DiscoveryUiState.Initial)
     val state: StateFlow<DiscoveryUiState> = mutableState.asStateFlow()
@@ -51,7 +49,8 @@ class DiscoveryViewModel(
         scan?.cancel()
         scan = null
         mutableState.update { current ->
-            if (current.scan == ScanPhase.Scanning) current.copy(scan = ScanPhase.Finished) else current
+            if (current.scan == ScanPhase.Scanning) current.copy(scan = ScanPhase.Finished)
+            else current
         }
     }
 
@@ -62,7 +61,8 @@ class DiscoveryViewModel(
             viewModelScope.launch {
                 samsungTvs.discover().collect { event ->
                     mutableState.update { it.reduce(event) }
-                    if (event == DiscoveryEvent.Failed(TvFailure.LocalNetworkDenied)) gate.reportDenied()
+                    if (event == DiscoveryEvent.Failed(TvFailure.LocalNetworkDenied))
+                        gate.reportDenied()
                 }
             }
     }

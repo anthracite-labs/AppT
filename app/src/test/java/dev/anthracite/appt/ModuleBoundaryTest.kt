@@ -15,7 +15,11 @@ class ModuleBoundaryTest {
 
     @Test
     fun appNeverReachesIntoSamsungInternals() {
-        val sources = File("src").walkTopDown().filter { it.isFile && it.extension in setOf("kt", "java") }.toList()
+        val sources =
+            File("src")
+                .walkTopDown()
+                .filter { it.isFile && it.extension in setOf("kt", "java") }
+                .toList()
         assertTrue("expected to find app sources from ${File("").absolutePath}", sources.size > 10)
         val offenders = sources.filter { it.readText().contains(forbidden) }.map { it.path }
         assertEquals(emptyList<String>(), offenders)

@@ -5,8 +5,8 @@ import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.isRoot
+import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import dev.anthracite.appt.tokens.SizeTokens
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -32,8 +32,14 @@ fun ComposeContentTestRule.assertEveryClickableMeetsTheTouchTargetFloor() {
     val floorPx = with(density) { SizeTokens.minimumTouchTarget.toPx() }
     nodes.forEach { node ->
         val bounds = node.touchBoundsInRoot
-        assertTrue("touch width ${bounds.width}px is below ${floorPx}px", bounds.width + HALF_PIXEL >= floorPx)
-        assertTrue("touch height ${bounds.height}px is below ${floorPx}px", bounds.height + HALF_PIXEL >= floorPx)
+        assertTrue(
+            "touch width ${bounds.width}px is below ${floorPx}px",
+            bounds.width + HALF_PIXEL >= floorPx,
+        )
+        assertTrue(
+            "touch height ${bounds.height}px is below ${floorPx}px",
+            bounds.height + HALF_PIXEL >= floorPx,
+        )
     }
 }
 

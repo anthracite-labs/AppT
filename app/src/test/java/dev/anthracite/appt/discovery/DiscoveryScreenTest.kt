@@ -38,17 +38,22 @@ class DiscoveryScreenTest {
     private val picks = mutableListOf<TvId>()
     private var rescans = 0
 
-    private val ready = TvCardUi(TvId(FakeSamsungTvs.LIVING_ROOM_ID), "Living Room TV", CardState.Ready, false)
+    private val ready =
+        TvCardUi(TvId(FakeSamsungTvs.LIVING_ROOM_ID), "Living Room TV", CardState.Ready, false)
     private val needsPairing = TvCardUi(TvId("local-7c1e"), "", CardState.NeedsPairing, true)
-    private val unsupported = TvCardUi(TvId(FakeSamsungTvs.OLDER_ID), "Older TV", CardState.Unsupported, false)
+    private val unsupported =
+        TvCardUi(TvId(FakeSamsungTvs.OLDER_ID), "Older TV", CardState.Unsupported, false)
 
     private fun setDiscovery(state: DiscoveryUiState) {
         composeRule.setContent {
-            AppTTheme { DiscoveryScreen(state = state, onRescan = { rescans++ }, onPick = { picks += it }) }
+            AppTTheme {
+                DiscoveryScreen(state = state, onRescan = { rescans++ }, onPick = { picks += it })
+            }
         }
     }
 
-    private fun scanning(vararg cards: TvCardUi) = DiscoveryUiState(ScanPhase.Scanning, cards.toList(), false)
+    private fun scanning(vararg cards: TvCardUi) =
+        DiscoveryUiState(ScanPhase.Scanning, cards.toList(), false)
 
     @Test
     fun cardsShowFriendlyNamesAndStatesButNoTechnicalIds() {
@@ -65,11 +70,10 @@ class DiscoveryScreenTest {
     fun scanningIsAnnouncedPolitely() {
         setDiscovery(scanning())
         val status = composeRule.onNodeWithTag(DiscoveryTestTags.STATUS).fetchSemanticsNode()
-        assertEquals(
-            LiveRegionMode.Polite,
-            status.config.getOrNull(SemanticsProperties.LiveRegion),
-        )
-        composeRule.onNodeWithText("Looking for televisions on your home network…").assertIsDisplayed()
+        assertEquals(LiveRegionMode.Polite, status.config.getOrNull(SemanticsProperties.LiveRegion))
+        composeRule
+            .onNodeWithText("Looking for televisions on your home network…")
+            .assertIsDisplayed()
     }
 
     @Test
@@ -77,9 +81,16 @@ class DiscoveryScreenTest {
         setDiscovery(scanning(unsupported))
         composeRule.onNodeWithText("AppT can't control this television yet").assertIsDisplayed()
         val card = composeRule.onNodeWithTag(DiscoveryTestTags.CARD).fetchSemanticsNode()
-        assertNull("an Unsupported card must not be clickable", card.config.getOrNull(SemanticsActions.OnClick))
+        assertNull(
+            "an Unsupported card must not be clickable",
+            card.config.getOrNull(SemanticsActions.OnClick),
+        )
         assertNull(card.config.getOrNull(SemanticsProperties.Role))
-        assertEquals("no control anywhere on screen while scanning", 0, composeRule.clickableNodes().size)
+        assertEquals(
+            "no control anywhere on screen while scanning",
+            0,
+            composeRule.clickableNodes().size,
+        )
 
         composeRule.onNodeWithTag(DiscoveryTestTags.CARD).performClick()
         assertEquals(emptyList<TvId>(), picks)
@@ -96,19 +107,27 @@ class DiscoveryScreenTest {
      * The grid is lazy: only items inside the viewport are composed, so on Robolectric's default
      * small screen the trailing Scan again item would simply not exist in the semantics tree. The
      * check runs on a tall phone (still compact width, so the same one-column layout) so every
-     * control is composed and fully on screen, and scrolls to Scan again so it never depends on
-     * the viewport height.
+     * control is composed and fully on screen, and scrolls to Scan again so it never depends on the
+     * viewport height.
      */
     @Test
     @Config(qualifiers = "w360dp-h1200dp")
     fun everyControlMeetsTouchTarget() {
-        setDiscovery(DiscoveryUiState(ScanPhase.Finished, listOf(ready, needsPairing, unsupported), false))
+        setDiscovery(
+            DiscoveryUiState(ScanPhase.Finished, listOf(ready, needsPairing, unsupported), false)
+        )
         composeRule
             .onNodeWithTag(DiscoveryTestTags.LIST)
             .performScrollToNode(hasTestTag(DiscoveryTestTags.RESCAN))
 
         // Two choosable cards and Scan again; the Unsupported card is not a control.
-        assertEquals(2, composeRule.onAllNodes(hasTestTag(DiscoveryTestTags.CARD) and hasClickAction()).fetchSemanticsNodes().size)
+        assertEquals(
+            2,
+            composeRule
+                .onAllNodes(hasTestTag(DiscoveryTestTags.CARD) and hasClickAction())
+                .fetchSemanticsNodes()
+                .size,
+        )
         composeRule.onNodeWithTag(DiscoveryTestTags.RESCAN).assertHasClickAction()
         assertEquals(3, composeRule.clickableNodes().size)
         composeRule.assertEveryClickableMeetsTheTouchTargetFloor()
@@ -128,7 +147,10 @@ class DiscoveryScreenTest {
         assertEquals(3, icons.size)
         assertEquals(3, labels.size)
         icons.forEach { icon ->
-            assertNull("the icon is decorative beside its label", icon.config.getOrNull(SemanticsProperties.Text))
+            assertNull(
+                "the icon is decorative beside its label",
+                icon.config.getOrNull(SemanticsProperties.Text),
+            )
         }
     }
 
@@ -154,15 +176,21 @@ class DiscoveryScreenTest {
 
     @Test
     fun deniedFailureIsExplainedInOrdinaryLanguage() {
-        setDiscovery(DiscoveryUiState(ScanPhase.Failed(TvFailure.LocalNetworkDenied), emptyList(), false))
-        composeRule.onNodeWithText("AppT can't reach your home network right now.").assertIsDisplayed()
+        setDiscovery(
+            DiscoveryUiState(ScanPhase.Failed(TvFailure.LocalNetworkDenied), emptyList(), false)
+        )
+        composeRule
+            .onNodeWithText("AppT can't reach your home network right now.")
+            .assertIsDisplayed()
     }
 
     @Test
     fun otherFailuresUseTheGeneralMessage() {
         setDiscovery(DiscoveryUiState(ScanPhase.Failed(TvFailure.TimedOut), emptyList(), false))
         composeRule
-            .onNodeWithText("Something went wrong while looking for televisions. Please scan again.")
+            .onNodeWithText(
+                "Something went wrong while looking for televisions. Please scan again."
+            )
             .assertIsDisplayed()
     }
 
@@ -171,6 +199,9 @@ class DiscoveryScreenTest {
         setDiscovery(DiscoveryUiState(ScanPhase.Finished, listOf(ready), false))
         composeRule.onNodeWithText("Search finished").assertIsDisplayed()
         composeRule.onNodeWithTag(DiscoveryTestTags.RESCAN).assertHasClickAction()
-        assertEquals(0, composeRule.onAllNodesWithTag(DiscoveryTestTags.EMPTY_STATE).fetchSemanticsNodes().size)
+        assertEquals(
+            0,
+            composeRule.onAllNodesWithTag(DiscoveryTestTags.EMPTY_STATE).fetchSemanticsNodes().size,
+        )
     }
 }

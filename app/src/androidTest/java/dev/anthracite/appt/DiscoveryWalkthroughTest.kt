@@ -52,7 +52,10 @@ class DiscoveryWalkthroughTest {
 
             // discover() is bounded at 10 s; allow scheduling slack on a slow emulator.
             composeRule.waitUntil(timeoutMillis = SCAN_BOUND_WITH_SLACK_MILLIS) {
-                composeRule.onAllNodes(hasTestTag(DiscoveryTestTags.RESCAN)).fetchSemanticsNodes().isNotEmpty()
+                composeRule
+                    .onAllNodes(hasTestTag(DiscoveryTestTags.RESCAN))
+                    .fetchSemanticsNodes()
+                    .isNotEmpty()
             }
             composeRule.onNodeWithTag(DiscoveryTestTags.RESCAN).assertIsDisplayed()
         }

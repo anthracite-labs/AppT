@@ -6,8 +6,8 @@ import java.util.UUID
 /**
  * Television identity rules (docs/architecture/discovery.md#identity).
  *
- * A `TvId` is either the television's own protocol UUID, normalized, or an id minted on this
- * phone. It is never derived from a MAC, an address, a model, or a name.
+ * A `TvId` is either the television's own protocol UUID, normalized, or an id minted on this phone.
+ * It is never derived from a MAC, an address, a model, or a name.
  */
 internal object TvIdentity {
     private val CANONICAL_UUID =
@@ -33,8 +33,8 @@ internal object TvIdentity {
     }
 
     /**
-     * Mints a device-local id for a confirmed television that exposes no stable UUID. It carries
-     * no information about the television, so it cannot leak one.
+     * Mints a device-local id for a confirmed television that exposes no stable UUID. It carries no
+     * information about the television, so it cannot leak one.
      */
     fun mint(): String = MINTED_PREFIX + UUID.randomUUID()
 }

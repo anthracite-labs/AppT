@@ -16,8 +16,8 @@ import kotlinx.coroutines.flow.Flow
  */
 interface SamsungTvs {
     /**
-     * Starts one bounded scan and emits [DiscoveryEvent.Found] cards as televisions are
-     * confirmed, then [DiscoveryEvent.Finished].
+     * Starts one bounded scan and emits [DiscoveryEvent.Found] cards as televisions are confirmed,
+     * then [DiscoveryEvent.Finished].
      * * Collecting the flow starts the scan; cancelling collection stops probes and releases the
      *   multicast lock.
      * * Only one scan runs. A new `discover()` cancels the previous scan; the previous flow is
@@ -25,8 +25,8 @@ interface SamsungTvs {
      * * The scan always runs to its bound (10 seconds) unless cancelled. Callers do not pass a
      *   duration.
      * * At most one `Found` per [TvId] per scan. Cards carry friendly names, never addresses.
-     * * If local-network access is blocked, the flow emits
-     *   `Failed(TvFailure.LocalNetworkDenied)` once and stops. It never launches permission UI.
+     * * If local-network access is blocked, the flow emits `Failed(TvFailure.LocalNetworkDenied)`
+     *   once and stops. It never launches permission UI.
      */
     fun discover(): Flow<DiscoveryEvent>
 }

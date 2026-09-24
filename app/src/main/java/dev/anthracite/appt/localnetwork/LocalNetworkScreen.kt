@@ -36,8 +36,8 @@ import dev.anthracite.appt.tokens.TypeTokens
  * The local-network explanation, shown immediately before the first scan
  * (docs/architecture/discovery.md#permission-gate, ui-ux.md#onboarding).
  *
- * Ordinary language only: the copy says AppT needs to reach the television on the home network
- * and never names a protocol, a port, or an address. Stateless: it renders [state] and forwards
+ * Ordinary language only: the copy says AppT needs to reach the television on the home network and
+ * never names a protocol, a port, or an address. Stateless: it renders [state] and forwards
  * intents.
  */
 @Composable
@@ -67,7 +67,11 @@ fun LocalNetworkScreen(
                         tag = LocalNetworkTestTags.CONTINUE,
                     )
                 LocalNetworkPhase.Denied ->
-                    DeniedActions(state.canOpenAppSettings, onRetry = onRetry, onOpenSettings = onOpenSettings)
+                    DeniedActions(
+                        state.canOpenAppSettings,
+                        onRetry = onRetry,
+                        onOpenSettings = onOpenSettings,
+                    )
                 // Requesting is never entered by the V1 gate, and Granted navigates to Discovery
                 // straight away; neither offers an action of its own.
                 LocalNetworkPhase.Requesting,
@@ -99,7 +103,11 @@ private fun Explanation() {
 }
 
 @Composable
-private fun DeniedActions(canOpenAppSettings: Boolean, onRetry: () -> Unit, onOpenSettings: () -> Unit) {
+private fun DeniedActions(
+    canOpenAppSettings: Boolean,
+    onRetry: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
     Text(
         text = stringResource(R.string.localnetwork_denied),
         style = TypeTokens.body,
@@ -123,7 +131,10 @@ private fun DeniedActions(canOpenAppSettings: Boolean, onRetry: () -> Unit, onOp
                     .defaultMinSize(minHeight = SizeTokens.minimumTouchTarget)
                     .testTag(LocalNetworkTestTags.OPEN_SETTINGS),
         ) {
-            Text(text = stringResource(R.string.localnetwork_open_settings), style = TypeTokens.label)
+            Text(
+                text = stringResource(R.string.localnetwork_open_settings),
+                style = TypeTokens.label,
+            )
         }
     }
 }
@@ -135,7 +146,10 @@ private fun PrimaryButton(label: String, onClick: () -> Unit, tag: String) {
         modifier =
             Modifier.fillMaxWidth()
                 .widthIn(max = SizeTokens.readableContentMaxWidth)
-                .defaultMinSize(minWidth = SizeTokens.minimumTouchTarget, minHeight = SizeTokens.primaryControl)
+                .defaultMinSize(
+                    minWidth = SizeTokens.minimumTouchTarget,
+                    minHeight = SizeTokens.primaryControl,
+                )
                 .testTag(tag),
     ) {
         Text(text = label, style = TypeTokens.label)

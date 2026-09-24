@@ -49,14 +49,22 @@ class SsdpTest {
             "HTTP/1.1 200 OK\r\nST: urn:dial-multiscreen-org:service:dial:1\r\nSERVER: $server\r\n\r\n"
         assertEquals(Probe.DialSamsung, Ssdp.classify(dial("SHP, UPnP/1.0, Samsung UPnP SDK/1.0")))
         assertNull(Ssdp.classify(dial("Linux/4.4 UPnP/1.0 Cast/1.0")))
-        assertNull(Ssdp.classify("HTTP/1.1 200 OK\r\nST: urn:dial-multiscreen-org:service:dial:1\r\n\r\n"))
+        assertNull(
+            Ssdp.classify("HTTP/1.1 200 OK\r\nST: urn:dial-multiscreen-org:service:dial:1\r\n\r\n")
+        )
     }
 
     @Test
     fun otherRepliesAreDropped() {
-        assertNull(Ssdp.classify("HTTP/1.1 200 OK\r\nST: upnp:rootdevice\r\nSERVER: Samsung\r\n\r\n"))
-        assertNull(Ssdp.classify("HTTP/1.1 404 Not Found\r\nST: ${Ssdp.REMOTE_CONTROL_RECEIVER}\r\n\r\n"))
-        assertNull(Ssdp.classify("NOTIFY * HTTP/1.1\r\nNT: ${Ssdp.REMOTE_CONTROL_RECEIVER}\r\n\r\n"))
+        assertNull(
+            Ssdp.classify("HTTP/1.1 200 OK\r\nST: upnp:rootdevice\r\nSERVER: Samsung\r\n\r\n")
+        )
+        assertNull(
+            Ssdp.classify("HTTP/1.1 404 Not Found\r\nST: ${Ssdp.REMOTE_CONTROL_RECEIVER}\r\n\r\n")
+        )
+        assertNull(
+            Ssdp.classify("NOTIFY * HTTP/1.1\r\nNT: ${Ssdp.REMOTE_CONTROL_RECEIVER}\r\n\r\n")
+        )
         assertNull(Ssdp.classify(""))
         assertNull(Ssdp.classify("garbage"))
     }

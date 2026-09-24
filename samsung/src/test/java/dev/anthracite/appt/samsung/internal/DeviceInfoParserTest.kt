@@ -17,8 +17,10 @@ class DeviceInfoParserTest {
     fun televisionTypeIsRequired() {
         val tv = DeviceInfoParser.parse(document(""""type":"Samsung SmartTV","id":"uuid:$uuid""""))
         assertTrue(tv!!.isTelevision)
-        listOf("Samsung Speaker", "Samsung Soundbar", "Samsung Blu-ray Player", "").forEach { type ->
-            val other = DeviceInfoParser.parse(document(""""type":"$type"""", top = """"type":"$type""""))
+        listOf("Samsung Speaker", "Samsung Soundbar", "Samsung Blu-ray Player", "").forEach { type
+            ->
+            val other =
+                DeviceInfoParser.parse(document(""""type":"$type"""", top = """"type":"$type""""))
             assertFalse("$type is not a television", other!!.isTelevision)
         }
         assertFalse(DeviceInfoParser.parse("""{"name":"x"}""")!!.isTelevision)
@@ -55,7 +57,10 @@ class DeviceInfoParserTest {
     @Test
     fun nonTizenExplicitOsIsUnsupportedAndAbsentOsNeedsPairing() {
         fun availability(os: String?) =
-            DeviceInfoParser.parse(document(if (os == null) """"name":"x"""" else """"OS":"$os""""))!!.availability
+            DeviceInfoParser.parse(
+                    document(if (os == null) """"name":"x"""" else """"OS":"$os"""")
+                )!!
+                .availability
         assertEquals(ControlAvailability.NeedsPairing, availability("Tizen"))
         assertEquals(ControlAvailability.NeedsPairing, availability("TIZEN 6.5"))
         assertEquals(ControlAvailability.NeedsPairing, availability(null))
@@ -64,15 +69,20 @@ class DeviceInfoParserTest {
 
     @Test
     fun isSupportIsToleratedAsObjectOrString() {
-        val asObject = """{"device":{"type":"Samsung SmartTV"},"isSupport":{"remote_available":"true"}}"""
-        val asString = """{"device":{"type":"Samsung SmartTV"},"isSupport":"{\"remote_available\":\"true\"}"}"""
+        val asObject =
+            """{"device":{"type":"Samsung SmartTV"},"isSupport":{"remote_available":"true"}}"""
+        val asString =
+            """{"device":{"type":"Samsung SmartTV"},"isSupport":"{\"remote_available\":\"true\"}"}"""
         assertTrue(DeviceInfoParser.parse(asObject)!!.isTelevision)
         assertTrue(DeviceInfoParser.parse(asString)!!.isTelevision)
     }
 
     @Test
     fun reportedHostIsReadForTheCandidateCheckOnly() {
-        assertEquals("[host-a]", DeviceInfoParser.parse(document(""""ip":"[host-a]""""))!!.reportedHost)
+        assertEquals(
+            "[host-a]",
+            DeviceInfoParser.parse(document(""""ip":"[host-a]""""))!!.reportedHost,
+        )
         assertNull(DeviceInfoParser.parse(document(""""ip":"""""))!!.reportedHost)
     }
 
@@ -96,7 +106,10 @@ class DeviceInfoParserTest {
 
     @Test
     fun nonStringValuesAreToleratedAndNullIsAbsent() {
-        val info = DeviceInfoParser.parse("""{"device":{"type":"Samsung SmartTV","name":42,"OS":null}}""")!!
+        val info =
+            DeviceInfoParser.parse(
+                """{"device":{"type":"Samsung SmartTV","name":42,"OS":null}}"""
+            )!!
         assertEquals("42", info.name)
         assertEquals(ControlAvailability.NeedsPairing, info.availability)
     }

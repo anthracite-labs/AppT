@@ -19,8 +19,8 @@ import kotlinx.coroutines.launch
  * SSDP search as client traffic only (docs/architecture/discovery.md#probes).
  *
  * One ephemeral UDP socket per scan, bound to the scan's network, sends `M-SEARCH` for the two V1
- * search targets and reads the unicast replies. It never binds port 1900, never joins the
- * multicast group, and is closed when the scan ends or is cancelled.
+ * search targets and reads the unicast replies. It never binds port 1900, never joins the multicast
+ * group, and is closed when the scan ends or is cancelled.
  *
  * @param target where searches are sent: the SSDP multicast group in production, a loopback
  *   responder in tests.
@@ -87,7 +87,10 @@ internal class SsdpClient(
     }
 
     /** One reply as (sender, text), or null when the poll timed out without one. */
-    private suspend fun receive(socket: DatagramSocket, buffer: ByteArray): Pair<InetAddress, String>? =
+    private suspend fun receive(
+        socket: DatagramSocket,
+        buffer: ByteArray,
+    ): Pair<InetAddress, String>? =
         try {
             blockingIo(dispatcher, onCancel = socket::close) {
                 val packet = DatagramPacket(buffer, buffer.size)

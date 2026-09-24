@@ -35,7 +35,10 @@ class ForbiddenVocabularyTest {
         assertTrue("expected the S02 strings", strings.size > 10)
         strings.forEach { field ->
             val text = context.getString(field.getInt(null))
-            assertFalse("${field.name} uses technical vocabulary: \"$text\"", forbidden.containsMatchIn(text))
+            assertFalse(
+                "${field.name} uses technical vocabulary: \"$text\"",
+                forbidden.containsMatchIn(text),
+            )
         }
     }
 
@@ -44,6 +47,8 @@ class ForbiddenVocabularyTest {
         listOf("Allow multicast", "Enter the IP address", "port 8001", "Using SSDP").forEach {
             assertTrue(it, forbidden.containsMatchIn(it))
         }
-        assertFalse(forbidden.containsMatchIn("Make sure your TV is on the same Wi-Fi as this phone."))
+        assertFalse(
+            forbidden.containsMatchIn("Make sure your TV is on the same Wi-Fi as this phone.")
+        )
     }
 }

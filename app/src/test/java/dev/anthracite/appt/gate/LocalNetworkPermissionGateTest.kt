@@ -21,7 +21,10 @@ import org.robolectric.annotation.Config
 class LocalNetworkPermissionGateTest {
     private val context: Context = RuntimeEnvironment.getApplication()
     private val preferences =
-        context.getSharedPreferences(LocalNetworkPermissionGate.PREFERENCES_NAME, Context.MODE_PRIVATE)
+        context.getSharedPreferences(
+            LocalNetworkPermissionGate.PREFERENCES_NAME,
+            Context.MODE_PRIVATE,
+        )
 
     private fun gate() = LocalNetworkPermissionGate(preferences, targetSdk = 36)
 
@@ -33,7 +36,10 @@ class LocalNetworkPermissionGateTest {
         // ...and the installed app neither declares nor can request the permissions the V1
         // probes must not use, while it does declare the four install-time ones they need.
         val packageInfo =
-            context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS)
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                PackageManager.GET_PERMISSIONS,
+            )
         val declared = packageInfo.requestedPermissions.orEmpty().toSet()
         listOf(
                 "android.permission.NEARBY_WIFI_DEVICES",
@@ -42,7 +48,9 @@ class LocalNetworkPermissionGateTest {
                 "android.permission.ACCESS_COARSE_LOCATION",
                 "android.permission.ACCESS_BACKGROUND_LOCATION",
             )
-            .forEach { forbidden -> assertFalse("$forbidden must not be declared", forbidden in declared) }
+            .forEach { forbidden ->
+                assertFalse("$forbidden must not be declared", forbidden in declared)
+            }
         assertTrue(
             declared.containsAll(
                 listOf(
@@ -58,7 +66,9 @@ class LocalNetworkPermissionGateTest {
 
     @Test
     fun aTargetPastV1MustAdoptTheLocalNetworkPermissionFirst() {
-        assertThrows(IllegalStateException::class.java) { DiscoveryPermissions.runtimeRequestFor(37) }
+        assertThrows(IllegalStateException::class.java) {
+            DiscoveryPermissions.runtimeRequestFor(37)
+        }
         assertThrows(IllegalStateException::class.java) {
             LocalNetworkPermissionGate(preferences, targetSdk = 37)
         }

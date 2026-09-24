@@ -1,9 +1,8 @@
 package dev.anthracite.appt.samsung.internal
 
 /**
- * AirPlay TXT-record classification. Samsung soundbars and speakers also advertise
- * `_airplay._tcp`, so this only makes a host a candidate; device-info still decides television
- * versus speaker.
+ * AirPlay TXT-record classification. Samsung soundbars and speakers also advertise `_airplay._tcp`,
+ * so this only makes a host a candidate; device-info still decides television versus speaker.
  */
 internal object AirPlayTxt {
     const val SERVICE_TYPE: String = "_airplay._tcp"

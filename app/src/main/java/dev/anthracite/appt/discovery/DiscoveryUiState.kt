@@ -7,8 +7,8 @@ import dev.anthracite.appt.samsung.TvFailure
 import dev.anthracite.appt.samsung.TvId
 
 /**
- * presentation.md#discovery:
- * `DiscoveryUiState(scan: Scanning | Finished | Failed(reason), cards: List<TvCardUi>, showEmptyState)`.
+ * presentation.md#discovery: `DiscoveryUiState(scan: Scanning | Finished | Failed(reason), cards:
+ * List<TvCardUi>, showEmptyState)`.
  */
 data class DiscoveryUiState(
     val scan: ScanPhase,

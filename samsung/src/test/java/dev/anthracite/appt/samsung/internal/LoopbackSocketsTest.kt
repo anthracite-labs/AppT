@@ -22,8 +22,8 @@ import org.junit.Test
 import org.junit.rules.Timeout
 
 /**
- * The two real socket clients against loopback peers: request shape, bounds, and that
- * cancellation closes sockets promptly instead of waiting for a socket timeout.
+ * The two real socket clients against loopback peers: request shape, bounds, and that cancellation
+ * closes sockets promptly instead of waiting for a socket timeout.
  */
 class LoopbackSocketsTest {
     /** Real sockets and threads: a regression must fail here, never hang the build. */
@@ -38,11 +38,17 @@ class LoopbackSocketsTest {
             val peer = thread {
                 server.accept().use { socket ->
                     val reader = socket.getInputStream().bufferedReader()
-                    request = generateSequence { reader.readLine() }.takeWhile { it.isNotEmpty() }.joinToString("\n")
+                    request =
+                        generateSequence { reader.readLine() }
+                            .takeWhile { it.isNotEmpty() }
+                            .joinToString("\n")
                     val body = """{"device":{"type":"Samsung SmartTV"}}"""
-                    socket.getOutputStream().write(
-                        "HTTP/1.1 200 OK\r\nContent-Length: ${body.length}\r\n\r\n$body".encodeToByteArray()
-                    )
+                    socket
+                        .getOutputStream()
+                        .write(
+                            "HTTP/1.1 200 OK\r\nContent-Length: ${body.length}\r\n\r\n$body"
+                                .encodeToByteArray()
+                        )
                 }
             }
             val document = DeviceInfoHttp().get(TestLan(), loopback, server.localPort)
@@ -61,7 +67,9 @@ class LoopbackSocketsTest {
     fun unreadableDeviceInfoIsNull() = runBlocking {
         ServerSocket(0, 1, loopback).use { server ->
             val peer = thread {
-                server.accept().use { it.getOutputStream().write("HTTP/1.1 302 Found\r\n\r\n".encodeToByteArray()) }
+                server.accept().use {
+                    it.getOutputStream().write("HTTP/1.1 302 Found\r\n\r\n".encodeToByteArray())
+                }
             }
             assertNull(DeviceInfoHttp().get(TestLan(), loopback, server.localPort))
             peer.join()
@@ -100,7 +108,9 @@ class LoopbackSocketsTest {
                 // Both searches arrive before any reply, so the client cannot stop early.
                 val received =
                     List(2) {
-                        DatagramPacket(ByteArray(2048), 2048).also { packet -> responder.receive(packet) }
+                        DatagramPacket(ByteArray(2048), 2048).also { packet ->
+                            responder.receive(packet)
+                        }
                     }
                 received.forEach { packet ->
                     val search = packet.data.decodeToString(0, packet.length)

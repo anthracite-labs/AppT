@@ -44,15 +44,14 @@ internal object LanPolicy {
      *
      * Android reports a blocked local-network socket (for example, Android 16 local-network
      * protection on an opted-in device) as a [SecurityException] or as a socket error carrying
-     * `EPERM`/`EACCES`. That is [TvFailure.LocalNetworkDenied]: the gate returns to the
-     * explanation and nothing retries in a loop. Any other failure to use the network is
+     * `EPERM`/`EACCES`. That is [TvFailure.LocalNetworkDenied]: the gate returns to the explanation
+     * and nothing retries in a loop. Any other failure to use the network is
      * [TvFailure.Unreachable].
      */
     fun failureFor(error: Exception): TvFailure =
         when {
             error is SecurityException -> TvFailure.LocalNetworkDenied
-            error is IOException && error.mentionsPermissionDenial() ->
-                TvFailure.LocalNetworkDenied
+            error is IOException && error.mentionsPermissionDenial() -> TvFailure.LocalNetworkDenied
             else -> TvFailure.Unreachable
         }
 

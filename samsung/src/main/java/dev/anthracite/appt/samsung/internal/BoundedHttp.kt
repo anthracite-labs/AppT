@@ -1,5 +1,6 @@
 package dev.anthracite.appt.samsung.internal
 
+import dev.anthracite.appt.samsung.TvFailure
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
@@ -7,7 +8,6 @@ import java.io.OutputStream
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
-import dev.anthracite.appt.samsung.TvFailure
 import java.util.Locale
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -15,9 +15,9 @@ import kotlinx.coroutines.Dispatchers
 /**
  * The single, bounded device-info read over port 8001 (docs/architecture/protocol.md#endpoints).
  *
- * One `GET /api/v2/` to the candidate's own address, bound to the scan's network. It sends no
- * token and no body, does not follow redirects (anything other than `200` is unreadable), reads at
- * most [MAX_DEVICE_INFO_BYTES] of body, and never logs the URL or the document.
+ * One `GET /api/v2/` to the candidate's own address, bound to the scan's network. It sends no token
+ * and no body, does not follow redirects (anything other than `200` is unreadable), reads at most
+ * [MAX_DEVICE_INFO_BYTES] of body, and never logs the URL or the document.
  *
  * Why a socket and not an HTTP library: device-info on 8001 is plaintext, and Android's cleartext
  * policy (enforced by HTTP libraries on API 28+) would require an application-wide cleartext
@@ -87,11 +87,16 @@ internal object BoundedHttpResponse {
     fun readOkBody(input: InputStream, maxBodyBytes: Int): String? {
         val buffered = input.buffered()
         val status = readLine(buffered)
-        val headers = if (status != null && OK_STATUS.matches(status)) readHeaders(buffered) else null
+        val headers =
+            if (status != null && OK_STATUS.matches(status)) readHeaders(buffered) else null
         return headers?.let { readBody(buffered, it, maxBodyBytes) }?.decodeToString()
     }
 
-    private fun readBody(input: InputStream, headers: Map<String, String>, maxBodyBytes: Int): ByteArray? {
+    private fun readBody(
+        input: InputStream,
+        headers: Map<String, String>,
+        maxBodyBytes: Int,
+    ): ByteArray? {
         val contentLength = headers["CONTENT-LENGTH"]
         return when {
             headers["TRANSFER-ENCODING"]?.lowercase(Locale.ROOT)?.contains("chunked") == true ->
@@ -158,7 +163,9 @@ internal object BoundedHttpResponse {
         }
     }
 
-    /** One CRLF- or LF-terminated line, without the terminator; null at end of stream or over-limit. */
+    /**
+     * One CRLF- or LF-terminated line, without the terminator; null at end of stream or over-limit.
+     */
     private fun readLine(input: InputStream): String? {
         val line = ByteArrayOutputStream()
         while (line.size() <= MAX_LINE_BYTES) {

@@ -16,8 +16,8 @@ import kotlinx.serialization.json.long
  * `trace.jsonl` is one JSON object per line:
  * * `{"kind":"ssdp","atMs":…,"host":…,"response":"<raw search response>"}` — inbound SSDP reply;
  * * `{"kind":"airplay","atMs":…,"host":…,"txt":{…}}` — inbound resolved AirPlay service;
- * * `{"kind":"device-info","host":…,"port":…,"delayMs":…,"document":{…}|"<raw body>"}` — what
- *   the host serves; a host with no entry never answers.
+ * * `{"kind":"device-info","host":…,"port":…,"delayMs":…,"document":{…}|"<raw body>"}` — what the
+ *   host serves; a host with no entry never answers.
  *
  * An optional `"scan": n` limits a probe event to the n-th scan on the same transport.
  */
@@ -53,7 +53,9 @@ internal data class Fixture(
 
         fun load(caseId: String): Fixture {
             val resource =
-                checkNotNull(Fixture::class.java.getResource("$RESOURCE_ROOT/$caseId/trace.jsonl")) {
+                checkNotNull(
+                    Fixture::class.java.getResource("$RESOURCE_ROOT/$caseId/trace.jsonl")
+                ) {
                     "missing fixture $caseId"
                 }
             val lines = resource.readText().lines().filter { it.isNotBlank() }
@@ -76,8 +78,13 @@ internal data class Fixture(
 
         /** Every fixture directory, for the provenance and redaction checks. */
         fun directories(): List<File> {
-            val root = checkNotNull(Fixture::class.java.getResource(RESOURCE_ROOT)) { "no fixtures" }
-            return File(root.toURI()).listFiles().orEmpty().filter { it.isDirectory }.sortedBy { it.name }
+            val root =
+                checkNotNull(Fixture::class.java.getResource(RESOURCE_ROOT)) { "no fixtures" }
+            return File(root.toURI())
+                .listFiles()
+                .orEmpty()
+                .filter { it.isDirectory }
+                .sortedBy { it.name }
         }
 
         private fun probeEvent(event: JsonObject): ProbeEvent? {
