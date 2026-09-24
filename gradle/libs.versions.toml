@@ -45,7 +45,7 @@ detekt = "1.23.8"
 # Spotless deterministic Kotlin formatting (Spotless + ktfmt) (Issue #56).
 spotless = "7.0.2"
 # Kover coverage report generation and verification floor (Issue #56).
-kover = "0.9.1"
+kover = "0.9.5"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }

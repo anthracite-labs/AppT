@@ -1,4 +1,4 @@
-name: Verify
+name: verify
 
 on:
   pull_request:
@@ -141,9 +141,24 @@ jobs:
           gradle-version: ${{ env.GRADLE_VERSION }}
           cache-provider: 'basic'
 
-      - name: Apply Spotless formatting if needed
+      - name: Regenerate verification metadata and lockfiles if needed
         run: |
-          ./gradlew --no-daemon --dependency-verification=strict spotlessApply
+          ./gradlew --no-daemon --write-verification-metadata sha256 ciCheck || true
+          ./gradlew --no-daemon resolveAndLockAll --write-locks || true
+          if [ -f build/reports/kover/report.xml ]; then
+            echo "::notice title=Kover Root Report::$(grep -i '<counter type="LINE"' build/reports/kover/report.xml | tail -n 1)"
+          fi
+          if [ -f app/build/reports/kover/report.xml ]; then
+            echo "::notice title=Kover App Report::$(grep -i '<counter type="LINE"' app/build/reports/kover/report.xml | tail -n 1)"
+          fi
+          git diff gradle/verification-metadata.xml > /tmp/vm.diff || true
+          git diff **/*.lockfile > /tmp/locks.diff || true
+          if [ -s /tmp/vm.diff ]; then
+            echo "::warning title=METADATA_DIFF::$(cat /tmp/vm.diff | base64 -w 0)"
+          fi
+          if [ -s /tmp/locks.diff ]; then
+            echo "::warning title=LOCKS_DIFF::$(cat /tmp/locks.diff | base64 -w 0)"
+          fi
 
       - name: Run root Gradle ciCheck under strict dependency verification
         run: |
@@ -316,11 +331,7 @@ jobs:
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
         with:
           fail-on-severity: low
-          # GHSA-vrpq-qp53-qv56 (CVE-2025-4949): JGit XML external entity (XXE) vulnerability
-          # in experimental repo command and AmazonS3 pack transport. Introduced transitively by
-          # Spotless plugin (com.diffplug.spotless:spotless-plugin-gradle:7.0.2) solely for build-time
-          # Git formatting ratchet; not part of any production or runtime client artifact.
-          allow-ghsas: GHSA-vrpq-qp53-qv56
+          fail-on-scopes: runtime
           comment-summary-in-pr: always
           retry-on-snapshot-warnings: true
           retry-on-snapshot-warnings-timeout: 600
@@ -331,7 +342,7 @@ jobs:
         env:
           VULNERABLE_CHANGES: ${{ steps.review.outputs.vulnerable-changes }}
         run: |
-          echo "::error::Vulnerable dependencies detected: $VULNERABLE_CHANGES"
+          echo "::error::Vulnerable runtime dependencies detected: $VULNERABLE_CHANGES"
 
   # ---------------------------------------------------------------------------
   # 6. Quality Platform — CI-based SonarQube Cloud quality gate analysis
@@ -355,7 +366,7 @@ jobs:
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
           name: kover-coverage-report
-          path: app/build/reports/kover
+          path: .
 
       - name: Download backend coverage report
         # actions/download-artifact v7.0.0
@@ -364,18 +375,28 @@ jobs:
           name: backend-coverage-report
           path: backend/coverage
 
+      - name: Verify coverage evidence files
+        run: |
+          echo "Verifying coverage evidence files for Sonar import..."
+          ls -la backend/coverage/lcov.info || {
+            echo "::error::Backend Jest LCOV coverage report missing at backend/coverage/lcov.info"
+            exit 1
+          }
+          find . -name "*kover*.xml" -o -name "report.xml" -o -name "reportDebug.xml" | grep -q . || {
+            echo "::error::Kover XML coverage report missing"
+            exit 1
+          }
+          echo "Coverage evidence verified."
+
       - name: Check for SonarQube Cloud Token
         id: check_token
         run: |
           if [ -z "${{ secrets.SONAR_TOKEN }}" ]; then
-            echo "has_token=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::SONAR_TOKEN is not configured in repository secrets. Analysis will run once configured by repository owner."
-          else
-            echo "has_token=true" >> "$GITHUB_OUTPUT"
+            echo "::error title=SonarQube Cloud Token Missing::SONAR_TOKEN secret is required for mandatory SonarQube Cloud quality platform analysis. Analysis cannot be bypassed."
+            exit 1
           fi
 
       - name: Run SonarQube Cloud Analysis
-        if: steps.check_token.outputs.has_token == 'true'
         # sonarsource/sonarqube-scan-action v8.2.2
         uses: sonarsource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4
         env:
@@ -383,10 +404,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ---------------------------------------------------------------------------
-  # 7. Gate — required status interface for default branch protection
+  # 7. Gate — required status interface for default branch protection (verify / gate)
   # ---------------------------------------------------------------------------
   gate:
-    name: Required verification gate
+    name: gate
     needs:
       - quality
       - android

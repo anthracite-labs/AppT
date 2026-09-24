@@ -18,23 +18,23 @@ reviews:
   pre_merge_checks:
     issue_assessment:
       mode: "warning"
-  custom_checks:
-    - name: "Issue/spec completeness"
-      mode: "warning"
-      instructions: >-
-        The pull request must satisfy its linked Issue completely and must not
-        add unrelated scope, speculative abstractions, or features outside the
-        work order.
-    - name: "Verification integrity"
-      mode: "warning"
-      instructions: >-
-        No accepted verification gate may be removed or weakened without its
-        proven replacement. No skipped or disabled tests, blanket suppressions,
-        unreviewed generated baselines, placeholder TODOs, stubs, or fake
-        implementations are permitted to satisfy acceptance criteria.
-    - name: "Architecture/privacy/supply-chain integrity"
-      mode: "warning"
-      instructions: >-
-        The diff must preserve documented module boundaries, privacy rules,
-        no-telemetry invariants, exact version catalog pinning, and must not add
-        unreviewed dependencies or actions or bypass dependency verification.
+    custom_checks:
+      - name: "Issue/spec completeness"
+        mode: "warning"
+        instructions: >-
+          The pull request must satisfy its linked Issue completely and must not
+          add unrelated scope, speculative abstractions, or features outside the
+          work order.
+      - name: "Verification integrity"
+        mode: "warning"
+        instructions: >-
+          No accepted verification gate may be removed or weakened without its
+          proven replacement. No skipped or disabled tests, blanket suppressions,
+          unreviewed generated baselines, placeholder TODOs, stubs, or fake
+          implementations are permitted to satisfy acceptance criteria.
+      - name: "Architecture/privacy/supply-chain integrity"
+        mode: "warning"
+        instructions: >-
+          The diff must preserve documented module boundaries, privacy rules,
+          no-telemetry invariants, exact version catalog pinning, and must not add
+          unreviewed dependencies or actions or bypass dependency verification.

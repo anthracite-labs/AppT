@@ -112,12 +112,11 @@ Secondary:
 - Final AppT source-license decision remains required before public distribution.
 - Focused Samsung vendor-terms/legal review must be completed before public release.
 - Physical-device evidence is required to tune the reliability targets in `docs/architecture/reliability.md`.
-- SonarQube Cloud and CodeRabbit repository onboarding is now observed on PR #59. Sonar currently runs automatic analysis with a passing quality gate but no imported coverage; Issue #56 must convert it to CI-based analysis and prove Kotlin 2.4.20 compatibility before Kotlin-specific Sonar findings become blocking. CodeRabbit currently runs its default CHILL configuration; Issue #56 must replace that default with the version-controlled AppT review/pre-merge policy.
+- SonarQube Cloud and CodeRabbit repository onboarding is active under PR #60. CI-based Sonar analysis requires repository owner configuration of SONAR_TOKEN and disabling automatic analysis. CodeRabbit repository configuration (.coderabbit.yaml) is version-controlled and pending PR merge to take effect on target branch.
 
 ## Recent change
 
-- `Issue #56 verification and AI-code assurance architecture implemented: .github/workflows/verify.yml with required gate verify / gate, root Gradle ciCheck aggregating strict Kotlin diagnostics, Spotless+ktfmt, unit tests, Android Lint, detekt, Kover coverage verification, dependency locks, appTGuards, and macrobenchmark compilation; backend verify interface composing typecheck, ESLint, Prettier, Knip, Jest, and Jest coverage; Gradle Managed Devices (API 29) runtime acceptance; SonarQube Cloud CI-based analysis importing Kover and Jest coverage; .coderabbit.yaml; weekly coordinated Dependabot policy; and contraction of legacy ci.yml and maintenance.yml.`
-- `Verification architecture was expanded through PR #59 with the independently researched AI-code assurance stack: deterministic compiler/formatter/linter/coverage/dead-code controls, SonarQube Cloud, CodeRabbit review, and an independent post-Arena code-review pass now define the target for Issue #56.`
+- `Verification architecture and AI-code assurance implementation is active under PR #60 (Issue #56), introducing .github/workflows/verify.yml with proposed required gate verify / gate, root Gradle ciCheck aggregating strict Kotlin diagnostics, Spotless + ktfmt, Kover coverage floor, dependency locks, appTGuards, and macrobenchmark compilation; backend verify interface composing typecheck, ESLint, Prettier, Knip, Jest, and coverage; Gradle Managed Devices (API 29); CI-based SonarQube Cloud quality platform; version-controlled .coderabbit.yaml; weekly coordinated Dependabot policy; and contracting legacy ci.yml and maintenance.yml.`
 
 ## Relevant canonical references
 
@@ -133,14 +132,14 @@ Secondary:
 - `GitHub Issue #27 — completed S01 Arena work order; closed by merged PR #30.`
 - `GitHub Issue #36 — completed security-baseline Arena work order; closed by merged PR #38.`
 - `GitHub Issue #54 / PR #55 — completed one-pass dependency and toolchain modernization.`
-- `GitHub Issue #56 — authorized repository-side implementation of the accepted verification and AI-code assurance architecture; its Arena work order must be compiled from current main and kept separate from S02 product scope.`
+- `GitHub Issue #56 / PR #60 — active implementation of the accepted verification and AI-code assurance architecture; replaces legacy CI/maintenance topology with one-owner verification workflow.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
 - `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
 - `AGENTS.md — repository operating entry point.`
 
 ## Next
 
-`Compile and dispatch S02 — Local-network explanation and bounded discovery — as the next authorized product implementation slice, using the accepted slice/architecture sources and preserving the merged security baseline.`
+`Complete review and address owner feedback on PR #60 for Issue #56, then proceed to dispatch S02 — Local-network explanation and bounded discovery — as the next authorized product implementation slice.`
 
 ## After that
 

@@ -1,7 +1,7 @@
 # Dependabot version-update configuration for AppT.
 #
-# Purpose and limits (Issue #36): this produces *reviewed pull requests*. It does
-# not replace, and must not be read as replacing, any of the existing controls:
+# Purpose and limits (Issue #36, Issue #56): this produces *reviewed pull requests*.
+# It does not replace, and must not be read as replacing, any of the existing controls:
 #
 #   * committed Gradle lockfiles, refreshed only through
 #     `./gradlew resolveAndLockAll --write-locks` as a reviewed change;
@@ -27,6 +27,22 @@
 
 version: 2
 
+multi-ecosystem-groups:
+  app-modernization:
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: UTC
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - modernization
+    commit-message:
+      prefix: 'deps(modernization)'
+
 updates:
   # ---------------------------------------------------------------------------
   # Gradle: gradle/libs.versions.toml is where Dependabot writes its bumps.
@@ -47,6 +63,9 @@ updates:
       - gradle
     commit-message:
       prefix: 'deps(gradle)'
+    patterns:
+      - '*'
+    multi-ecosystem-group: app-modernization
     groups:
       androidx:
         patterns:
@@ -104,6 +123,9 @@ updates:
       - backend
     commit-message:
       prefix: 'deps(backend)'
+    patterns:
+      - '*'
+    multi-ecosystem-group: app-modernization
     groups:
       typescript:
         patterns:
@@ -142,3 +164,6 @@ updates:
       - ci
     commit-message:
       prefix: 'deps(actions)'
+    patterns:
+      - '*'
+    multi-ecosystem-group: app-modernization

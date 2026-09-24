@@ -109,13 +109,14 @@ The implementing sandbox has no JDK, no Android SDK, and no egress to
 `dl.google.com`, `repo1.maven.org` or `services.gradle.org`, so Gradle cannot
 resolve or run there. GitHub Actions is therefore the authoritative execution
 environment for every Android command in this file, and the CI run on a pull
-request (`.github/workflows/verify.yml` with required status `verify / gate`) is
+request (`.github/workflows/verify.yml` with proposed required check `verify / gate`) is
 the evidence that they pass.
 
 The backend package, the secret scanner, yamllint, markdownlint, and ShellCheck
 run locally:
 
-- `npm ci/run verify --prefix backend`
+- `npm ci --prefix backend`
+- `npm run verify --prefix backend`
 - `node --test "tools/secret-scan/test/secret-scan.test.mjs" && node tools/secret-scan/secret-scan.mjs`
 - `yamllint -c .yamllint.yml .`
 - `tools/security/run.sh`
