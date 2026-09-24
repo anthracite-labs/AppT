@@ -95,6 +95,8 @@ The current `.github/workflows/ci.yml` + `.github/workflows/maintenance.yml`
 implementation remains the operational baseline until the migration described
 below is accepted. This section owns the target architecture that replaces it.
 
+Repository-side implementation of this accepted target is tracked by GitHub Issue #56. Issue #56 is executable only after this architecture change is merged to `main`.
+
 ### GitHub-owned controls
 
 Repository settings, not workflow YAML, own:
