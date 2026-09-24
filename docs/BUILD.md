@@ -186,9 +186,10 @@ Do not regenerate Gradle locks or verification metadata as an iteration step.
 Regenerate them only after an actual reviewed dependency change requires it.
 ## CodeQL static analysis
 
-CodeQL static analysis runs in GitHub Actions on pushes to `main`, on its
-scheduled run, and when explicitly dispatched for a branch that needs the long
-security pass. It does not run automatically on pull-request synchronization.
+CodeQL static analysis keeps pull-request synchronization build-free: PR updates
+scan GitHub Actions and JavaScript/TypeScript only. Java/Kotlin CodeQL, which
+requires an Android/Kotlin build, runs only when explicitly dispatched, on
+pushes to `main`, and on the scheduled security run.
 
 Because GitHub-managed Default Setup uses CodeQL bundle 2.27.0 which does not
 support Kotlin 2.4.20 (supported starting in CodeQL CLI / bundle 2.27.1), AppT
