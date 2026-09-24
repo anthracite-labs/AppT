@@ -57,8 +57,12 @@ jobs:
         # DavidAnson/markdownlint-cli2-action v24.2.0
         uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff
         with:
-          config: '.markdownlint.jsonc'
-          globs: '**/*.md'
+          config: '.markdownlint-cli2.jsonc'
+          globs: |
+            **/*.md
+            !.agents/**
+            !node_modules/**
+            !backend/node_modules/**
 
       - name: Run ShellCheck
         run: |
@@ -118,7 +122,15 @@ jobs:
 
       - name: Run root Gradle ciCheck under strict dependency verification
         run: |
-          ./gradlew --no-daemon --dependency-verification=strict ciCheck
+          set -o pipefail
+          ./gradlew --no-daemon --dependency-verification=strict ciCheck 2>&1 | tee /tmp/cicheck.log || {
+            echo "### ciCheck Failure Log" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 80 /tmp/cicheck.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=ciCheck Failure::$(tail -n 10 /tmp/cicheck.log | tr '\n' ' ')"
+            exit 1
+          }
 
       - name: Upload Kover coverage report
         if: always()
