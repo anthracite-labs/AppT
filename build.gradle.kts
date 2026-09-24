@@ -152,6 +152,7 @@ tasks.register("ciCheck") {
         "spotlessCheck",
         ":app:assembleDebug",
         ":app:testDebugUnitTest",
+        ":samsung:testDebugUnitTest",
         ":app:lintDebug",
         ":samsung:lintDebug",
         ":app:detekt",

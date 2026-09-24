@@ -1,0 +1,9 @@
+{
+  "caseId": "no-stable-uuid",
+  "captured": "2026-09-24",
+  "generation": "tizen-websocket",
+  "sourceRole": "synthetic",
+  "source": "Authored for S02 (Issue #73) from the device-info field list in docs/architecture/protocol.md and the probe rules in docs/architecture/discovery.md. Not captured from a physical television.",
+  "redaction": "Contains no address, MAC, Wi-Fi name, token, serial or certificate. Hosts are placeholders such as [host-a]; address-like and identifying device-info fields are replaced with bracketed placeholders; UUIDs are randomly generated for this fixture.",
+  "notes": "Two televisions confirm without a usable UUID (one reports a malformed id, one reports none) and share a display name. Expect two cards with minted, phone-local ids (stableIdentity false), never derived from an address, name or model."
+}

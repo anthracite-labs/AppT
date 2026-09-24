@@ -1,9 +1,10 @@
 // :app — the production Android application (docs/architecture/modules.md#shape).
 //
-// S01 scope: one activity, a Navigation Compose graph containing only
-// WelcomeRoute, and the design-token package. No Room, DataStore, Hilt,
-// Firebase, billing or networking dependency is declared here: each belongs
-// to the slice that first makes it real.
+// S01 scope: one activity, a Navigation Compose graph, and the design-token
+// package. S02 (Issue #73) adds the local-network explanation, the permission
+// gate and Discovery. No Room, DataStore, Hilt, Firebase, billing or networking
+// library is declared here: each belongs to the slice that first makes it real
+// (all network traffic lives in :samsung).
 
 import java.util.Locale
 
@@ -144,6 +145,11 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    // S02: ViewModels for LocalNetwork/Discovery and lifecycle-aware state
+    // collection. Same Lifecycle version already pinned and already on the
+    // resolved graph through navigation-compose; now declared directly.
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.serialization.json)
 
@@ -162,6 +168,8 @@ dependencies {
     testImplementation(libs.androidx.test.ext.junit)
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(platform(libs.androidx.compose.bom))
+    // S02: ViewModel tests drive viewModelScope with a test Main dispatcher.
+    testImplementation(libs.kotlinx.coroutines.test)
 
     // Instrumented (on-device) tests. These prove the installed debug APK
     // launches to Welcome, which is an Issue #27 acceptance criterion that a
@@ -177,7 +185,8 @@ dependencies {
 // ---------------------------------------------------------------------------
 
 // The allowlist is owned verbatim by release.md. It is an allowlist, not an
-// instruction to declare these permissions: S01 declares none of them.
+// instruction to declare these permissions: S02 declares the four discovery
+// permissions and nothing else (no BILLING until the licensing slice).
 val manifestPermissionAllowlist =
     setOf(
         "android.permission.INTERNET",

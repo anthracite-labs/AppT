@@ -1,8 +1,9 @@
 // :samsung — the production Samsung control module
 // (docs/architecture/modules.md#samsung-control-samsung).
 //
-// S01 establishes the module and its dependency boundary only. Discovery,
-// pairing, the session, the protocol, secret storage and wake are S02–S04.
+// S01 established the module and its dependency boundary. S02 adds discovery
+// (SamsungTvs.discover()); pairing, the session, the protocol, secret storage
+// and wake are S03+.
 //
 // Forbidden here, now and later, enforced by `samsungDependencyBoundary`:
 // Firebase, Play services, Play Billing, Play Integrity, any telemetry SDK,
@@ -75,10 +76,20 @@ detekt {
 }
 
 dependencies {
-    // Nothing beyond the Android framework and the Kotlin stdlib is needed by
-    // the S01 skeleton. OkHttp and kotlinx-serialization arrive with the
-    // session and protocol work that uses them.
+    // S02 discovery (Issue #73). Both are already on :app's resolved graph at
+    // these exact versions; see the license/provenance notes in
+    // gradle/libs.versions.toml and the S02 pull request.
+    //   * coroutines: the Flow-based SamsungTvs.discover() contract;
+    //   * serialization-json: the bounded device-info parser, through the
+    //     JsonElement tree API only (no serialization compiler plugin here).
+    // OkHttp is deliberately not added in S02: device-info over 8001 is one
+    // bounded socket read (see BoundedHttp.kt for why), and the WebSocket
+    // session that needs OkHttp is S03.
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.serialization.json)
+
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 // Issue #54 — same narrow lint-classpath security constraints as :app; see
