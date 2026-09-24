@@ -141,29 +141,6 @@ jobs:
           gradle-version: ${{ env.GRADLE_VERSION }}
           cache-provider: 'basic'
 
-      - name: Regenerate verification metadata and lockfiles if needed
-        run: |
-          ./gradlew --no-daemon --write-verification-metadata sha256 ciCheck || true
-          ./gradlew --no-daemon resolveAndLockAll --write-locks || true
-          if [ -f build/reports/kover/report.xml ]; then
-            echo "::notice title=Kover Root Report::$(grep -i '<counter type="LINE"' build/reports/kover/report.xml | tail -n 1)"
-          fi
-          if [ -f app/build/reports/kover/report.xml ]; then
-            echo "::notice title=Kover App Report::$(grep -i '<counter type="LINE"' app/build/reports/kover/report.xml | tail -n 1)"
-          fi
-          git diff gradle/verification-metadata.xml > /tmp/vm.diff || true
-          git diff -- '*.lockfile' > /tmp/locks.diff || true
-          if [ -s /tmp/vm.diff ]; then
-            echo "::warning title=METADATA_HEAD::$(head -c 2500 /tmp/vm.diff | base64 -w 0)"
-            echo "::warning title=METADATA_TAIL::$(tail -c +2501 /tmp/vm.diff | base64 -w 0)"
-          fi
-          if [ -s /tmp/locks.diff ]; then
-            echo "::warning title=LOCKS_HEAD::$(head -c 2500 /tmp/locks.diff | base64 -w 0)"
-            echo "::warning title=LOCKS_TAIL::$(tail -c +2501 /tmp/locks.diff | base64 -w 0)"
-          fi
-          pom_line=$(grep -A 5 'org.jetbrains.kotlinx.kover.gradle.plugin.*0.9.5' gradle/verification-metadata.xml | tr '\n' ' ' || true)
-          echo "::notice title=KOVER_POM_SHA::${pom_line}"
-
       - name: Run root Gradle ciCheck under strict dependency verification
         run: |
           set -o pipefail
@@ -289,6 +266,8 @@ jobs:
           ./gradlew --no-daemon --dependency-verification=strict \
             -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
             :app:pixel2api29DebugAndroidTest 2>&1 | tee /tmp/gmd.log || {
+              echo "::error title=GMD Failure::$(grep -A 10 "\* What went wrong:" /tmp/gmd.log | head -n 10 | tr '\n' ' ')"
+              grep -A 30 "FAILURE: Build failed" /tmp/gmd.log || true
               {
                 echo "### GMD Failure Log"
                 echo '```'
