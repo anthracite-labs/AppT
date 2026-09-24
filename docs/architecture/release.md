@@ -108,8 +108,9 @@ Repository settings, not workflow YAML, own:
 - CodeQL analysis for Java/Kotlin, JavaScript/TypeScript and GitHub Actions,
   using the `security-extended` query suite (temporarily via `.github/workflows/codeql.yml`
   pinned to bundle 2.27.1 while managed Default Setup lacks Kotlin 2.4.20 support);
-  during implementation it runs only when explicitly dispatched for a branch,
-  plus scheduled/default-branch runs;
+  pull-request synchronization runs only the build-free GitHub Actions and
+  JavaScript/TypeScript analyses, while Java/Kotlin CodeQL is human-triggered
+  during implementation and still runs on `main` and the scheduled security pass;
 - secret scanning and push protection;
 - the dependency graph, Dependabot alerts, security updates and grouped
   version-update proposals. Automatic dependency submission is not part of
