@@ -93,6 +93,46 @@ change, refresh them with:
 ./gradlew resolveAndLockAll --write-locks
 ```
 
+### Plugin-classpath tooling constraints (Issue #68)
+
+Some vulnerable coordinates are never declared by an AppT module. They reach the
+dependency graph only as transitives of the Gradle plugins this build applies —
+`jose4j` through AGP's `bundletool`, `jdom2` through AGP's
+`jetifier-processor`, and `org.eclipse.jgit` through Spotless's
+`spotless-lib-extra`. They appear in no `*.gradle.lockfile` and nowhere in
+`gradle/libs.versions.toml`, and the updater cannot see them:
+
+* GitHub's dependency graph resolves the plugin/buildscript classpath, so the
+  alerts against them are real;
+* Dependabot's Gradle updater does not resolve anything — it harvests literal
+  `group:name:version` declarations — so a security update for an undeclared
+  coordinate fails with `dependency_not_found` and the job stays red while the
+  alert stays open.
+
+The seam that owns them is the root `buildscript { dependencies { constraints {
+classpath(...) } } }` block in `build.gradle.kts`. A constraint records the
+coordinate in the declaration surface the updater reads *and* is a floor in
+Gradle conflict resolution, never a downgrade, so it stays correct when a later
+plugin bump moves the same transitive further forward.
+
+`tools/security/enforce-gradle-tooling-constraints.mjs` enforces both halves of
+that invariant for every coordinate in `TOOLING_ADVISORY_CONSTRAINTS`: the
+coordinate must be declared at or above its first patched version somewhere
+Dependabot's Gradle file parser reads, and `gradle/verification-metadata.xml`
+must not still record a version below it.
+
+```bash
+node tools/security/enforce-gradle-tooling-constraints.mjs
+tools/security/run.sh deps
+```
+
+`--write-verification-metadata` only ever adds entries, so when a constraint
+raises a plugin transitive's resolved version the superseded `<component>` block
+stays behind. Remove it in the same reviewed change: it is stale, and leaving it
+makes the committed supply-chain artifact claim a vulnerable version the build
+no longer resolves. Strict verification fails loudly if the removed entry was
+still needed, so the removal is self-checking.
+
 Backend, always package-prefixed from the repository root
 (docs/architecture/release.md):
 

@@ -26,21 +26,16 @@
 // resolution, never a downgrade, so these stay correct when a later plugin bump
 // moves the same transitive further forward.
 //
-// Owners, verified against the repository dependency graph:
-//   org.bitbucket.b_c:jose4j        <- com.android.tools.build:bundletool:1.18.3
-//                                      (AGP 9.4.1); 0.9.5 is vulnerable to
-//                                      GHSA-3677-xxcr-wjqv / CVE-2024-29371,
-//                                      patched in 0.9.6.
-//   org.eclipse.jgit:org.eclipse.jgit <- com.diffplug.spotless:spotless-lib-extra:3.0.2
-//                                      (Spotless 7.0.2); 6.10.0.202406032230-r
-//                                      is vulnerable to GHSA-vrpq-qp53-qv56 /
-//                                      CVE-2025-4949, patched in the 6.10 line
-//                                      at 6.10.1.202505221210-r.
-//   org.jdom:jdom2                  <-
-// com.android.tools.build.jetifier:jetifier-processor:1.0.0-beta10
-//                                      (AGP 9.4.1); 2.0.6 is vulnerable to
-//                                      GHSA-2363-cqg2-863c / CVE-2021-33813,
-//                                      patched in 2.0.6.1.
+// Owners, read off the repository dependency graph, which records exactly these
+// DEPENDS_ON edges:
+//   jose4j      <- com.android.tools.build:bundletool:1.18.3 (AGP 9.4.1)
+//                  0.9.5 -> GHSA-3677-xxcr-wjqv / CVE-2024-29371, fixed in 0.9.6
+//   jgit        <- com.diffplug.spotless:spotless-lib-extra:3.0.2 (Spotless 7.0.2)
+//                  6.10.0.202406032230-r -> GHSA-vrpq-qp53-qv56 / CVE-2025-4949,
+//                  fixed in the 6.10 line at 6.10.1.202505221210-r
+//   jdom2       <- jetifier-processor:1.0.0-beta10 (AGP 9.4.1), that is
+//                  com.android.tools.build.jetifier:jetifier-processor
+//                  2.0.6 -> GHSA-2363-cqg2-863c / CVE-2021-33813, fixed in 2.0.6.1
 //
 // `tools/security/enforce-gradle-tooling-constraints.mjs` keeps this block and
 // the regenerated verification metadata honest.
