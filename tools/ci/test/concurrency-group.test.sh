@@ -29,7 +29,10 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/../../.." && pwd -P)"
 CI_WORKFLOW="$REPO_ROOT/.github/workflows/ci.yml"
 
-[ -f "$CI_WORKFLOW" ] || { echo "FAIL: $CI_WORKFLOW not found" >&2; exit 1; }
+[ -f "$CI_WORKFLOW" ] || {
+  echo "FAIL: $CI_WORKFLOW not found" >&2
+  exit 1
+}
 
 pass=0
 fail=0
@@ -57,11 +60,11 @@ expect() { # <case> <actual> <expected>
 group_for() { # <event-name> <ref>
   local event="$1" ref="$2" class
   case "$event" in
-    pull_request) class="pr" ;;
-    push) class="push" ;;
-    schedule) class="schedule" ;;
-    workflow_dispatch) class="dispatch" ;;
-    *) return 2 ;;
+  pull_request) class="pr" ;;
+  push) class="push" ;;
+  schedule) class="schedule" ;;
+  workflow_dispatch) class="dispatch" ;;
+  *) return 2 ;;
   esac
   echo "ci-${class}-${ref}"
 }
@@ -106,20 +109,20 @@ fi
 group_line="$(grep -E '^\s*group:' "$CI_WORKFLOW" | head -1 || true)"
 [ -n "$group_line" ] || fail_case "ci.yml: no concurrency group line found"
 case "$group_line" in
-  *github.event_name*) pass=$((pass + 1)) ;;
-  *) fail_case "ci.yml: concurrency group does not derive from github.event_name" ;;
+*github.event_name*) pass=$((pass + 1)) ;;
+*) fail_case "ci.yml: concurrency group does not derive from github.event_name" ;;
 esac
 case "$group_line" in
-  *github.ref*) pass=$((pass + 1)) ;;
-  *) fail_case "ci.yml: concurrency group does not include github.ref" ;;
+*github.ref*) pass=$((pass + 1)) ;;
+*) fail_case "ci.yml: concurrency group does not include github.ref" ;;
 esac
 case "$group_line" in
-  *"pull_request"*) pass=$((pass + 1)) ;;
-  *) fail_case "ci.yml: concurrency group does not name the pull_request class" ;;
+*"pull_request"*) pass=$((pass + 1)) ;;
+*) fail_case "ci.yml: concurrency group does not name the pull_request class" ;;
 esac
 case "$group_line" in
-  *"schedule"*) pass=$((pass + 1)) ;;
-  *) fail_case "ci.yml: concurrency group does not name the schedule class" ;;
+*"schedule"*) pass=$((pass + 1)) ;;
+*) fail_case "ci.yml: concurrency group does not name the schedule class" ;;
 esac
 if grep -q 'cancel-in-progress: true' "$CI_WORKFLOW"; then
   pass=$((pass + 1))

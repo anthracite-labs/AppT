@@ -42,7 +42,10 @@ OPS_SCRIPT="$SCRIPT_DIR/../maintenance-cleanup-operations.sh"
 MAINT_WORKFLOW="$REPO_ROOT/.github/workflows/maintenance.yml"
 
 for f in "$PLAN_SCRIPT" "$OPS_SCRIPT" "$MAINT_WORKFLOW"; do
-  [ -f "$f" ] || { echo "FAIL: $f not found" >&2; exit 1; }
+  [ -f "$f" ] || {
+    echo "FAIL: $f not found" >&2
+    exit 1
+  }
 done
 
 tmp="$(mktemp -d)"
@@ -88,7 +91,7 @@ CURRENT_RUN=99
 #   gh api --paginate --slurp ... | jq '[.[].workflow_runs[]]' > all-runs.json
 make_fixture() {
   local out="$1"
-  cat > "$out" <<'EOF'
+  cat >"$out" <<'EOF'
   [
     {"id": 1,  "workflow_id": 111, "name": "CI",          "event": "push",             "status": "completed", "conclusion": "success", "created_at": "2026-09-01T00:00:00Z", "head_branch": "main"},
     {"id": 2,  "workflow_id": 111, "name": "CI",          "event": "push",             "status": "completed", "conclusion": "failure", "created_at": "2026-09-02T00:00:00Z", "head_branch": "main"},
@@ -109,12 +112,12 @@ EOF
 # it) is tolerated by the scripts: one page object holding all the runs.
 make_fixture_page_shape() {
   local out="$1"
-  jq '[{total_count: length, workflow_runs: .}]' "$tmp/all-runs.json" > "$out"
+  jq '[{total_count: length, workflow_runs: .}]' "$tmp/all-runs.json" >"$out"
 }
 
 make_operations() {
   local out="$1"
-  cat > "$out" <<'EOF'
+  cat >"$out" <<'EOF'
   [
     {"id": 10, "operation": "export-dependabot"},
     {"id": 11, "operation": "export-dependabot"},
@@ -144,7 +147,10 @@ expect "planner exit" "$PLANNER_EXIT" 0
 # carry the id in column 1; kept carries it in column 3).
 tsv_ids() { # <file> [column]
   local f="$1" col="${2:-1}"
-  [ -f "$f" ] || { echo "MISSING:$f"; return 0; }
+  [ -f "$f" ] || {
+    echo "MISSING:$f"
+    return 0
+  }
   cut -f"$col" "$f" | sort -n | tr '\n' ' ' | sed 's/ $//'
 }
 
@@ -179,15 +185,15 @@ fi
 
 # --- Summary mentions the quarantined run. ------------------------------------
 case "$LAST_OUTPUT" in
-  *"Quarantined (operation unresolved, never deleted): **1**"*) pass=$((pass + 1)) ;;
-  *) fail_case "planner summary does not report the quarantined run count" ;;
+*"Quarantined (operation unresolved, never deleted): **1**"*) pass=$((pass + 1)) ;;
+*) fail_case "planner summary does not report the quarantined run count" ;;
 esac
 
 # ---------------------------------------------------------------------------
 # Empty plan edge: no runs at all → no delete file rows, clean exit.
 # ---------------------------------------------------------------------------
 # The fetch step writes [] for a runless repository.
-echo '[]' > "$tmp/empty-runs.json"
+echo '[]' >"$tmp/empty-runs.json"
 out_dir2="$tmp/plan-empty"
 mkdir -p "$out_dir2"
 if GITHUB_RUN_ID="$CURRENT_RUN" bash "$PLAN_SCRIPT" "$tmp/empty-runs.json" "$tmp/operations.json" "$out_dir2" >/dev/null 2>&1; then
@@ -229,14 +235,15 @@ mk_job() { # <name> <status> <conclusion-json>
 }
 
 jobs_fixture() { # <file> <job-json>...
-  local out="$1" first=1 j; shift
-  printf '{"total_count": %d, "jobs": [' "$#" > "$out"
+  local out="$1" first=1 j
+  shift
+  printf '{"total_count": %d, "jobs": [' "$#" >"$out"
   for j in "$@"; do
-    [ "$first" -eq 1 ] || printf ', ' >> "$out"
-    printf '%s' "$j" >> "$out"
+    [ "$first" -eq 1 ] || printf ', ' >>"$out"
+    printf '%s' "$j" >>"$out"
     first=0
   done
-  printf ']}\n' >> "$out"
+  printf ']}\n' >>"$out"
 }
 
 SKIP_CLEANUP="$(mk_job "Keep latest run per workflow" completed '"skipped"')"
@@ -246,42 +253,42 @@ SKIP_PURGE="$(mk_job "Delete all GitHub Actions caches" completed '"skipped"')"
 jobs_fixture "$tmp/jobs-completed.json" \
   "$(mk_job "Export Dependabot alerts" completed '"success"')" "$SKIP_CLEANUP" "$SKIP_PURGE"
 expect "jobs: completed selected job resolves" \
-  "$(resolve_job_name_from_jobs < "$tmp/jobs-completed.json")" "Export Dependabot alerts"
+  "$(resolve_job_name_from_jobs <"$tmp/jobs-completed.json")" "Export Dependabot alerts"
 
 # An in_progress selected job (conclusion null) plus two skipped jobs.
 jobs_fixture "$tmp/jobs-inprogress.json" \
   "$SKIP_CLEANUP" "$(mk_job "Delete all GitHub Actions caches" in_progress 'null')" "$SKIP_PURGE"
 expect "jobs: in_progress selected job (conclusion null) resolves" \
-  "$(resolve_job_name_from_jobs < "$tmp/jobs-inprogress.json")" "Delete all GitHub Actions caches"
+  "$(resolve_job_name_from_jobs <"$tmp/jobs-inprogress.json")" "Delete all GitHub Actions caches"
 
 # A queued selected job (conclusion null) plus two skipped jobs.
 jobs_fixture "$tmp/jobs-queued.json" \
   "$(mk_job "Keep latest run per workflow" queued 'null')" "$SKIP_CLEANUP" "$SKIP_PURGE"
 expect "jobs: queued selected job (conclusion null) resolves" \
-  "$(resolve_job_name_from_jobs < "$tmp/jobs-queued.json")" "Keep latest run per workflow"
+  "$(resolve_job_name_from_jobs <"$tmp/jobs-queued.json")" "Keep latest run per workflow"
 
 # Ambiguous: two non-skipped jobs → no resolution.
 jobs_fixture "$tmp/jobs-ambiguous.json" \
   "$(mk_job "Export Dependabot alerts" completed '"success"')" \
   "$(mk_job "Keep latest run per workflow" completed '"success"')" "$SKIP_PURGE"
 expect "jobs: two non-skipped jobs stay unresolved" \
-  "$(resolve_job_name_from_jobs < "$tmp/jobs-ambiguous.json")" ""
+  "$(resolve_job_name_from_jobs <"$tmp/jobs-ambiguous.json")" ""
 
 # All three skipped (run cancelled before any job started).
 jobs_fixture "$tmp/jobs-allskipped.json" \
   "$(mk_job "Export Dependabot alerts" completed '"skipped"')" "$SKIP_CLEANUP" "$SKIP_PURGE"
 expect "jobs: all skipped stays unresolved" \
-  "$(resolve_job_name_from_jobs < "$tmp/jobs-allskipped.json")" ""
+  "$(resolve_job_name_from_jobs <"$tmp/jobs-allskipped.json")" ""
 
 # Run still queued: the jobs list is empty.
-printf '{"total_count": 0, "jobs": []}\n' > "$tmp/jobs-empty.json"
+printf '{"total_count": 0, "jobs": []}\n' >"$tmp/jobs-empty.json"
 expect "jobs: empty job list stays unresolved" \
-  "$(resolve_job_name_from_jobs < "$tmp/jobs-empty.json")" ""
+  "$(resolve_job_name_from_jobs <"$tmp/jobs-empty.json")" ""
 
 # Unexpected shape: no jobs key at all.
-printf '{}\n' > "$tmp/jobs-missing.json"
+printf '{}\n' >"$tmp/jobs-missing.json"
 expect "jobs: missing .jobs stays unresolved" \
-  "$(resolve_job_name_from_jobs < "$tmp/jobs-missing.json")" ""
+  "$(resolve_job_name_from_jobs <"$tmp/jobs-missing.json")" ""
 
 # ---------------------------------------------------------------------------
 # End-to-end: a Maintenance run whose job set could not be resolved (as
@@ -289,13 +296,13 @@ expect "jobs: missing .jobs stays unresolved" \
 # it — preserved and reported, never a deletion candidate — while the
 # resolvable run of the same workflow is still preserved per operation.
 # ---------------------------------------------------------------------------
-cat > "$tmp/quarantine-runs.json" <<'EOF'
+cat >"$tmp/quarantine-runs.json" <<'EOF'
 [
   {"id": 50, "workflow_id": 222, "name": "Maintenance", "event": "workflow_dispatch", "status": "completed", "conclusion": "success", "created_at": "2026-09-15T00:00:00Z", "head_branch": "main"},
   {"id": 51, "workflow_id": 222, "name": "Maintenance", "event": "workflow_dispatch", "status": "completed", "conclusion": "success", "created_at": "2026-09-16T00:00:00Z", "head_branch": "main"}
 ]
 EOF
-echo '[{"id": 51, "operation": "export-dependabot"}]' > "$tmp/quarantine-ops.json"
+echo '[{"id": 51, "operation": "export-dependabot"}]' >"$tmp/quarantine-ops.json"
 out_q="$tmp/plan-quarantine"
 mkdir -p "$out_q"
 if GITHUB_RUN_ID=99 bash "$PLAN_SCRIPT" "$tmp/quarantine-runs.json" "$tmp/quarantine-ops.json" "$out_q" >/dev/null 2>&1; then

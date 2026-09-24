@@ -61,18 +61,21 @@ base_ref="${5:-}"
 
 [ $# -ge 3 ] || usage
 case "$event" in
-  pull_request | push | schedule | workflow_dispatch) ;;
-  *)
-    echo "classify-changes: unknown event name: '$event'" >&2
-    usage
-    ;;
+pull_request | push | schedule | workflow_dispatch) ;;
+*)
+  echo "classify-changes: unknown event name: '$event'" >&2
+  usage
+  ;;
 esac
-[ -n "$head_sha" ] || { echo "classify-changes: <head-sha> is required" >&2; usage; }
+[ -n "$head_sha" ] || {
+  echo "classify-changes: <head-sha> is required" >&2
+  usage
+}
 case "$pr_count" in
-  '' | *[!0-9]*)
-    echo "classify-changes: <associated-pr-count> must be a non-negative integer, got '$pr_count'" >&2
-    usage
-    ;;
+'' | *[!0-9]*)
+  echo "classify-changes: <associated-pr-count> must be a non-negative integer, got '$pr_count'" >&2
+  usage
+  ;;
 esac
 
 # ---------------------------------------------------------------------------
@@ -80,7 +83,7 @@ esac
 # ---------------------------------------------------------------------------
 changed_files="changed-files.txt"
 rm -f "$changed_files"
-: > "$changed_files"
+: >"$changed_files"
 
 if [ "$event" = "pull_request" ] || [ "$event" = "push" ]; then
   zeros="0000000000000000000000000000000000000000"
@@ -93,7 +96,7 @@ if [ "$event" = "pull_request" ] || [ "$event" = "push" ]; then
     echo "classify-changes: base '$base_sha' unavailable; falling back to $fallback (head^)." >&2
     base_sha="$fallback"
   fi
-  git diff --name-only "$base_sha" "$head_sha" > "$changed_files"
+  git diff --name-only "$base_sha" "$head_sha" >"$changed_files"
   echo "classify-changes: diffing $base_sha..$head_sha" >&2
 else
   echo "classify-changes: '$event' carries no diff; classifying as a scheduled/manual CodeQL run." >&2
@@ -119,45 +122,45 @@ while IFS= read -r path; do
   [ -n "$path" ] || continue
 
   case "$path" in
-    .github/workflows/ci.yml | tools/ci/*) ci_config=true ;;
+  .github/workflows/ci.yml | tools/ci/*) ci_config=true ;;
   esac
 
   case "$path" in
-    app/* | samsung/* | macrobenchmark/* | gradle/* | build.gradle.kts | settings.gradle.kts | gradle.properties | tools/ci/*)
-      android=true
-      ;;
+  app/* | samsung/* | macrobenchmark/* | gradle/* | build.gradle.kts | settings.gradle.kts | gradle.properties | tools/ci/*)
+    android=true
+    ;;
   esac
 
   case "$path" in
-    app/*.kt | samsung/*.kt | config/detekt/* | build.gradle.kts | settings.gradle.kts | gradle/libs.versions.toml | gradle/verification-metadata.xml)
-      detekt=true
-      ;;
+  app/*.kt | samsung/*.kt | config/detekt/* | build.gradle.kts | settings.gradle.kts | gradle/libs.versions.toml | gradle/verification-metadata.xml)
+    detekt=true
+    ;;
   esac
 
   case "$path" in
-    app/* | samsung/* | gradle/libs.versions.toml | build.gradle.kts | settings.gradle.kts | gradle.properties | tools/ci/welcome-launch.sh)
-      welcome=true
-      ;;
+  app/* | samsung/* | gradle/libs.versions.toml | build.gradle.kts | settings.gradle.kts | gradle.properties | tools/ci/welcome-launch.sh)
+    welcome=true
+    ;;
   esac
 
   case "$path" in
-    backend/*) backend=true ;;
+  backend/*) backend=true ;;
   esac
 
   case "$path" in
-    app/* | samsung/* | macrobenchmark/* | backend/* | gradle/* | *.gradle.kts | gradle.properties | tools/security/*)
-      codeql=true
-      ;;
+  app/* | samsung/* | macrobenchmark/* | backend/* | gradle/* | *.gradle.kts | gradle.properties | tools/security/*)
+    codeql=true
+    ;;
   esac
 
   case "$path" in
-    *.gradle.kts | gradle.properties | gradle/libs.versions.toml | *.gradle.lockfile | settings-gradle.lockfile | gradle/verification-metadata.xml | gradle/wrapper/gradle-wrapper.properties | backend/package.json | backend/package-lock.json)
-      dependency=true
-      ;;
+  *.gradle.kts | gradle.properties | gradle/libs.versions.toml | *.gradle.lockfile | settings-gradle.lockfile | gradle/verification-metadata.xml | gradle/wrapper/gradle-wrapper.properties | backend/package.json | backend/package-lock.json)
+    dependency=true
+    ;;
   esac
 
   echo "classify-changes:   $path" >&2
-done < "$changed_files"
+done <"$changed_files"
 
 # CI-plumbing rule: the workflow file and tools/ci are the code that decides
 # whether every job below runs. A change to that code must exercise every
@@ -177,15 +180,15 @@ fi
 # ---------------------------------------------------------------------------
 pr_validated=false
 case "$event" in
-  schedule | workflow_dispatch)
+schedule | workflow_dispatch)
+  pr_validated=true
+  ;;
+push)
+  if [ "$pr_count" -gt 0 ]; then
     pr_validated=true
-    ;;
-  push)
-    if [ "$pr_count" -gt 0 ]; then
-      pr_validated=true
-      echo "classify-changes: $head_sha is associated with $pr_count pull request(s); heavy jobs will not be repeated." >&2
-    fi
-    ;;
+    echo "classify-changes: $head_sha is associated with $pr_count pull request(s); heavy jobs will not be repeated." >&2
+  fi
+  ;;
 esac
 
 # ---------------------------------------------------------------------------
@@ -193,7 +196,7 @@ esac
 # ---------------------------------------------------------------------------
 run_secret_scan=false
 case "$event" in
-  pull_request | push) run_secret_scan=true ;;
+pull_request | push) run_secret_scan=true ;;
 esac
 
 run_android=false
@@ -222,16 +225,16 @@ fi
 # always run it — that is what they exist for.
 run_codeql=false
 case "$event" in
-  schedule | workflow_dispatch)
-    run_codeql=true
-    ;;
-  *)
-    if [ "$pr_validated" = "false" ] && [ "$codeql" = "true" ]; then
-      if [ "$event" != "pull_request" ] || [ "$base_ref" = "main" ]; then
-        run_codeql=true
-      fi
+schedule | workflow_dispatch)
+  run_codeql=true
+  ;;
+*)
+  if [ "$pr_validated" = "false" ] && [ "$codeql" = "true" ]; then
+    if [ "$event" != "pull_request" ] || [ "$base_ref" = "main" ]; then
+      run_codeql=true
     fi
-    ;;
+  fi
+  ;;
 esac
 
 # Dependency review stays the main-targeting pull-request check it was before

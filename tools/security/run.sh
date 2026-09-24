@@ -61,7 +61,7 @@ GRADLE_STRICT_FLAGS=(
 )
 GRADLE_BUILD_TASKS=(assembleDebug)
 
-log()  { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
+log() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 info() { printf '    %s\n' "$*"; }
 
 die() {
@@ -113,7 +113,7 @@ check_secrets() {
   node --test "tools/secret-scan/test/secret-scan.test.mjs"
 
   log "Secret scan of the tracked tree${base:+ and the diff against $base}"
-  if [[ -n "$base" ]]; then
+  if [[ -n $base ]]; then
     # A missing base ref must fail loudly rather than silently narrow the scan;
     # the scanner itself exits non-zero in that case.
     node tools/secret-scan/secret-scan.mjs --base "$base"
@@ -145,26 +145,26 @@ check_build() {
 }
 
 case "$MODE" in
-  help|-h|--help)
-    usage
-    ;;
-  secrets)
-    check_secrets "${2:-}"
-    ;;
-  detekt)
-    check_detekt
-    ;;
-  build)
-    check_build
-    ;;
-  all)
-    check_secrets ""
-    check_detekt
-    check_build
-    log "All repository-local security checks passed."
-    ;;
-  *)
-    usage >&2
-    die "unknown mode: $MODE"
-    ;;
+help | -h | --help)
+  usage
+  ;;
+secrets)
+  check_secrets "${2:-}"
+  ;;
+detekt)
+  check_detekt
+  ;;
+build)
+  check_build
+  ;;
+all)
+  check_secrets ""
+  check_detekt
+  check_build
+  log "All repository-local security checks passed."
+  ;;
+*)
+  usage >&2
+  die "unknown mode: $MODE"
+  ;;
 esac

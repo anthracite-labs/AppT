@@ -45,9 +45,15 @@ main() {
   local alerts_json="${1:?usage: export-dependabot-report.sh <alerts.json> <report.md>}"
   local report_md="${2:?usage: export-dependabot-report.sh <alerts.json> <report.md>}"
 
-  [ -f "$alerts_json" ] || { echo "::error::alerts file not found: $alerts_json" >&2; exit 1; }
-  jq -e 'type == "array"' "$alerts_json" >/dev/null 2>&1 \
-    || { echo "::error::alerts JSON is not an array: $alerts_json" >&2; exit 1; }
+  [ -f "$alerts_json" ] || {
+    echo "::error::alerts file not found: $alerts_json" >&2
+    exit 1
+  }
+  jq -e 'type == "array"' "$alerts_json" >/dev/null 2>&1 ||
+    {
+      echo "::error::alerts JSON is not an array: $alerts_json" >&2
+      exit 1
+    }
 
   local total critical high medium low unknown
   total="$(jq 'length' "$alerts_json")"
@@ -84,7 +90,7 @@ main() {
     echo
     echo "## Alerts"
     echo
-  } > "$report_md"
+  } >"$report_md"
 
   jq -r '
     def severity_rank:
@@ -120,7 +126,7 @@ main() {
       ((.security_advisory.summary // "No summary") | gsub("\n"; " ")) +
     "\n" +
     "- **GitHub:** \(.html_url)\n"
-  ' "$alerts_json" >> "$report_md"
+  ' "$alerts_json" >>"$report_md"
 
   if [ "$unknown" -gt 0 ]; then
     echo "export-dependabot-report: ${unknown} alert(s) carry an unrecognized severity value; they are listed under the Unknown bucket." >&2

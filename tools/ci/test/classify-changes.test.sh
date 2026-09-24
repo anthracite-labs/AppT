@@ -31,7 +31,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 CLASSIFIER="$SCRIPT_DIR/../classify-changes.sh"
 
-[ -f "$CLASSIFIER" ] || { echo "FAIL: classifier not found at $CLASSIFIER" >&2; exit 1; }
+[ -f "$CLASSIFIER" ] || {
+  echo "FAIL: classifier not found at $CLASSIFIER" >&2
+  exit 1
+}
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -71,13 +74,13 @@ run_case() {
   git -C "$repo" init -q
   git -C "$repo" config user.email "ci-classifier-test@appt.local"
   git -C "$repo" config user.name "AppT CI classifier test"
-  echo baseline > "$repo/seed.txt"
+  echo baseline >"$repo/seed.txt"
   git -C "$repo" add -A
   git -C "$repo" commit -qm baseline
   base_sha="$(git -C "$repo" rev-parse HEAD)"
   for f in "$@"; do
     mkdir -p "$repo/$(dirname "$f")"
-    echo changed > "$repo/$f"
+    echo changed >"$repo/$f"
   done
   git -C "$repo" add -A
   if ! git -C "$repo" diff --cached --quiet; then

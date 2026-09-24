@@ -25,7 +25,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPORT_SCRIPT="$SCRIPT_DIR/../export-dependabot-report.sh"
 
-[ -f "$REPORT_SCRIPT" ] || { echo "FAIL: report script not found at $REPORT_SCRIPT" >&2; exit 1; }
+[ -f "$REPORT_SCRIPT" ] || {
+  echo "FAIL: report script not found at $REPORT_SCRIPT" >&2
+  exit 1
+}
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -65,7 +68,8 @@ expect_row() { # <case> <report> <row-prefix> <count>
 # make_alerts <out.json> <severity>... — one alert per severity argument
 # (empty argument stands in for a missing severity field).
 make_alerts() {
-  local out="$1"; shift
+  local out="$1"
+  shift
   local i=0
   {
     echo '['
@@ -98,7 +102,7 @@ make_alerts() {
       fi
     done | paste -sd, -
     echo ']'
-  } | jq '.' > "$out"
+  } | jq '.' >"$out"
 }
 
 run_report() { # <case> <alerts.json>
@@ -155,7 +159,7 @@ expect "unknown last alert prints as unknown" \
 # ---------------------------------------------------------------------------
 # 3. Empty export: all buckets zero, total zero, clean exit.
 # ---------------------------------------------------------------------------
-echo '[]' > "$tmp/empty.json"
+echo '[]' >"$tmp/empty.json"
 run_report empty "$tmp/empty.json"
 expect "empty exit" "$LAST_EXIT" 0
 expect_row empty "$REPORT_OUT" '| Critical |' 0

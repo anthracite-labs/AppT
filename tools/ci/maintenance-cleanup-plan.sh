@@ -38,9 +38,18 @@ operations="${2:?usage: maintenance-cleanup-plan.sh <all-runs.json> <operations.
 out_dir="${3:?usage: maintenance-cleanup-plan.sh <all-runs.json> <operations.json> <out-dir>}"
 
 current_run="${GITHUB_RUN_ID:-}"
-[ -n "$current_run" ] || { echo "::error::GITHUB_RUN_ID is not set; refusing to plan deletions." >&2; exit 1; }
-[ -f "$all_runs" ] || { echo "::error::all-runs.json not found: $all_runs" >&2; exit 1; }
-[ -f "$operations" ] || { echo "::error::operations.json not found: $operations" >&2; exit 1; }
+[ -n "$current_run" ] || {
+  echo "::error::GITHUB_RUN_ID is not set; refusing to plan deletions." >&2
+  exit 1
+}
+[ -f "$all_runs" ] || {
+  echo "::error::all-runs.json not found: $all_runs" >&2
+  exit 1
+}
+[ -f "$operations" ] || {
+  echo "::error::operations.json not found: $operations" >&2
+  exit 1
+}
 
 mkdir -p "$out_dir"
 
@@ -85,13 +94,13 @@ if [ "$(jq --arg c "$current_run" '[.delete[] | select((.id | tostring) == $c)] 
 fi
 
 jq -r '.kept[] | [(.workflow_id | tostring), .name, (.id | tostring), .status, (.conclusion // ""), .created_at, (.head_branch // ""), .event, .operation] | @tsv' \
-  <<<"$plan" > "$out_dir/kept-runs.tsv"
+  <<<"$plan" >"$out_dir/kept-runs.tsv"
 jq -r '.delete[] | [(.id | tostring), (.workflow_id | tostring), .name, (.conclusion // ""), .created_at, (.head_branch // ""), .event, .operation] | @tsv' \
-  <<<"$plan" > "$out_dir/delete-runs.tsv"
+  <<<"$plan" >"$out_dir/delete-runs.tsv"
 jq -r '.active[] | [(.id | tostring), (.workflow_id | tostring), .name, .status, .created_at, (.head_branch // ""), .event, .operation] | @tsv' \
-  <<<"$plan" > "$out_dir/active-older-runs.tsv"
+  <<<"$plan" >"$out_dir/active-older-runs.tsv"
 jq -r '.quarantined[] | [(.id | tostring), .name, .created_at, .event] | @tsv' \
-  <<<"$plan" > "$out_dir/quarantined-runs.tsv"
+  <<<"$plan" >"$out_dir/quarantined-runs.tsv"
 
 total="$(jq '.total' <<<"$plan")"
 kept="$(jq '.kept | length' <<<"$plan")"

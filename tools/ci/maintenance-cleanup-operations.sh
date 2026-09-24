@@ -26,10 +26,10 @@ set -euo pipefail
 # (checked by tools/ci/test/maintenance-cleanup.test.sh).
 job_name_for_operation() {
   case "$1" in
-    export-dependabot) echo "Export Dependabot alerts" ;;
-    cleanup-workflow-runs) echo "Keep latest run per workflow" ;;
-    purge-actions-caches) echo "Delete all GitHub Actions caches" ;;
-    *) return 1 ;;
+  export-dependabot) echo "Export Dependabot alerts" ;;
+  cleanup-workflow-runs) echo "Keep latest run per workflow" ;;
+  purge-actions-caches) echo "Delete all GitHub Actions caches" ;;
+  *) return 1 ;;
   esac
 }
 
@@ -53,8 +53,14 @@ resolve_all() {
   local all_runs="${1:?usage: maintenance-cleanup-operations.sh <all-runs.json>}"
   local ids id job_name op cand results='[]'
 
-  [ -f "$all_runs" ] || { echo "::error::all-runs.json not found: $all_runs" >&2; exit 1; }
-  [ -n "${GITHUB_REPOSITORY:-}" ] || { echo "::error::GITHUB_REPOSITORY is not set" >&2; exit 1; }
+  [ -f "$all_runs" ] || {
+    echo "::error::all-runs.json not found: $all_runs" >&2
+    exit 1
+  }
+  [ -n "${GITHUB_REPOSITORY:-}" ] || {
+    echo "::error::GITHUB_REPOSITORY is not set" >&2
+    exit 1
+  }
 
   # all-runs.json is the flat array of run objects the fetch step writes
   # (the PR #50 contract); the page array and single-object shapes are

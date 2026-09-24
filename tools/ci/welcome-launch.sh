@@ -10,7 +10,7 @@
 set -uo pipefail
 
 log=connected.log
-: > "$log"
+: >"$log"
 
 annotate() {
   # $1 = label, remaining stdin = lines
@@ -39,14 +39,14 @@ status=$?
 tail -n 120 "$log"
 
 if [ "$status" -ne 0 ]; then
-  awk '/\* What went wrong:/{f=1} f{print} /\* Try:/{f=0}' "$log" \
-    | grep -v "^[[:space:]]*at " | head -n 18 | annotate WHY
-  grep -iE "^e: |error:|FAILED|Installation failed|INSTALL_|Test .* failed|AssertionError" "$log" \
-    | sort -u | head -n 10 | annotate ERR
+  awk '/\* What went wrong:/{f=1} f{print} /\* Try:/{f=0}' "$log" |
+    grep -v "^[[:space:]]*at " | head -n 18 | annotate WHY
+  grep -iE "^e: |error:|FAILED|Installation failed|INSTALL_|Test .* failed|AssertionError" "$log" |
+    sort -u | head -n 10 | annotate ERR
   echo "=== logcat ==="
-  adb logcat -d -t 400 2>/dev/null \
-    | grep -iE "AndroidRuntime|TestRunner|appt|FATAL" | tail -n 30 \
-    | head -n 10 | annotate LOGCAT
+  adb logcat -d -t 400 2>/dev/null |
+    grep -iE "AndroidRuntime|TestRunner|appt|FATAL" | tail -n 30 |
+    head -n 10 | annotate LOGCAT
   exit "$status"
 fi
 
@@ -60,7 +60,10 @@ fi
 # artifact of the harness rather than anything about the app.
 echo "=== reinstall the debug APK for the cold-start check ==="
 apk="$(find app/build/outputs/apk/debug -name '*.apk' | head -n 1)"
-test -n "$apk" || { echo "::error::No debug APK found to reinstall"; exit 1; }
+test -n "$apk" || {
+  echo "::error::No debug APK found to reinstall"
+  exit 1
+}
 echo "installing ${apk}"
 adb install -r -t "$apk"
 
@@ -81,17 +84,17 @@ done
 # Wait for the window manager to report AppT focused, rather than assuming a
 # fixed sleep is long enough on a cold emulator.
 for _ in $(seq 1 20); do
-  if adb shell dumpsys window 2>/dev/null \
-      | grep -q 'dev.anthracite.appt/.*MainActivity'; then
+  if adb shell dumpsys window 2>/dev/null |
+    grep -q 'dev.anthracite.appt/.*MainActivity'; then
     break
   fi
   sleep 1
 done
 
-focus="$(adb shell dumpsys window 2>/dev/null \
-  | grep -iE 'mCurrentFocus|mFocusedApp' | head -n 2 | tr -d '\r')"
-resumed="$(adb shell dumpsys activity activities 2>/dev/null \
-  | grep -iE 'mResumedActivity|topResumedActivity' | head -n 2 | tr -d '\r')"
+focus="$(adb shell dumpsys window 2>/dev/null |
+  grep -iE 'mCurrentFocus|mFocusedApp' | head -n 2 | tr -d '\r')"
+resumed="$(adb shell dumpsys activity activities 2>/dev/null |
+  grep -iE 'mResumedActivity|topResumedActivity' | head -n 2 | tr -d '\r')"
 echo "focus:   ${focus}"
 echo "resumed: ${resumed}"
 echo "::notice::FOCUS: ${focus}"
@@ -100,14 +103,14 @@ echo "::notice::RESUMED: ${resumed}"
 # The cold start must land on AppT's single activity, not a crash dialog or
 # the launcher.
 case "${focus}${resumed}" in
-  *dev.anthracite.appt/*MainActivity*) ;;
-  *)
-    echo "::error::Cold launch did not resume dev.anthracite.appt/.MainActivity"
-    adb logcat -d -t 400 2>/dev/null \
-      | grep -iE "AndroidRuntime|FATAL|appt|ActivityManager.*appt" \
-      | tail -n 20 | head -n 8 | annotate COLDLOG
-    exit 1
-    ;;
+*dev.anthracite.appt/*MainActivity*) ;;
+*)
+  echo "::error::Cold launch did not resume dev.anthracite.appt/.MainActivity"
+  adb logcat -d -t 400 2>/dev/null |
+    grep -iE "AndroidRuntime|FATAL|appt|ActivityManager.*appt" |
+    tail -n 20 | head -n 8 | annotate COLDLOG
+  exit 1
+  ;;
 esac
 
 echo "Runtime acceptance: device=${model} api=${sdk} — launch reached Welcome."
