@@ -47,7 +47,7 @@ buildscript {
             classpath("org.bouncycastle:bcpkix-jdk18on:1.86")
             classpath("org.apache.commons:commons-lang3:3.20.0")
             classpath("org.apache.httpcomponents:httpclient:4.5.14")
-            classpath("org.bitbucket.b_c:jose4j:0.9.6")
+            classpath("org.bitbucket.b_c:jose4j:0.9.7")
             classpath("org.eclipse.jgit:org.eclipse.jgit:6.10.1.202505221210-r")
             classpath("org.jdom:jdom2:2.0.6.1")
         }
