@@ -1,0 +1,14 @@
+name: Policy Probe
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prove workflow startup without external actions
+        run: "true"
