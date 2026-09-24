@@ -112,7 +112,7 @@ Secondary:
 - Final AppT source-license decision remains required before public distribution.
 - Focused Samsung vendor-terms/legal review must be completed before public release.
 - Physical-device evidence is required to tune the reliability targets in `docs/architecture/reliability.md`.
-- SonarQube Cloud's current Kotlin compatibility must be proven against AppT's pinned Kotlin 2.4.20 before Kotlin-specific Sonar findings become blocking; repository onboarding for SonarQube Cloud and CodeRabbit must also be observed on a real AppT pull request rather than inferred from account login.
+- SonarQube Cloud and CodeRabbit repository onboarding is now observed on PR #59. Sonar currently runs automatic analysis with a passing quality gate but no imported coverage; Issue #56 must convert it to CI-based analysis and prove Kotlin 2.4.20 compatibility before Kotlin-specific Sonar findings become blocking. CodeRabbit currently runs its default CHILL configuration; Issue #56 must replace that default with the version-controlled AppT review/pre-merge policy.
 
 ## Recent change
 
