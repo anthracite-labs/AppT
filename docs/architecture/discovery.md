@@ -8,7 +8,7 @@ One gate in `app` owns local-network permission policy. `samsung` does not launc
 
 The gate explains, in ordinary language, that the phone needs to reach the television on the home network. The explanation is shown immediately before any system permission prompt, and before the first scan even when the platform shows no prompt. Primary copy does not say SSDP, mDNS, multicast, or port.
 
-V1 stays at `minSdk` 29 and `targetSdk` / `compileSdk` 36. Do not bump the target to adopt a newer permission.
+V1 stays at `minSdk` 29 and `targetSdk` 36 (`compileSdk` may track the build toolchain, currently 37). Do not bump the target to adopt a newer permission.
 
 | Situation | Gate behavior |
 |---|---|

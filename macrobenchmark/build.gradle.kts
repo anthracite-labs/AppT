@@ -12,12 +12,14 @@
 
 plugins {
     alias(libs.plugins.android.test)
-    alias(libs.plugins.kotlin.android)
+    // No kotlin-android plugin: AGP 9's built-in Kotlin compiles this
+    // module's Kotlin sources (docs/BUILD.md, Issue #54).
 }
 
 android {
     namespace = "dev.anthracite.appt.macrobenchmark"
-    compileSdk = 36
+    // Matches :app's compileSdk (Issue #54 toolchain bump); minSdk stays 29.
+    compileSdk = 37
 
     defaultConfig {
         // Macrobenchmark requires API 29+, which matches the AppT baseline.

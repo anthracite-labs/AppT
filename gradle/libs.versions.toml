@@ -13,27 +13,33 @@
 # provenance note release.md requires.
 
 [versions]
-agp = "8.9.1"
-kotlin = "2.1.0"
-androidx-core = "1.16.0"
-androidx-activity = "1.10.1"
-androidx-lifecycle = "2.8.7"
-androidx-navigation = "2.8.9"
-androidx-compose-bom = "2025.04.00"
-androidx-benchmark = "1.3.4"
-androidx-test-junit = "1.2.1"
-androidx-test-core = "1.6.1"
-androidx-test-runner = "1.6.2"
-androidx-test-uiautomator = "2.3.0"
-kotlinx-serialization = "1.8.0"
+# AGP 9.x note (Issue #54): AGP 9 enables built-in Kotlin by default, so the
+# org.jetbrains.kotlin.android plugin is NOT declared anywhere in this build —
+# see docs/BUILD.md and the "Migrate to built-in Kotlin" Android documentation.
+# The `kotlin` version below still versions the compose and serialization
+# compiler plugins, which remain separate plugins under built-in Kotlin.
+agp = "9.4.1"
+kotlin = "2.4.20"
+androidx-core = "1.19.1"
+androidx-activity = "1.13.0"
+androidx-lifecycle = "2.11.0"
+androidx-navigation = "2.10.2"
+androidx-compose-bom = "2026.09.00"
+androidx-benchmark = "1.5.0"
+androidx-test-junit = "1.3.0"
+androidx-test-core = "1.7.0"
+androidx-test-runner = "1.7.0"
+androidx-test-uiautomator = "2.4.0"
+kotlinx-serialization = "1.11.0"
 junit = "4.13.2"
-robolectric = "4.14.1"
+robolectric = "4.17"
 # detekt is AppT's Kotlin static-analysis floor (Issue #36). Pinned to the
-# latest STABLE release: the 2.0.0 line is entirely alpha as of this pin
-# (2.0.0-alpha.6, 2026-08-04), and a pre-release analysis engine is not an
-# acceptable floor for a security gate. 1.23.8 (2025-02-21) post-dates
-# Kotlin 2.1.0 and its embedded 2.0.21 compiler parses this codebase's source
-# without type resolution, which is how the `detekt` task runs here.
+# latest STABLE release: the 2.0.0 line is still pre-release as of this pin
+# (2.0.0-alpha.6, 2026-08), and a pre-release analysis engine is not an
+# acceptable floor for a security gate. 1.23.8 (2025-02-21) is the latest
+# final 1.x release; it post-dates the Kotlin in this catalog and its embedded
+# 2.0.21 compiler parses this codebase's source without type resolution, which
+# is how the `detekt` task runs here.
 # Updates arrive as reviewed pull requests, like every other pin.
 detekt = "1.23.8"
 
@@ -65,7 +71,8 @@ androidx-benchmark-macro-junit4 = { module = "androidx.benchmark:benchmark-macro
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 android-test = { id = "com.android.test", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+# No kotlin-android plugin entry: AGP 9's built-in Kotlin compiles Kotlin in
+# every module that applies AGP (docs/BUILD.md, Issue #54).
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }

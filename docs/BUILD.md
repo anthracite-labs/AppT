@@ -2,14 +2,24 @@
 
 ## Requirements
 
-- JDK 17
-- Android SDK with platform 36 and the build tools AGP 8.9.1 requires
-- Node.js 22 (backend package)
+- JDK 17 (the minimum and default JDK for the pinned AGP 9.4.x)
+- Android SDK with platform 37 (`compileSdk` 37; `targetSdk` stays 36 — see
+  `docs/architecture/discovery.md`) and the build tools AGP 9.4.1 requires
+- Node.js 24 (backend package; the Cloud Functions 2nd gen `nodejs24` LTS
+  runtime)
+
+## Kotlin under AGP 9
+
+AGP 9's built-in Kotlin compiles Kotlin in every module that applies AGP, so
+no module applies `org.jetbrains.kotlin.android`. The `kotlin` version in
+`gradle/libs.versions.toml` still versions the compose and serialization
+compiler plugins, which remain separate plugins. See the Android "Migrate to
+built-in Kotlin" documentation.
 
 ## Gradle wrapper
 
 The repository pins the Gradle distribution in
-`gradle/wrapper/gradle-wrapper.properties` (Gradle 8.13, an exact version).
+`gradle/wrapper/gradle-wrapper.properties` (Gradle 9.7.1, an exact version).
 
 The wrapper (`gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.jar`) is
 **committed**, together with `distributionSha256Sum`, so the toolchain itself is
@@ -26,13 +36,13 @@ the artifacts landed: the committed state is now the only source, and CI never
 regenerates it.
 
 `distributionSha256Sum` was read from the published
-`gradle-8.13-bin.zip.sha256` and independently matches the Gradle
+`gradle-9.7.1-bin.zip.sha256` and independently matches the Gradle
 release-checksums reference.
 
-To regenerate locally with a Gradle 8.13 installation:
+To regenerate locally with a Gradle 9.7.1 installation:
 
 ```bash
-gradle wrapper --gradle-version 8.13 --distribution-type bin
+gradle wrapper --gradle-version 9.7.1 --distribution-type bin
 ```
 
 ## Commands

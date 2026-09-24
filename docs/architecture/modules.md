@@ -219,7 +219,9 @@ CI enforces the boundary:
 
 From the accepted baseline, restated only where implementers need the number beside the module rule:
 
-- `minSdk` 29, `targetSdk` / `compileSdk` 36.
+- `minSdk` 29, `targetSdk` 36, `compileSdk` 37. The compile-time API surface
+  follows the toolchain; `targetSdk` moves only with the architecture map
+  (docs/architecture/discovery.md).
 - Kotlin, Jetpack Compose, ViewModel, Coroutines, StateFlow.
 - One `OkHttpClient` shared by `samsung` and by the entitlement client, configured per consumer. No logging interceptor in release.
 - `ACCESS_LOCAL_NETWORK` is not declared and not requested while `targetSdk` is 36. Broad local-network permission is a requirement of a later target-37 bump, not of V1. `NEARBY_WIFI_DEVICES` is not a V1 permission. The gate is specified in [discovery.md](discovery.md).

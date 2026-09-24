@@ -9,7 +9,8 @@ import java.util.Locale
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    // No kotlin-android plugin: AGP 9's built-in Kotlin compiles this
+    // module's Kotlin sources (docs/BUILD.md, Issue #54).
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.detekt)
@@ -17,7 +18,12 @@ plugins {
 
 android {
     namespace = "dev.anthracite.appt"
-    compileSdk = 36
+    // compileSdk tracks the toolchain (Issue #54): the current AndroidX and
+    // Compose releases require compileSdk 37. targetSdk deliberately stays at
+    // 36 — raising the target opts into new runtime behavior and is gated on
+    // the architecture map (docs/architecture/discovery.md), not on this
+    // supply-chain modernization.
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "dev.anthracite.appt"

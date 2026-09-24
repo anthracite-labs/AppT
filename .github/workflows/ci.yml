@@ -71,11 +71,14 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # JDK 17 is the minimum and default JDK for the pinned AGP 9.4.x.
   JAVA_VERSION: '17'
-  NODE_VERSION: '22'
+  # Node 24: the Cloud Functions 2nd gen nodejs24 LTS runtime and the
+  # backend engines pin (backend/package.json).
+  NODE_VERSION: '24'
   # Matches the pin in gradle/wrapper/gradle-wrapper.properties exactly: the
   # distribution is checksum-pinned by distributionSha256Sum.
-  GRADLE_VERSION: '8.13'
+  GRADLE_VERSION: '9.7.1'
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -104,8 +107,8 @@ jobs:
       run_dependency_review: ${{ steps.classify.outputs.run_dependency_review }}
     steps:
       - name: Check out change history
-        # actions/checkout v4.3.0
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
 
@@ -143,16 +146,16 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out the full history
-        # actions/checkout v4.3.0
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           # Full history so the scan covers the tree and every commit in the
           # change, not just the tip.
           fetch-depth: 0
 
       - name: Set up Node
-        # actions/setup-node v4.4.0
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        # actions/setup-node v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -180,24 +183,29 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out
-        # actions/checkout v4.3.0
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Set up JDK
-        # actions/setup-java v4.7.1
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        # actions/setup-java v6.0.1
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
       - name: Set up Gradle
-        # gradle/actions/setup-gradle v4.4.2
-        uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3
+        # gradle/actions/setup-gradle v6.3.0
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
         with:
           # Installs the pinned Gradle CLI and puts it on PATH, which is what
           # materializes the wrapper below. The version matches the pin in
           # gradle/wrapper/gradle-wrapper.properties exactly.
           gradle-version: ${{ env.GRADLE_VERSION }}
+          # Stay on the open-source GitHub Actions cache provider; gradle/actions
+          # v6 would otherwise default to the commercial 'enhanced' service, which
+          # would be a new external egress for the build cache (Issue #54 pin update
+          # deliberately preserves the pre-v6 caching behaviour).
+          cache-provider: 'basic'
 
       # The Gradle wrapper, the dependency lockfiles and the dependency
       # verification metadata are all COMMITTED. There is no bootstrap or
@@ -273,8 +281,8 @@ jobs:
 
       - name: Upload reports
         if: always()
-        # actions/upload-artifact v4.6.2
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: android-reports
           path: |
@@ -297,21 +305,26 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out
-        # actions/checkout v4.3.0
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Set up JDK
-        # actions/setup-java v4.7.1
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        # actions/setup-java v6.0.1
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
       - name: Set up Gradle
-        # gradle/actions/setup-gradle v4.4.2
-        uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3
+        # gradle/actions/setup-gradle v6.3.0
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
+          # Stay on the open-source GitHub Actions cache provider; gradle/actions
+          # v6 would otherwise default to the commercial 'enhanced' service, which
+          # would be a new external egress for the build cache (Issue #54 pin update
+          # deliberately preserves the pre-v6 caching behaviour).
+          cache-provider: 'basic'
 
       # Resolved under the same strict supply-chain conditions as the Android
       # floor: the committed verification metadata and lockfiles are the only
@@ -329,8 +342,8 @@ jobs:
 
       - name: Upload detekt reports
         if: always()
-        # actions/upload-artifact v4.6.2
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: detekt-reports
           path: '**/build/reports/detekt/**'
@@ -349,21 +362,26 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out
-        # actions/checkout v4.3.0
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Set up JDK
-        # actions/setup-java v4.7.1
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        # actions/setup-java v6.0.1
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
       - name: Set up Gradle
-        # gradle/actions/setup-gradle v4.4.2
-        uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3
+        # gradle/actions/setup-gradle v6.3.0
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
+          # Stay on the open-source GitHub Actions cache provider; gradle/actions
+          # v6 would otherwise default to the commercial 'enhanced' service, which
+          # would be a new external egress for the build cache (Issue #54 pin update
+          # deliberately preserves the pre-v6 caching behaviour).
+          cache-provider: 'basic'
 
       # GitHub's ubuntu runners expose /dev/kvm, but only to members of the kvm
       # group; without this the emulator falls back to software rendering and
@@ -398,8 +416,8 @@ jobs:
 
       - name: Upload the connected-test report
         if: always()
-        # actions/upload-artifact v4.6.2
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: welcome-launch-report
           path: |
@@ -419,12 +437,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out
-        # actions/checkout v4.3.0
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Set up Node
-        # actions/setup-node v4.4.0
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        # actions/setup-node v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -501,23 +519,28 @@ jobs:
 
     steps:
       - name: Check out
-        # actions/checkout v4.3.0
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Set up JDK
         if: matrix.language == 'java-kotlin'
-        # actions/setup-java v4.7.1
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        # actions/setup-java v6.0.1
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
       - name: Set up Gradle
         if: matrix.language == 'java-kotlin'
-        # gradle/actions/setup-gradle v4.4.2
-        uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3
+        # gradle/actions/setup-gradle v6.3.0
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
+          # Stay on the open-source GitHub Actions cache provider; gradle/actions
+          # v6 would otherwise default to the commercial 'enhanced' service, which
+          # would be a new external egress for the build cache (Issue #54 pin update
+          # deliberately preserves the pre-v6 caching behaviour).
+          cache-provider: 'basic'
           # The build cache is disabled for extraction on purpose. gradle.properties
           # sets org.gradle.caching=true for CI speed, and setup-gradle restores a
           # cached build cache across runs. A compile task served FROM-CACHE emits
@@ -620,8 +643,8 @@ jobs:
 
     steps:
       - name: Check out the base and head of the change
-        # actions/checkout v4.3.0
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           # The action diffs base against head, so both must be present.
           fetch-depth: 0
