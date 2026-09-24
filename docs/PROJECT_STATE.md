@@ -23,11 +23,11 @@ Success condition: `S02 is implemented and accepted against the architecture/sli
 
 ## Active work
 
-Primary: `S01 remains the accepted product implementation baseline through PR #30, the pre-S02 security baseline is accepted through PR #38, and the dependency/toolchain modernization is accepted through merged PR #55. S02 remains the next product slice to compile and dispatch.`
+Primary: `S01 remains the accepted product implementation baseline through PR #30, the pre-S02 security baseline is accepted through PR #38, dependency/toolchain modernization is accepted through PR #55, and the verification/AI-assurance redesign is accepted through merged PR #60. S02 is the next product slice to compile and dispatch.`
 
 Secondary:
 
-- CI verification architecture has been deliberately redesigned around one-owner controls and one ordinary `verify.yml` workflow; Issue #56 now also carries the independent AI-code assurance stack (strict compiler/formatting, dead-code and coverage evidence, workflow security, SonarQube Cloud, CodeRabbit, and an independent post-Arena review) without changing S02 product intent.
+- CI verification architecture and the independent AI-code assurance stack are accepted through merged PR #60 / Issue #56: one-owner `verify.yml`, strict compiler/formatting, dead-code and coverage evidence, workflow security, SonarQube Cloud, CodeRabbit policy, temporary Advanced CodeQL for Kotlin 2.4.20, and independent post-Arena review.
 - Provider facts recorded as needs validation in docs/architecture/README.md must be confirmed in the slice where they first become implementation-relevant.
 - Final AppT source-license decision remains a pre-public-release gate.
 - Focused Samsung vendor-terms/legal review remains a pre-public-release gate.
@@ -113,11 +113,11 @@ Secondary:
 - Final AppT source-license decision remains required before public distribution.
 - Focused Samsung vendor-terms/legal review must be completed before public release.
 - Physical-device evidence is required to tune the reliability targets in `docs/architecture/reliability.md`.
-- SonarQube Cloud and CodeRabbit repository onboarding is active under PR #60. CI-based Sonar analysis requires repository owner configuration of SONAR_TOKEN and disabling automatic analysis. CodeRabbit repository configuration (.coderabbit.yaml) is version-controlled and pending PR merge to take effect on target branch.
+- Dependabot's coordinated update policy is active, but a post-merge npm update run exposed a cooldown/resolution edge case around the current TypeScript ESLint peer set; follow-up is tracked in GitHub Issue #63 and is not an S02 blocker.
 
 ## Recent change
 
-- `Verification architecture and AI-code assurance implementation is active under PR #60 (Issue #56), introducing .github/workflows/verify.yml with proposed required gate verify / gate, root Gradle ciCheck aggregating strict Kotlin diagnostics, Spotless + ktfmt, Kover coverage floor, dependency locks, appTGuards, and macrobenchmark compilation; backend verify interface composing typecheck, ESLint, Prettier, Knip, Jest, and coverage; Gradle Managed Devices (API 29); CI-based SonarQube Cloud quality platform; temporary Advanced Setup .github/workflows/codeql.yml pinned to bundle 2.27.1 for Kotlin 2.4.20 assurance; version-controlled .coderabbit.yaml; weekly coordinated Dependabot policy; and contracting legacy ci.yml and maintenance.yml.`
+- `PR #60 merged as commit 2898b2ace007c84b21a85eed95b496027ac4ef86, completing Issue #56's verification and AI-code assurance redesign: one-owner verify workflow, stable gate, strict Android/backend verification, Gradle Managed Devices, CI-based SonarQube Cloud, temporary Advanced CodeQL bundle 2.27.1 for Kotlin 2.4.20, version-controlled CodeRabbit policy, coordinated Dependabot updates, and retirement of the legacy CI/maintenance topology.`
 
 ## Relevant canonical references
 
@@ -133,17 +133,18 @@ Secondary:
 - `GitHub Issue #27 — completed S01 Arena work order; closed by merged PR #30.`
 - `GitHub Issue #36 — completed security-baseline Arena work order; closed by merged PR #38.`
 - `GitHub Issue #54 / PR #55 — completed one-pass dependency and toolchain modernization.`
-- `GitHub Issue #56 / PR #60 — active implementation of the accepted verification and AI-code assurance architecture; replaces legacy CI/maintenance topology with one-owner verification workflow.`
+- `GitHub Issue #56 / PR #60 — completed verification and AI-code assurance redesign, merged through commit 2898b2ace007c84b21a85eed95b496027ac4ef86.`
+- `GitHub Issue #63 — operational follow-up for Dependabot cooldown filtering that prevents resolution of the already-committed TypeScript ESLint peer set.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
 - `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
 - `AGENTS.md — repository operating entry point.`
 
 ## Next
 
-`Complete review and address owner feedback on PR #60 for Issue #56, then proceed to dispatch S02 — Local-network explanation and bounded discovery — as the next authorized product implementation slice.`
+`Compile and dispatch S02 — Local-network explanation and bounded discovery — as the next authorized product implementation slice.`
 
 ## After that
 
 1. `Implement and review S02 against the accepted architecture/slice contract.`
-2. `Dispatch and implement the separately authorized verification/AI-assurance redesign in Issue #56; do not mix it into S02 product scope.`
-3. `Keep the confirmed security-audit follow-up findings, S07's explicit authorization gate, provider needs-validation facts, and the two external public-release gates visible; do not silently fold them into unrelated work.`
+2. `Observe the merged verification stack on the next ordinary PR, including CodeRabbit target-branch configuration and the stable gate.`
+3. `Keep the Dependabot cooldown follow-up, confirmed security-audit follow-up findings, S07's explicit authorization gate, provider needs-validation facts, and the two external public-release gates visible; do not silently fold them into unrelated work.`
