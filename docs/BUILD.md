@@ -23,7 +23,7 @@ The repository pins the Gradle distribution in
 
 The wrapper (`gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.jar`) is
 **committed**, together with `distributionSha256Sum`, so the toolchain itself is
-pinned by checksum. CI does not generate it: `.github/workflows/ci.yml` fails if
+pinned by checksum. CI does not generate it: `.github/workflows/verify.yml` fails if
 it is missing.
 
 These files were produced once by a one-shot bootstrap workflow, which generated
@@ -47,14 +47,23 @@ gradle wrapper --gradle-version 9.7.1 --distribution-type bin
 
 ## Commands
 
-Android floor, from the repository root:
+Android/Kotlin verification interface, from the repository root:
 
 ```bash
-./gradlew assembleDebug lintDebug testDebugUnitTest dependencyLockCheck
-./gradlew appTGuards
-./gradlew :app:dependencyInsight --configuration debugRuntimeClasspath --dependency firestore
-./gradlew :app:dependencyInsight --configuration debugRuntimeClasspath --dependency crashlytics
-./gradlew :macrobenchmark:assembleBenchmark
+# Root Android/Kotlin verification lifecycle interface aggregating strict
+# compiler diagnostics (-Werror), Spotless + ktfmt, debug assembly, unit/Robolectric
+# tests, Android Lint, detekt, Kover coverage verification, dependency locks,
+# appTGuards, and macrobenchmark compilation:
+./gradlew --no-daemon --dependency-verification=strict ciCheck
+
+# Spotless formatting:
+./gradlew spotlessApply
+./gradlew spotlessCheck
+
+# Installed-app runtime acceptance on Gradle Managed Device (API 29):
+./gradlew --no-daemon --dependency-verification=strict \
+  -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
+  :app:pixel2api29DebugAndroidTest
 ```
 
 ### Dependency verification
@@ -74,8 +83,7 @@ Regenerate the checksums after a reviewed dependency change:
 
 ```bash
 ./gradlew --write-verification-metadata sha256 \
-  assembleDebug lintDebug testDebugUnitTest dependencyLockCheck \
-  :macrobenchmark:assembleBenchmark appTGuards
+  spotlessApply ciCheck
 ```
 
 Dependency lockfiles are committed. After a deliberate, reviewed dependency
@@ -90,9 +98,9 @@ Backend, always package-prefixed from the repository root
 
 ```bash
 npm ci --prefix backend
-npm run typecheck --prefix backend
-npm run lint --prefix backend
-npm test --prefix backend
+# Backend verification interface aggregating typecheck, typed ESLint,
+# Prettier, Knip dead-code/export/dependency analysis, Jest, and LCOV coverage:
+npm run verify --prefix backend
 ```
 
 ## Where the Android verification runs
@@ -101,11 +109,15 @@ The implementing sandbox has no JDK, no Android SDK, and no egress to
 `dl.google.com`, `repo1.maven.org` or `services.gradle.org`, so Gradle cannot
 resolve or run there. GitHub Actions is therefore the authoritative execution
 environment for every Android command in this file, and the CI run on a pull
-request is the evidence that they pass.
+request (`.github/workflows/verify.yml` with required status `verify / gate`) is
+the evidence that they pass.
 
-The backend package and the secret scanner do run locally
-(`npm ci/typecheck/lint/format:check/test --prefix backend`,
-`node --test "tools/secret-scan/test/*.test.mjs"`).
+The backend package, the secret scanner, yamllint, markdownlint, and ShellCheck
+run locally:
+- `npm ci/run verify --prefix backend`
+- `node --test "tools/secret-scan/test/secret-scan.test.mjs" && node tools/secret-scan/secret-scan.mjs`
+- `yamllint -c .yamllint.yml .`
+- `tools/security/run.sh`
 
-Installing the debug build on a device or emulator is the one S01 criterion
-that neither the sandbox nor the current CI job performs.
+Installed-app acceptance executes on GitHub Actions via Gradle Managed Devices
+(API 29) with KVM acceleration.
