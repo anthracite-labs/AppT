@@ -1,0 +1,143 @@
+=== VERIFY METADATA LOG ===
+> Task :samsung:samsungDependencyBoundary
+samsungDependencyBoundary: OK — :samsung graph is clean.
+
+> Task :samsungDependencyBoundary
+> Task :samsung:preReleaseBuild UP-TO-DATE
+> Task :samsung:extractDeepLinksRelease FROM-CACHE
+> Task :samsung:processReleaseManifest FROM-CACHE
+> Task :macrobenchmark:checkBenchmarkDuplicateClasses
+> Task :macrobenchmark:desugarBenchmarkFileDependencies FROM-CACHE
+> Task :macrobenchmark:mergeBenchmarkJavaResource
+> Task :samsung:koverGenerateArtifact
+> Task :samsung:lintAnalyzeDebug
+> Task :samsung:koverXmlReport
+> Task :samsung:lintReportDebug
+> Task :samsung:lintDebug
+> Task :app:mergeExtDexDebug
+> Task :macrobenchmark:mergeExtDexBenchmark
+> Task :app:compileDebugJavaWithJavac NO-SOURCE
+> Task :app:processDebugJavaRes
+> Task :macrobenchmark:mergeLibDexBenchmark
+> Task :macrobenchmark:checkBenchmarkAarMetadata
+> Task :macrobenchmark:mapBenchmarkSourceSetPaths
+> Task :macrobenchmark:compileBenchmarkNavigationResources
+> Task :macrobenchmark:mergeBenchmarkResources
+> Task :app:mergeLibDexDebug
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:compileDebugNavigationResources FROM-CACHE
+> Task :app:mergeDebugJavaResource
+> Task :macrobenchmark:mergeBenchmarkManifest
+> Task :macrobenchmark:processBenchmarkManifest
+> Task :macrobenchmark:processBenchmarkResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:processDebugManifest
+> Task :app:processDebugManifestForPackage
+> Task :app:mergeDebugJniLibFolders
+> Task :app:mergeDebugResources
+> Task :app:mergeDebugNativeLibs
+> Task :macrobenchmark:dexBuilderBenchmark
+> Task :macrobenchmark:mergeProjectDexBenchmark
+> Task :macrobenchmark:mergeBenchmarkJniLibFolders
+> Task :macrobenchmark:mergeBenchmarkNativeLibs
+> Task :app:processDebugResources
+> Task :app:stripDebugDebugSymbols
+> Task :app:dexBuilderDebug
+> Task :app:mergeProjectDexDebug
+> Task :macrobenchmark:validateSigningBenchmark
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :macrobenchmark:writeBenchmarkSigningConfigVersions
+> Task :app:bundleDebugClassesToRuntimeJar
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:bundleDebugClassesToCompileJar
+> Task :app:javaPreCompileDebugUnitTest FROM-CACHE
+> Task :macrobenchmark:stripBenchmarkDebugSymbols
+> Task :macrobenchmark:packageBenchmark
+> Task :macrobenchmark:createBenchmarkApkListingFileRedirect
+> Task :macrobenchmark:assembleBenchmark
+> Task :app:packageDebugUnitTestForUnitTest
+> Task :app:mergeDebugUnitTestManifest
+> Task :app:processDebugUnitTestManifest
+> Task :app:generateDebugUnitTestConfig
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+> Task :app:preDebugAndroidTestBuild SKIPPED
+> Task :app:generateDebugAndroidTestLintModel
+> Task :app:extractProguardFiles
+> Task :app:generateDebugLintReportModel
+> Task :app:compileDebugUnitTestKotlin
+> Task :app:generateDebugUnitTestLintModel
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDebugUnitTestJavaRes
+> Task :app:testDebugUnitTest
+
+> Task :app:noCrashReportingInApp
+noCrashReportingInApp: OK — no crash-reporting artifact on :app.
+
+> Task :noCrashReportingInApp
+
+> Task :app:noFirestoreClientInApp
+noFirestoreClientInApp: OK — no Firestore client artifact on :app.
+
+> Task :noFirestoreClientInApp
+
+> Task :app:noTelemetryDependency
+noTelemetryDependency (:app): OK — no telemetry artifact in the production graph.
+
+> Task :noTelemetryDependency
+> Task :app:preReleaseBuild UP-TO-DATE
+> Task :app:extractDeepLinksRelease FROM-CACHE
+> Task :app:processReleaseMainManifest
+
+> Task :app:checkMergedManifestRelease
+manifestPermissionAllowlist + adIdAbsentFromManifest: OK for release. Requested permissions: none. App-scoped signature self-permissions: dev.anthracite.appt.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION.
+
+> Task :app:adIdAbsentFromManifest
+> Task :app:manifestPermissionAllowlist
+> Task :appTGuards
+> Task :app:koverGenerateArtifact
+> Task :koverXmlReport
+> Task :app:koverXmlReport
+> Task :app:lintAnalyzeDebugAndroidTest
+> Task :app:lintAnalyzeDebugUnitTest
+> Task :app:lintAnalyzeDebug
+> Task :app:lintReportDebug
+> Task :app:lintDebug
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run-1790236103777.json
+
+[Incubating] Problems report is available at: file:///home/runner/work/AppT/AppT/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.7.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 3m 14s
+159 actionable tasks: 147 executed, 12 from cache
+=== LOCKS LOG ===
+Starting a Gradle Daemon (subsequent builds will be faster)
+> Task :samsung:resolveAndLockAll
+> Task :app:resolveAndLockAll
+> Task :macrobenchmark:resolveAndLockAll
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_2-1790236291309.json
+Persisted dependency lock state for unknown
+Persisted dependency lock state for buildscript of root project 'AppT'
+Persisted dependency lock state for project ':app'
+Persisted dependency lock state for project ':macrobenchmark'
+Persisted dependency lock state for project ':samsung'
+
+[Incubating] Problems report is available at: file:///home/runner/work/AppT/AppT/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.7.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 14s
+3 actionable tasks: 3 executed
