@@ -13,6 +13,9 @@
 // never resolutionStrategy.force, and match the patched versions already
 // proven on AppT's project graphs.
 buildscript {
+    repositories {
+        mavenCentral()
+    }
     dependencies {
         constraints {
             classpath("org.bouncycastle:bcprov-jdk18on:1.86")
