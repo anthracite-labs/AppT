@@ -136,12 +136,14 @@ tasks.register("ciCheck") {
 }
 
 gradle.projectsEvaluated {
-    val koverXml = tasks.findByName("koverXmlReportDebug")
+    val koverXml = tasks.findByName("koverXmlReport")
+        ?: project(":app").tasks.findByName("koverXmlReport")
+        ?: tasks.findByName("koverXmlReportDebug")
         ?: project(":app").tasks.findByName("koverXmlReportDebug")
-        ?: tasks.findByName("koverXmlReport")
-    val koverVerify = tasks.findByName("koverVerifyDebug")
+    val koverVerify = tasks.findByName("koverVerify")
+        ?: project(":app").tasks.findByName("koverVerify")
+        ?: tasks.findByName("koverVerifyDebug")
         ?: project(":app").tasks.findByName("koverVerifyDebug")
-        ?: tasks.findByName("koverVerify")
 
     tasks.named("ciCheck") {
         koverXml?.let { dependsOn(it) }

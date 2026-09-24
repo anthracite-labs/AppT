@@ -39,9 +39,11 @@ jobs:
 
       - name: Regenerate verification metadata and lockfiles
         run: |
+          ./gradlew tasks --group=verification > /tmp/tasks.txt
+          cat /tmp/tasks.txt | grep -i kover || true
           ./gradlew --no-daemon --write-verification-metadata sha256 \
             assembleDebug testDebugUnitTest lintDebug :macrobenchmark:assembleBenchmark appTGuards \
-            spotlessCheck koverXmlReportDebug 2>&1 | tee /tmp/gradle-verify.log || true
+            spotlessCheck koverXmlReport 2>&1 | tee /tmp/gradle-verify.log || true
 
           ./gradlew resolveAndLockAll --write-locks 2>&1 | tee /tmp/gradle-locks.log || true
 
