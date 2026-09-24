@@ -4,13 +4,19 @@
  *
  * The bug this guard locks down
  * -----------------------------
- * GitHub's dependency graph resolves the Gradle *plugin/buildscript* classpath
- * transitively, so it reports vulnerable transitive libraries that no Gradle
- * module declares. Dependabot's Gradle *updater* does not resolve anything: its
- * file parser (`dependabot/gradle/file_parser.rb`) only harvests literal
- * `group:name:version` declarations from the build files, the version catalog,
- * the script plugins and the wrapper properties. When a security alert targets
- * one of those graph-only coordinates, the updater cannot find it in
+ * AppT's `Automatic Dependency Submission (Gradle)` workflow runs the Gradle
+ * build, resolves the relevant Gradle graph including the *plugin/buildscript*
+ * classpath, and submits that resolved snapshot to GitHub's dependency graph.
+ * That snapshot therefore contains vulnerable transitive libraries that no
+ * Gradle module declares, and the alerts raised from it are real.
+ *
+ * Dependabot's Gradle *updater* works from a separate and narrower view: it
+ * parses the declared Gradle dependency files (`dependabot/gradle/file_parser.rb`
+ * harvests literal `group:name:version` declarations from the build files, the
+ * version catalog, the script plugins and the wrapper properties) and cannot
+ * mutate an undeclared transitive coordinate merely because it appears in the
+ * submitted snapshot. When a security alert targets one of those
+ * undeclared-but-submitted coordinates, the updater cannot find it in
  * `dependency_snapshot.all_dependencies` and the security-update job dies with
  *
  *     dependency_not_found
@@ -23,11 +29,12 @@
  * ----------------------
  * For every build-time tooling coordinate with a known advisory:
  *
- *  1. MUTABLE — it is declared as a literal `group:name:version` somewhere in
- *     the Gradle declaration surface Dependabot's Gradle file parser reads, so
- *     the coordinate exists in the updater's dependency snapshot and a future
- *     security update for it can produce a pull request instead of
- *     `dependency_not_found`.
+ *  1. MUTABLE — it is declared as a literal `group:name:version` **in code**
+ *     somewhere in the Gradle declaration surface Dependabot's Gradle file
+ *     parser reads, so the coordinate exists in the updater's dependency
+ *     snapshot and a future security update for it can produce a pull request
+ *     instead of `dependency_not_found`. Comments are removed first, exactly as
+ *     the parser does, so a commented-out declaration never counts.
  *  2. PATCHED — no version of it recorded in the committed supply-chain
  *     metadata (`gradle/verification-metadata.xml`) is below the first patched
  *     version of the advisory that applies to the previously resolved version.
@@ -89,6 +96,41 @@ const DEPENDENCY_DECLARATION_REGEX = new RegExp(
   String.raw`(?:\(|\s)\s*['"](?<declaration>${PART}:${PART}:${VERSION_PART})['"]`,
   'g',
 );
+
+/**
+ * Comment stripping, transcribed from `Dependabot::Gradle::FileParser#prepared_content`,
+ * which removes both comment forms before the declaration scan runs. (The Ruby
+ * block-comment delimiter is escaped below because the literal pair would close
+ * this comment.)
+ *
+ *   prepared_content.gsub(%r{(?<=^|\s)//.*$}, "\n")
+ *                   .gsub(%r{(?<=^|\s)/\*.*?\*\/}m, "")
+ *
+ * This matters for the guard's meaning, not just its tidiness. A commented-out
+ * constraint looks like a declaration to a naive scan but is invisible to the
+ * updater, so without this a `// classpath("org.jdom:jdom2:2.0.6.1")` would
+ * satisfy the mutability check while the coordinate stayed unmutable and the
+ * `dependency_not_found` failure stayed live.
+ *
+ * The `(?<=^|\s)` lookbehind is part of the transcription and is load-bearing:
+ * it stops a `//` inside a string, such as the
+ * `"https://repo1.maven.org/maven2"` in a repository URL, from being read as a
+ * comment. Groovy and Kotlin both honour the same two forms, and the block form
+ * closes at the first closing delimiter because the transcription is
+ * non-greedy, exactly like Dependabot's.
+ */
+const LINE_COMMENT_REGEX = /(?<=^|\s)\/\/[^\n]*/gm;
+const BLOCK_COMMENT_REGEX = /(?<=^|\s)\/\*[\s\S]*?\*\//g;
+
+/**
+ * Removes Gradle comments from a declaration surface, so that only code can
+ * satisfy the mutability check.
+ */
+export function stripComments(surfaceText) {
+  return String(surfaceText)
+    .replace(LINE_COMMENT_REGEX, '')
+    .replace(BLOCK_COMMENT_REGEX, '');
+}
 
 const COMPONENT_REGEX = /<component\s+group="(?<group>[^"]+)"\s+name="(?<name>[^"]+)"\s+version="(?<version>[^"]+)"/g;
 
@@ -301,15 +343,15 @@ function* walk(root, directory) {
 
 /**
  * Mirrors `Dependabot::Gradle::FileParser#shortform_buildfile_dependencies`:
- * every literal `group:name:version` in the surface becomes an entry of the
- * updater's `dependency_snapshot.all_dependencies`.
+ * after comments are removed, every literal `group:name:version` in the surface
+ * becomes an entry of the updater's `dependency_snapshot.all_dependencies`.
  *
  * @returns {Map<string, Set<string>>} coordinate -> declared versions
  */
 export function declaredCoordinates(surfaceText) {
   const declared = new Map();
 
-  for (const match of String(surfaceText).matchAll(DEPENDENCY_DECLARATION_REGEX)) {
+  for (const match of stripComments(surfaceText).matchAll(DEPENDENCY_DECLARATION_REGEX)) {
     const [group, name, rawVersion] = match.groups.declaration.split(':');
     const version = rawVersion.split('@')[0];
     const coordinate = `${group}:${name}`;

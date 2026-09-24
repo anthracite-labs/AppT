@@ -18,6 +18,7 @@ import {
   formatDiagnostic,
   readDeclarationSurface,
   resolvedVersions,
+  stripComments,
 } from '../enforce-gradle-tooling-constraints.mjs';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -206,6 +207,155 @@ test('harvests literal declarations the way the Gradle updater does', () => {
   ]));
   // A packaging suffix must not leak into the version.
   assert.deepEqual(declaredCoordinates('classpath("org.jdom:jdom2:2.0.6.1@jar")').get('org.jdom:jdom2'), new Set(['2.0.6.1']));
+});
+
+// --- Comments are not declarations ---------------------------------------
+//
+// Dependabot strips comments before it scans for declarations, so a
+// commented-out constraint is invisible to the updater. The guard must agree,
+// or it would report a coordinate as mutable while `dependency_not_found` was
+// still live.
+
+test('a line-commented declaration is not a declaration', () => {
+  const surface = `
+buildscript {
+    dependencies {
+        constraints {
+            // classpath("org.jdom:jdom2:2.0.6.1")
+        }
+    }
+}
+`;
+
+  assert.equal(declaredCoordinates(surface).has('org.jdom:jdom2'), false);
+});
+
+test('a block-commented declaration is not a declaration', () => {
+  const surface = `
+buildscript {
+    dependencies {
+        constraints {
+            /* classpath("org.eclipse.jgit:org.eclipse.jgit:6.10.1.202505221210-r") */
+        }
+    }
+}
+`;
+
+  assert.equal(declaredCoordinates(surface).has('org.eclipse.jgit:org.eclipse.jgit'), false);
+});
+
+test('a multi-line block comment containing a declaration is not a declaration', () => {
+  const surface = `
+buildscript {
+    dependencies {
+        constraints {
+            /*
+             * Disabled while AGP catches up:
+             * classpath("org.bitbucket.b_c:jose4j:0.9.6")
+             */
+        }
+    }
+}
+`;
+
+  assert.equal(declaredCoordinates(surface).has('org.bitbucket.b_c:jose4j'), false);
+});
+
+test('a comment-only patched declaration does not satisfy the guard', () => {
+  const result = evaluate({
+    // The exact shape CodeRabbit reported: the patched declaration exists only
+    // inside a comment.
+    declarationSurface: `
+buildscript {
+    dependencies {
+        constraints {
+            // classpath("org.jdom:jdom2:2.0.6.1")
+            /* classpath("org.eclipse.jgit:org.eclipse.jgit:6.10.1.202505221210-r") */
+            // classpath("org.bitbucket.b_c:jose4j:0.9.6")
+        }
+    }
+}
+`,
+    verificationMetadataXml: PATCHED_METADATA,
+  });
+
+  assert.equal(result.passed, false);
+  assert.deepEqual(
+    result.errors.map((e) => `${e.code} ${e.coordinate}`),
+    [
+      'DEPENDENCY_NOT_MUTABLE org.bitbucket.b_c:jose4j',
+      'DEPENDENCY_NOT_MUTABLE org.eclipse.jgit:org.eclipse.jgit',
+      'DEPENDENCY_NOT_MUTABLE org.jdom:jdom2',
+    ],
+  );
+  assert.match(result.errors[0].detail, /dependency_not_found/);
+});
+
+test('a real declaration beside a comment still counts', () => {
+  const surface = `
+buildscript {
+    dependencies {
+        constraints {
+            // classpath("org.jdom:jdom2:2.0.6.1")
+            classpath("org.jdom:jdom2:2.0.6.1")
+        }
+    }
+}
+`;
+
+  assert.deepEqual(declaredCoordinates(surface).get('org.jdom:jdom2'), new Set(['2.0.6.1']));
+});
+
+test('a trailing comment does not hide the declaration it follows', () => {
+  const surface = `
+buildscript {
+    dependencies {
+        constraints {
+            classpath("org.jdom:jdom2:2.0.6.1") // pinned by Issue #68
+        }
+    }
+}
+`;
+
+  assert.deepEqual(declaredCoordinates(surface).get('org.jdom:jdom2'), new Set(['2.0.6.1']));
+});
+
+test('a comment on a declaration-free line is removed, not merged into code', () => {
+  const surface = `
+// classpath("org.jdom:jdom2:2.0.6.1")
+`;
+  const stripped = stripComments(surface);
+
+  assert.doesNotMatch(stripped, /jdom2/);
+  assert.equal(declaredCoordinates(surface).size, 0);
+});
+
+test('a repository URL comment marker is not treated as a comment', () => {
+  // `(?<=^|\s)` is load-bearing: the `//` in a URL follows `:`, not whitespace,
+  // so the string must survive comment stripping intact.
+  const surface = `
+repositories { maven { url = uri("https://repo1.maven.org/maven2") } }
+classpath("org.jdom:jdom2:2.0.6.1")
+`;
+
+  assert.match(stripComments(surface), /https:\/\/repo1\.maven\.org\/maven2/);
+  assert.deepEqual(declaredCoordinates(surface).get('org.jdom:jdom2'), new Set(['2.0.6.1']));
+});
+
+test('a block-comment marker inside a string cannot swallow a later declaration', () => {
+  // Discriminating case for the block-comment lookbehind: without it, the `/*`
+  // inside the string would pair with the `*/` of the real trailing comment and
+  // delete the declaration in between.
+  const surface = [
+    'ext.odd = "a/*b"',
+    'classpath("org.jdom:jdom2:2.0.6.1")',
+    '/* a real trailing comment */',
+    '',
+  ].join('\n');
+
+  assert.match(stripComments(surface), /jdom2:2\.0\.6\.1/);
+  assert.doesNotMatch(stripComments(surface), /a real trailing comment/);
+  assert.deepEqual(declaredCoordinates(surface).get('org.jdom:jdom2'), new Set(['2.0.6.1']));
 });
 
 test('reads resolved versions out of verification metadata', () => {

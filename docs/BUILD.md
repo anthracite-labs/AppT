@@ -100,14 +100,19 @@ dependency graph only as transitives of the Gradle plugins this build applies �
 `jose4j` through AGP's `bundletool`, `jdom2` through AGP's
 `jetifier-processor`, and `org.eclipse.jgit` through Spotless's
 `spotless-lib-extra`. They appear in no `*.gradle.lockfile` and nowhere in
-`gradle/libs.versions.toml`, and the updater cannot see them:
+`gradle/libs.versions.toml`, and the two sides that reason about them are
+looking at different things:
 
-- GitHub's dependency graph resolves the plugin/buildscript classpath, so the
-  alerts against them are real;
-- Dependabot's Gradle updater does not resolve anything — it harvests literal
-  `group:name:version` declarations — so a security update for an undeclared
-  coordinate fails with `dependency_not_found` and the job stays red while the
-  alert stays open.
+- AppT's `Automatic Dependency Submission (Gradle)` workflow runs the Gradle
+  build, resolves the relevant Gradle graph — including the
+  plugin/buildscript classpath — and submits that resolved snapshot to GitHub's
+  dependency graph. The alerts raised from the submitted snapshot are real.
+- Dependabot's Gradle updater works from a separate and much narrower view. It
+  parses the declared Gradle dependency files (`Dependabot::Gradle::FileParser`)
+  and cannot mutate an undeclared transitive coordinate merely because that
+  coordinate appears in the submitted dependency graph. A security update for
+  such a coordinate fails with `dependency_not_found`, so the job stays red
+  while the alert stays open.
 
 The seam that owns them is the root `buildscript { dependencies { constraints {
 classpath(...) } } }` block in `build.gradle.kts`. A constraint records the
