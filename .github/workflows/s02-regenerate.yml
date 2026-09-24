@@ -48,27 +48,34 @@ jobs:
           gradle-version: '9.7.1'
           cache-provider: 'basic'
 
-      - name: Regenerate lockfiles
+      # The proof step: canonical strict verification (Issue #73) on the tree
+      # exactly as committed. No `|| true`; pipefail keeps Gradle's exit code.
+      - name: Strict canonical verification (committed tree)
+        id: strict
+        continue-on-error: true
         run: |
           set -o pipefail
-          ./gradlew --no-daemon --dependency-verification=lenient resolveAndLockAll --write-locks 2>&1 | tee /tmp/locks.log || true
+          ./gradlew --no-daemon --dependency-verification=strict \
+            ciCheck :samsung:testDebugUnitTest :app:testDebugUnitTest :app:lintDebug appTGuards \
+            --continue 2>&1 | tee /tmp/strict.log
 
-      - name: Regenerate verification metadata and apply formatting
+      # Diagnostics only, when the proof step failed: produce the formatting /
+      # lock / metadata patch to apply. Never counted as verification.
+      - name: Regenerate lockfiles (diagnostic)
+        if: steps.strict.outcome != 'success'
         run: |
-          set -o pipefail
-          ./gradlew --no-daemon --write-verification-metadata sha256 spotlessApply ciCheck :samsung:testDebugUnitTest --continue 2>&1 | tee /tmp/metadata.log || true
+          ./gradlew --no-daemon --dependency-verification=lenient resolveAndLockAll --write-locks > /tmp/locks.log 2>&1 || echo "lock regeneration exited $?" >> /tmp/locks.log
+
+      - name: Regenerate verification metadata and apply formatting (diagnostic)
+        if: steps.strict.outcome != 'success'
+        run: |
+          ./gradlew --no-daemon --write-verification-metadata sha256 spotlessApply ciCheck :samsung:testDebugUnitTest --continue > /tmp/metadata.log 2>&1 || echo "metadata/format exited $?" >> /tmp/metadata.log
 
       - name: Capture regenerated diff
+        if: always()
         run: |
-          git diff --binary > /tmp/regenerated.patch || true
+          git diff --binary > /tmp/regenerated.patch
           git diff --stat | tail -n 40
-
-      - name: Strict verification with regenerated state
-        run: |
-          set -o pipefail
-          ./gradlew --no-daemon --dependency-verification=strict ciCheck :samsung:testDebugUnitTest --continue 2>&1 | tee /tmp/strict.log || true
-          grep -E "BUILD (SUCCESSFUL|FAILED)" /tmp/strict.log || true
-          grep -A 40 "What went wrong" /tmp/strict.log | head -n 120 || true
 
       - name: Summarize results
         if: always()
@@ -159,6 +166,22 @@ jobs:
           for n, chunk in enumerate(chunks[:19]):
               print(f"::{levels[n]} title=patch {n + 1}/{len(chunks)}::{chunk}")
           PY
+
+      - name: Verdict
+        if: always()
+        run: |
+          status=0
+          if [ "${{ steps.strict.outcome }}" != "success" ]; then
+            echo "::error title=verdict::strict canonical verification failed"; status=1
+          fi
+          if ! grep -q "BUILD SUCCESSFUL" /tmp/strict.log || grep -q "BUILD FAILED" /tmp/strict.log; then
+            echo "::error title=verdict::strict log is not BUILD SUCCESSFUL"; status=1
+          fi
+          if [ -s /tmp/regenerated.patch ]; then
+            echo "::error title=verdict::regeneration changed committed files"; status=1
+          fi
+          grep -E "BUILD (SUCCESSFUL|FAILED)" /tmp/strict.log || true
+          exit $status
 
       - name: Upload results
         if: always()

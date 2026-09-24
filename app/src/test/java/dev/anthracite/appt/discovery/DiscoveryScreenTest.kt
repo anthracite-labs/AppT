@@ -6,12 +6,14 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.anthracite.appt.samsung.TvFailure
 import dev.anthracite.appt.samsung.TvId
@@ -90,10 +92,24 @@ class DiscoveryScreenTest {
         assertEquals(listOf(ready.tvId), picks)
     }
 
+    /**
+     * The grid is lazy: only items inside the viewport are composed, so on Robolectric's default
+     * small screen the trailing Scan again item would simply not exist in the semantics tree. The
+     * check runs on a tall phone (still compact width, so the same one-column layout) so every
+     * control is composed and fully on screen, and scrolls to Scan again so it never depends on
+     * the viewport height.
+     */
     @Test
+    @Config(qualifiers = "w360dp-h1200dp")
     fun everyControlMeetsTouchTarget() {
         setDiscovery(DiscoveryUiState(ScanPhase.Finished, listOf(ready, needsPairing, unsupported), false))
+        composeRule
+            .onNodeWithTag(DiscoveryTestTags.LIST)
+            .performScrollToNode(hasTestTag(DiscoveryTestTags.RESCAN))
+
         // Two choosable cards and Scan again; the Unsupported card is not a control.
+        assertEquals(2, composeRule.onAllNodes(hasTestTag(DiscoveryTestTags.CARD) and hasClickAction()).fetchSemanticsNodes().size)
+        composeRule.onNodeWithTag(DiscoveryTestTags.RESCAN).assertHasClickAction()
         assertEquals(3, composeRule.clickableNodes().size)
         composeRule.assertEveryClickableMeetsTheTouchTargetFloor()
     }

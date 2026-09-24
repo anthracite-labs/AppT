@@ -9,6 +9,8 @@
 // Firebase, Play services, Play Billing, Play Integrity, any telemetry SDK,
 // Room, DataStore, WorkManager, licensing, and :app.
 
+import java.time.Duration
+
 plugins {
     alias(libs.plugins.android.library)
     // No kotlin-android plugin: AGP 9's built-in Kotlin compiles this
@@ -115,4 +117,4 @@ configurations.configureEach {
 // Discovery tests include real loopback sockets and threads. A regression must
 // fail the build with a stuck-test report rather than hang CI until the job
 // limit; this is a backstop above the per-test JUnit timeouts.
-tasks.withType<Test>().configureEach { timeout.set(java.time.Duration.ofMinutes(10)) }
+tasks.withType<Test>().configureEach { timeout.set(Duration.ofMinutes(10)) }

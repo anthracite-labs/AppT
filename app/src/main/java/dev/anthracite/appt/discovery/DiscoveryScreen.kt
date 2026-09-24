@@ -68,7 +68,7 @@ fun DiscoveryScreen(
             val columns = if (maxWidth >= MEDIUM_WIDTH) 2 else 1
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columns),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().testTag(DiscoveryTestTags.LIST),
                 contentPadding = PaddingValues(horizontal = SpaceTokens.lg, vertical = SpaceTokens.xl),
                 verticalArrangement = Arrangement.spacedBy(SpaceTokens.md),
                 horizontalArrangement = Arrangement.spacedBy(SpaceTokens.md),
