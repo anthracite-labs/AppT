@@ -17,7 +17,7 @@ module.exports = {
   testMatch: ['**/*.test.ts'],
   clearMocks: true,
   transform: {
-    '^.+\\.ts$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.test.json' }],
+    '^.+\\.ts$': ['<rootDir>/ts-jest-transformer.js', { tsconfig: '<rootDir>/tsconfig.test.json' }],
   },
   coverageDirectory: '<rootDir>/coverage',
   coverageReporters: ['text', ['lcov', { projectRoot: path.resolve(__dirname, '..') }]],

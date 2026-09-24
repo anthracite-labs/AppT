@@ -1,7 +1,7 @@
 // Tests for the dependency security policy evaluator.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { evaluateVulnerabilities } from '../enforce-dependency-policy.mjs';
+import { evaluateVulnerabilities, formatErrorDiagnostic } from '../enforce-dependency-policy.mjs';
 
 test('passes when no vulnerabilities are detected', () => {
   const result = evaluateVulnerabilities('[]');
@@ -77,4 +77,23 @@ test('rejects arbitrary vulnerable package in any manifest', () => {
   const result = evaluateVulnerabilities(input);
   assert.equal(result.passed, false);
   assert.equal(result.errors.length, 1);
+});
+
+test('handles JSON parse error with structured diagnostic format', () => {
+  const result = evaluateVulnerabilities('{ invalid json');
+  assert.equal(result.passed, false);
+  assert.equal(result.errors.length, 1);
+  const err = result.errors[0];
+  assert.equal(typeof err, 'object');
+  assert.equal(err.advisoryId, 'PARSE_ERROR');
+  assert.equal(err.manifest, 'dependency-review');
+  assert.equal(err.name, 'invalid-json');
+  assert.equal(err.version, 'unknown');
+  assert.equal(err.severity, 'critical');
+  assert.match(err.summary, /Failed to parse vulnerable changes JSON/);
+
+  const formatted = formatErrorDiagnostic(err);
+  assert.match(formatted, /^::error title=Vulnerable Dependency Detected::invalid-json@unknown/);
+  assert.doesNotMatch(formatted, /undefined/);
+  assert.match(formatted, /Failed to parse vulnerable changes JSON/);
 });

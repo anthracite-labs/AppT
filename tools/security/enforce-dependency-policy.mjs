@@ -21,7 +21,16 @@ export function evaluateVulnerabilities(vulnerableChangesJson) {
   } catch (err) {
     return {
       passed: false,
-      errors: [`Failed to parse vulnerable changes JSON: ${err.message}`],
+      errors: [
+        {
+          advisoryId: 'PARSE_ERROR',
+          manifest: 'dependency-review',
+          name: 'invalid-json',
+          version: 'unknown',
+          severity: 'critical',
+          summary: `Failed to parse vulnerable changes JSON: ${err.message}`,
+        },
+      ],
       permitted: [],
     };
   }
@@ -55,6 +64,10 @@ export function evaluateVulnerabilities(vulnerableChangesJson) {
   };
 }
 
+export function formatErrorDiagnostic(e) {
+  return `::error title=Vulnerable Dependency Detected::${e.name}@${e.version} (${e.advisoryId} - ${e.severity}) in manifest ${e.manifest}: ${e.summary}`;
+}
+
 const isMain = process.argv[1] === fileURLToPath(import.meta.url);
 if (isMain) {
   const result = evaluateVulnerabilities(process.env.VULNERABLE_CHANGES);
@@ -64,7 +77,7 @@ if (isMain) {
   }
 
   for (const e of result.errors) {
-    console.error(`::error title=Vulnerable Dependency Detected::${e.name}@${e.version} (${e.advisoryId} - ${e.severity}) in manifest ${e.manifest}: ${e.summary}`);
+    console.error(formatErrorDiagnostic(e));
   }
 
   if (!result.passed) {
