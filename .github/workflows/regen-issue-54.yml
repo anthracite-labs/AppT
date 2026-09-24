@@ -138,13 +138,19 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Regenerate the Gradle dependency lock state
+        # The committed verification metadata records checksums for the OLD
+        # graph only, and dependency verification defaults to strict whenever
+        # the file exists — so it is removed first and regenerated (for the
+        # final graph only) in the next step. Locks are refreshed by their
+        # owning tool exactly as docs/BUILD.md prescribes.
         run: |
           set -euo pipefail
+          rm -f gradle/verification-metadata.xml
           ./gradlew resolveAndLockAll --write-locks > "$RUNNER_TEMP/locks.txt" 2>&1 || {
-            echo "::error::resolveAndLockAll --write-locks failed"
-            tail -n 60 "$RUNNER_TEMP/locks.txt" | while IFS= read -r line; do
-              echo "::error::$(printf '%s' "$line" | tr -d '\r')"
-            done
+            echo "::error::resolveAndLockAll --write-locks failed:"
+            sed -n '/FAILURE: Build failed/,/^\* Try:/p' "$RUNNER_TEMP/locks.txt" \
+              | head -c 4000 | tr '\n' ' ' | tr -d '\r' \
+              | awk '{print "::error::" $0}'
             exit 1
           }
           echo "Lock regeneration OK" >> "$GITHUB_STEP_SUMMARY"
@@ -156,15 +162,14 @@ jobs:
         # template owns the policy; the <components> body is generated).
         run: |
           set -euo pipefail
-          rm -f gradle/verification-metadata.xml
           ./gradlew --no-daemon --write-verification-metadata sha256 \
             assembleDebug lintDebug testDebugUnitTest dependencyLockCheck \
             :macrobenchmark:assembleBenchmark appTGuards detekt \
             > "$RUNNER_TEMP/write-verification.txt" 2>&1 || {
-            echo "::error::write-verification-metadata build failed"
-            tail -n 80 "$RUNNER_TEMP/write-verification.txt" | while IFS= read -r line; do
-              echo "::error::$(printf '%s' "$line" | tr -d '\r')"
-            done
+            echo "::error::write-verification-metadata build failed:"
+            sed -n '/FAILURE: Build failed/,/^\* Try:/p' "$RUNNER_TEMP/write-verification.txt" \
+              | head -c 4000 | tr '\n' ' ' | tr -d '\r' \
+              | awk '{print "::error::" $0}'
             exit 1
           }
           python3 - <<'PY'
@@ -193,10 +198,10 @@ jobs:
             assembleDebug lintDebug testDebugUnitTest dependencyLockCheck \
             :macrobenchmark:assembleBenchmark appTGuards detekt \
             > "$RUNNER_TEMP/strict-proof.txt" 2>&1 || {
-            echo "::error::strict verification proof failed"
-            tail -n 80 "$RUNNER_TEMP/strict-proof.txt" | while IFS= read -r line; do
-              echo "::error::$(printf '%s' "$line" | tr -d '\r')"
-            done
+            echo "::error::strict verification proof failed:"
+            sed -n '/FAILURE: Build failed/,/^\* Try:/p' "$RUNNER_TEMP/strict-proof.txt" \
+              | head -c 4000 | tr '\n' ' ' | tr -d '\r' \
+              | awk '{print "::error::" $0}'
             exit 1
           }
           echo "Strict proof OK" >> "$GITHUB_STEP_SUMMARY"
