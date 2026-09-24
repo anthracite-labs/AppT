@@ -83,6 +83,15 @@ android {
             "AndroidGradlePluginVersion",
             "GradleDependency",
             "NewerVersionAvailable",
+            // Issue #54: compileSdk now tracks the toolchain (37) while
+            // targetSdk deliberately stays at 36 — bumping the target opts
+            // into new runtime behavior and is gated on
+            // docs/architecture/discovery.md (a target-37 bump must adopt
+            // ACCESS_LOCAL_NETWORK through that gate first). OldTargetApi
+            // would fail the build for NOT making that unreviewed bump, so
+            // like the currency checks above it stays informational: the
+            // signal remains visible, the architecture gate stays intact.
+            "OldTargetApi",
         )
         // The Welcome surface is not yet localized beyond the default locale;
         // translation completeness becomes real when store locales are chosen.
