@@ -1,0 +1,170 @@
+# TEMPORARY — Issue #54 supply-chain regeneration (branch-scoped).
+#
+# Arena's development sandbox has no JDK, no Android SDK and no egress to
+# services.gradle.org / dl.google.com / repo1.maven.org, so the Gradle
+# wrapper, lockfiles and verification metadata for the Issue #54 modernization
+# are regenerated here on a canonical GitHub runner, exactly as allowed by
+# .agents/ARENA-DISPATCH.md ("Supply-chain regeneration").
+#
+# Contract:
+#   * workflow_dispatch only, and only from this implementation branch;
+#   * immutable full-SHA action pins, tag in the comment;
+#   * minimum permissions: the job gets `contents: write` for the single
+#     purpose of pushing the regenerated artifacts back to this branch, and
+#     nothing else; no repository secrets are referenced;
+#   * writes ONLY the intended generated supply-chain artifacts (wrapper
+#     jar/scripts, *.gradle.lockfile, gradle/verification-metadata.xml);
+#   * proves the result under the repository's normal strict verification and
+#     committed lock state before pushing;
+#   * this file MUST be deleted before the Issue #54 pull request is
+#     considered complete.
+
+name: Regenerate Gradle supply-chain state (Issue #54, temporary)
+
+on:
+  # Bootstrap: a brand-new workflow file that exists only on a non-default
+  # branch cannot be dispatched until it has registered with GitHub by running
+  # once (workflow_dispatch registration requires the file on the default
+  # branch, and this file must NOT be added to main). The first run therefore
+  # rides this implementation branch's push event; subsequent runs use
+  # workflow_dispatch on this branch. Both are scoped to this branch, and the
+  # push trigger is removed once dispatch is confirmed.
+  push:
+    branches: [arena/01a0d0d6-appt]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-54-regenerate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  regenerate:
+    name: Regenerate wrapper, locks and verification metadata
+    if: github.ref == 'refs/heads/arena/01a0d0d6-appt'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the implementation branch
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up JDK
+        # actions/setup-java v6.0.1
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up pinned Gradle CLI
+        # gradle/actions/setup-gradle v6.3.0
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+        with:
+          gradle-version: '9.7.1'
+          # Open-source GitHub Actions cache provider (see ci.yml rationale).
+          cache-provider: 'basic'
+
+      - name: Verify distributionSha256Sum against the published Gradle checksum
+        run: |
+          set -euo pipefail
+          expected="$(grep '^distributionSha256Sum=' gradle/wrapper/gradle-wrapper.properties | cut -d= -f2- | tr -d '[:space:]')"
+          actual="$(curl -fsSL https://services.gradle.org/distributions/gradle-9.7.1-bin.zip.sha256 | tr -d '[:space:]')"
+          echo "wrapper pin : $expected"
+          echo "published   : $actual"
+          test -n "$expected" && test "$expected" = "$actual"
+
+      - name: Generate the wrapper from an official distribution in a scratch build
+        # Running `gradle wrapper` inside this repository would configure the
+        # AppT build (and resolve AGP) before the wrapper meant to run that
+        # build exists — docs/BUILD.md requires the scratch-build pattern.
+        run: |
+          set -euo pipefail
+          scratch="$(mktemp -d)"
+          (cd "$scratch" && gradle wrapper --gradle-version 9.7.1 --distribution-type bin)
+          cp "$scratch/gradlew" "$scratch/gradlew.bat" "$GITHUB_WORKSPACE"/
+          cp "$scratch/gradle/wrapper/gradle-wrapper.jar" "$GITHUB_WORKSPACE"/gradle/wrapper/
+          chmod +x "$GITHUB_WORKSPACE"/gradlew
+          # The committed gradle-wrapper.properties is repository-owned (it
+          # carries the policy comments and distributionSha256Sum), so it is
+          # intentionally NOT copied; only assert the generated distribution
+          # URL agrees with the committed pin.
+          grep -q 'gradle-9\.7\.1-bin\.zip' "$scratch/gradle/wrapper/gradle-wrapper.properties"
+          grep -q 'gradle-9\.7\.1-bin\.zip' "$GITHUB_WORKSPACE"/gradle/wrapper/gradle-wrapper.properties
+          "$GITHUB_WORKSPACE"/gradlew --version
+
+      - name: Regenerate the Gradle dependency lock state
+        run: ./gradlew resolveAndLockAll --write-locks
+
+      - name: Regenerate verification metadata for the final graph
+        # Start from no verification file so the committed result contains
+        # exactly the final resolved graph, then restore the repository-owned
+        # policy header from gradle/verification-metadata.template.xml (the
+        # template owns the policy; the <components> body is generated).
+        run: |
+          set -euo pipefail
+          rm -f gradle/verification-metadata.xml
+          ./gradlew --no-daemon --write-verification-metadata sha256 \
+            assembleDebug lintDebug testDebugUnitTest dependencyLockCheck \
+            :macrobenchmark:assembleBenchmark appTGuards detekt
+          python3 - <<'PY'
+          import pathlib, re, sys
+          template = pathlib.Path("gradle/verification-metadata.template.xml").read_text()
+          generated = pathlib.Path("gradle/verification-metadata.xml")
+          body = generated.read_text()
+          policy = re.search(r"<configuration>.*?</configuration>", template, re.S)
+          current = re.search(r"<configuration>.*?</configuration>", body, re.S)
+          if not policy or not current:
+              sys.exit("missing <configuration> block in template or generated file")
+          if policy.group(0) != current.group(0):
+              print("restoring repository-owned verification policy header from template")
+              body = body[: current.start()] + policy.group(0) + body[current.end() :]
+              generated.write_text(body)
+          else:
+              print("generated policy header already matches the template")
+          if "<component " not in generated.read_text():
+              sys.exit("verification metadata contains no component checksums")
+          PY
+
+      - name: Prove the result under strict verification and committed locks
+        run: >-
+          ./gradlew --no-daemon --dependency-verification=strict
+          assembleDebug lintDebug testDebugUnitTest dependencyLockCheck
+          :macrobenchmark:assembleBenchmark appTGuards detekt
+
+      - name: Summarize baseline alerted families from the generated state
+        run: |
+          {
+            echo "### Resolved versions for Issue #54 baseline alert families (from committed generated state)"
+            echo
+            echo '```'
+            for f in app/gradle.lockfile samsung/gradle.lockfile macrobenchmark/gradle.lockfile; do
+              grep -hE 'netty-|protobuf|bcprov|wire-runtime' "$f" 2>/dev/null | cut -d= -f1 | sort -u | sed "s|^|$f: |" || true
+            done
+            grep -oE '<component group="[^"]+" name="(jose4j|jdom2|commons-compress|kotlin-gradle-plugin|bcprov-jdk18on|netty-[a-z0-9-]+|protobuf-[a-z-]+|wire-runtime[a-z-]*)" version="[^"]+"' gradle/verification-metadata.xml | sort -u | sed 's|^|verification-metadata: |'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit and push the regenerated supply-chain artifacts
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            gradlew \
+            gradlew.bat \
+            gradle/wrapper/gradle-wrapper.jar \
+            gradle/verification-metadata.xml \
+            app/gradle.lockfile \
+            samsung/gradle.lockfile \
+            macrobenchmark/gradle.lockfile \
+            settings-gradle.lockfile
+          if git diff --cached --quiet; then
+            echo "Generated state already matches the committed state; nothing to push."
+            exit 0
+          fi
+          git commit -m "regen: Gradle wrapper, lockfiles and verification metadata (Issue #54)"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
