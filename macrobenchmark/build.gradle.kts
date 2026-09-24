@@ -99,7 +99,7 @@ configurations.configureEach {
                     "org.apache.httpcomponents:httpclient:4.5.14",
                 )
             cfg.contains("benchmark") || cfg == "implementationDependenciesMetadata" ->
-                listOf("com.squareup.wire:wire-runtime:6.4.7")
+                listOf("com.squareup.wire:wire-runtime:7.0.3")
             else -> emptyList<String>()
         }
     notations.forEach { notation -> project.dependencies.constraints { add(cfg, notation) } }
