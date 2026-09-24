@@ -83,6 +83,27 @@ jobs:
           # PR CI. Caching is therefore disabled outright here.
           cache-disabled: 'true'
 
+
+      - name: Seed the wrapper distribution once (cold homes copy it)
+        # Each write/proof step uses a fresh GRADLE_USER_HOME so dependency
+        # caches stay cold (gradle/gradle#19228), but re-downloading the
+        # 150 MB distribution per home risks CDN throttling. Seed the wrapper
+        # dists directory once and copy it — caches remain empty.
+        run: |
+          set -euo pipefail
+          export GRADLE_USER_HOME="$RUNNER_TEMP/gh-seed"
+          ./gradlew --version > "$RUNNER_TEMP/seed-version.txt" 2>&1 || {
+            echo "::error::wrapper distribution seed failed"
+            tail -n 30 "$RUNNER_TEMP/seed-version.txt" | tr -d '\r' | cut -c1-400 \
+              | awk '{print "::error::" $0}'
+            exit 1
+          }
+          test -d "$RUNNER_TEMP/gh-seed/wrapper/dists" || {
+            echo "::error::wrapper dists directory was not seeded"
+            exit 1
+          }
+          echo "Wrapper distribution seeded" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Regenerate the Gradle dependency lock state
         # The committed verification metadata records checksums for the OLD
         # graph only, and dependency verification defaults to strict whenever
@@ -93,13 +114,18 @@ jobs:
           set -euo pipefail
           fail() {
             echo "::error::$1"
-            sed -n '/FAILURE: Build failed/,/^\* Try:/p' "$2" 2>/dev/null \
-              | head -c 4000 | tr '\n' ' ' | tr -d '\r' \
-              | awk '{print "::error::" $0}'
+            if [ -f "$2" ]; then
+              echo "::error::log bytes: $(wc -c < "$2")"
+              head -n 15 "$2" | tr -d '\r' | cut -c1-400 | awk '{print "::error::HEAD " $0}'
+              tail -n 25 "$2" | tr -d '\r' | cut -c1-400 | awk '{print "::error::TAIL " $0}'
+            else
+              echo "::error::log file missing: $2"
+            fi
             exit 1
           }
           rm -f gradle/verification-metadata.xml
           export GRADLE_USER_HOME="$RUNNER_TEMP/gh-locks"
+          cp -a "$RUNNER_TEMP/gh-seed" "$GRADLE_USER_HOME"
           ./gradlew resolveAndLockAll --write-locks > "$RUNNER_TEMP/locks.txt" 2>&1 ||
             fail "resolveAndLockAll --write-locks failed" "$RUNNER_TEMP/locks.txt"
           echo "Lock regeneration OK" >> "$GITHUB_STEP_SUMMARY"
@@ -109,14 +135,19 @@ jobs:
           set -euo pipefail
           fail() {
             echo "::error::$1"
-            sed -n '/FAILURE: Build failed/,/^\* Try:/p' "$2" 2>/dev/null \
-              | head -c 4000 | tr '\n' ' ' | tr -d '\r' \
-              | awk '{print "::error::" $0}'
+            if [ -f "$2" ]; then
+              echo "::error::log bytes: $(wc -c < "$2")"
+              head -n 15 "$2" | tr -d '\r' | cut -c1-400 | awk '{print "::error::HEAD " $0}'
+              tail -n 25 "$2" | tr -d '\r' | cut -c1-400 | awk '{print "::error::TAIL " $0}'
+            else
+              echo "::error::log file missing: $2"
+            fi
             exit 1
           }
           # Fresh Gradle user home: every artifact is downloaded and hashed,
           # exactly like a cold CI runner (gradle/gradle#19228).
           export GRADLE_USER_HOME="$RUNNER_TEMP/gh-write-a"
+          cp -a "$RUNNER_TEMP/gh-seed" "$GRADLE_USER_HOME"
           ./gradlew --no-daemon --write-verification-metadata sha256 \
             assembleDebug lintDebug testDebugUnitTest dependencyLockCheck \
             :macrobenchmark:assembleBenchmark appTGuards detekt \
@@ -133,9 +164,13 @@ jobs:
           set -euo pipefail
           fail() {
             echo "::error::$1"
-            sed -n '/FAILURE: Build failed/,/^\* Try:/p' "$2" 2>/dev/null \
-              | head -c 4000 | tr '\n' ' ' | tr -d '\r' \
-              | awk '{print "::error::" $0}'
+            if [ -f "$2" ]; then
+              echo "::error::log bytes: $(wc -c < "$2")"
+              head -n 15 "$2" | tr -d '\r' | cut -c1-400 | awk '{print "::error::HEAD " $0}'
+              tail -n 25 "$2" | tr -d '\r' | cut -c1-400 | awk '{print "::error::TAIL " $0}'
+            else
+              echo "::error::log file missing: $2"
+            fi
             exit 1
           }
           python3 - <<'PY'
@@ -165,6 +200,7 @@ jobs:
           assert count == 5, count
           PY
           export GRADLE_USER_HOME="$RUNNER_TEMP/gh-write-b"
+          cp -a "$RUNNER_TEMP/gh-seed" "$GRADLE_USER_HOME"
           ./gradlew --no-daemon --write-verification-metadata sha256 \
             dependencyLockCheck appTGuards detekt \
             > "$RUNNER_TEMP/write-b.txt" 2>&1 || {
@@ -182,9 +218,13 @@ jobs:
           set -euo pipefail
           fail() {
             echo "::error::$1"
-            sed -n '/FAILURE: Build failed/,/^\* Try:/p' "$2" 2>/dev/null \
-              | head -c 4000 | tr '\n' ' ' | tr -d '\r' \
-              | awk '{print "::error::" $0}'
+            if [ -f "$2" ]; then
+              echo "::error::log bytes: $(wc -c < "$2")"
+              head -n 15 "$2" | tr -d '\r' | cut -c1-400 | awk '{print "::error::HEAD " $0}'
+              tail -n 25 "$2" | tr -d '\r' | cut -c1-400 | awk '{print "::error::TAIL " $0}'
+            else
+              echo "::error::log file missing: $2"
+            fi
             exit 1
           }
           python3 - <<'PY'
@@ -214,6 +254,7 @@ jobs:
           assert count == 5, count
           PY
           export GRADLE_USER_HOME="$RUNNER_TEMP/gh-write-c"
+          cp -a "$RUNNER_TEMP/gh-seed" "$GRADLE_USER_HOME"
           ./gradlew --no-daemon --write-verification-metadata sha256 \
             dependencyLockCheck appTGuards detekt \
             > "$RUNNER_TEMP/write-c.txt" 2>&1 || {
@@ -266,12 +307,17 @@ jobs:
           set -euo pipefail
           fail() {
             echo "::error::$1"
-            sed -n '/FAILURE: Build failed/,/^\* Try:/p' "$2" 2>/dev/null \
-              | head -c 4000 | tr '\n' ' ' | tr -d '\r' \
-              | awk '{print "::error::" $0}'
+            if [ -f "$2" ]; then
+              echo "::error::log bytes: $(wc -c < "$2")"
+              head -n 15 "$2" | tr -d '\r' | cut -c1-400 | awk '{print "::error::HEAD " $0}'
+              tail -n 25 "$2" | tr -d '\r' | cut -c1-400 | awk '{print "::error::TAIL " $0}'
+            else
+              echo "::error::log file missing: $2"
+            fi
             exit 1
           }
           export GRADLE_USER_HOME="$RUNNER_TEMP/gh-proof-a"
+          cp -a "$RUNNER_TEMP/gh-seed" "$GRADLE_USER_HOME"
           ./gradlew --no-daemon --dependency-verification=strict \
             assembleDebug lintDebug testDebugUnitTest dependencyLockCheck \
             :macrobenchmark:assembleBenchmark appTGuards detekt \
@@ -284,9 +330,13 @@ jobs:
           set -euo pipefail
           fail() {
             echo "::error::$1"
-            sed -n '/FAILURE: Build failed/,/^\* Try:/p' "$2" 2>/dev/null \
-              | head -c 4000 | tr '\n' ' ' | tr -d '\r' \
-              | awk '{print "::error::" $0}'
+            if [ -f "$2" ]; then
+              echo "::error::log bytes: $(wc -c < "$2")"
+              head -n 15 "$2" | tr -d '\r' | cut -c1-400 | awk '{print "::error::HEAD " $0}'
+              tail -n 25 "$2" | tr -d '\r' | cut -c1-400 | awk '{print "::error::TAIL " $0}'
+            else
+              echo "::error::log file missing: $2"
+            fi
             exit 1
           }
           python3 - <<'PY'
@@ -315,6 +365,7 @@ jobs:
           assert count == 5, count
           PY
           export GRADLE_USER_HOME="$RUNNER_TEMP/gh-proof-b"
+          cp -a "$RUNNER_TEMP/gh-seed" "$GRADLE_USER_HOME"
           ./gradlew --no-daemon --dependency-verification=strict \
             dependencyLockCheck appTGuards detekt \
             > "$RUNNER_TEMP/proof-b.txt" 2>&1 || {
@@ -329,9 +380,13 @@ jobs:
           set -euo pipefail
           fail() {
             echo "::error::$1"
-            sed -n '/FAILURE: Build failed/,/^\* Try:/p' "$2" 2>/dev/null \
-              | head -c 4000 | tr '\n' ' ' | tr -d '\r' \
-              | awk '{print "::error::" $0}'
+            if [ -f "$2" ]; then
+              echo "::error::log bytes: $(wc -c < "$2")"
+              head -n 15 "$2" | tr -d '\r' | cut -c1-400 | awk '{print "::error::HEAD " $0}'
+              tail -n 25 "$2" | tr -d '\r' | cut -c1-400 | awk '{print "::error::TAIL " $0}'
+            else
+              echo "::error::log file missing: $2"
+            fi
             exit 1
           }
           python3 - <<'PY'
@@ -360,6 +415,7 @@ jobs:
           assert count == 5, count
           PY
           export GRADLE_USER_HOME="$RUNNER_TEMP/gh-proof-c"
+          cp -a "$RUNNER_TEMP/gh-seed" "$GRADLE_USER_HOME"
           ./gradlew --no-daemon --dependency-verification=strict \
             dependencyLockCheck appTGuards detekt \
             > "$RUNNER_TEMP/proof-c.txt" 2>&1 || {
