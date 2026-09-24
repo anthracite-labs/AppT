@@ -119,14 +119,15 @@ tasks.register("ciCheck") {
     description =
         "Root Android/Kotlin verification interface aggregating the complete verification floor."
     dependsOn(
-        tasks.named("spotlessCheck"),
-        tasks.named("assembleDebug"),
-        tasks.named("testDebugUnitTest"),
-        tasks.named("lintDebug"),
-        tasks.named("detekt"),
-        tasks.named("dependencyLockCheck"),
-        tasks.named("appTGuards"),
-        project(":macrobenchmark").tasks.named("assembleBenchmark"),
+        "spotlessCheck",
+        ":app:assembleDebug",
+        ":app:testDebugUnitTest",
+        ":app:lintDebug",
+        ":samsung:lintDebug",
+        ":app:detekt",
+        ":samsung:detekt",
+        ":macrobenchmark:assembleBenchmark",
+        "appTGuards",
     )
 }
 

@@ -66,7 +66,11 @@ jobs:
 
       - name: Run ShellCheck
         run: |
-          find tools -name "*.sh" -exec /usr/bin/shellcheck {} +
+          set -o pipefail
+          find tools -name "*.sh" -print0 | xargs -0 shellcheck 2>&1 | tee /tmp/shellcheck.log || {
+            echo "::error title=ShellCheck Failure::$(head -n 10 /tmp/shellcheck.log | tr '\n' ' ')"
+            exit 1
+          }
 
       - name: Install and run shfmt
         run: |
