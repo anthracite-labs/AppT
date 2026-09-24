@@ -116,7 +116,7 @@ Secondary:
 
 ## Recent change
 
-- `Clean one-owner verification architecture was accepted through merged PR #57 at 40c1cd3c; before Issue #56 is dispatched, that architecture is being tightened with the independently researched AI-code assurance stack so Arena is reviewed by deterministic tooling and an external reviewer rather than by self-attestation.`
+- `Verification architecture was expanded through PR #59 with the independently researched AI-code assurance stack: deterministic compiler/formatter/linter/coverage/dead-code controls, SonarQube Cloud, CodeRabbit review, and an independent post-Arena code-review pass now define the target for Issue #56.`
 
 ## Relevant canonical references
 
@@ -132,7 +132,7 @@ Secondary:
 - `GitHub Issue #27 — completed S01 Arena work order; closed by merged PR #30.`
 - `GitHub Issue #36 — completed security-baseline Arena work order; closed by merged PR #38.`
 - `GitHub Issue #54 / PR #55 — completed one-pass dependency and toolchain modernization.`
-- `GitHub Issue #56 — authorized repository-side implementation of the accepted verification and AI-code assurance architecture; dispatch is withheld until the assurance amendment is canonical on main and the Arena work order is recompiled from it.`
+- `GitHub Issue #56 — authorized repository-side implementation of the accepted verification and AI-code assurance architecture; its Arena work order must be compiled from current main and kept separate from S02 product scope.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
 - `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
 - `AGENTS.md — repository operating entry point.`
@@ -144,5 +144,5 @@ Secondary:
 ## After that
 
 1. `Implement and review S02 against the accepted architecture/slice contract.`
-2. `Dispatch and implement the separately authorized verification/AI-assurance redesign in Issue #56 after the assurance amendment is canonical; do not mix it into S02 product scope.`
+2. `Dispatch and implement the separately authorized verification/AI-assurance redesign in Issue #56; do not mix it into S02 product scope.`
 3. `Keep the confirmed security-audit follow-up findings, S07's explicit authorization gate, provider needs-validation facts, and the two external public-release gates visible; do not silently fold them into unrelated work.`
