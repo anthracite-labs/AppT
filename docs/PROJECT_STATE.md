@@ -113,7 +113,6 @@ Secondary:
 - Final AppT source-license decision remains required before public distribution.
 - Focused Samsung vendor-terms/legal review must be completed before public release.
 - Physical-device evidence is required to tune the reliability targets in `docs/architecture/reliability.md`.
-- Dependabot's coordinated update policy is active, but a post-merge npm update run exposed a cooldown/resolution edge case around the current TypeScript ESLint peer set; follow-up is tracked in GitHub Issue #63 and is not an S02 blocker.
 
 ## Recent change
 
@@ -134,7 +133,6 @@ Secondary:
 - `GitHub Issue #36 — completed security-baseline Arena work order; closed by merged PR #38.`
 - `GitHub Issue #54 / PR #55 — completed one-pass dependency and toolchain modernization.`
 - `GitHub Issue #56 / PR #60 — completed verification and AI-code assurance redesign, merged through commit 2898b2ace007c84b21a85eed95b496027ac4ef86.`
-- `GitHub Issue #63 — operational follow-up for Dependabot cooldown filtering that prevents resolution of the already-committed TypeScript ESLint peer set.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
 - `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
 - `AGENTS.md — repository operating entry point.`
@@ -147,4 +145,4 @@ Secondary:
 
 1. `Implement and review S02 against the accepted architecture/slice contract.`
 2. `Observe the merged verification stack on the next ordinary PR, including CodeRabbit target-branch configuration and the stable gate.`
-3. `Keep the Dependabot cooldown follow-up, confirmed security-audit follow-up findings, S07's explicit authorization gate, provider needs-validation facts, and the two external public-release gates visible; do not silently fold them into unrelated work.`
+3. `Keep the confirmed security-audit follow-up findings, S07's explicit authorization gate, provider needs-validation facts, and the two external public-release gates visible; do not silently fold them into unrelated work.`
