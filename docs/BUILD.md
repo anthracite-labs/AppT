@@ -153,9 +153,10 @@ npm run verify --prefix backend
 The implementing sandbox has no JDK, no Android SDK, and no egress to
 `dl.google.com`, `repo1.maven.org` or `services.gradle.org`, so Gradle cannot
 resolve or run there. GitHub Actions is therefore the authoritative execution
-environment for every Android command in this file, and the CI run on a pull
-request (`.github/workflows/verify.yml` with proposed required check `verify / gate`) is
-the evidence that they pass.
+environment for every Android command in this file. During active implementation,
+the human-triggered full `.github/workflows/verify.yml` run is the evidence that
+the long Android verification passes; ordinary pull-request synchronization runs
+only the quick check.
 
 The backend package, the secret scanner, yamllint, markdownlint, and ShellCheck
 run locally:
@@ -169,10 +170,28 @@ run locally:
 Installed-app acceptance executes on GitHub Actions via Gradle Managed Devices
 (API 29) with KVM acceleration.
 
+## Verification cadence
+
+Pull-request synchronization is intentionally cheap. `.github/workflows/verify.yml`
+runs only the fast repository checks on ordinary PR updates: whitespace/diff
+validation, repository security-policy self-tests, secret scanning, and tooling
+constraint checks. It does not build Android, run backend verification, start a
+managed device, run SonarQube, regenerate dependency state, or execute `ciCheck`.
+
+The human decides when to pay for full verification during implementation. Use
+the `verify` workflow's **Run workflow** action on the branch that needs the full
+suite. Pushes to `main` continue to run the full suite automatically.
+
+Do not regenerate Gradle locks or verification metadata as an iteration step.
+Regenerate them only after an actual reviewed dependency change requires it.
 ## CodeQL static analysis
 
-CodeQL static analysis runs in GitHub Actions on pull requests and pushes to
-`main` via `.github/workflows/codeql.yml`.
+CodeQL static analysis keeps ordinary pull-request synchronization build-free:
+PR updates scan GitHub Actions and JavaScript/TypeScript only. Java/Kotlin CodeQL
+runs when explicitly dispatched, on pushes to `main`, and on the scheduled
+security run. The CI-policy migration PR used one temporary minimal Kotlin
+compile solely to satisfy the pre-existing code-scanning merge rule while this
+policy was being introduced.
 
 Because GitHub-managed Default Setup uses CodeQL bundle 2.27.0 which does not
 support Kotlin 2.4.20 (supported starting in CodeQL CLI / bundle 2.27.1), AppT

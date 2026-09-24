@@ -108,25 +108,40 @@ Repository settings, not workflow YAML, own:
 - CodeQL analysis for Java/Kotlin, JavaScript/TypeScript and GitHub Actions,
   using the `security-extended` query suite (temporarily via `.github/workflows/codeql.yml`
   pinned to bundle 2.27.1 while managed Default Setup lacks Kotlin 2.4.20 support);
-  branch protection blocks CodeQL security findings at medium severity or higher;
+  ordinary pull-request synchronization runs only the build-free GitHub Actions
+  and JavaScript/TypeScript analyses; Java/Kotlin CodeQL is human-triggered during
+  implementation and still runs on `main` and the scheduled security pass. The
+  CI-policy migration PR used one temporary minimal Kotlin compile to satisfy the
+  pre-existing code-scanning merge rule while the new cadence was introduced;
 - secret scanning and push protection;
-- the dependency graph, automatic dependency submission, Dependabot alerts,
-  security updates and grouped version-update proposals.
+- the dependency graph, Dependabot alerts, security updates and grouped
+  version-update proposals. Automatic dependency submission is not part of
+  ordinary feature-branch iteration because it launches a Gradle build on
+  repository pushes; repository owners keep it disabled during rapid coding
+  loops and enable or run dependency submission only when its transitive graph
+  evidence is explicitly needed.
 
 Repository workflow code must not duplicate those platform controls.
 
 ### Repository verification workflow
 
-The repository owns one ordinary pull-request verification workflow:
-`.github/workflows/verify.yml`. It runs on every pull request. The repository is
-small enough that correctness and auditability are preferred over a custom path
-classifier; path-based skipping is added only if measured Actions cost or latency
-later justifies the extra decision machinery.
+The repository owns one verification workflow:
+`.github/workflows/verify.yml`. Pull-request synchronization runs only a fast,
+non-build check: diff/whitespace validation, repository security-policy
+self-tests, secret scanning and tooling-constraint checks. It must not compile
+Android, execute `ciCheck`, run backend verification, start a managed device,
+run SonarQube, or regenerate dependency state.
+
+The full verification groups run only when a human explicitly dispatches the
+workflow for a branch, and automatically after changes land on `main`. This is
+the accepted response to measured Actions cost and implementation latency:
+coding iterations stay cheap, while the human chooses the point at which the
+long verification bill is paid.
 
 The workflow exposes one stable branch-protection interface: `verify / gate`.
-The default-branch ruleset requires that status only after it has existed and
-passed successfully. Internal job names may evolve without changing branch
-protection.
+On ordinary pull requests that gate represents the quick check. A manually
+dispatched full run produces the same gate after the complete verification
+groups. Internal job names may evolve without changing branch protection.
 
 The workflow contains these responsibility groups:
 
