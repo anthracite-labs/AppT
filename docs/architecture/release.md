@@ -83,78 +83,161 @@ Needs validation before implementation relies on it: the current Play Console mo
 | Observability | Function error rate, verification failures, revocation events, and stuck deletions are alerting signals: an account that has been `deleting` for more than seven days, or a frozen binding whose `deletionId` names no `deleting` account. No behavioral analytics, no per-user event stream |
 | Incident response | Revocation state can be corrected by an audited support action; an outage degrades to cached-proof behavior by design, not to broken remotes |
 
-## Pull-request checks
+## Verification architecture
 
-Workflows on pull request, on `main` push, on the weekly schedule, and on manual dispatch, with actions pinned to immutable commit SHAs and the version tag in a comment:
+The accepted verification design has one owner per concern. GitHub-native controls
+own repository-host security and policy; Gradle owns Android build/static
+verification; the backend package owns TypeScript verification; repository-owned
+guards own AppT-specific privacy and module invariants. A tool is added only when
+it owns a concern that no existing control owns.
 
-1. Assemble debug.
-2. Unit tests.
-3. Android lint.
-4. Dependency lock check.
-5. Strict dependency verification.
-6. Manifest permission allowlist.
-7. Fixture redaction grep.
-8. `samsung` source does not reference `android.util.Log` or Firebase packages, and the diagnostics package contains no direct `Log` call or HTTP client.
-9. `:samsung` dependency insight excludes Firebase, Play services, and every telemetry SDK.
-10. `:app` dependency insight excludes any Firestore client artifact and any crash-reporting, analytics, advertising, or attribution artifact.
-11. No `firebase-analytics`, crash reporter, advertising SDK, or `AD_ID` in the merged manifest or the merged dependency graph.
-11a. Neither production module depends on `:macrobenchmark`, and `:macrobenchmark` is absent from the release artifact.
-11b. Backend checks pass from the repository root against the `backend/` package: `npm ci --prefix backend`, `npm run typecheck --prefix backend`, `npm run lint --prefix backend`, `npm test --prefix backend`, `npm run test:emulator --prefix backend`. `package-lock.json` is committed and `npm ci` is the only install.
-11c. Signing identity per channel: the tester artifact is signed with the internal certificate, the bundle uploaded to Play with the upload certificate, neither with a debug certificate, and the registered App Check fingerprints match the Play app-signing certificate for production and the internal certificate for internal.
-12. Production sources contain no sync record, tombstone, or mutation queue.
-13. Environment guard: debug cannot resolve production identifiers; release cannot resolve development identifiers; the two release variants from one commit carry the same `versionCode` and `versionName`; and the signature-stripped artifact comparison finds environment configuration as the only difference.
-14. Secret scanning over the tree and the diff.
-15. Backend function tests and rules tests against the emulator suite.
-16. Accessibility assertions on controls touched by the change.
+The current `.github/workflows/ci.yml` + `.github/workflows/maintenance.yml`
+implementation remains the operational baseline until the migration described
+below is accepted. This section owns the target architecture that replaces it.
 
-Cost-aware execution does not weaken this floor, and the topology is
-deliberately small: the repository owns exactly two workflow files — one
-automated verification workflow (`CI`, `.github/workflows/ci.yml`) and one
-manual maintenance workflow (`Maintenance`,
-`.github/workflows/maintenance.yml`). No legacy or parallel workflow may be
-left beside them, and no third repository-owned workflow may re-enter the
-fan-out without a recorded decision.
+### GitHub-owned controls
 
-The verification workflow starts one cheap classification job (`changes`) on
-every trigger, and that job is the single place that discovers the changed
-paths and GitHub's commit-to-pull-request association. Every other job
-consumes its `run_*` outputs; no job re-diffs the tree or re-queries the
-association. The classification rules are first-party and tested:
-`tools/ci/classify-changes.sh`, with the scenario matrix (docs-only,
-Android/Kotlin source, backend, dependency/lockfile, workflow/security
-configuration, merged-PR reuse, direct main push, schedule, dispatch) pinned
-by `tools/ci/test/classify-changes.test.sh`.
+Repository settings, not workflow YAML, own:
 
-- Secret scanning runs on every pull request and every push to `main`.
-- The expensive Android, emulator, detekt, backend, and CodeQL jobs start
-  only when the changed paths can affect their result. A change to CI
-  plumbing (the workflow file or `tools/ci/`) exercises every affected gate
-  once before merge.
-- On the `main` push created by merging an already-validated pull request,
-  the association lookup marks the commit PR-validated and the heavy jobs are
-  not repeated; a direct push to `main` has no such association and therefore
-  runs the full relevant gates.
-- CodeQL analysis is a job of the verification workflow (java-kotlin under
-  the manual strict build, javascript-typescript without a build, both
-  `security-extended`) and keeps its weekly schedule and manual dispatch. On
-  schedule and dispatch events, CodeQL is the only job that runs.
-- Dependency Review is a pull-request job of the verification workflow for
-  PRs targeting `main`. It compares the dependency graph only when a
-  dependency manifest, Gradle build file, lockfile, wrapper pin, or
-  verification metadata changed, and it retries on snapshot warnings so it
-  waits for the one canonical head snapshot instead of racing its only
-  producer, GitHub's automatic dependency submission (`submit-gradle`). No
-  repository-owned workflow produces dependency snapshots.
-- The maintenance workflow is `workflow_dispatch` only, with an explicit
-  operation selector: export Dependabot alerts, clean old workflow runs, and
-  purge Actions caches. No push, pull-request, schedule, or chained trigger
-  can execute a maintenance operation, and each operation's job receives only
-  the permissions it needs — `vulnerability-alerts: read` for the export, and
-  `actions: write` for the destructive cleanup and purge operations only,
-  never widened onto unrelated operations. The Dependabot alert export is not
-  a CI gate.
+- the default-branch ruleset: pull requests required, deletion and force pushes
+  blocked, no bypass actors;
+- the Actions policy: repository default `GITHUB_TOKEN` is read-only and every
+  external Action reference is a full immutable commit SHA;
+- CodeQL default setup for Java/Kotlin, JavaScript/TypeScript and GitHub Actions,
+  using the `security-extended` query suite; branch protection blocks CodeQL
+  security findings at medium severity or higher;
+- secret scanning and push protection;
+- the dependency graph, automatic dependency submission, Dependabot alerts,
+  security updates and grouped version-update proposals.
 
-`main` stays releasable. A red check is not merged.
+Repository workflow code must not duplicate those platform controls.
+
+### Repository verification workflow
+
+The repository owns one ordinary pull-request verification workflow:
+`.github/workflows/verify.yml`. It runs on every pull request. The repository is
+small enough that correctness and auditability are preferred over a custom path
+classifier; path-based skipping is added only if measured Actions cost or latency
+later justifies the extra decision machinery.
+
+The workflow exposes one stable branch-protection interface: `verify / gate`.
+The default-branch ruleset requires that status only after it has existed and
+passed successfully. Internal job names may evolve without changing branch
+protection.
+
+The workflow contains these responsibility groups:
+
+1. **quality** — narrow repository-generic checks only: `actionlint` for
+   workflow correctness, ShellCheck for authored shell, repository-owned policy
+   tests, and jscpd as the sole duplication detector. jscpd begins as reporting
+   evidence until a reviewed baseline establishes a useful regression threshold;
+   it must not force premature abstraction.
+2. **android** — one Gradle lifecycle task, `ciCheck`, under strict dependency
+   verification. `ciCheck` aggregates debug assembly, JVM/Robolectric tests,
+   Android Lint, detekt, dependency-lock validation, `appTGuards`, and
+   macrobenchmark compilation. Gradle remains the owner of detekt and Android
+   Lint; no linter bundle ships alternate copies of those tools.
+3. **backend** — `npm ci --prefix backend` followed by one package-owned
+   `npm run verify --prefix backend` interface aggregating TypeScript
+   typechecking, ESLint, Prettier checking and Jest. Firebase emulator tests join
+   the backend verification surface when the backend slice makes them real.
+4. **device** — Android Gradle Managed Devices, initially one API 29 device
+   because API 29 is AppT's `minSdk`, running the installed-app instrumentation
+   smoke/acceptance surface. No third-party emulator-runner Action is part of
+   the target stack.
+5. **dependency-review** — GitHub Dependency Review on pull requests that change
+   dependency inputs. It consumes the GitHub dependency graph and does not
+   replace Gradle locking or strict verification.
+6. **gate** — depends on every mandatory repository verification group and
+   succeeds only when all required groups succeeded. This is the sole required
+   repository status check.
+
+The Android verification floor preserved behind `ciCheck` includes:
+
+- assembly and unit/Robolectric tests;
+- Android Lint and detekt;
+- dependency lock validation and strict dependency verification;
+- the manifest permission allowlist and `AD_ID` prohibition;
+- no telemetry/crash-reporting/advertising/attribution artifact;
+- no Firestore client in `:app`;
+- the `:samsung` dependency boundary and no direct `android.util.Log`;
+- no production dependency on `:macrobenchmark`;
+- no removed television-sync record or mutation-queue model in production code;
+- the version-catalog pin policy;
+- all other accepted `appTGuards` invariants.
+
+The backend verification floor remains package-owned and reproducible from the
+repository root. `package-lock.json` is committed and `npm ci` is the only
+CI install mode.
+
+### Checks that deliberately stay separate
+
+CodeQL remains the single SAST owner; generic Semgrep or a second SAST engine is
+not added without a concrete AppT invariant CodeQL and the project-native tools
+cannot express. GitHub secret protection owns provider/generic secret detection;
+the repository may retain only the narrow first-party file/policy guard needed
+to forbid AppT-specific credential material such as keystores, certificates and
+Firebase/service-account files. Android Lint, detekt, ESLint and Prettier remain
+native to their project toolchains rather than being re-hosted through
+MegaLinter or Super-Linter.
+
+Macrobenchmark code compiles on pull requests, but emulator timing is not release
+performance evidence. Performance acceptance is added on controlled physical
+hardware when the reliability slice makes it real. Protocol fuzz/property tests,
+Firebase emulator integration and physical Samsung acceptance are added only
+when their corresponding implementation surfaces exist.
+
+### Trust domains beyond pull requests
+
+Do not put release credentials or LAN-connected persistent hardware into the
+ordinary pull-request workflow.
+
+When release automation becomes real, `.github/workflows/release.yml` is a
+separate protected trust domain. It authenticates to Google Cloud with OIDC /
+Workload Identity Federation, builds a candidate once, records its immutable
+artifact identity and provenance/attestation, uploads that candidate to Play
+internal testing, and promotes the same tested artifact rather than rebuilding
+it.
+
+A separate `deep.yml` is created only if long-running or hardware-backed checks
+eventually need a cadence/trust domain that cannot sensibly live in pull-request
+verification. The target repository therefore owns one workflow now and at most
+three ordinary workflows when those later responsibilities become real:
+`verify.yml`, optional `deep.yml`, and `release.yml`.
+
+Routine GitHub retention/cache settings own Actions housekeeping. No permanent
+maintenance workflow exists merely to delete old runs or caches.
+
+### Migration sequencing
+
+The replacement is an expand-contract migration; verification coverage must not
+be silently dropped while infrastructure changes.
+
+1. Introduce the project-owned verification interfaces (`ciCheck` and backend
+   `verify`) and `verify.yml` while the accepted existing CI still runs.
+2. Prove the new workflow produces equivalent-or-stronger evidence for every
+   currently accepted gate, including runtime device acceptance and dependency
+   review.
+3. Remove the path classifier, standalone detekt job, duplicated workflow-level
+   backend lint/format orchestration, third-party emulator runner, maintenance
+   cleanup/export plumbing that has no remaining product purpose, and any other
+   superseded CI-only code.
+4. Migrate CodeQL from repository advanced setup to GitHub default setup. This is
+   a repository-owner setting change: the advanced CodeQL workflow is removed,
+   default setup is enabled for Java/Kotlin, JavaScript/TypeScript and GitHub
+   Actions, the first default-setup analysis must finish successfully, and CodeQL
+   merge protection is then confirmed before further merges.
+5. After `verify / gate` has completed successfully, add it as the required
+   status check and require the branch to be up to date before merging.
+6. Update `docs/BUILD.md` and any CI comments to the final commands and delete
+   stale implementation documentation. `main` must finish with no parallel
+   legacy CI topology.
+
+Every external Action that remains in repository workflow YAML is pinned to a
+full immutable commit SHA. Repository permissions stay least-privilege, and
+ordinary pull-request verification receives no release credentials.
+
+`main` stays releasable. A red required check is not merged.
 
 ### Manifest allowlist
 
