@@ -120,15 +120,16 @@ jobs:
           gradle-version: ${{ env.GRADLE_VERSION }}
           cache-provider: 'basic'
 
+      - name: Apply Spotless formatting if needed
+        run: |
+          ./gradlew --no-daemon --dependency-verification=strict spotlessApply
+
       - name: Run root Gradle ciCheck under strict dependency verification
         run: |
           set -o pipefail
           ./gradlew --no-daemon --dependency-verification=strict ciCheck 2>&1 | tee /tmp/cicheck.log || {
-            echo "### ciCheck Failure Log" >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-            tail -n 80 /tmp/cicheck.log >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-            echo "::error title=ciCheck Failure::$(tail -n 10 /tmp/cicheck.log | tr '\n' ' ')"
+            echo "::error title=ciCheck Failure::$(grep -A 10 "\* What went wrong:" /tmp/cicheck.log | head -n 10 | tr '\n' ' ')"
+            grep -A 30 "FAILURE: Build failed" /tmp/cicheck.log || true
             exit 1
           }
 

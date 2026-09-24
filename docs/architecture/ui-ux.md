@@ -312,4 +312,3 @@ The known human UI/UX decision frontier is closed, and the technical synthesis o
 Where those files and this one disagree about what the user sees, this file wins; where they disagree about how it is built, they win. Neither is an invitation to reopen the product decisions above unless a real contradiction is discovered.
 
 Implementation is authorized: the human accepted the architecture closure on 2026-09-23. Slices are dispatched one at a time from [slices.md](slices.md) after the reconciled route passes human review.
-
