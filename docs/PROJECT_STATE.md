@@ -105,6 +105,7 @@ Secondary:
 - `Generic Semgrep is deferred; add it only for a later AppT-specific invariant that CodeQL, detekt, Android lint, existing Gradle guards, or simple repository checks cannot express cleanly.`
 - `Verification architecture is one-owner by concern: GitHub owns repository-host security controls, Gradle owns Android verification, the backend package owns TypeScript verification, AppT guards own product-specific invariants, and repository workflow YAML exposes one stable verify/gate interface without a path classifier unless measured cost later justifies one.`
 - `AI-authored changes receive no trust discount: native deterministic checks remain authoritative, SonarQube Cloud owns the cross-language maintainability/reliability/new-code coverage/duplication gate once compatibility is proven, CodeRabbit supplies independent issue/scope/custom pre-merge review, and Arena PRs still receive an independent repository code-review pass before the human merge decision.`
+- `CodeQL on Kotlin 2.4.20: GitHub-managed Default Setup uses bundle 2.27.0 which does not support Kotlin 2.4.20 (supported starting in bundle 2.27.1). AppT temporarily operates an Advanced Setup workflow (.github/workflows/codeql.yml) pinned to CodeQL Action v4.38.2 (commit 2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2) and bundle 2.27.1, analyzing java-kotlin via deterministic Gradle extraction under strict dependency verification, plus javascript-typescript and actions with security-extended query suite. Migration-back condition: retire .github/workflows/codeql.yml and re-enable Default Setup once GitHub's managed service reaches CodeQL >= 2.27.1 and passes.`
 
 ## Blockers / Unknowns
 
@@ -116,7 +117,7 @@ Secondary:
 
 ## Recent change
 
-- `Verification architecture and AI-code assurance implementation is active under PR #60 (Issue #56), introducing .github/workflows/verify.yml with proposed required gate verify / gate, root Gradle ciCheck aggregating strict Kotlin diagnostics, Spotless + ktfmt, Kover coverage floor, dependency locks, appTGuards, and macrobenchmark compilation; backend verify interface composing typecheck, ESLint, Prettier, Knip, Jest, and coverage; Gradle Managed Devices (API 29); CI-based SonarQube Cloud quality platform; version-controlled .coderabbit.yaml; weekly coordinated Dependabot policy; and contracting legacy ci.yml and maintenance.yml.`
+- `Verification architecture and AI-code assurance implementation is active under PR #60 (Issue #56), introducing .github/workflows/verify.yml with proposed required gate verify / gate, root Gradle ciCheck aggregating strict Kotlin diagnostics, Spotless + ktfmt, Kover coverage floor, dependency locks, appTGuards, and macrobenchmark compilation; backend verify interface composing typecheck, ESLint, Prettier, Knip, Jest, and coverage; Gradle Managed Devices (API 29); CI-based SonarQube Cloud quality platform; temporary Advanced Setup .github/workflows/codeql.yml pinned to bundle 2.27.1 for Kotlin 2.4.20 assurance; version-controlled .coderabbit.yaml; weekly coordinated Dependabot policy; and contracting legacy ci.yml and maintenance.yml.`
 
 ## Relevant canonical references
 

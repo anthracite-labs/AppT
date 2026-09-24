@@ -105,9 +105,10 @@ Repository settings, not workflow YAML, own:
   blocked, no bypass actors;
 - the Actions policy: repository default `GITHUB_TOKEN` is read-only and every
   external Action reference is a full immutable commit SHA;
-- CodeQL default setup for Java/Kotlin, JavaScript/TypeScript and GitHub Actions,
-  using the `security-extended` query suite; branch protection blocks CodeQL
-  security findings at medium severity or higher;
+- CodeQL analysis for Java/Kotlin, JavaScript/TypeScript and GitHub Actions,
+  using the `security-extended` query suite (temporarily via `.github/workflows/codeql.yml`
+  pinned to bundle 2.27.1 while managed Default Setup lacks Kotlin 2.4.20 support);
+  branch protection blocks CodeQL security findings at medium severity or higher;
 - secret scanning and push protection;
 - the dependency graph, automatic dependency submission, Dependabot alerts,
   security updates and grouped version-update proposals.
@@ -315,11 +316,19 @@ be silently dropped while infrastructure changes.
    accepted workflow. For actions exposed from a repository subdirectory, the
    selected-action pattern must match the workflow reference shape, for example
    `gradle/actions/setup-gradle@*`.
-5. Migrate CodeQL from repository advanced setup to GitHub default setup. This is
-   a repository-owner setting change: the advanced CodeQL workflow is removed,
-   default setup is enabled for Java/Kotlin, JavaScript/TypeScript and GitHub
-   Actions, the first default-setup analysis must finish successfully, and CodeQL
-   merge protection is then confirmed before further merges.
+5. CodeQL setup and migration-back condition:
+   GitHub-managed Default Setup uses CodeQL bundle 2.27.0, which does not support
+   Kotlin 2.4.20 (supported starting in CodeQL CLI / bundle 2.27.1). AppT temporarily
+   operates an Advanced Setup workflow (`.github/workflows/codeql.yml`) pinned to
+   CodeQL Action `v4.38.2` (commit `2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2`) and
+   bundle `2.27.1`. The workflow performs manual compilation under strict dependency
+   verification for `java-kotlin` (`./gradlew ... assembleDebug :macrobenchmark:assembleBenchmark`),
+   and analyzes `javascript-typescript` and `actions` using the `security-extended` query suite.
+   Repository owners switch CodeQL setup in repository settings to recognize this
+   workflow and avoid parallel Default Setup failures.
+   Migration-back condition: when GitHub updates Default Setup to bundle 2.27.1 or newer
+   and managed Java/Kotlin analysis succeeds on Kotlin 2.4.20, repository owners can
+   re-enable Default Setup and delete `.github/workflows/codeql.yml`.
 6. After `verify / gate` has completed successfully, add it as the required
    status check and require the branch to be up to date before merging. Promote
    CodeRabbit checks from warning to blocking only after their AppT signal is

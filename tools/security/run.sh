@@ -40,8 +40,8 @@ MODE="${1:-all}"
 
 # The exact strict build used for CodeQL's manual Kotlin extraction, in one
 # place so the workflow and this script cannot drift apart. Keep this in sync
-# with the "Build Kotlin for extraction" step of the `codeql` job in
-# .github/workflows/ci.yml.
+# with the "Build Java and Kotlin targets" step of the `analyze` job in
+# .github/workflows/codeql.yml.
 #
 # --no-daemon, --no-build-cache, -Dorg.gradle.parallel=false and
 # -Pkotlin.compiler.execution.strategy=in-process are all extraction
@@ -58,7 +58,7 @@ GRADLE_STRICT_FLAGS=(
   -Pkotlin.compiler.execution.strategy=in-process
   --dependency-verification=strict
 )
-GRADLE_BUILD_TASKS=(assembleDebug)
+GRADLE_BUILD_TASKS=(assembleDebug :macrobenchmark:assembleBenchmark)
 
 log() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 info() { printf '    %s\n' "$*"; }

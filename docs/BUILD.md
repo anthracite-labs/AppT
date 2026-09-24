@@ -123,3 +123,26 @@ run locally:
 
 Installed-app acceptance executes on GitHub Actions via Gradle Managed Devices
 (API 29) with KVM acceleration.
+
+## CodeQL static analysis
+
+CodeQL static analysis runs in GitHub Actions on pull requests and pushes to
+`main` via `.github/workflows/codeql.yml`.
+
+Because GitHub-managed Default Setup uses CodeQL bundle 2.27.0 which does not
+support Kotlin 2.4.20 (supported starting in CodeQL CLI / bundle 2.27.1), AppT
+temporarily uses an Advanced Setup workflow pinned to CodeQL Action `v4.38.2`
+and bundle `2.27.1`. The workflow analyzes `java-kotlin` (built manually under
+strict dependency verification via `./gradlew ... assembleDebug :macrobenchmark:assembleBenchmark`),
+`javascript-typescript`, and `actions` using the `security-extended` query suite.
+
+Local reproduction of the deterministic Kotlin extraction build:
+
+```bash
+tools/security/run.sh build
+```
+
+Migration-back condition: once GitHub-managed Default Setup bundles advance to
+CodeQL 2.27.1 or higher and Default Setup analysis passes on Kotlin 2.4.20,
+repository owners can re-enable Default Setup in repository settings and delete
+`.github/workflows/codeql.yml`.
