@@ -333,12 +333,15 @@ test('a comment on a declaration-free line is removed, not merged into code', ()
 test('a repository URL comment marker is not treated as a comment', () => {
   // `(?<=^|\s)` is load-bearing: the `//` in a URL follows `:`, not whitespace,
   // so the string must survive comment stripping intact.
-  const surface = `
-repositories { maven { url = uri("https://repo1.maven.org/maven2") } }
-classpath("org.jdom:jdom2:2.0.6.1")
-`;
+  const surface = [
+    'repositories { maven { url = uri("https://repo1.maven.org/maven2") } }',
+    'classpath("org.jdom:jdom2:2.0.6.1")',
+    '',
+  ].join('\n');
 
-  assert.equal(stripComments(surface).includes('https://repo1.maven.org/maven2'), true);
+  // Exact equality, not a substring or pattern match: comment stripping must
+  // not alter a single character of this surface.
+  assert.equal(stripComments(surface), surface);
   assert.deepEqual(declaredCoordinates(surface).get('org.jdom:jdom2'), new Set(['2.0.6.1']));
 });
 
