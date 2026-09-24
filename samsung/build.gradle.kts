@@ -21,9 +21,7 @@ android {
     // Matches :app's compileSdk (Issue #54 toolchain bump); minSdk stays 29.
     compileSdk = 37
 
-    defaultConfig {
-        minSdk = 29
-    }
+    defaultConfig { minSdk = 29 }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -43,11 +41,8 @@ android {
         // opposite of that rule. Version currency is handled by reviewed
         // dependency-update pull requests; the pins themselves are still
         // enforced exactly by `versionCatalogPinned`.
-        informational += setOf(
-            "AndroidGradlePluginVersion",
-            "GradleDependency",
-            "NewerVersionAvailable",
-        )
+        informational +=
+            setOf("AndroidGradlePluginVersion", "GradleDependency", "NewerVersionAvailable")
     }
 }
 
@@ -103,9 +98,5 @@ configurations.configureEach {
                 )
             else -> emptyList<String>()
         }
-    notations.forEach { notation ->
-        project.dependencies.constraints {
-            add(cfg, notation)
-        }
-    }
+    notations.forEach { notation -> project.dependencies.constraints { add(cfg, notation) } }
 }

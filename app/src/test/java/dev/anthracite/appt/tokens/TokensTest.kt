@@ -1,14 +1,14 @@
 package dev.anthracite.appt.tokens
 
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.TextUnitType
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The token floors from docs/architecture/presentation.md#design-tokens,
- * asserted as executable rules rather than left as prose.
+ * The token floors from docs/architecture/presentation.md#design-tokens, asserted as executable
+ * rules rather than left as prose.
  */
 class TokensTest {
 
@@ -55,29 +55,30 @@ class TokensTest {
 
     @Test
     fun `every type role is declared in scalable units`() {
-        listOf(TypeTokens.display, TypeTokens.title, TypeTokens.body, TypeTokens.label)
-            .forEach { style ->
-                assertEquals(
-                    "text size $style must be declared in scalable sp, not dp",
-                    TextUnitType.Sp,
-                    style.fontSize.type,
-                )
-                assertEquals(
-                    "line height $style must be declared in scalable sp, not dp",
-                    TextUnitType.Sp,
-                    style.lineHeight.type,
-                )
-            }
+        listOf(TypeTokens.display, TypeTokens.title, TypeTokens.body, TypeTokens.label).forEach {
+            style ->
+            assertEquals(
+                "text size $style must be declared in scalable sp, not dp",
+                TextUnitType.Sp,
+                style.fontSize.type,
+            )
+            assertEquals(
+                "line height $style must be declared in scalable sp, not dp",
+                TextUnitType.Sp,
+                style.lineHeight.type,
+            )
+        }
     }
 
     @Test
     fun `every motion role has a reduced-motion variant that removes the animation`() {
-        val roles = listOf(
-            MotionTokens.STATE_CHANGE_MILLIS,
-            MotionTokens.SHEET_MILLIS,
-            MotionTokens.SURFACE_TRANSITION_MILLIS,
-            MotionTokens.MASCOT_MILLIS,
-        )
+        val roles =
+            listOf(
+                MotionTokens.STATE_CHANGE_MILLIS,
+                MotionTokens.SHEET_MILLIS,
+                MotionTokens.SURFACE_TRANSITION_MILLIS,
+                MotionTokens.MASCOT_MILLIS,
+            )
         roles.forEach { role ->
             assertTrue("motion role $role must have a positive normal duration", role > 0)
             assertEquals(
@@ -117,13 +118,14 @@ class TokensTest {
     @Test
     fun `status colours meet the contrast floor on the dark surface`() {
         listOf(
-            ColorTokens.statusReady,
-            ColorTokens.statusAttention,
-            ColorTokens.statusUnavailable,
-            ColorTokens.feedbackError,
-            ColorTokens.feedbackWarning,
-            ColorTokens.feedbackSuccess,
-            ColorTokens.feedbackInfo,
-        ).forEach { assertContrastAtLeast(4.5, it, ColorTokens.surface) }
+                ColorTokens.statusReady,
+                ColorTokens.statusAttention,
+                ColorTokens.statusUnavailable,
+                ColorTokens.feedbackError,
+                ColorTokens.feedbackWarning,
+                ColorTokens.feedbackSuccess,
+                ColorTokens.feedbackInfo,
+            )
+            .forEach { assertContrastAtLeast(4.5, it, ColorTokens.surface) }
     }
 }

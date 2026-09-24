@@ -13,9 +13,7 @@
 // never resolutionStrategy.force, and match the patched versions already
 // proven on AppT's project graphs.
 buildscript {
-    repositories {
-        mavenCentral()
-    }
+    repositories { mavenCentral() }
     dependencies {
         constraints {
             classpath("org.bouncycastle:bcprov-jdk18on:1.86")
@@ -76,11 +74,7 @@ kover {
 // Lockfiles are committed; CI runs `dependencyLockCheck` in the validating
 // mode so a drifted or missing lock state fails the build rather than
 // silently re-resolving.
-allprojects {
-    dependencyLocking {
-        lockAllConfigurations()
-    }
-}
+allprojects { dependencyLocking { lockAllConfigurations() } }
 
 apply(from = rootProject.file("gradle/guards.gradle.kts"))
 
@@ -112,9 +106,7 @@ subprojects {
             // resolution is exactly what locking needs and is what AGP supports here.
             configurations
                 .filter { it.isCanBeResolved }
-                .forEach { configuration ->
-                    configuration.incoming.resolutionResult.root
-                }
+                .forEach { configuration -> configuration.incoming.resolutionResult.root }
         }
     }
 }
@@ -139,18 +131,19 @@ tasks.register("ciCheck") {
 }
 
 gradle.projectsEvaluated {
-    val koverXml = tasks.findByName("koverXmlReport")
-        ?: project(":app").tasks.findByName("koverXmlReport")
-        ?: tasks.findByName("koverXmlReportDebug")
-        ?: project(":app").tasks.findByName("koverXmlReportDebug")
-    val koverVerify = tasks.findByName("koverVerify")
-        ?: project(":app").tasks.findByName("koverVerify")
-        ?: tasks.findByName("koverVerifyDebug")
-        ?: project(":app").tasks.findByName("koverVerifyDebug")
+    val koverXml =
+        tasks.findByName("koverXmlReport")
+            ?: project(":app").tasks.findByName("koverXmlReport")
+            ?: tasks.findByName("koverXmlReportDebug")
+            ?: project(":app").tasks.findByName("koverXmlReportDebug")
+    val koverVerify =
+        tasks.findByName("koverVerify")
+            ?: project(":app").tasks.findByName("koverVerify")
+            ?: tasks.findByName("koverVerifyDebug")
+            ?: project(":app").tasks.findByName("koverVerifyDebug")
 
     tasks.named("ciCheck") {
         koverXml?.let { dependsOn(it) }
         koverVerify?.let { dependsOn(it) }
     }
 }
-

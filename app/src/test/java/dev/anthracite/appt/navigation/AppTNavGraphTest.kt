@@ -3,8 +3,8 @@ package dev.anthracite.appt.navigation
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.navigation.NavDestination.Companion.hasRoute
-import androidx.navigation.NavHostController
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.anthracite.appt.tokens.AppTTheme
@@ -17,16 +17,14 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
 /**
- * The S01 acceptance criterion "the navigation graph contains only
- * `WelcomeRoute`", asserted against the graph itself rather than by reading
- * the source.
+ * The S01 acceptance criterion "the navigation graph contains only `WelcomeRoute`", asserted
+ * against the graph itself rather than by reading the source.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
 class AppTNavGraphTest {
 
-    @get:Rule
-    val composeRule = createComposeRule()
+    @get:Rule val composeRule = createComposeRule()
 
     @Test
     fun `the graph contains exactly one destination and it is WelcomeRoute`() {
@@ -60,9 +58,7 @@ class AppTNavGraphTest {
 
     @Test
     fun `the app opens on Welcome`() {
-        composeRule.setContent {
-            AppTTheme { AppTNavGraph() }
-        }
+        composeRule.setContent { AppTTheme { AppTNavGraph() } }
         composeRule.onNodeWithTag(WelcomeTestTags.VALUE_PROPOSITION).assertExists()
         composeRule.onNodeWithTag(WelcomeTestTags.PRIMARY_ACTION).assertExists()
     }

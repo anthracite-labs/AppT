@@ -35,5 +35,7 @@ rootProject.name = "AppT"
 //   :samsung        production Samsung control module
 //   :macrobenchmark test-only com.android.test module targeting :app
 include(":app")
+
 include(":samsung")
+
 include(":macrobenchmark")

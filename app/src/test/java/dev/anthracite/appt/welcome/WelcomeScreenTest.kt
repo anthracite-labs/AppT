@@ -28,16 +28,15 @@ import org.robolectric.annotation.Config
 /**
  * Welcome's product shape and accessibility contracts.
  *
- * These run on Robolectric so the accessibility assertions execute on every CI
- * run rather than only when a device is attached
+ * These run on Robolectric so the accessibility assertions execute on every CI run rather than only
+ * when a device is attached
  * (docs/architecture/presentation.md#accessibility-contracts-and-verification-hooks).
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
 class WelcomeScreenTest {
 
-    @get:Rule
-    val composeRule = createComposeRule()
+    @get:Rule val composeRule = createComposeRule()
 
     private fun setWelcome(
         motionDurationScale: Float = 1f,
@@ -50,29 +49,28 @@ class WelcomeScreenTest {
                 LocalMotionDurationScale provides motionDurationScale,
                 LocalDensity provides Density(density.density, fontScale),
             ) {
-                AppTTheme {
-                    WelcomeScreen(onFindMyTv = onFindMyTv)
-                }
+                AppTTheme { WelcomeScreen(onFindMyTv = onFindMyTv) }
             }
         }
     }
 
-    private fun clickableNodeCount(): Int = composeRule
-        .onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
-        .fetchSemanticsNodes()
-        .size
+    private fun clickableNodeCount(): Int =
+        composeRule
+            .onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
+            .fetchSemanticsNodes()
+            .size
 
     /**
      * presentation.md's accessibility contract: "Targets are at least 48dp".
      *
-     * Asserted over each clickable node's *touch* bounds, which is what the
-     * platform actually dispatches against, and compared to the token that owns
-     * the floor rather than to a literal.
+     * Asserted over each clickable node's *touch* bounds, which is what the platform actually
+     * dispatches against, and compared to the token that owns the floor rather than to a literal.
      */
     private fun assertEveryClickableMeetsTheTouchTargetFloor() {
-        val nodes = composeRule
-            .onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
-            .fetchSemanticsNodes()
+        val nodes =
+            composeRule
+                .onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
+                .fetchSemanticsNodes()
         assertTrue("expected at least one interactive control", nodes.isNotEmpty())
 
         val floorPx = with(composeRule.density) { SizeTokens.minimumTouchTarget.toPx() }
@@ -127,9 +125,12 @@ class WelcomeScreenTest {
     fun `the surface is static text, not a multi-page carousel`() {
         setWelcome()
         // A feature carousel would expose a horizontal scroll range on a pager.
-        val horizontallyScrollable = composeRule
-            .onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.HorizontalScrollAxisRange))
-            .fetchSemanticsNodes()
+        val horizontallyScrollable =
+            composeRule
+                .onAllNodes(
+                    SemanticsMatcher.keyIsDefined(SemanticsProperties.HorizontalScrollAxisRange)
+                )
+                .fetchSemanticsNodes()
         assertEquals(
             "Welcome must not be a multi-page feature carousel",
             0,
@@ -157,7 +158,7 @@ class WelcomeScreenTest {
         setWelcome()
         composeRule
             .onAllNodes(
-                SemanticsMatcher.expectValue(SemanticsProperties.TestTag, WelcomeTestTags.MASCOT),
+                SemanticsMatcher.expectValue(SemanticsProperties.TestTag, WelcomeTestTags.MASCOT)
             )
             .fetchSemanticsNodes()
             .forEach { node ->
