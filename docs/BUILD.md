@@ -186,12 +186,12 @@ Do not regenerate Gradle locks or verification metadata as an iteration step.
 Regenerate them only after an actual reviewed dependency change requires it.
 ## CodeQL static analysis
 
-CodeQL static analysis keeps pull-request synchronization build-free: PR updates
-scan GitHub Actions and JavaScript/TypeScript, plus the `java-kotlin` category in
-`build-mode: none` so the branch rule receives CodeQL evidence without an Android
-build. In that PR mode CodeQL analyzes Java only; Kotlin analysis runs when the
-workflow is explicitly dispatched, on pushes to `main`, and on the scheduled
-security run.
+CodeQL static analysis keeps ordinary pull-request synchronization build-free:
+PR updates scan GitHub Actions and JavaScript/TypeScript only. Java/Kotlin CodeQL
+runs when explicitly dispatched, on pushes to `main`, and on the scheduled
+security run. The CI-policy migration PR used one temporary minimal Kotlin
+compile solely to satisfy the pre-existing code-scanning merge rule while this
+policy was being introduced.
 
 Because GitHub-managed Default Setup uses CodeQL bundle 2.27.0 which does not
 support Kotlin 2.4.20 (supported starting in CodeQL CLI / bundle 2.27.1), AppT
