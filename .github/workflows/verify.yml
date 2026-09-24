@@ -265,10 +265,12 @@ jobs:
           ./gradlew --no-daemon --dependency-verification=strict \
             -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
             :app:pixel2api29DebugAndroidTest 2>&1 | tee /tmp/gmd.log || {
-              echo "### GMD Failure Log" >> "$GITHUB_STEP_SUMMARY"
-              echo '```' >> "$GITHUB_STEP_SUMMARY"
-              tail -n 60 /tmp/gmd.log >> "$GITHUB_STEP_SUMMARY"
-              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              {
+                echo "### GMD Failure Log"
+                echo '```'
+                tail -n 60 /tmp/gmd.log
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
               exit 1
             }
 

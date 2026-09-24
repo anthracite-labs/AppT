@@ -71,7 +71,6 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      vulnerability-alerts: read
     steps:
       - name: Check out
         # actions/checkout v7.0.1
