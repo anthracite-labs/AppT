@@ -228,9 +228,16 @@ jobs:
 
       - name: Run Gradle Managed Device Acceptance Test (API 29)
         run: |
+          set -o pipefail
           ./gradlew --no-daemon --dependency-verification=strict \
             -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
-            :app:pixel2api29DebugAndroidTest
+            :app:pixel2api29DebugAndroidTest 2>&1 | tee /tmp/gmd.log || {
+              echo "### GMD Failure Log" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              tail -n 60 /tmp/gmd.log >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            }
 
       - name: Upload managed device reports
         if: always()
@@ -251,8 +258,10 @@ jobs:
     if: github.event_name == 'pull_request'
     name: Dependency Review
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
+      pull-requests: write
     steps:
       - name: Check out the base and head of the change
         # actions/checkout v7.0.1
@@ -261,11 +270,13 @@ jobs:
           fetch-depth: 0
 
       - name: Dependency review
-        # actions/dependency-review-action v4.5.1
+        # actions/dependency-review-action v5.0.0
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
         with:
-          fail-on-severity: high
+          fail-on-severity: low
           comment-summary-in-pr: always
+          retry-on-snapshot-warnings: true
+          retry-on-snapshot-warnings-timeout: 600
 
   # ---------------------------------------------------------------------------
   # 6. Quality Platform — CI-based SonarQube Cloud quality gate analysis
@@ -297,7 +308,18 @@ jobs:
           name: backend-coverage-report
           path: backend/coverage
 
+      - name: Check for SonarQube Cloud Token
+        id: check_token
+        run: |
+          if [ -z "${{ secrets.SONAR_TOKEN }}" ]; then
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SONAR_TOKEN is not configured in repository secrets. Analysis will run once configured by repository owner."
+          else
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run SonarQube Cloud Analysis
+        if: steps.check_token.outputs.has_token == 'true'
         # sonarsource/sonarcloud-github-action v5.0.0
         uses: sonarsource/sonarcloud-github-action@ffc3010689be73b8e5ae0c57ce35968afd7909e8
         env:
