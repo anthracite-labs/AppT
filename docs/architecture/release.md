@@ -224,7 +224,7 @@ be silently dropped while infrastructure changes.
    backend lint/format orchestration, third-party emulator runner, maintenance
    cleanup/export plumbing that has no remaining product purpose, and any other
    superseded CI-only code.
-   Until that contraction lands, the repository Actions allowlist must continue to permit every transitional third-party Action still referenced by the accepted workflow.
+   Until that contraction lands, the repository Actions allowlist must continue to permit every transitional third-party Action still referenced by the accepted workflow; selected-action patterns are repository-level (`OWNER/REPOSITORY@REF`), even when the workflow uses an action from a subdirectory of that repository.
 4. Migrate CodeQL from repository advanced setup to GitHub default setup. This is
    a repository-owner setting change: the advanced CodeQL workflow is removed,
    default setup is enabled for Java/Kotlin, JavaScript/TypeScript and GitHub
