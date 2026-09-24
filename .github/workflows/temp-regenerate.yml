@@ -33,16 +33,13 @@ jobs:
           gradle-version: '9.7.1'
           cache-provider: 'basic'
 
-      - name: Format with Spotless
+      - name: Format with Spotless and regenerate verification metadata
         run: |
-          ./gradlew --no-daemon spotlessApply || true
-
-      - name: Regenerate verification metadata
-        run: |
+          ./gradlew --no-daemon spotlessApply
           ./gradlew --no-daemon --write-verification-metadata sha256 \
             assembleDebug testDebugUnitTest lintDebug :macrobenchmark:assembleBenchmark appTGuards \
-            spotlessCheck > /tmp/verify-meta.log 2>&1 || true
-          tail -n 60 /tmp/verify-meta.log
+            spotlessCheck koverXmlReport > /tmp/verify-meta.log 2>&1 || true
+          tail -n 80 /tmp/verify-meta.log
 
       - name: Regenerate lockfiles
         run: |
@@ -56,14 +53,11 @@ jobs:
         run: |
           git config user.name "arena-ai-coding-agent[bot]"
           git config user.email "arena-ai-coding-agent[bot]@users.noreply.github.com"
-          git add gradle/verification-metadata.xml || true
-          git add **/*.lockfile || true
-          git add app/src/ || true
-          git add macrobenchmark/src/ || true
+          git add -u
           echo "=== VERIFY METADATA LOG ===" > build-summary.txt
           tail -n 80 /tmp/verify-meta.log >> build-summary.txt 2>/dev/null || true
           echo "=== LOCKS LOG ===" >> build-summary.txt
           tail -n 80 /tmp/locks.log >> build-summary.txt 2>/dev/null || true
           git add build-summary.txt
-          git commit -m "ci(supply-chain): commit regenerated verification metadata and lockfiles" || echo "No changes"
+          git commit -m "ci(supply-chain): apply spotless formatting, verification metadata and lockfiles" || echo "No changes"
           git push origin HEAD:arena/01a0d233-appt || echo "Push failed"
