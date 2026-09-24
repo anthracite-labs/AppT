@@ -152,13 +152,17 @@ jobs:
             echo "::notice title=Kover App Report::$(grep -i '<counter type="LINE"' app/build/reports/kover/report.xml | tail -n 1)"
           fi
           git diff gradle/verification-metadata.xml > /tmp/vm.diff || true
-          git diff **/*.lockfile > /tmp/locks.diff || true
+          git diff -- '*.lockfile' > /tmp/locks.diff || true
           if [ -s /tmp/vm.diff ]; then
-            echo "::warning title=METADATA_DIFF::$(cat /tmp/vm.diff | base64 -w 0)"
+            echo "::warning title=METADATA_HEAD::$(head -c 2500 /tmp/vm.diff | base64 -w 0)"
+            echo "::warning title=METADATA_TAIL::$(tail -c +2501 /tmp/vm.diff | base64 -w 0)"
           fi
           if [ -s /tmp/locks.diff ]; then
-            echo "::warning title=LOCKS_DIFF::$(cat /tmp/locks.diff | base64 -w 0)"
+            echo "::warning title=LOCKS_HEAD::$(head -c 2500 /tmp/locks.diff | base64 -w 0)"
+            echo "::warning title=LOCKS_TAIL::$(tail -c +2501 /tmp/locks.diff | base64 -w 0)"
           fi
+          pom_line=$(grep -A 5 'org.jetbrains.kotlinx.kover.gradle.plugin.*0.9.5' gradle/verification-metadata.xml | tr '\n' ' ' || true)
+          echo "::notice title=KOVER_POM_SHA::${pom_line}"
 
       - name: Run root Gradle ciCheck under strict dependency verification
         run: |
