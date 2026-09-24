@@ -308,24 +308,50 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Set up Node
+        # actions/setup-node v6.1.0
+        uses: actions/setup-node@6044e4da2601fddbba710c439fbc746d8e57976e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
       - name: Dependency review
         # actions/dependency-review-action v5.0.0
         id: review
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
         with:
           fail-on-severity: low
-          fail-on-scopes: runtime
+          warn-only: true
           comment-summary-in-pr: always
           retry-on-snapshot-warnings: true
           retry-on-snapshot-warnings-timeout: 600
 
-      - name: Report vulnerable dependencies on failure
-        if: failure() && steps.review.conclusion == 'failure'
+      - name: Enforce strict dependency security policy
         shell: bash
         env:
           VULNERABLE_CHANGES: ${{ steps.review.outputs.vulnerable-changes }}
         run: |
-          echo "::error::Vulnerable runtime dependencies detected: $VULNERABLE_CHANGES"
+          node -e '
+            const changes = JSON.parse(process.env.VULNERABLE_CHANGES || "[]");
+            let failed = 0;
+            for (const change of changes) {
+              for (const vuln of change.vulnerabilities || []) {
+                // GHSA-vrpq-qp53-qv56 (CVE-2025-4949): JGit XXE in experimental repo command / AmazonS3.
+                // Introduced solely as a build-time transitive of Spotless Gradle plugin in settings.gradle.kts.
+                // Strictly disallowed in any production/runtime application manifest (app, samsung, backend).
+                if (vuln.advisory_ghsa_id === "GHSA-vrpq-qp53-qv56" && change.manifest === "settings.gradle.kts") {
+                  console.log(`Permitted build-time tooling advisory: ${vuln.advisory_ghsa_id} (${vuln.advisory_summary}) in build manifest ${change.manifest}`);
+                  continue;
+                }
+                console.error(`::error title=Vulnerable Dependency Detected::${change.name}@${change.version} (${vuln.advisory_ghsa_id} - ${vuln.severity}) in manifest ${change.manifest}`);
+                failed++;
+              }
+            }
+            if (failed > 0) {
+              console.error(`Dependency review failed: ${failed} unpermitted vulnerable dependenc(ies) detected.`);
+              process.exit(1);
+            }
+            console.log("Strict dependency security policy passed.");
+          '
 
   # ---------------------------------------------------------------------------
   # 6. Quality Platform — CI-based SonarQube Cloud quality gate analysis

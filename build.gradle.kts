@@ -63,8 +63,8 @@ kover {
     reports {
         verify {
             rule {
-                // Reviewed baseline floor from current main.
-                minBound(50)
+                // Reviewed baseline floor: measured 90.58% (125/138 lines) in Kover 0.9.5.
+                minBound(80)
             }
         }
     }
