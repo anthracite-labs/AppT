@@ -68,7 +68,7 @@ expect() { # <case> <actual> <expected>
 # Sourcing exposes the resolver's pure functions for offline testing; the
 # script's direct-execution branch is guarded by BASH_SOURCE, so sourcing
 # performs no API calls.
-# shellcheck disable=SC1091
+# shellcheck disable=SC1090,SC1091
 source "$OPS_SCRIPT"
 
 # ---------------------------------------------------------------------------
