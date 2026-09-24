@@ -74,24 +74,34 @@ jobs:
 
       - name: Install and run shfmt
         run: |
+          set -euo pipefail
           base_url="https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}"
           curl -sSfL -o shfmt "${base_url}/shfmt_v${SHFMT_VERSION}_linux_amd64"
           curl -sSfL -o sha256sums.txt "${base_url}/sha256sums.txt"
-          grep "shfmt_v${SHFMT_VERSION}_linux_amd64\$" sha256sums.txt | sed "s/shfmt_v${SHFMT_VERSION}_linux_amd64/shfmt/" | sha256sum -c -
+          tr -d '\r' < sha256sums.txt | grep "shfmt_v${SHFMT_VERSION}_linux_amd64" | awk '{print $1 "  shfmt"}' | sha256sum -c -
           chmod +x shfmt
           sudo install -m 0755 shfmt /usr/local/bin/shfmt
-          shfmt -d -s -i 2 tools
+          set -o pipefail
+          shfmt -d -s -i 2 tools 2>&1 | tee /tmp/shfmt.log || {
+            echo "::error title=shfmt Failure::$(head -n 20 /tmp/shfmt.log | tr '\n' ' ')"
+            exit 1
+          }
 
       - name: Install and run actionlint
         run: |
+          set -euo pipefail
           archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
           base_url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}"
           curl -sSfL -o "${archive}" "${base_url}/${archive}"
           curl -sSfL -o checksums.txt "${base_url}/actionlint_${ACTIONLINT_VERSION}_checksums.txt"
-          grep " ${archive}\$" checksums.txt | sha256sum -c -
+          tr -d '\r' < checksums.txt | grep " ${archive}" | sha256sum -c -
           tar -xzf "${archive}" actionlint
           sudo install -m 0755 actionlint /usr/local/bin/actionlint
-          actionlint
+          set -o pipefail
+          actionlint 2>&1 | tee /tmp/actionlint.log || {
+            echo "::error title=actionlint Failure::$(head -n 20 /tmp/actionlint.log | tr '\n' ' ')"
+            exit 1
+          }
 
       - name: Run zizmor
         # zizmorcore/zizmor-action v0.6.4
