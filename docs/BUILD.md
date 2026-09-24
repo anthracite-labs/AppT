@@ -102,9 +102,9 @@ dependency graph only as transitives of the Gradle plugins this build applies �
 `spotless-lib-extra`. They appear in no `*.gradle.lockfile` and nowhere in
 `gradle/libs.versions.toml`, and the updater cannot see them:
 
-* GitHub's dependency graph resolves the plugin/buildscript classpath, so the
+- GitHub's dependency graph resolves the plugin/buildscript classpath, so the
   alerts against them are real;
-* Dependabot's Gradle updater does not resolve anything — it harvests literal
+- Dependabot's Gradle updater does not resolve anything — it harvests literal
   `group:name:version` declarations — so a security update for an undeclared
   coordinate fails with `dependency_not_found` and the job stays red while the
   alert stays open.
