@@ -151,7 +151,10 @@ while IFS= read -r path; do
   esac
 
   case "$path" in
-    *.gradle.kts | settings.gradle.kts | gradle.properties | gradle/libs.versions.toml | *.gradle.lockfile | settings-gradle.lockfile | gradle/verification-metadata.xml | gradle/wrapper/gradle-wrapper.properties | backend/package.json | backend/package-lock.json)
+    # `settings.gradle.kts` is intentionally spelled only through the
+    # `*.gradle.kts` glob: an explicit duplicate after the glob is dead and
+    # ShellCheck rejects the pair (SC2221/SC2222).
+    *.gradle.kts | gradle.properties | gradle/libs.versions.toml | *.gradle.lockfile | settings-gradle.lockfile | gradle/verification-metadata.xml | gradle/wrapper/gradle-wrapper.properties | backend/package.json | backend/package-lock.json)
       dependency=true
       ;;
   esac

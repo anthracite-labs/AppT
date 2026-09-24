@@ -50,6 +50,64 @@ allprojects {
 
 apply(from = rootProject.file("gradle/guards.gradle.kts"))
 
+// ---------------------------------------------------------------------------
+// ciCheck — the AppT verification floor as ONE root entry point (Issue #56)
+// ---------------------------------------------------------------------------
+//
+// docs/architecture/release.md#repository-verification-workflow owns the
+// architecture: Gradle owns Android verification behind a single lifecycle
+// task that both CI (`.github/workflows/verify.yml`, the `android` group) and
+// local strict runs invoke identically:
+//
+//   ./gradlew --no-daemon --dependency-verification=strict ciCheck
+//
+// Coverage, exactly the task set the former CI task-name selectors produced
+// (paths are explicit because a root `dependsOn("name")` resolves against the
+// root project only, while `gradlew <name>` matched every subproject):
+//
+//   * assembleDebug and testDebugUnitTest in :app and :samsung — assembly
+//     plus the JVM/Robolectric test floor;
+//   * lintDebug in :app and :samsung — Android Lint with the repository's
+//     `warningsAsErrors` configuration;
+//   * detekt in :app and :samsung — the single reviewed config/detekt/detekt.yml
+//     (no baseline, never `--auto-correct`); this replaces the former
+//     standalone detekt job, so a Kotlin finding still fails CI, it just does
+//     so from inside the one Android leg;
+//   * dependencyLockCheck — the root aggregate over every committed lockfile
+//     (it itself pins versionCatalogPinned);
+//   * appTGuards — every accepted guard: version-catalog pinning, no
+//     telemetry/crash-reporting/Firestore artifact, the :samsung dependency
+//     boundary, no production dependency on :macrobenchmark, no Log in
+//     :samsung, no sync-record in production source, adIdAbsentFromManifest and
+//     manifestPermissionAllowlist. The guards that read the resolved graph
+//     (noFirestoreClientInApp, noCrashReportingInApp) are the durable form of
+//     the former workflow's two one-off `dependencyInsight` greps.
+//   * :macrobenchmark:assembleBenchmark — the benchmark-only module compiles
+//     on every verification run (emulator timing is NOT collected anywhere in
+//     the PR workflow; see release.md).
+//
+// Both flags on the command line are part of the contract: `--no-daemon` and
+// `--dependency-verification=strict`. Nothing in ciCheck is
+// `continue-on-error`, and nothing here regenerates a supply-chain artifact.
+tasks.register("ciCheck") {
+    group = "verification"
+    description =
+        "The AppT verification floor: assembly, JVM tests, Lint, detekt, lock check, appTGuards and macrobenchmark compile."
+    dependsOn(
+        ":app:assembleDebug",
+        ":samsung:assembleDebug",
+        ":app:testDebugUnitTest",
+        ":samsung:testDebugUnitTest",
+        ":app:lintDebug",
+        ":samsung:lintDebug",
+        ":app:detekt",
+        ":samsung:detekt",
+        "dependencyLockCheck",
+        "appTGuards",
+        ":macrobenchmark:assembleBenchmark",
+    )
+}
+
 // Regenerates every committed lockfile in one resolution pass. Run as
 // `./gradlew resolveAndLockAll --write-locks` after a reviewed dependency
 // change (docs/BUILD.md). Without `--write-locks` it is a no-op resolution.

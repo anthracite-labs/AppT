@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * AppT secret scanning (docs/architecture/release.md, check 14).
+ * AppT secret scanning (docs/architecture/release.md).
  *
  * Scans the working tree and, when a base ref is supplied, the diff of the
  * change, and fails on anything that looks like a long-lived credential or a

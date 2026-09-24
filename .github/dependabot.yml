@@ -1,7 +1,8 @@
 # Dependabot version-update configuration for AppT.
 #
-# Purpose and limits (Issue #36): this produces *reviewed pull requests*. It does
-# not replace, and must not be read as replacing, any of the existing controls:
+# Purpose and limits (Issue #36, carried forward unchanged): this produces
+# *reviewed pull requests*. It does not replace, and must not be read as
+# replacing, any of the existing controls:
 #
 #   * committed Gradle lockfiles, refreshed only through
 #     `./gradlew resolveAndLockAll --write-locks` as a reviewed change;
@@ -9,60 +10,79 @@
 #   * the committed Gradle wrapper with its pinned distributionSha256Sum;
 #   * backend/package-lock.json with `npm ci` as the only install;
 #   * the dependency-review check on every pull request;
-#   * the release.md rule that new significant dependencies carry a license and
-#     provenance note, and that updates arrive as reviewed pull requests while
-#     "silent upgrades are not allowed".
+#   * the release.md rule that new significant dependencies carry a license
+#     and provenance note, and that updates arrive as reviewed pull requests
+#     while "silent upgrades are not allowed".
 #
 # Deliberately absent, per Issue #36 and release.md:
 #   * no auto-merge anywhere. Nothing in this file enables it, and no
 #     auto-merge workflow exists in .github/workflows/.
 #   * no `registries:` block, so nothing but the default public registries the
 #     build already uses can be suggested.
-#   * no `insecure` or scheduled security-update-only noise beyond what GitHub
-#     raises separately; this file is about *version* updates.
+#   * security updates are NOT configured here. GitHub raises Dependabot
+#     security updates (alerts and their immediate PRs) as a separate platform
+#     feature on their own cadence; this file is about *version* updates only
+#     and deliberately does not mix the two.
 #
-# Cadence is monthly with grouped minor/patch updates: a low-noise rhythm that
-# keeps each pull request small enough to actually review, which is the point of
-# a reviewed-update policy.
+# Cadence (Issue #56): ONE weekly coordinated multi-ecosystem proposal
+# replaces the former monthly per-ecosystem schedules. The
+# `multi-ecosystem-groups.modernization` block owns the single schedule
+# (Monday 06:00 UTC), the open-PR bound, the shared labels and the commit
+# message; each ecosystem entry declares exactly what it contributes via
+# `patterns` and where it writes via `directory`. The result is one reviewed
+# pull request that spans Gradle, the /backend npm package and GitHub Actions
+# in a single diff, instead of three unrelated weekly queues.
+#
+# Schema notes (dependabot-2.0.json): entries linked to a multi-ecosystem
+# group must carry `patterns` and must NOT carry their own `schedule` — the
+# group's schedule is the cadence. `versioning-strategy: increase` stays on
+# the manifest-writing ecosystems so a bump remains a one-line reviewed diff
+# that `versionCatalogPinned` still enforces as exact.
+#
+# After this file lands, confirm GitHub accepted it: Insights → Dependency
+# graph → Dependabot must show this configuration. A rejected dependabot.yml
+# silently stops ALL version updates repository-wide — that check is a
+# repository-owner action recorded in the Issue #56 pull request.
 
 version: 2
 
-updates:
-  # ---------------------------------------------------------------------------
-  # Gradle: gradle/libs.versions.toml is where Dependabot writes its bumps. The
-  # module lockfiles, gradle/verification-metadata.xml and the wrapper
-  # properties belong to this ecosystem, but the lockfiles are NOT assumed to be
-  # maintained automatically — see the REVIEWER NOTE below. The version catalog
-  # is the single place a version is written, so a bump is a one-line diff that
-  # `versionCatalogPinned` still enforces as exact.
-  # ---------------------------------------------------------------------------
-  - package-ecosystem: gradle
-    directory: '/'
+multi-ecosystem-groups:
+  modernization:
+    # The ONLY version-update schedule in this file (weekly, Monday 06:00
+    # UTC). The former monthly cadence per ecosystem is gone by design: one
+    # coordinated review window per week.
     schedule:
-      interval: monthly
+      interval: weekly
       day: monday
       time: '06:00'
       timezone: UTC
+    # Bound the coordinated PRs this group may have open at once. Kept at the
+    # same 5 the former per-ecosystem limits summed toward, so noise does not
+    # increase with the consolidation.
     open-pull-requests-limit: 5
-    versioning-strategy: increase
     labels:
       - dependencies
-      - gradle
     commit-message:
-      prefix: 'deps(gradle)'
-    groups:
-      # AndroidX and Compose move together; keeping them in one pull request
-      # avoids a matrix of individually-broken intermediate states.
-      androidx:
-        patterns:
-          - 'androidx.*'
-          - 'com.android.*'
-      kotlin:
-        patterns:
-          - 'org.jetbrains.kotlin*'
-          - 'com.google.devtools.ksp*'
-      # Everything else stays individual: a lone dependency bump is easier to
-      # reason about and to revert than a mixed bag.
+      prefix: 'deps'
+      include: scope
+
+updates:
+  # ---------------------------------------------------------------------------
+  # Gradle: gradle/libs.versions.toml is where Dependabot writes its bumps.
+  # The module lockfiles, gradle/verification-metadata.xml and the wrapper
+  # properties belong to this ecosystem, but the lockfiles are NOT assumed to
+  # be maintained automatically — see the REVIEWER NOTE below. The version
+  # catalog is the single place a version is written, so a bump is a one-line
+  # diff that `versionCatalogPinned` still enforces as exact.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: gradle
+    directory: '/'
+    multi-ecosystem-group: modernization
+    patterns:
+      - '*'
+    versioning-strategy: increase
+    labels:
+      - gradle
 
     # REVIEWER NOTE — required follow-up for every Gradle bump in this repo.
     #
@@ -83,49 +103,25 @@ updates:
     # behaviour, not a flake. Before merging, run the documented regeneration
     # (docs/BUILD.md, gradle/verification-metadata.template.xml):
     #
-    #   ./gradlew --no-daemon --write-verification-metadata sha256 \
-    #     assembleDebug testDebugUnitTest lintDebug :macrobenchmark:assembleBenchmark
+    #   ./gradlew --no-daemon --write-verification-metadata sha256 ciCheck
     #   ./gradlew resolveAndLockAll --write-locks
     #
     # Then review the generated <components> diff exactly as you would review a
     # lockfile, and commit the regenerated artifacts to the Dependabot branch.
 
   # ---------------------------------------------------------------------------
-  # Backend npm package. All dependency updates must go through this directory,
-  # never a root-level npm ecosystem, because backend/ owns its own lockfile and
-  # the Android tree must never gain a package.json.
+  # Backend npm package. All dependency updates must go through this
+  # directory, never a root-level npm ecosystem, because backend/ owns its own
+  # lockfile and the Android tree must never gain a package.json.
   # ---------------------------------------------------------------------------
   - package-ecosystem: npm
     directory: '/backend'
-    schedule:
-      interval: monthly
-      day: monday
-      time: '06:00'
-      timezone: UTC
-    open-pull-requests-limit: 5
+    multi-ecosystem-group: modernization
+    patterns:
+      - '*'
     versioning-strategy: increase
     labels:
-      - dependencies
       - backend
-    commit-message:
-      prefix: 'deps(backend)'
-    groups:
-      # The TypeScript toolchain (compiler, ts-jest, types) must move as one set.
-      typescript:
-        patterns:
-          - 'typescript'
-          - 'typescript-eslint'
-          - 'ts-jest'
-          - '@types/*'
-      linting:
-        patterns:
-          - 'eslint'
-          - '@eslint/*'
-          - 'prettier'
-      jest:
-        patterns:
-          - 'jest'
-          - '@jest/*'
 
   # ---------------------------------------------------------------------------
   # GitHub Actions. Dependabot keeps the immutable commit-SHA pins current and
@@ -135,14 +131,8 @@ updates:
   # ---------------------------------------------------------------------------
   - package-ecosystem: github-actions
     directory: '/'
-    schedule:
-      interval: monthly
-      day: monday
-      time: '06:00'
-      timezone: UTC
-    open-pull-requests-limit: 5
+    multi-ecosystem-group: modernization
+    patterns:
+      - '*'
     labels:
-      - dependencies
       - ci
-    commit-message:
-      prefix: 'deps(actions)'

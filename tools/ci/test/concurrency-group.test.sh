@@ -57,7 +57,7 @@ expect() { # <case> <actual> <expected>
 group_for() { # <event-name> <ref>
   local event="$1" ref="$2" class
   case "$event" in
-    pull_request) class=pr ;;
+    pull_request) class="pr" ;;
     push) class=push ;;
     schedule) class=schedule ;;
     workflow_dispatch) class=dispatch ;;
@@ -77,16 +77,28 @@ expect "schedule main same ref" "$(group_for schedule "$MAIN")" "$(group_for sch
 expect "dispatch main same ref" "$(group_for workflow_dispatch "$MAIN")" "$(group_for workflow_dispatch "$MAIN")"
 
 # --- Different classes on main never share a group. -------------------------
-[ "$(group_for push "$MAIN")" != "$(group_for schedule "$MAIN")" ] \
-  && pass=$((pass + 1)) || fail_case "push main and schedule main must not share a group"
-[ "$(group_for push "$MAIN")" != "$(group_for workflow_dispatch "$MAIN")" ] \
-  && pass=$((pass + 1)) || fail_case "push main and dispatch main must not share a group"
-[ "$(group_for schedule "$MAIN")" != "$(group_for workflow_dispatch "$MAIN")" ] \
-  && pass=$((pass + 1)) || fail_case "schedule main and dispatch main must not share a group"
+if [ "$(group_for push "$MAIN")" != "$(group_for schedule "$MAIN")" ]; then
+  pass=$((pass + 1))
+else
+  fail_case "push main and schedule main must not share a group"
+fi
+if [ "$(group_for push "$MAIN")" != "$(group_for workflow_dispatch "$MAIN")" ]; then
+  pass=$((pass + 1))
+else
+  fail_case "push main and dispatch main must not share a group"
+fi
+if [ "$(group_for schedule "$MAIN")" != "$(group_for workflow_dispatch "$MAIN")" ]; then
+  pass=$((pass + 1))
+else
+  fail_case "schedule main and dispatch main must not share a group"
+fi
 
 # --- Different PRs never cancel each other; same head ref does. -------------
-[ "$(group_for pull_request "$PR_A")" != "$(group_for pull_request "$PR_B")" ] \
-  && pass=$((pass + 1)) || fail_case "distinct pull requests must not share a group"
+if [ "$(group_for pull_request "$PR_A")" != "$(group_for pull_request "$PR_B")" ]; then
+  pass=$((pass + 1))
+else
+  fail_case "distinct pull requests must not share a group"
+fi
 
 # --- The actual YAML implements the tested mapping. --------------------------
 group_line="$(grep -E '^\s*group:' "$CI_WORKFLOW" | head -1 || true)"
@@ -107,8 +119,11 @@ case "$group_line" in
   *"schedule"*) pass=$((pass + 1)) ;;
   *) fail_case "ci.yml: concurrency group does not name the schedule class" ;;
 esac
-grep -q 'cancel-in-progress: true' "$CI_WORKFLOW" \
-  && pass=$((pass + 1)) || fail_case "ci.yml: cancel-in-progress is not true"
+if grep -q 'cancel-in-progress: true' "$CI_WORKFLOW"; then
+  pass=$((pass + 1))
+else
+  fail_case "ci.yml: cancel-in-progress is not true"
+fi
 
 echo ""
 echo "concurrency-group tests: $pass passed, $fail failed"

@@ -104,10 +104,14 @@ make_alerts() {
 run_report() { # <case> <alerts.json>
   local case_name="$1" alerts="$2"
   REPORT_OUT="$tmp/$case_name.md"
-  if ! LAST_OUTPUT="$(bash "$REPORT_SCRIPT" "$alerts" "$REPORT_OUT" 2>&1)"; then
-    LAST_EXIT=$?
-  else
+  # Capture the script's combined output so a failing run can print it, and
+  # record the real exit status (without `!`, so `$?` in the else branch is
+  # the script's status rather than the negated one).
+  if LAST_OUTPUT="$(bash "$REPORT_SCRIPT" "$alerts" "$REPORT_OUT" 2>&1)"; then
     LAST_EXIT=0
+  else
+    LAST_EXIT=$?
+    printf '%s\n' "$LAST_OUTPUT" >&2
   fi
 }
 
@@ -166,7 +170,7 @@ expect_row empty "$REPORT_OUT" '| **Total** |' 0
 #    inconsistent totals (the mechanism that guarantees a severity class can
 #    never silently vanish again).
 # ---------------------------------------------------------------------------
-# shellcheck disable=SC1091
+# shellcheck disable=SC1090,SC1091
 source "$REPORT_SCRIPT"
 if declare -f reconcile_buckets >/dev/null 2>&1; then
   if reconcile_buckets 5 2 1 1 1 1 >/dev/null 2>&1; then

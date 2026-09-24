@@ -1,0 +1,14 @@
+{
+  "minLines": 5,
+  "minTokens": 50,
+  "reporters": ["console"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/build/**",
+    "**/lib/**",
+    "**/coverage/**",
+    "**/.gradle/**",
+    "**/report/**"
+  ],
+  "threshold": 100
+}

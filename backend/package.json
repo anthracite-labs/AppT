@@ -15,7 +15,8 @@
     "lint": "eslint .",
     "test": "jest --config jest.config.js",
     "clean": "rimraf lib",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "verify": "npm run typecheck && npm run lint && npm run format:check && npm run test"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

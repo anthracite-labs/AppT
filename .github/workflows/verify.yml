@@ -1,0 +1,401 @@
+# AppT verification — the single ordinary pull-request workflow (Issue #56).
+#
+# docs/architecture/release.md#repository-verification-workflow owns this
+# architecture: one owner per concern, six responsibility groups, one stable
+# branch-protection status, and NO path classifier — every group runs on every
+# pull request because the repository is small enough that auditability beats
+# skipped decision machinery.
+#
+#   quality            actionlint, ShellCheck, repository policy/self-tests,
+#                      the first-party secret scan (retained until the
+#                      repository owner confirms push protection + Secret
+#                      Protection, then narrowed to the AppT-specific policy
+#                      scan), and jscpd as the sole reporting-only duplication
+#                      detector
+#   android            ./gradlew ciCheck under strict dependency verification
+#                      — assembleDebug, JVM/Robolectric tests, Android Lint,
+#                      detekt, dependencyLockCheck, every appTGuards guard and
+#                      :macrobenchmark:assembleBenchmark
+#   backend            npm ci --prefix backend + npm run verify --prefix backend
+#   device             Gradle Managed Device API 29 (minSdk) — the debug APK
+#                      installs and opens to Welcome (WelcomeLaunchTest);
+#                      no third-party emulator-runner Action
+#   dependency-review   GitHub dependency review (LOW, fail-closed snapshot
+#                      retry) — always, not classifier-gated
+#   gate               the sole required status: succeeds only when every
+#                      group above succeeded
+#
+# Every external action is pinned to a full 40-hex commit SHA with its
+# release tag in a trailing comment (release.md#pull-request-checks). No tool
+# input is floating: exact tool versions, committed lockfiles, sha256-verified
+# release assets (see tools/quality/run-quality.sh), no container actions.
+#
+# `pull_request` only — never `pull_request_target`. Least privilege: the
+# workflow grants only `contents: read`; dependency-review asks for
+# `pull-requests: write` at job level for its summary comment.
+
+name: verify
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+# One cancellation domain per open pull request: a new head commit supersedes
+# the previous run of the same PR. This workflow has no push/schedule/dispatch
+# legs, so a per-PR group is the whole scheme; the four-class mapping for the
+# repository's other workflows is pinned by
+# tools/ci/test/concurrency-group.test.sh.
+concurrency:
+  group: verify-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  # JDK 17 is the minimum and default JDK for the pinned AGP 9.4.x.
+  JAVA_VERSION: '17'
+  # Node 24: the Cloud Functions 2nd gen nodejs24 LTS runtime and the
+  # backend engines pin (backend/package.json).
+  NODE_VERSION: '24'
+  # Matches the pin in gradle/wrapper/gradle-wrapper.properties exactly: the
+  # distribution is checksum-pinned by distributionSha256Sum.
+  GRADLE_VERSION: '9.7.1'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # quality — narrow repository-generic checks only (release.md group 1).
+  # ---------------------------------------------------------------------------
+  quality:
+    name: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the full history
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # Full history so the secret scan covers the tree and the whole
+          # pull-request diff, not just the tip.
+          fetch-depth: 0
+
+      - name: Set up Node
+        # actions/setup-node v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: tools/quality/package-lock.json
+
+      - name: Secret-scanner self-tests
+        run: node --test "tools/secret-scan/test/*.test.mjs"
+
+      # First-party, dependency-free scanner (provenance note in
+      # tools/secret-scan/secret-scan.mjs). Retained until the repository
+      # owner confirms GitHub secret scanning push protection plus Secret
+      # Protection; it then narrows to the AppT-specific credential-material
+      # policy scan release.md allows the repository to keep.
+      - name: Scan the tree and the pull-request diff for secrets
+        run: node tools/secret-scan/secret-scan.mjs --base "${{ github.event.pull_request.base.sha }}"
+
+      - name: Repository policy self-tests
+        run: bash tools/ci/test/concurrency-group.test.sh
+
+      # actionlint, ShellCheck and jscpd come exclusively from this
+      # repository's pinned inputs: exact versions, recorded sha256 digests
+      # for the two official release assets, npm ci from the committed
+      # lockfile for jscpd. No container images, no `latest`, no tool bytes
+      # fetched without a digest (Issue #56 tool-input rule).
+      - name: Quality specialists — actionlint, ShellCheck, jscpd
+        run: bash tools/quality/run-quality.sh
+
+  # ---------------------------------------------------------------------------
+  # android — one Gradle lifecycle task, ciCheck (release.md group 2).
+  #
+  # ciCheck (root build.gradle.kts) is the whole former android + detekt job
+  # pair: assembly, JVM/Robolectric tests, Android Lint, detekt, lock check,
+  # every appTGuards guard (including the durable Firestore/crash-reporting
+  # absence checks that supersede the old one-off dependencyInsight greps) and
+  # :macrobenchmark:assembleBenchmark. Gradle owns these concerns; this job
+  # only supplies the toolchain and reports the findings.
+  # ---------------------------------------------------------------------------
+  android:
+    name: android
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up JDK
+        # actions/setup-java v6.0.1
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        # gradle/actions/setup-gradle v6.3.0
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+        with:
+          # Installs the pinned Gradle CLI and puts it on PATH, which is what
+          # materializes the wrapper below. The version matches the pin in
+          # gradle/wrapper/gradle-wrapper.properties exactly.
+          gradle-version: ${{ env.GRADLE_VERSION }}
+          # Stay on the open-source GitHub Actions cache provider; gradle/actions
+          # v6 would otherwise default to the commercial 'enhanced' service, which
+          # would be a new external egress for the build cache (Issue #54 pin update
+          # deliberately preserves the pre-v6 caching behaviour).
+          cache-provider: 'basic'
+
+      # The Gradle wrapper, the dependency lockfiles and the dependency
+      # verification metadata are all COMMITTED. There is no bootstrap or
+      # self-healing path here on purpose: a missing supply-chain artifact must
+      # fail the build, not be regenerated on the fly, or the repository could
+      # sit indefinitely in a partially verified state.
+      - name: Verify the supply-chain artifacts are committed
+        run: |
+          set -euo pipefail
+          missing=0
+          for required in \
+            gradlew \
+            gradle/wrapper/gradle-wrapper.jar \
+            gradle/wrapper/gradle-wrapper.properties \
+            gradle/verification-metadata.xml \
+            app/gradle.lockfile \
+            samsung/gradle.lockfile \
+            macrobenchmark/gradle.lockfile \
+            settings-gradle.lockfile
+          do
+            if [ ! -f "$required" ]; then
+              echo "::error::Required committed supply-chain artifact is missing: $required"
+              missing=1
+            fi
+          done
+          if ! grep -q '<component ' gradle/verification-metadata.xml; then
+            echo "::error::gradle/verification-metadata.xml contains no component checksums."
+            missing=1
+          fi
+          test "$missing" -eq 0
+          chmod +x ./gradlew
+          ./gradlew --version
+
+      # The one invocation, identical to the documented local floor:
+      # docs/BUILD.md#the-appt-verification-floors.
+      - name: ciCheck — assemble, JVM tests, Lint, detekt, locks, guards, macrobenchmark
+        run: ./gradlew --no-daemon --dependency-verification=strict ciCheck
+
+      # Lint writes its findings to an XML/HTML report; surfacing errors as
+      # annotations means a lint failure is readable in the checks UI without
+      # downloading the artifact. Runs even when the step above failed.
+      - name: Report lint findings
+        if: always()
+        run: python3 tools/ci/report-lint.py
+
+      - name: Upload reports
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          # Covers lint, detekt and test reports — the former separate
+          # detekt-reports upload is folded in here.
+          name: android-reports
+          path: |
+            **/build/reports/**
+            **/build/outputs/lint-results-*.html
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # backend — package-owned verification behind one interface (release.md
+  # group 3). The four former workflow steps (typecheck, ESLint, Prettier,
+  # Jest) are now the package's own `verify` script, so the package owns its
+  # verification contract and CI consumes exactly what a developer runs.
+  # ---------------------------------------------------------------------------
+  backend:
+    name: backend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Node
+        # actions/setup-node v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      # npm ci is the only install: it fails if package-lock.json is missing
+      # or out of step with package.json.
+      - name: Install from the committed lockfile
+        run: npm ci --prefix backend
+
+      - name: Verify — typecheck, ESLint, Prettier check, Jest
+        run: npm run verify --prefix backend
+
+  # ---------------------------------------------------------------------------
+  # device — installed-app acceptance on the SDK floor (release.md group 4).
+  #
+  # Gradle Managed Device `api29` (app/build.gradle.kts, minSdk 29) replaces
+  # the retired reactivecircus/android-emulator-runner action and its KVM/AVD
+  # plumbing entirely: AGP provisions and runs the emulator itself, executing
+  # WelcomeLaunchTest — the Issue #27 criterion "the debug APK installs and
+  # opens to Welcome" — on the lowest platform AppT supports. The former
+  # job's supplementary cold-start dumpsys recording went with that plumbing;
+  # the instrumentation assertion carries the same acceptance criterion.
+  #
+  # Macrobenchmark TIMING is deliberately not collected here or anywhere in
+  # pull-request verification: emulator timing is not release performance
+  # evidence (release.md). The benchmark module only has to COMPILE, which
+  # the android group's ciCheck covers.
+  # ---------------------------------------------------------------------------
+  device:
+    name: device
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up JDK
+        # actions/setup-java v6.0.1
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        # gradle/actions/setup-gradle v6.3.0
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+          # Same open-source cache provider choice as the android group.
+          cache-provider: 'basic'
+
+      - name: Install and launch on the API 29 managed device
+        # swiftshader_indirect matches the former emulator-runner GPU flag;
+        # the run itself is `:app:api29DebugAndroidTest`.
+        run: >-
+          ./gradlew --no-daemon --dependency-verification=strict
+          -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
+          :app:api29DebugAndroidTest
+
+      - name: Upload the connected-test report
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: device-report
+          path: |
+            app/build/reports/androidTests/**
+            app/build/outputs/androidTest-results/**
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # dependency-review — the pull-request gate on newly introduced
+  # dependencies (release.md group 5). It now starts on every pull request
+  # instead of only when a classifier flagged dependency paths: the action is
+  # cheap when nothing changed, and removing the classifier is a core Issue
+  # #56 requirement. It complements — never replaces — Gradle lockfiles,
+  # verification metadata under --dependency-verification=strict, the pinned
+  # wrapper distribution and npm ci.
+  #
+  # AppT relies on GitHub's automatic Gradle dependency submission
+  # (`submit-gradle`) as the single snapshot producer. Do not add a second
+  # manual dependency-submission workflow: Issue #40 proved that duplicate
+  # base/head snapshot counts make the dependency comparison ambiguous and
+  # must fail closed.
+  # ---------------------------------------------------------------------------
+  dependency-review:
+    name: dependency-review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    # dependency-review-action reads the diff and posts its report as a
+    # pull-request comment, so it needs exactly these two and nothing more.
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Check out the base and head of the change
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The action diffs base against head, so both must be present.
+          fetch-depth: 0
+
+      # Severity threshold: LOW. AppT's dependency graph is small and every
+      # addition is already a reviewed, deliberate act, updates are never
+      # auto-merged, and a low-severity failure costs one review decision
+      # rather than an unattended break (Issue #36 rationale, unchanged).
+      #
+      # A deliberate non-goal: no `deny-licenses` policy. The final AppT
+      # source license is an explicit pre-public-release human gate
+      # (release.md#two-external-gates, docs/HARVEST.md); license provenance
+      # stays a reviewed pull-request note.
+      - name: Dependency review
+        id: review
+        # actions/dependency-review-action v5.0.0
+        #
+        # v5.0.0's only breaking change over v4 is a move to the node24 runtime,
+        # which needs Actions Runner >= v2.327.1; GitHub-hosted ubuntu-24.04
+        # runners are well past that.
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
+        with:
+          fail-on-severity: low
+          comment-summary-in-pr: always
+          # Automatic Gradle dependency submission runs independently as
+          # `submit-gradle`. Retry the compare endpoint until that one canonical
+          # head snapshot is visible. 600 s covers the ~5 minute visibility lag
+          # measured on this repository while remaining bounded and fail-closed.
+          retry-on-snapshot-warnings: true
+          retry-on-snapshot-warnings-timeout: 600
+
+  # ---------------------------------------------------------------------------
+  # gate — the single branch-protection status (release.md group 6).
+  #
+  # Succeeds only when EVERY mandatory group succeeded. `!cancelled()` keeps
+  # this job running when a dependency fails, so the ruleset always sees a
+  # definitive verdict instead of a skipped check; inside the step, any
+  # non-success result is reported and fails. Nothing here is
+  # continue-on-error. The old classifier (`changes`) is deliberately NOT in
+  # this dependency set — Issue #56 removed path gating outright.
+  # ---------------------------------------------------------------------------
+  gate:
+    name: gate
+    runs-on: ubuntu-24.04
+    if: ${{ !cancelled() }}
+    needs: [quality, android, backend, device, dependency-review]
+    steps:
+      - name: Every mandatory verification group must have succeeded
+        env:
+          QUALITY: ${{ needs.quality.result }}
+          ANDROID: ${{ needs.android.result }}
+          BACKEND: ${{ needs.backend.result }}
+          DEVICE: ${{ needs.device.result }}
+          DEPENDENCY_REVIEW: ${{ needs['dependency-review'].result }}
+        run: |
+          set -euo pipefail
+          status=0
+          for pair in \
+            "quality=$QUALITY" \
+            "android=$ANDROID" \
+            "backend=$BACKEND" \
+            "device=$DEVICE" \
+            "dependency-review=$DEPENDENCY_REVIEW"
+          do
+            name="${pair%%=*}"
+            result="${pair#*=}"
+            if [ "$result" != "success" ]; then
+              echo "::error::verification group '$name' is '$result' (required: success)"
+              status=1
+            fi
+          done
+          exit "$status"

@@ -1,0 +1,16 @@
+{
+  "name": "appt-quality-tools",
+  "private": true,
+  "description": "Pinned quality specialists for the AppT `quality` verification group (Issue #56): jscpd is installed here by `npm ci` from the committed lockfile; actionlint and ShellCheck are sha256-pinned official release assets fetched by run-quality.sh, not by this package.",
+  "version": "0.0.0",
+  "license": "MIT",
+  "engines": {
+    "node": "24"
+  },
+  "scripts": {
+    "jscpd": "jscpd"
+  },
+  "dependencies": {
+    "jscpd": "5.3.2"
+  }
+}

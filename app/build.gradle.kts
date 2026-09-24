@@ -64,6 +64,31 @@ android {
             // set in app/src/test/resources/robolectric.properties.
             isIncludeAndroidResources = true
         }
+
+        // Gradle Managed Device — the SDK-floor acceptance device (Issue #56).
+        //
+        // API 29 is AppT's minSdk, so this is the lowest platform the app can
+        // run on; the connected run (`:app:api29DebugAndroidTest`, the `device`
+        // group in .github/workflows/verify.yml) is the "debug APK installs
+        // and opens to Welcome" acceptance evidence (WelcomeLaunchTest, Issue
+        // #27). AGP provisions the emulator itself, which is what replaced the
+        // third-party reactivecircus/android-emulator-runner action and its
+        // plumbing. ATD system images start at API 30, hence `aosp` (the
+        // platform `default` family) for API 29.
+        //
+        // Locally: `./gradlew --no-daemon --dependency-verification=strict
+        // :app:api29DebugAndroidTest` on a KVM-capable Linux host; CI passes
+        // `-Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect`.
+        managedDevices {
+            localDevices {
+                create("api29") {
+                    device = "Pixel 2"
+                    apiLevel = 29
+                    systemImageSource = "aosp"
+                    require64Bit = true
+                }
+            }
+        }
     }
 
     lint {
