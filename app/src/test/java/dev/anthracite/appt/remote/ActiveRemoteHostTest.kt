@@ -84,6 +84,29 @@ class ActiveRemoteHostTest {
     }
 
     @Test
+    fun retryingADeadSessionKeepsTheVisibleRemoteOwner() = runTest {
+        val host = host()
+        host.enter(livingRoom)
+        host.retain("remote")
+        advanceUntilIdle()
+        tvs.sessionFor(livingRoom)!!.publish(SessionState.Unreachable)
+        advanceUntilIdle()
+
+        host.enter(livingRoom)
+        advanceUntilIdle()
+        val replacement = tvs.sessionFor(livingRoom)!!
+
+        host.release("remote")
+        advanceTimeBy(14_999)
+        runCurrent()
+        assertFalse("the retained replacement survives until grace expires", replacement.closed)
+
+        advanceTimeBy(2)
+        runCurrent()
+        assertTrue(replacement.closed)
+    }
+
+    @Test
     fun enteringTheSameTelevisionAgainOpensNoSecondSession() = runTest {
         val host = host()
         host.enter(livingRoom)
