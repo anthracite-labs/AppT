@@ -29,8 +29,24 @@ class RemoteChannelTest {
         val url = RemoteChannel.remoteUrl(tlsTelevision)
         assertTrue("the TLS channel is preferred", url.startsWith("wss://[host-a]:8002/"))
         assertTrue("the adopted channel path", url.contains("/api/v2/channels/samsung.remote.control"))
-        assertTrue("the encoded client name", url.endsWith("?name=QXBwVA=="))
+        assertTrue("the encoded client name", url.endsWith("?name=QXBwVA%3D%3D"))
         assertFalse("first contact sends no saved token", url.contains("token"))
+    }
+
+    @Test
+    fun remoteUrlBracketsIpv6Authorities() {
+        val ipv6 =
+            ConfirmedTelevision(
+                TvId("uuid-ipv6"),
+                "feee::face",
+                tls = true,
+                adoptedChannel = true,
+            )
+
+        val url = RemoteChannel.remoteUrl(ipv6)
+
+        assertTrue(url.startsWith("wss://[feee::face]:8002/"))
+        assertTrue(url.endsWith("?name=QXBwVA%3D%3D"))
     }
 
     @Test
