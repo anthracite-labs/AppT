@@ -54,7 +54,8 @@ class PairingViewModelTest {
     @Test
     fun connectingIsTheInitialPhaseBeforeAnySessionIsHeld() =
         runTest(mainRule.dispatcher) {
-            val viewModel = PairingViewModel(livingRoom, ActiveRemoteHost(tvs, backgroundScope), profiles)
+            val viewModel =
+                PairingViewModel(livingRoom, ActiveRemoteHost(tvs, backgroundScope), profiles)
             subscribeTo(viewModel.state)
             advanceUntilIdle()
 
@@ -142,7 +143,8 @@ class PairingViewModelTest {
     @Test
     fun pairingNeverOpensASessionItself() =
         runTest(mainRule.dispatcher) {
-            val viewModel = PairingViewModel(livingRoom, ActiveRemoteHost(tvs, backgroundScope), profiles)
+            val viewModel =
+                PairingViewModel(livingRoom, ActiveRemoteHost(tvs, backgroundScope), profiles)
             subscribeTo(viewModel.state)
             advanceUntilIdle()
 

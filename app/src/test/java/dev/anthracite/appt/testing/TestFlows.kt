@@ -19,5 +19,5 @@ import kotlinx.coroutines.test.TestScope
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 fun <T> TestScope.subscribeTo(state: StateFlow<T>) {
-    backgroundScope.launch { state.collect { } }
+    backgroundScope.launch { state.collect {} }
 }

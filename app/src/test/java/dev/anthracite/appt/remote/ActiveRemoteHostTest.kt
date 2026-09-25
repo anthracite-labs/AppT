@@ -31,9 +31,9 @@ class ActiveRemoteHostTest {
     private val bedroom = TvId(FakeSamsungTvs.OLDER_ID)
 
     /**
-     * The host runs on [TestScope.backgroundScope] rather than the test scope: its
-     * session observation and grace coroutines outlive the last `advanceUntilIdle`, and
-     * `runTest` cancels the background scope when the test finishes.
+     * The host runs on [TestScope.backgroundScope] rather than the test scope: its session
+     * observation and grace coroutines outlive the last `advanceUntilIdle`, and `runTest` cancels
+     * the background scope when the test finishes.
      */
     private fun TestScope.host() = ActiveRemoteHost(tvs, backgroundScope)
 
@@ -179,7 +179,8 @@ class ActiveRemoteHostTest {
     @Test
     fun reachingReadyReportsTheTelevisionOnce() = runTest {
         val ready = mutableListOf<TvId>()
-        val host = ActiveRemoteHost(tvs, backgroundScope, onSessionReady = { tvId -> ready += tvId })
+        val host =
+            ActiveRemoteHost(tvs, backgroundScope, onSessionReady = { tvId -> ready += tvId })
         host.enter(livingRoom)
         advanceUntilIdle()
         val session = tvs.sessionFor(livingRoom)!!
@@ -225,7 +226,8 @@ class ActiveRemoteHostTest {
     @Test
     fun aSessionThatNeverReachesReadyReportsNothing() = runTest {
         val ready = mutableListOf<TvId>()
-        val host = ActiveRemoteHost(tvs, backgroundScope, onSessionReady = { tvId -> ready += tvId })
+        val host =
+            ActiveRemoteHost(tvs, backgroundScope, onSessionReady = { tvId -> ready += tvId })
         host.enter(livingRoom)
         advanceUntilIdle()
         tvs.sessionFor(livingRoom)!!.publish(SessionState.AwaitingTvApproval)
