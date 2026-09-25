@@ -93,6 +93,7 @@ class SamsungTvsSessionTest {
 
     private fun cloudArtifacts(): List<String> =
         System.getProperty("java.class.path")
+            .orEmpty()
             .split(File.pathSeparator)
             .filter { entry -> FORBIDDEN_CLOUD_ARTIFACTS.any { entry.lowercase().contains(it) } }
 
