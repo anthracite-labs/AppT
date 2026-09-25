@@ -44,11 +44,17 @@ class RemoteViewModelTest {
     private val livingRoom = TvId(FakeSamsungTvs.LIVING_ROOM_ID)
     private val dao = FakeTvProfileDao()
     private val profiles = TvProfiles(dao) { 1L }
+    /**
+     * DataStore reads the file it is given more than once, so the path has to be resolved once and
+     * then handed to every call. Resolving it inside the lambda gives each call a different file.
+     */
+    private val preferencesFile = File(folder.newFolder(), "preferences")
+
     private val store =
         PreferenceStore(
             PreferenceDataStoreFactory.create(
                 scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-                produceFile = { File(folder.newFolder(), "preferences") },
+                produceFile = { preferencesFile },
             )
         )
 

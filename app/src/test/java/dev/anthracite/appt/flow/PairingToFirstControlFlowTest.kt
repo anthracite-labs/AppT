@@ -64,11 +64,15 @@ class PairingToFirstControlFlowTest {
     private val gate = FakePermissionGate()
     private val dao = FakeTvProfileDao()
     private val profiles = TvProfiles(dao) { 1L }
+    // DataStore reads its file more than once, so the path is resolved once here rather than
+    // inside the lambda, which would hand every call a different file.
+    private val preferencesFile = File(folder.newFolder(), "preferences")
+
     private val store =
         PreferenceStore(
             PreferenceDataStoreFactory.create(
                 scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-                produceFile = { File(folder.newFolder(), "preferences") },
+                produceFile = { preferencesFile },
             )
         )
     // Wired exactly as AppTApplication wires it: the host notices the transition to `Ready` and the

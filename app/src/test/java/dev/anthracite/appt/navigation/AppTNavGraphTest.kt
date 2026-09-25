@@ -61,13 +61,16 @@ class AppTNavGraphTest {
     private val tvs = FakeSamsungTvs()
     private val gate = FakePermissionGate()
     private val profiles = TvProfiles(FakeTvProfileDao()) { 1L }
+    // DataStore reads its file more than once, so the path is resolved once here rather than
+    // inside the lambda, which would hand every read a different file.
+    private val preferencesFile =
+        File(Files.createTempDirectory("appt-nav").toFile(), "preferences")
+
     private val store =
         PreferenceStore(
             PreferenceDataStoreFactory.create(
                 scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-                produceFile = {
-                    File(Files.createTempDirectory("appt-nav").toFile(), "preferences")
-                },
+                produceFile = { preferencesFile },
             )
         )
     private val host =
