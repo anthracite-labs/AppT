@@ -14,6 +14,7 @@ import dev.anthracite.appt.samsung.TvId
 import java.io.File
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
@@ -262,6 +263,42 @@ class SamsungTvsSessionTest {
         assertEquals(SessionState.AwaitingTvApproval, session.snapshot.value.state)
         assertEquals(2, transport.sockets.size)
         assertEquals(listOf(true, false), transport.sockets.map { it.closed })
+
+        session.close()
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun retryApprovalWaitsForExpiredAttemptCleanup() = runTest {
+        val cleanupBarrier = CompletableDeferred<Unit>()
+        val transport =
+            ScriptedSessionTransport(
+                fixture = script(prompt()),
+                cancellationBarrier = cleanupBarrier,
+            )
+        val session = LiveSession(television, transport, this, approvalWait = 1.seconds)
+
+        runCurrent()
+        assertEquals(SessionState.AwaitingTvApproval, session.snapshot.value.state)
+
+        advanceTimeBy(1_001)
+        runCurrent()
+        assertEquals(SessionState.NeedsRepair, session.snapshot.value.state)
+        assertEquals(1, transport.sockets.size)
+
+        // Request the retry while the canceled collector is deliberately still in its finally
+        // block. The old implementation published Connecting here, which let that collector's
+        // onConnectionLost callback overwrite the retry with Unreachable.
+        session.retryApproval()
+        runCurrent()
+        assertEquals(SessionState.NeedsRepair, session.snapshot.value.state)
+        assertEquals(1, transport.sockets.size)
+
+        cleanupBarrier.complete(Unit)
+        runCurrent()
+
+        assertEquals(SessionState.AwaitingTvApproval, session.snapshot.value.state)
+        assertEquals("the retry starts only after old-attempt cleanup", 2, transport.sockets.size)
 
         session.close()
         advanceUntilIdle()
