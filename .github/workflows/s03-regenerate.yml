@@ -179,8 +179,8 @@ jobs:
         run: |
           set +e
           set +o pipefail
-          python3 -c 'import glob,xml.etree.ElementTree as ET;fs=glob.glob("app/build/test-results/testDebugUnitTest/TEST-*.xml");print("no test reports found") if not fs else [print(tc.get("classname"),"::",tc.get("name"),"::",(f.get("message") or "")[:180],"::",(f.text or "")[:500].replace(chr(10)," / ")) for f0 in fs for tc in ET.parse(f0).getroot().iter("testcase") if (tc.find("failure") is not None or tc.find("error") is not None) for f in [tc.find("failure") if tc.find("failure") is not None else tc.find("error")]]' \
-            2>&1 | head -n 80 | head -c 16000 | fold -w 2000 | head -n 8 \
+          python3 -c 'import glob,xml.etree.ElementTree as ET;fs=glob.glob("app/build/test-results/testDebugUnitTest/TEST-*.xml");print("no test reports found") if not fs else [print(tc.get("classname"),"::",tc.get("name"),"::",(f.get("message") or "")[:180],"::",(f.text or "")[:250].replace(chr(10)," / ")) for f0 in fs for tc in ET.parse(f0).getroot().iter("testcase") if (tc.find("failure") is not None or tc.find("error") is not None) for f in [tc.find("failure") if tc.find("failure") is not None else tc.find("error")]]' \
+            2>&1 | head -n 120 | head -c 16000 | fold -w 2000 | head -n 9 \
             | while IFS= read -r line; do echo "::error::TESTS $line"; done
           true
 
@@ -202,6 +202,9 @@ jobs:
           done < <(git status --porcelain=v1 | cut -c4-)
 
       - name: Commit generated state
+        # Not gated on the verification step: the lockfiles have to land while a test still
+        # fails, or every subsequent run keeps testing the stale lock state.
+        if: always()
         shell: bash
         run: |
           set -euo pipefail

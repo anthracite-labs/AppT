@@ -246,7 +246,8 @@ class DiscoveryViewModelTest {
             advanceUntilIdle()
 
             assertEquals("one row per television", 1, dao.current().size)
-            assertEquals(1L, dao.current().single().createdAt)
+            // The second pick kept the row the first one wrote, timestamp and all.
+            assertEquals(7L, dao.current().single().createdAt)
         }
 
     @Test

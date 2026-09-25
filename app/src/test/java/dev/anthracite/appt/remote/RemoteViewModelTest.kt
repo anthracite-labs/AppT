@@ -29,6 +29,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 
 /**
  * Remote observes the host's session, sends typed commands on it, and is the only place
@@ -45,18 +46,19 @@ class RemoteViewModelTest {
     private val dao = FakeTvProfileDao()
     private val profiles = TvProfiles(dao) { 1L }
     /**
-     * DataStore reads the file it is given more than once, so the path has to be resolved once and
-     * then handed to every call. Resolving it inside the lambda gives each call a different file.
+     * Lazy because `TemporaryFolder` only creates its root when the rule runs, which is after the
+     * test instance is constructed. The path is resolved once inside it and then handed to every
+     * DataStore call, because DataStore reads its file more than once.
      */
-    private val preferencesFile = File(folder.newFolder(), "preferences")
-
-    private val store =
+    private val store by lazy {
+        val file = File(folder.newFolder(), PREFERENCES_FILE_NAME)
         PreferenceStore(
             PreferenceDataStoreFactory.create(
                 scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-                produceFile = { preferencesFile },
+                produceFile = { file },
             )
         )
+    }
 
     /** A host that has already entered the television, as the Pairing route did. */
     private suspend fun TestScope.entered(): ActiveRemoteHost {

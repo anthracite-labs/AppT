@@ -44,6 +44,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 
 /**
  * The S03 acceptance flow (Issue #79, flows.md#first-run-to-first-control): choose a card, approve
@@ -64,17 +65,20 @@ class PairingToFirstControlFlowTest {
     private val gate = FakePermissionGate()
     private val dao = FakeTvProfileDao()
     private val profiles = TvProfiles(dao) { 1L }
-    // DataStore reads its file more than once, so the path is resolved once here rather than
-    // inside the lambda, which would hand every call a different file.
-    private val preferencesFile = File(folder.newFolder(), "preferences")
-
-    private val store =
+    /**
+     * Lazy because `TemporaryFolder` only creates its root when the rule runs, which is after the
+     * test instance is constructed. The path is resolved once inside it and then handed to every
+     * DataStore call, because DataStore reads its file more than once.
+     */
+    private val store by lazy {
+        val file = File(folder.newFolder(), PREFERENCES_FILE_NAME)
         PreferenceStore(
             PreferenceDataStoreFactory.create(
                 scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-                produceFile = { preferencesFile },
+                produceFile = { file },
             )
         )
+    }
     // Wired exactly as AppTApplication wires it: the host notices the transition to `Ready` and the
     // profile row records when the television was last opened.
     private val host =

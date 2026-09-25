@@ -47,6 +47,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 
 /**
  * The route graph and the S02 flow (Issue #73): Welcome → LocalNetwork → Discovery, with a denied
@@ -61,10 +62,10 @@ class AppTNavGraphTest {
     private val tvs = FakeSamsungTvs()
     private val gate = FakePermissionGate()
     private val profiles = TvProfiles(FakeTvProfileDao()) { 1L }
-    // DataStore reads its file more than once, so the path is resolved once here rather than
-    // inside the lambda, which would hand every read a different file.
+    // Resolved once: DataStore reads its file more than once, and a fresh directory per call
+    // would hand every read a different file.
     private val preferencesFile =
-        File(Files.createTempDirectory("appt-nav").toFile(), "preferences")
+        File(Files.createTempDirectory("appt-nav").toFile(), PREFERENCES_FILE_NAME)
 
     private val store =
         PreferenceStore(
