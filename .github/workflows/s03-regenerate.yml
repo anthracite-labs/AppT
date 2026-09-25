@@ -65,7 +65,7 @@ jobs:
 
       # Each diagnose step emits at most nine annotations of at most 2000 characters, which is the
       # whole reason there are four of them.
-      - name: Diagnose: regeneration failure surface
+      - name: Diagnose regeneration failure surface
         if: always()
         shell: bash
         run: |
@@ -75,7 +75,7 @@ jobs:
             | grep -vE "^[0-9]+:> Task " | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
             | while IFS= read -r line; do echo "::error::REGEN $line"; done
 
-      - name: Diagnose: regeneration log tail
+      - name: Diagnose regeneration log tail
         if: always()
         shell: bash
         run: |
@@ -83,7 +83,7 @@ jobs:
           tail -n 45 /tmp/regen.log | head -c 16000 | fold -w 2000 | head -n 8 \
             | while IFS= read -r line; do echo "::error::REGENTAIL $line"; done
 
-      - name: Diagnose: strict ciCheck failure surface
+      - name: Diagnose strict ciCheck failure surface
         if: always()
         shell: bash
         run: |
@@ -93,7 +93,7 @@ jobs:
             | grep -vE "^[0-9]+:> Task " | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
             | while IFS= read -r line; do echo "::error::CI $line"; done
 
-      - name: Diagnose: strict ciCheck log tail
+      - name: Diagnose strict ciCheck log tail
         if: always()
         shell: bash
         run: |
