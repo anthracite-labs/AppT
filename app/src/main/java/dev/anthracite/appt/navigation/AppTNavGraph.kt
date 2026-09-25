@@ -1,5 +1,6 @@
 package dev.anthracite.appt.navigation
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -113,6 +114,12 @@ fun AppTNavGraph(
                 activeRemoteHost = activeRemoteHost,
                 tvProfiles = tvProfiles,
                 preferenceStore = preferenceStore,
+                onBack = {
+                    // lifecycle.md: Back leaves the television immediately; grace is for a
+                    // temporary loss of surface ownership, not an explicit navigation exit.
+                    activeRemoteHost.close()
+                    navController.popBackStack()
+                },
             )
         }
     }
@@ -226,7 +233,9 @@ private fun RemoteDestination(
     activeRemoteHost: ActiveRemoteHost,
     tvProfiles: TvProfiles,
     preferenceStore: PreferenceStore,
+    onBack: () -> Unit,
 ) {
+    BackHandler(onBack = onBack)
     val viewModel = viewModel {
         RemoteViewModel(TvId(tvId), activeRemoteHost, tvProfiles, preferenceStore)
     }
