@@ -21,10 +21,10 @@ import kotlinx.coroutines.SupervisorJob
  * The application-scope composition root.
  *
  * modules.md names Hilt as the eventual composition mechanism, but S03 still has only a handful of
- * application-scoped objects, so they are composed here by hand instead of adding a DI framework and
- * its annotation processing in a pairing slice. Each is created once per process: one [SamsungTvs] is
- * one scan owner and one multicast-lock owner, one [AppTDatabase] is one database, and one
- * [ActiveRemoteHost] is one Active Remote.
+ * application-scoped objects, so they are composed here by hand instead of adding a DI framework
+ * and its annotation processing in a pairing slice. Each is created once per process: one
+ * [SamsungTvs] is one scan owner and one multicast-lock owner, one [AppTDatabase] is one database,
+ * and one [ActiveRemoteHost] is one Active Remote.
  *
  * [ActiveRemoteHost] is application-scoped on purpose (lifecycle.md): it owns the single live
  * session, so a configuration change re-attaches to it instead of opening a second socket, and its

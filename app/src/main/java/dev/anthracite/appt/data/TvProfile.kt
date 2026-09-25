@@ -9,8 +9,8 @@ import androidx.room.PrimaryKey
  *
  * The row is device-local application data: a friendly name, where that name came from, whether the
  * television supplied a stable identity, and when the row was created and last opened. It holds no
- * address, host, port, MAC, SSID, token, certificate, command or text — the forbidden-column list in
- * data.md is enforced by `schemaContainsNoForbiddenColumn` against the exported schema.
+ * address, host, port, MAC, SSID, token, certificate, command or text — the forbidden-column list
+ * in data.md is enforced by `schemaContainsNoForbiddenColumn` against the exported schema.
  *
  * Samsung-private reconnect evidence (address, MAC, protocol UUID, capability evidence) lives in
  * `samsung`'s own device record, not here, and the pairing token and SPKI pin live in the keystore

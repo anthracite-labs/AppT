@@ -62,17 +62,13 @@ class TvProfileDaoTest {
         assertEquals(1, AppTDatabase.VERSION)
     }
 
-    private fun profile(
-        id: String,
-        name: String?,
-        createdAt: Long,
-        lastOpenedAt: Long? = null,
-    ) = TvProfile(
-        tvId = id,
-        friendlyName = name,
-        nameSource = NameSource.TV,
-        stableIdentity = id.startsWith("3f"),
-        createdAt = createdAt,
-        lastOpenedAt = lastOpenedAt,
-    )
+    private fun profile(id: String, name: String?, createdAt: Long, lastOpenedAt: Long? = null) =
+        TvProfile(
+            tvId = id,
+            friendlyName = name,
+            nameSource = NameSource.TV,
+            stableIdentity = id.startsWith("3f"),
+            createdAt = createdAt,
+            lastOpenedAt = lastOpenedAt,
+        )
 }

@@ -263,7 +263,10 @@ class ActiveRemoteHostTest {
         advanceTimeBy(20_000)
         runCurrent()
 
-        assertFalse("returning inside grace reuses the session", tvs.sessionFor(livingRoom)!!.closed)
+        assertFalse(
+            "returning inside grace reuses the session",
+            tvs.sessionFor(livingRoom)!!.closed,
+        )
         assertEquals(listOf(livingRoom), tvs.openedIds)
     }
 

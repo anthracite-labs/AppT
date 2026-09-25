@@ -28,7 +28,10 @@ class RemoteChannelTest {
     fun remoteUrlPrefersTlsAndCarriesNoTokenOnFirstContact() {
         val url = RemoteChannel.remoteUrl(tlsTelevision)
         assertTrue("the TLS channel is preferred", url.startsWith("wss://[host-a]:8002/"))
-        assertTrue("the adopted channel path", url.contains("/api/v2/channels/samsung.remote.control"))
+        assertTrue(
+            "the adopted channel path",
+            url.contains("/api/v2/channels/samsung.remote.control"),
+        )
         assertTrue("the encoded client name", url.endsWith("?name=QXBwVA%3D%3D"))
         assertFalse("first contact sends no saved token", url.contains("token"))
     }
@@ -36,12 +39,7 @@ class RemoteChannelTest {
     @Test
     fun remoteUrlBracketsIpv6Authorities() {
         val ipv6 =
-            ConfirmedTelevision(
-                TvId("uuid-ipv6"),
-                "feee::face",
-                tls = true,
-                adoptedChannel = true,
-            )
+            ConfirmedTelevision(TvId("uuid-ipv6"), "feee::face", tls = true, adoptedChannel = true)
 
         val url = RemoteChannel.remoteUrl(ipv6)
 
@@ -68,7 +66,8 @@ class RemoteChannelTest {
 
     @Test
     fun everyCallerKeyHasAnInternalName() {
-        // The mapping is total: a caller key with no internal name would be a rejected command, not a
+        // The mapping is total: a caller key with no internal name would be a rejected command, not
+        // a
         // silent no-op.
         RemoteKey.entries.forEach { key ->
             assertTrue("no internal name for $key", RemoteChannel.tapFrame(key).contains("KEY_"))
@@ -87,7 +86,8 @@ class RemoteChannelTest {
 
     @Test
     fun parseEventReadsATokenFromTheClientAttributes() {
-        val event = RemoteChannel.parseEvent("""{"event":"ms.channel.connect","data":"[fixture-token]"}""")
+        val event =
+            RemoteChannel.parseEvent("""{"event":"ms.channel.connect","data":"[fixture-token]"}""")
         assertEquals("[fixture-token]", event?.token)
     }
 
@@ -99,9 +99,7 @@ class RemoteChannelTest {
         assertNull(RemoteChannel.parseEvent("[1,2,3]"))
         assertNull(RemoteChannel.parseEvent("""{"data":{"token":"[fixture-token]"}}"""))
         assertNull(RemoteChannel.parseEvent("not json at all"))
-        assertNull(
-            RemoteChannel.parseEvent("x".repeat(RemoteChannel.MAX_FRAME_CODE_POINTS + 1))
-        )
+        assertNull(RemoteChannel.parseEvent("x".repeat(RemoteChannel.MAX_FRAME_CODE_POINTS + 1)))
     }
 
     @Test

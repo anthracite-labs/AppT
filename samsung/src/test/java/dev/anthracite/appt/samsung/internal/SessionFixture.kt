@@ -29,8 +29,8 @@ internal sealed interface SessionEvent {
  * `trace.jsonl` is one JSON object per line, in the shape docs/architecture/testing.md#fixtures
  * prescribes:
  * * `{"tMs":0,"dir":"in","kind":"ws-text","body":{…}}` — one inbound frame;
- * * `{"tMs":40,"dir":"in","kind":"ws-oversize","body":"[oversized-frame]"}` — a frame beyond the
- *   64 KiB parser limit, generated here rather than committed;
+ * * `{"tMs":40,"dir":"in","kind":"ws-oversize","body":"[oversized-frame]"}` — a frame beyond the 64
+ *   KiB parser limit, generated here rather than committed;
  * * `{"tMs":90,"dir":"in","kind":"ws-close","body":null}` — the socket ends;
  * * `{"tMs":400,"dir":"out","kind":"ws-text","body":{…}}` — the frame the session is expected to
  *   write. The test asserts the transport recorded exactly this.
@@ -54,9 +54,11 @@ internal data class SessionFixture(
                     "missing fixture $caseId"
                 }
             val events =
-                resource.readText().lines().filter { it.isNotBlank() }.map {
-                    Json.parseToJsonElement(it).jsonObject
-                }
+                resource
+                    .readText()
+                    .lines()
+                    .filter { it.isNotBlank() }
+                    .map { Json.parseToJsonElement(it).jsonObject }
             return SessionFixture(
                 caseId = caseId,
                 inbound = events.filter { it.string("dir") == "in" }.mapNotNull(::inboundEvent),
@@ -99,6 +101,7 @@ internal data class SessionFixture(
         }
 
         private fun JsonObject.long(key: String): Long =
-            (getValue(key) as? JsonPrimitive)?.content?.toLong() ?: error("fixture event without $key")
+            (getValue(key) as? JsonPrimitive)?.content?.toLong()
+                ?: error("fixture event without $key")
     }
 }

@@ -44,12 +44,13 @@ class RemoteViewModelTest {
     private val livingRoom = TvId(FakeSamsungTvs.LIVING_ROOM_ID)
     private val dao = FakeTvProfileDao()
     private val profiles = TvProfiles(dao) { 1L }
-    private val store = PreferenceStore(
-        PreferenceDataStoreFactory.create(
-            scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-            produceFile = { File(folder.newFolder(), "preferences") },
+    private val store =
+        PreferenceStore(
+            PreferenceDataStoreFactory.create(
+                scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+                produceFile = { File(folder.newFolder(), "preferences") },
+            )
         )
-    )
 
     /** A host that has already entered the television, as the Pairing route did. */
     private suspend fun TestScope.entered(): ActiveRemoteHost {
@@ -60,133 +61,145 @@ class RemoteViewModelTest {
     }
 
     @Test
-    fun readyExposesOnlyTheKeysTheTelevisionAccepts() = runTest(mainRule.dispatcher) {
-        val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
-        advanceUntilIdle()
-        tvs.sessionFor(livingRoom)!!.ready(setOf(RemoteKey.VolumeUp, RemoteKey.VolumeDown))
-        advanceUntilIdle()
+    fun readyExposesOnlyTheKeysTheTelevisionAccepts() =
+        runTest(mainRule.dispatcher) {
+            val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            advanceUntilIdle()
+            tvs.sessionFor(livingRoom)!!.ready(setOf(RemoteKey.VolumeUp, RemoteKey.VolumeDown))
+            advanceUntilIdle()
 
-        assertEquals(listOf(RemoteKey.VolumeUp, RemoteKey.VolumeDown), viewModel.state.value.keys)
-        assertEquals(ConnectionUi.Ready, viewModel.state.value.connection)
-    }
-
-    @Test
-    fun anUnreadySessionExposesNoKeys() = runTest(mainRule.dispatcher) {
-        val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
-        advanceUntilIdle()
-        tvs.sessionFor(livingRoom)!!.publish(SessionState.AwaitingTvApproval)
-        advanceUntilIdle()
-
-        assertEquals(emptyList<RemoteKey>(), viewModel.state.value.keys)
-        assertEquals(ConnectionUi.WaitingForApproval, viewModel.state.value.connection)
-    }
-
-    @Test
-    fun theTelevisionNameComesFromTheProfileRow() = runTest(mainRule.dispatcher) {
-        dao.upsert(
-            TvProfile(
-                tvId = livingRoom.value,
-                friendlyName = "Living Room TV",
-                nameSource = NameSource.TV,
-                stableIdentity = true,
-                createdAt = 1L,
-                lastOpenedAt = null,
+            assertEquals(
+                listOf(RemoteKey.VolumeUp, RemoteKey.VolumeDown),
+                viewModel.state.value.keys,
             )
-        )
-        val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
-        advanceUntilIdle()
-
-        assertEquals("Living Room TV", viewModel.state.value.tvName)
-    }
+            assertEquals(ConnectionUi.Ready, viewModel.state.value.connection)
+        }
 
     @Test
-    fun anAcceptedCommandSetsFirstControlAchievedOnce() = runTest(mainRule.dispatcher) {
-        val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
-        advanceUntilIdle()
-        val session = tvs.sessionFor(livingRoom)!!
-        session.ready()
-        session.nextResult = CommandResult.Accepted
-        advanceUntilIdle()
-        assertFalse("no command has been accepted yet", store.firstControlAchieved.first())
+    fun anUnreadySessionExposesNoKeys() =
+        runTest(mainRule.dispatcher) {
+            val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            advanceUntilIdle()
+            tvs.sessionFor(livingRoom)!!.publish(SessionState.AwaitingTvApproval)
+            advanceUntilIdle()
 
-        viewModel.onCommand(TvCommand.Tap(RemoteKey.VolumeUp))
-        advanceUntilIdle()
-        assertTrue(store.firstControlAchieved.first())
-
-        viewModel.onCommand(TvCommand.Tap(RemoteKey.VolumeDown))
-        advanceUntilIdle()
-        assertTrue("idempotent", store.firstControlAchieved.first())
-        assertEquals(
-            listOf(TvCommand.Tap(RemoteKey.VolumeUp), TvCommand.Tap(RemoteKey.VolumeDown)),
-            session.commands,
-        )
-    }
+            assertEquals(emptyList<RemoteKey>(), viewModel.state.value.keys)
+            assertEquals(ConnectionUi.WaitingForApproval, viewModel.state.value.connection)
+        }
 
     @Test
-    fun aRejectedCommandNeverSetsFirstControlAchieved() = runTest(mainRule.dispatcher) {
-        val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
-        advanceUntilIdle()
-        val session = tvs.sessionFor(livingRoom)!!
-        session.ready()
-        session.nextResult = CommandResult.Rejected(TvFailure.Unavailable)
-        advanceUntilIdle()
+    fun theTelevisionNameComesFromTheProfileRow() =
+        runTest(mainRule.dispatcher) {
+            dao.upsert(
+                TvProfile(
+                    tvId = livingRoom.value,
+                    friendlyName = "Living Room TV",
+                    nameSource = NameSource.TV,
+                    stableIdentity = true,
+                    createdAt = 1L,
+                    lastOpenedAt = null,
+                )
+            )
+            val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            advanceUntilIdle()
 
-        viewModel.onCommand(TvCommand.Tap(RemoteKey.VolumeUp))
-        advanceUntilIdle()
-
-        assertFalse(store.firstControlAchieved.first())
-    }
-
-    @Test
-    fun aReadySessionNeverSetsFirstControlAchieved() = runTest(mainRule.dispatcher) {
-        val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
-        advanceUntilIdle()
-        tvs.sessionFor(livingRoom)!!.ready()
-        advanceUntilIdle()
-
-        assertFalse("reaching Ready is not a command", store.firstControlAchieved.first())
-    }
+            assertEquals("Living Room TV", viewModel.state.value.tvName)
+        }
 
     @Test
-    fun aCommandBeforeTheSessionIsReadyWritesNothing() = runTest(mainRule.dispatcher) {
-        val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
-        advanceUntilIdle()
-        val session = tvs.sessionFor(livingRoom)!!
-        session.nextResult = CommandResult.Accepted
-        advanceUntilIdle()
+    fun anAcceptedCommandSetsFirstControlAchievedOnce() =
+        runTest(mainRule.dispatcher) {
+            val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            advanceUntilIdle()
+            val session = tvs.sessionFor(livingRoom)!!
+            session.ready()
+            session.nextResult = CommandResult.Accepted
+            advanceUntilIdle()
+            assertFalse("no command has been accepted yet", store.firstControlAchieved.first())
 
-        viewModel.onCommand(TvCommand.Tap(RemoteKey.VolumeUp))
-        advanceUntilIdle()
+            viewModel.onCommand(TvCommand.Tap(RemoteKey.VolumeUp))
+            advanceUntilIdle()
+            assertTrue(store.firstControlAchieved.first())
 
-        assertEquals(
-            "the session rejects anything before Ready",
-            listOf(TvCommand.Tap(RemoteKey.VolumeUp)),
-            session.commands,
-        )
-        assertFalse(store.firstControlAchieved.first())
-    }
+            viewModel.onCommand(TvCommand.Tap(RemoteKey.VolumeDown))
+            advanceUntilIdle()
+            assertTrue("idempotent", store.firstControlAchieved.first())
+            assertEquals(
+                listOf(TvCommand.Tap(RemoteKey.VolumeUp), TvCommand.Tap(RemoteKey.VolumeDown)),
+                session.commands,
+            )
+        }
+
+    @Test
+    fun aRejectedCommandNeverSetsFirstControlAchieved() =
+        runTest(mainRule.dispatcher) {
+            val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            advanceUntilIdle()
+            val session = tvs.sessionFor(livingRoom)!!
+            session.ready()
+            session.nextResult = CommandResult.Rejected(TvFailure.Unavailable)
+            advanceUntilIdle()
+
+            viewModel.onCommand(TvCommand.Tap(RemoteKey.VolumeUp))
+            advanceUntilIdle()
+
+            assertFalse(store.firstControlAchieved.first())
+        }
+
+    @Test
+    fun aReadySessionNeverSetsFirstControlAchieved() =
+        runTest(mainRule.dispatcher) {
+            val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            advanceUntilIdle()
+            tvs.sessionFor(livingRoom)!!.ready()
+            advanceUntilIdle()
+
+            assertFalse("reaching Ready is not a command", store.firstControlAchieved.first())
+        }
+
+    @Test
+    fun aCommandBeforeTheSessionIsReadyWritesNothing() =
+        runTest(mainRule.dispatcher) {
+            val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            advanceUntilIdle()
+            val session = tvs.sessionFor(livingRoom)!!
+            session.nextResult = CommandResult.Accepted
+            advanceUntilIdle()
+
+            viewModel.onCommand(TvCommand.Tap(RemoteKey.VolumeUp))
+            advanceUntilIdle()
+
+            assertEquals(
+                "the session rejects anything before Ready",
+                listOf(TvCommand.Tap(RemoteKey.VolumeUp)),
+                session.commands,
+            )
+            assertFalse(store.firstControlAchieved.first())
+        }
 
     /**
      * A dead session is not reused. `Unreachable` is a session that already ended, so Try again has
-     * to open a real socket rather than re-reading the one that failed (connection.md:
-     * `Unreachable → Connecting: caller opens again`).
+     * to open a real socket rather than re-reading the one that failed (connection.md: `Unreachable
+     * → Connecting: caller opens again`).
      */
     @Test
-    fun retryAfterUnavailableOpensANewSession() = runTest(mainRule.dispatcher) {
-        val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
-        advanceUntilIdle()
-        val dead = tvs.sessionFor(livingRoom)!!
-        dead.publish(SessionState.Unreachable)
-        advanceUntilIdle()
+    fun retryAfterUnavailableOpensANewSession() =
+        runTest(mainRule.dispatcher) {
+            val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            advanceUntilIdle()
+            val dead = tvs.sessionFor(livingRoom)!!
+            dead.publish(SessionState.Unreachable)
+            advanceUntilIdle()
 
-        viewModel.onRetry()
-        advanceUntilIdle()
+            viewModel.onRetry()
+            advanceUntilIdle()
 
-        assertEquals(
-            ConnectionUi.Connecting,
-            viewModel.state.value.connection,
-        )
-        assertTrue("the dead session is released", dead.closed)
-        assertEquals("one television, opened again", listOf(livingRoom, livingRoom), tvs.openedIds)
-    }
+            assertEquals(ConnectionUi.Connecting, viewModel.state.value.connection)
+            assertTrue("the dead session is released", dead.closed)
+            assertEquals(
+                "one television, opened again",
+                listOf(livingRoom, livingRoom),
+                tvs.openedIds,
+            )
+        }
 }

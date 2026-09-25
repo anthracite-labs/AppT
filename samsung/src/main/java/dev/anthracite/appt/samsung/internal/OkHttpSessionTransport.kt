@@ -149,18 +149,20 @@ internal class OkHttpSessionTransport : SessionTransport {
  * The television presents a self-signed certificate, so the system trust store cannot be the
  * decision: the SPKI is. On first contact there is no saved pin, so the module accepts one
  * certificate as a candidate to speak the handshake and keeps it in memory for that session only. A
- * second, different certificate on the same connection is rejected. Persisting the candidate together
- * with the token, and comparing a saved pin before the token is placed on the wire, is S04.
+ * second, different certificate on the same connection is rejected. Persisting the candidate
+ * together with the token, and comparing a saved pin before the token is placed on the wire, is
+ * S04.
  *
  * This is not a trust-all `TrustManager`, which is why lint's `CustomX509TrustManager` warning does
  * not apply here: connection.md#security-identity names exactly this shape — "The module may accept
  * one certificate as a candidate to speak the handshake... A second, different certificate on that
  * connection is rejected" — and forbids a trust-all switch outright. The two properties lint is
- * worried about are both absent. Expiry is still enforced by [X509Certificate.checkValidity] on every
- * chain, so a lapsed certificate is never a candidate, and the candidate is a single in-memory value
- * scoped to one socket, so it cannot be read as another television's identity. What the candidate
- * cannot do is distinguish an unexpected television from the expected one on first contact, which is
- * the documented residual LAN risk of "No TLS pin and no UUID" until S04 persists the pin.
+ * worried about are both absent. Expiry is still enforced by [X509Certificate.checkValidity] on
+ * every chain, so a lapsed certificate is never a candidate, and the candidate is a single
+ * in-memory value scoped to one socket, so it cannot be read as another television's identity. What
+ * the candidate cannot do is distinguish an unexpected television from the expected one on first
+ * contact, which is the documented residual LAN risk of "No TLS pin and no UUID" until S04 persists
+ * the pin.
  */
 @SuppressLint("CustomX509TrustManager")
 internal class SpkiTrustManager : X509TrustManager {
@@ -194,20 +196,22 @@ internal class SpkiTrustManager : X509TrustManager {
     companion object {
         /** SHA-256 of the certificate SubjectPublicKeyInfo, lowercase hex. */
         fun spkiSha256(certificate: X509Certificate): String =
-            MessageDigest.getInstance("SHA-256")
-                .digest(certificate.publicKey.encoded)
-                .joinToString("") { byte -> byte.toUInt().toString(16).padStart(2, '0') }
+            MessageDigest.getInstance("SHA-256").digest(certificate.publicKey.encoded).joinToString(
+                ""
+            ) { byte ->
+                byte.toUInt().toString(16).padStart(2, '0')
+            }
     }
 }
 
 /**
  * protocol.md#tls: "Hostname mismatch against the IP is ignored only after the pin check passes."
  *
- * The television is reached by address, so its certificate does not carry that address as a hostname
- * and the platform verifier cannot succeed. The SPKI check in [SpkiTrustManager] is the identity
- * decision, and it runs during the TLS handshake before this verifier is consulted. This verifier
- * therefore requires that the handshake recorded a checked certificate, and otherwise defers to the
- * platform verifier rather than accepting anything.
+ * The television is reached by address, so its certificate does not carry that address as a
+ * hostname and the platform verifier cannot succeed. The SPKI check in [SpkiTrustManager] is the
+ * identity decision, and it runs during the TLS handshake before this verifier is consulted. This
+ * verifier therefore requires that the handshake recorded a checked certificate, and otherwise
+ * defers to the platform verifier rather than accepting anything.
  */
 private class CheckedCertificateVerifier(private val trustManager: SpkiTrustManager) :
     HostnameVerifier {

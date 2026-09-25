@@ -51,103 +51,111 @@ class PairingViewModelTest {
         )
 
     @Test
-    fun connectingIsTheInitialPhaseBeforeAnySessionIsHeld() = runTest(mainRule.dispatcher) {
-        val viewModel = PairingViewModel(livingRoom, ActiveRemoteHost(tvs, this), profiles)
-        advanceUntilIdle()
+    fun connectingIsTheInitialPhaseBeforeAnySessionIsHeld() =
+        runTest(mainRule.dispatcher) {
+            val viewModel = PairingViewModel(livingRoom, ActiveRemoteHost(tvs, this), profiles)
+            advanceUntilIdle()
 
-        assertEquals(PairingPhase.Connecting, viewModel.state.value.phase)
-        assertTrue(!viewModel.state.value.recallHintVisible)
-    }
-
-    @Test
-    fun theTelevisionNameComesFromTheProfileRow() = runTest(mainRule.dispatcher) {
-        dao.upsert(profile(livingRoom, "Living Room TV"))
-        val host = entered()
-        val viewModel = PairingViewModel(livingRoom, host, profiles)
-        advanceUntilIdle()
-
-        assertEquals("Living Room TV", viewModel.state.value.tvName)
-    }
+            assertEquals(PairingPhase.Connecting, viewModel.state.value.phase)
+            assertTrue(!viewModel.state.value.recallHintVisible)
+        }
 
     @Test
-    fun awaitingApprovalShowsTheRecallHint() = runTest(mainRule.dispatcher) {
-        val host = entered()
-        val viewModel = PairingViewModel(livingRoom, host, profiles)
-        advanceUntilIdle()
-        tvs.sessionFor(livingRoom)!!.publish(SessionState.AwaitingTvApproval)
-        advanceUntilIdle()
+    fun theTelevisionNameComesFromTheProfileRow() =
+        runTest(mainRule.dispatcher) {
+            dao.upsert(profile(livingRoom, "Living Room TV"))
+            val host = entered()
+            val viewModel = PairingViewModel(livingRoom, host, profiles)
+            advanceUntilIdle()
 
-        val state = viewModel.state.value
-        assertEquals(PairingPhase.WaitingForApproval, state.phase)
-        assertTrue(state.recallHintVisible)
-    }
+            assertEquals("Living Room TV", viewModel.state.value.tvName)
+        }
 
     @Test
-    fun readyBecomesSucceededWithoutARecallHint() = runTest(mainRule.dispatcher) {
-        val host = entered()
-        val viewModel = PairingViewModel(livingRoom, host, profiles)
-        advanceUntilIdle()
-        tvs.sessionFor(livingRoom)!!.ready(setOf(RemoteKey.VolumeUp))
-        advanceUntilIdle()
+    fun awaitingApprovalShowsTheRecallHint() =
+        runTest(mainRule.dispatcher) {
+            val host = entered()
+            val viewModel = PairingViewModel(livingRoom, host, profiles)
+            advanceUntilIdle()
+            tvs.sessionFor(livingRoom)!!.publish(SessionState.AwaitingTvApproval)
+            advanceUntilIdle()
 
-        assertEquals(PairingPhase.Succeeded, viewModel.state.value.phase)
-        assertTrue(!viewModel.state.value.recallHintVisible)
-    }
-
-    @Test
-    fun aRepairPhaseReportsTheReasonInOrdinaryLanguage() = runTest(mainRule.dispatcher) {
-        val host = entered()
-        val viewModel = PairingViewModel(livingRoom, host, profiles)
-        advanceUntilIdle()
-        tvs.sessionFor(livingRoom)!!.publish(
-            SessionState.NeedsRepair,
-            repairReason = RepairReason.ApprovalDenied,
-        )
-        advanceUntilIdle()
-
-        val phase = viewModel.state.value.phase
-        assertTrue(phase is PairingPhase.Failed)
-        assertEquals(TvFailure.NeedsRepair, phase.failure)
-        assertTrue(!viewModel.state.value.recallHintVisible)
-    }
+            val state = viewModel.state.value
+            assertEquals(PairingPhase.WaitingForApproval, state.phase)
+            assertTrue(state.recallHintVisible)
+        }
 
     @Test
-    fun retryApprovalIsForwardedToTheSession() = runTest(mainRule.dispatcher) {
-        val host = entered()
-        val viewModel = PairingViewModel(livingRoom, host, profiles)
-        advanceUntilIdle()
-        val session = tvs.sessionFor(livingRoom)!!
-        session.publish(SessionState.NeedsRepair, repairReason = RepairReason.ApprovalDenied)
-        advanceUntilIdle()
+    fun readyBecomesSucceededWithoutARecallHint() =
+        runTest(mainRule.dispatcher) {
+            val host = entered()
+            val viewModel = PairingViewModel(livingRoom, host, profiles)
+            advanceUntilIdle()
+            tvs.sessionFor(livingRoom)!!.ready(setOf(RemoteKey.VolumeUp))
+            advanceUntilIdle()
 
-        viewModel.onRetryApproval()
-        advanceUntilIdle()
-
-        assertEquals(1, session.retryApprovals)
-    }
+            assertEquals(PairingPhase.Succeeded, viewModel.state.value.phase)
+            assertTrue(!viewModel.state.value.recallHintVisible)
+        }
 
     @Test
-    fun pairingNeverOpensASessionItself() = runTest(mainRule.dispatcher) {
-        val viewModel = PairingViewModel(livingRoom, ActiveRemoteHost(tvs, this), profiles)
-        advanceUntilIdle()
+    fun aRepairPhaseReportsTheReasonInOrdinaryLanguage() =
+        runTest(mainRule.dispatcher) {
+            val host = entered()
+            val viewModel = PairingViewModel(livingRoom, host, profiles)
+            advanceUntilIdle()
+            tvs.sessionFor(livingRoom)!!.publish(
+                SessionState.NeedsRepair,
+                repairReason = RepairReason.ApprovalDenied,
+            )
+            advanceUntilIdle()
 
-        assertEquals("the host is the only opener", emptyList<TvId>(), tvs.openedIds)
-        assertEquals(PairingPhase.Connecting, viewModel.state.value.phase)
-    }
+            val phase = viewModel.state.value.phase
+            assertTrue(phase is PairingPhase.Failed)
+            assertEquals(TvFailure.NeedsRepair, phase.failure)
+            assertTrue(!viewModel.state.value.recallHintVisible)
+        }
 
     @Test
-    fun anotherTelevisionsSessionIsNotRead() = runTest(mainRule.dispatcher) {
-        val host = entered()
-        val viewModel = PairingViewModel(older, host, profiles)
-        advanceUntilIdle()
+    fun retryApprovalIsForwardedToTheSession() =
+        runTest(mainRule.dispatcher) {
+            val host = entered()
+            val viewModel = PairingViewModel(livingRoom, host, profiles)
+            advanceUntilIdle()
+            val session = tvs.sessionFor(livingRoom)!!
+            session.publish(SessionState.NeedsRepair, repairReason = RepairReason.ApprovalDenied)
+            advanceUntilIdle()
 
-        tvs.sessionFor(livingRoom)!!.ready()
-        advanceUntilIdle()
+            viewModel.onRetryApproval()
+            advanceUntilIdle()
 
-        assertEquals(
-            "a session for another television is not this route's",
-            PairingPhase.Connecting,
-            viewModel.state.value.phase,
-        )
-    }
+            assertEquals(1, session.retryApprovals)
+        }
+
+    @Test
+    fun pairingNeverOpensASessionItself() =
+        runTest(mainRule.dispatcher) {
+            val viewModel = PairingViewModel(livingRoom, ActiveRemoteHost(tvs, this), profiles)
+            advanceUntilIdle()
+
+            assertEquals("the host is the only opener", emptyList<TvId>(), tvs.openedIds)
+            assertEquals(PairingPhase.Connecting, viewModel.state.value.phase)
+        }
+
+    @Test
+    fun anotherTelevisionsSessionIsNotRead() =
+        runTest(mainRule.dispatcher) {
+            val host = entered()
+            val viewModel = PairingViewModel(older, host, profiles)
+            advanceUntilIdle()
+
+            tvs.sessionFor(livingRoom)!!.ready()
+            advanceUntilIdle()
+
+            assertEquals(
+                "a session for another television is not this route's",
+                PairingPhase.Connecting,
+                viewModel.state.value.phase,
+            )
+        }
 }

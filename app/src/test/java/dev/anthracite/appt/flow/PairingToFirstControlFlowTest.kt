@@ -47,8 +47,8 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
 /**
- * The S03 acceptance flow (Issue #79, flows.md#first-run-to-first-control): choose a card, approve on
- * the television, and the first command is written.
+ * The S03 acceptance flow (Issue #79, flows.md#first-run-to-first-control): choose a card, approve
+ * on the television, and the first command is written.
  *
  * It runs through the production navigation graph and the fake `SamsungTvs`, so it proves the whole
  * path rather than one ViewModel: the profile row is written, the session is opened exactly once,
@@ -65,12 +65,13 @@ class PairingToFirstControlFlowTest {
     private val gate = FakePermissionGate()
     private val dao = FakeTvProfileDao()
     private val profiles = TvProfiles(dao) { 1L }
-    private val store = PreferenceStore(
-        PreferenceDataStoreFactory.create(
-            scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-            produceFile = { File(folder.newFolder(), "preferences") },
+    private val store =
+        PreferenceStore(
+            PreferenceDataStoreFactory.create(
+                scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+                produceFile = { File(folder.newFolder(), "preferences") },
+            )
         )
-    )
     // Wired exactly as AppTApplication wires it: the host notices the transition to `Ready` and the
     // profile row records when the television was last opened.
     private val host =
@@ -121,7 +122,8 @@ class PairingToFirstControlFlowTest {
         composeRule.waitForIdle()
         composeRule.waitForIdle()
 
-        // The card selection wrote exactly one device-local profile row, named after the television.
+        // The card selection wrote exactly one device-local profile row, named after the
+        // television.
         val row = dao.current().single()
         assertEquals(livingRoom.value, row.tvId)
         assertEquals("Living Room TV", row.friendlyName)

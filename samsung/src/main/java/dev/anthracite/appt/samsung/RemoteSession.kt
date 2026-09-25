@@ -19,7 +19,6 @@ interface RemoteSession {
 
     /**
      * Sends one typed command on the already open session.
-     *
      * * Returns [CommandResult.Accepted] when the command frame has been written to the live
      *   session, not when the television has visibly acted.
      * * Returns [CommandResult.Rejected] for expected failures, including any command sent while
@@ -32,11 +31,11 @@ interface RemoteSession {
 
     /**
      * Asks the television for approval again. Applies only from [SessionState.NeedsRepair] with a
-     * retryable [RepairReason] (the user denied, or the prompt timed out); elsewhere the snapshot is
-     * unchanged. It does not throw.
+     * retryable [RepairReason] (the user denied, or the prompt timed out); elsewhere the snapshot
+     * is unchanged. It does not throw.
      *
-     * The re-pair path for a rejected token or a changed security identity is `confirmRepair`, which
-     * belongs to S04 with durable saved pairing; S03 has no saved secret to discard.
+     * The re-pair path for a rejected token or a changed security identity is `confirmRepair`,
+     * which belongs to S04 with durable saved pairing; S03 has no saved secret to discard.
      */
     suspend fun retryApproval()
 

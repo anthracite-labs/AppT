@@ -92,13 +92,14 @@ class SamsungTvsSessionTest {
     }
 
     private fun cloudArtifacts(): List<String> =
-        System.getProperty("java.class.path")
-            .orEmpty()
-            .split(File.pathSeparator)
-            .filter { entry -> FORBIDDEN_CLOUD_ARTIFACTS.any { entry.lowercase().contains(it) } }
+        System.getProperty("java.class.path").orEmpty().split(File.pathSeparator).filter { entry ->
+            FORBIDDEN_CLOUD_ARTIFACTS.any { entry.lowercase().contains(it) }
+        }
 
     private fun linesMatching(source: File, pattern: Regex): List<String> =
-        source.readLines().mapIndexed { index, line -> "${source.path}:${index + 1}" to line }
+        source
+            .readLines()
+            .mapIndexed { index, line -> "${source.path}:${index + 1}" to line }
             .filter { (_, line) -> pattern.containsMatchIn(line) }
             .map { (at, _) -> at }
 
@@ -282,10 +283,7 @@ class SamsungTvsSessionTest {
     fun retryApprovalWaitsForExpiredAttemptCleanup() = runTest {
         val cleanupBarrier = CompletableDeferred<Unit>()
         val transport =
-            ScriptedSessionTransport(
-                script(prompt()),
-                cancellationBarrier = cleanupBarrier,
-            )
+            ScriptedSessionTransport(script(prompt()), cancellationBarrier = cleanupBarrier)
         val session = LiveSession(television, transport, this, approvalWait = 1.seconds)
 
         runCurrent()
@@ -447,7 +445,8 @@ class SamsungTvsSessionTest {
         assertFalse(session.snapshot.value.toString().lowercase().contains("token"))
 
         // S03 has no durable store to write one to.
-        val stores = Regex("""\b(RoomDatabase|DataStore|SharedPreferences|FileOutputStream|Keystore)\b""")
+        val stores =
+            Regex("""\b(RoomDatabase|DataStore|SharedPreferences|FileOutputStream|Keystore)\b""")
         val offenders = productionSources().flatMap { linesMatching(it, stores) }
         assertEquals(emptyList<String>(), offenders)
 
@@ -461,10 +460,11 @@ class SamsungTvsSessionTest {
     fun aSelectedTvIdReachesThePrivateEndpointWithoutExposingIt() = runTest {
         val opened = mutableListOf<ConfirmedTelevision>()
         val transport = ScriptedSessionTransport(script(prompt()))
-        val tvs = samsungTvs("ssdp-tizen-tv") { tv, scope ->
-            opened += tv
-            LiveSession(tv, transport, scope)
-        }
+        val tvs =
+            samsungTvs("ssdp-tizen-tv") { tv, scope ->
+                opened += tv
+                LiveSession(tv, transport, scope)
+            }
         val events = mutableListOf<DiscoveryEvent>()
         launch { tvs.discover().toList(events) }
         advanceUntilIdle()
@@ -503,10 +503,11 @@ class SamsungTvsSessionTest {
     @Test
     fun openOnAnUnsupportedTelevisionOpensNoSocket() = runTest {
         val opened = mutableListOf<ConfirmedTelevision>()
-        val tvs = samsungTvs("unsupported-no-keys") { tv, scope ->
-            opened += tv
-            LiveSession(tv, ScriptedSessionTransport(script(prompt())), scope)
-        }
+        val tvs =
+            samsungTvs("unsupported-no-keys") { tv, scope ->
+                opened += tv
+                LiveSession(tv, ScriptedSessionTransport(script(prompt())), scope)
+            }
         val events = mutableListOf<DiscoveryEvent>()
         launch { tvs.discover().toList(events) }
         advanceUntilIdle()

@@ -15,9 +15,9 @@ import kotlinx.coroutines.launch
 /**
  * Pairing for one television (presentation.md#pairing).
  *
- * The ViewModel owns no socket: it observes [ActiveRemoteHost], which is where the session lives, so
- * Pairing and Remote read the same session and a configuration change re-attaches to it rather than
- * opening a second one. `SamsungTvs.open` is never called from here.
+ * The ViewModel owns no socket: it observes [ActiveRemoteHost], which is where the session lives,
+ * so Pairing and Remote read the same session and a configuration change re-attaches to it rather
+ * than opening a second one. `SamsungTvs.open` is never called from here.
  */
 class PairingViewModel(
     private val tvId: TvId,
@@ -33,9 +33,9 @@ class PairingViewModel(
 
     val state: StateFlow<PairingUiState> =
         combine(activeRemoteHost.current, name) { current, label ->
-            val held = current?.takeIf { it.tvId == tvId }
-            PairingUiState.of(label.orEmpty(), held?.snapshot)
-        }
+                val held = current?.takeIf { it.tvId == tvId }
+                PairingUiState.of(label.orEmpty(), held?.snapshot)
+            }
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(SUBSCRIPTION_TIMEOUT),

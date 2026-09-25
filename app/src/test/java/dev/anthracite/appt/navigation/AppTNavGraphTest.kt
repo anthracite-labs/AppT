@@ -62,12 +62,15 @@ class AppTNavGraphTest {
     private val tvs = FakeSamsungTvs()
     private val gate = FakePermissionGate()
     private val profiles = TvProfiles(FakeTvProfileDao()) { 1L }
-    private val store = PreferenceStore(
-        PreferenceDataStoreFactory.create(
-            scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-            produceFile = { File(Files.createTempDirectory("appt-nav").toFile(), "preferences") },
+    private val store =
+        PreferenceStore(
+            PreferenceDataStoreFactory.create(
+                scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+                produceFile = {
+                    File(Files.createTempDirectory("appt-nav").toFile(), "preferences")
+                },
+            )
         )
-    )
     private val host =
         ActiveRemoteHost(tvs, CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate))
     private lateinit var navController: NavHostController
@@ -271,8 +274,8 @@ class AppTNavGraphTest {
     }
 
     /**
-     * Discovery stays on the back stack under Pairing and Remote, so coming back to it must not
-     * act on the selection a second time: one television is opened once for the whole trip.
+     * Discovery stays on the back stack under Pairing and Remote, so coming back to it must not act
+     * on the selection a second time: one television is opened once for the whole trip.
      */
     @Test
     fun `returning from Remote does not re-enter the television`() {

@@ -27,19 +27,21 @@ import kotlinx.coroutines.job
  *
  * It is the single scan owner: at most one scan runs per instance. Starting a new collection of
  * [discover] cancels the previous scan and waits for it to release its probes and multicast lock
- * before the new one begins. The previous collector is cancelled (it sees a `CancellationException`),
- * never failed, and receives neither `Finished` nor `Failed`.
+ * before the new one begins. The previous collector is cancelled (it sees a
+ * `CancellationException`), never failed, and receives neither `Finished` nor `Failed`.
  *
- * It is also the owner of the private, in-memory record of the most recent confirmed control evidence
- * per television: [DiscoveryScan] writes it when a candidate is confirmed and [open] reads it, so the
- * caller's opaque [TvId] is enough to reach the selected television without an address, port, MAC or
- * protocol generation ever crossing the seam.
+ * It is also the owner of the private, in-memory record of the most recent confirmed control
+ * evidence per television: [DiscoveryScan] writes it when a candidate is confirmed and [open] reads
+ * it, so the caller's opaque [TvId] is enough to reach the selected television without an address,
+ * port, MAC or protocol generation ever crossing the seam.
  */
 internal class SamsungTvsImpl(
     private val newScan: () -> DiscoveryScan,
     private val confirmed: ConfirmedTelevisions = ConfirmedTelevisions(),
     private val newSession: (ConfirmedTelevision, CoroutineScope) -> RemoteSession =
-        { television, scope -> LiveSession(television, OkHttpSessionTransport(), scope) },
+        { television, scope ->
+            LiveSession(television, OkHttpSessionTransport(), scope)
+        },
 ) : SamsungTvs {
     private val activeScan = AtomicReference<Job?>(null)
 
@@ -75,9 +77,9 @@ internal class SamsungTvsImpl(
 /**
  * A session that never opens a socket, for a television that cannot be controlled.
  *
- * This is not a stub standing in for a later feature. `Unsupported` and an unknown id are documented
- * `open` outcomes (samsung-interface.md#open), and both must reach the caller as a session that
- * reports the state and rejects every command rather than as an exception.
+ * This is not a stub standing in for a later feature. `Unsupported` and an unknown id are
+ * documented `open` outcomes (samsung-interface.md#open), and both must reach the caller as a
+ * session that reports the state and rejects every command rather than as an exception.
  */
 internal class UnavailableSession(private val unavailable: SessionState) : RemoteSession {
     private val mutableSnapshot =

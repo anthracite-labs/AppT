@@ -25,15 +25,15 @@ import kotlinx.coroutines.launch
 /**
  * The first-contact live session machine (docs/architecture/connection.md).
  *
- * One socket, one television, one command path. The state path S03 supports is
- * `Connecting → AwaitingTvApproval → Ready`, with `NeedsRepair` for a denied or timed-out approval,
- * `Unreachable` when the television cannot be reached, `Unsupported` when there is no adopted
- * channel, and `Closed` when the holder releases the session.
+ * One socket, one television, one command path. The state path S03 supports is `Connecting →
+ * AwaitingTvApproval → Ready`, with `NeedsRepair` for a denied or timed-out approval, `Unreachable`
+ * when the television cannot be reached, `Unsupported` when there is no adopted channel, and
+ * `Closed` when the holder releases the session.
  *
  * What this class deliberately does not do:
  * * It never persists a pairing token or an SPKI pin. The token delivered by the approval event and
- *   the candidate certificate identity are transient live-session state, discarded on close. Durable
- *   saved pairing is S04.
+ *   the candidate certificate identity are transient live-session state, discarded on close.
+ *   Durable saved pairing is S04.
  * * It never opens a second socket. `command` writes on the connection this attempt already holds.
  * * It never lets malformed or oversized television traffic escape. [RemoteChannel.parseEvent]
  *   contains it and the frame is dropped.
@@ -65,8 +65,9 @@ internal class LiveSession(
     private val retrySignals = Channel<Unit>(Channel.CONFLATED)
 
     /**
-     * Live capability evidence for this television. Empty until the adopted channel connects, then the
-     * standard remote keys (commands.md#evidence: `Ready` is the evidence the channel accepts them).
+     * Live capability evidence for this television. Empty until the adopted channel connects, then
+     * the standard remote keys (commands.md#evidence: `Ready` is the evidence the channel accepts
+     * them).
      */
     private var channelKeys: Set<RemoteKey> = emptySet()
 
@@ -172,8 +173,8 @@ internal class LiveSession(
     }
 
     /**
-     * The successful channel-connect event moves the live session to `Ready`. First contact sends no
-     * token, so an unauthorized event before that means the approval prompt is in progress.
+     * The successful channel-connect event moves the live session to `Ready`. First contact sends
+     * no token, so an unauthorized event before that means the approval prompt is in progress.
      */
     private fun onApproved(token: String?) {
         approvalTimer?.cancel()
@@ -216,8 +217,9 @@ internal class LiveSession(
      *
      * Without this the attempt keeps collecting the still-open socket, so `sessionLoop` never
      * reaches `retrySignals.receive()` and `retryApproval` has nothing to act on: the session would
-     * sit in `Connecting` with a socket nobody is using. Ending the collection is what lets the loop
-     * start a fresh attempt, which is the only way a television that did not answer is asked again.
+     * sit in `Connecting` with a socket nobody is using. Ending the collection is what lets the
+     * loop start a fresh attempt, which is the only way a television that did not answer is asked
+     * again.
      */
     private fun endUnansweredAttempt() {
         collecting?.cancel()
@@ -229,7 +231,8 @@ internal class LiveSession(
             SessionState.AwaitingTvApproval ->
                 publish(SessionState.NeedsRepair, RepairReason.ApprovalDenied)
             // Already reported, or already released by the holder: neither is a connection loss.
-            SessionState.NeedsRepair, SessionState.Closed -> Unit
+            SessionState.NeedsRepair,
+            SessionState.Closed -> Unit
             else -> publish(SessionState.Unreachable)
         }
     }
@@ -256,8 +259,8 @@ internal class LiveSession(
 
         /**
          * commands.md#evidence: `Ready` on the adopted channel is the evidence that the standard
-         * remote keys are accepted. Per-key rejection tracking arrives with the slice that implements
-         * rejection; S03 has none to apply.
+         * remote keys are accepted. Per-key rejection tracking arrives with the slice that
+         * implements rejection; S03 has none to apply.
          */
         val STANDARD_REMOTE_KEYS: Set<RemoteKey> = RemoteKey.entries.toSet()
     }

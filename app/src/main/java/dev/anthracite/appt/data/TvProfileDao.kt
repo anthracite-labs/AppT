@@ -14,7 +14,9 @@ interface TvProfileDao {
      */
     @Upsert suspend fun upsert(profile: TvProfile)
 
-    @Query("SELECT * FROM tv_profiles WHERE tvId = :tvId") suspend fun find(tvId: String): TvProfile?
+    @Query("SELECT * FROM tv_profiles WHERE tvId = :tvId")
+    suspend fun find(tvId: String): TvProfile?
 
-    @Query("SELECT * FROM tv_profiles WHERE tvId = :tvId") fun observe(tvId: String): Flow<TvProfile?>
+    @Query("SELECT * FROM tv_profiles WHERE tvId = :tvId")
+    fun observe(tvId: String): Flow<TvProfile?>
 }

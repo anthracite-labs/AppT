@@ -36,9 +36,9 @@ class RemoteViewModel(
 
     val state: StateFlow<RemoteUiState> =
         combine(activeRemoteHost.current, name) { current, label ->
-            val held = current?.takeIf { it.tvId == tvId }
-            RemoteUiState.of(label.orEmpty(), held?.snapshot)
-        }
+                val held = current?.takeIf { it.tvId == tvId }
+                RemoteUiState.of(label.orEmpty(), held?.snapshot)
+            }
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(SUBSCRIPTION_TIMEOUT),
@@ -48,8 +48,8 @@ class RemoteViewModel(
     /**
      * Sends one command on the retained session.
      *
-     * A command is only offered while the session is `Ready`, so a write that the session accepts is
-     * the first-control event: `firstControlAchieved` is set here, once, and setting it never
+     * A command is only offered while the session is `Ready`, so a write that the session accepts
+     * is the first-control event: `firstControlAchieved` is set here, once, and setting it never
      * interrupts the session and never shows account UI (data.md, sync.md#remote-entry-gate).
      */
     fun onCommand(command: TvCommand) {

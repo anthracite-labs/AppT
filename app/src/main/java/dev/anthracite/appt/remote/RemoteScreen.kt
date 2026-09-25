@@ -37,7 +37,6 @@ import dev.anthracite.appt.tokens.TypeTokens
 
 /**
  * Remote: the first live control surface (presentation.md#remote, ui-ux.md).
- *
  * * Only the keys in [RemoteUiState.keys] are rendered. Capability evidence drives the layout, so a
  *   key the television has not accepted is hidden rather than shown and failing.
  * * Every target is at least 48dp, every control has a spoken label and a role, and the connection
@@ -67,8 +66,8 @@ fun RemoteScreen(
             ) {
                 when (val connection = state.connection) {
                     ConnectionUi.Ready -> RemoteControls(state.keys, onCommand)
-                    ConnectionUi.Connecting, ConnectionUi.WaitingForApproval ->
-                        RemoteStatus(connection.statusText())
+                    ConnectionUi.Connecting,
+                    ConnectionUi.WaitingForApproval -> RemoteStatus(connection.statusText())
                     is ConnectionUi.NeedsRepair ->
                         RemoteRecovery(connection.statusText(), onRetry = onRetry)
                     is ConnectionUi.Unavailable ->
@@ -107,8 +106,7 @@ private fun RemoteStatus(message: String) {
         style = TypeTokens.body,
         color = ColorTokens.contentSecondary,
         modifier =
-            Modifier.semantics { liveRegion = LiveRegionMode.Polite }
-                .testTag(RemoteTestTags.STATUS),
+            Modifier.semantics { liveRegion = LiveRegionMode.Polite }.testTag(RemoteTestTags.STATUS),
     )
 }
 

@@ -65,7 +65,10 @@ fun PairingScreen(
                 color = ColorTokens.contentPrimary,
                 modifier = Modifier.semantics { heading() }.testTag(PairingTestTags.TITLE),
             )
-            Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentAlignment = Alignment.Center,
+            ) {
                 PairingBody(state, onCancel, onRetryApproval)
             }
         }

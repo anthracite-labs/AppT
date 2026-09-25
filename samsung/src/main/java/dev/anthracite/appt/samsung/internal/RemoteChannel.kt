@@ -14,8 +14,8 @@ import kotlinx.serialization.json.jsonObject
  * The adopted Tizen remote-control channel (docs/architecture/protocol.md#session-frames).
  *
  * Everything wire-shaped lives here and nowhere else: the remote URL, the client-name encoding, the
- * outbound frame shape, the internal key-name table, the inbound event names, and the parser limits.
- * `app` imports none of it, and none of it is logged (protocol.md#logging-from-this-layer).
+ * outbound frame shape, the internal key-name table, the inbound event names, and the parser
+ * limits. `app` imports none of it, and none of it is logged (protocol.md#logging-from-this-layer).
  */
 internal object RemoteChannel {
     /** protocol.md: the cleartext client name the television shows in its Allow/Deny prompt. */
@@ -103,8 +103,8 @@ internal object RemoteChannel {
     }
 
     /**
-     * One parsed inbound channel event, or null when the frame is malformed, oversized, or carries no
-     * event name. Malformed input is contained here: the caller drops the frame and the session
+     * One parsed inbound channel event, or null when the frame is malformed, oversized, or carries
+     * no event name. Malformed input is contained here: the caller drops the frame and the session
      * continues (connection.md: "Malformed frames do not throw across the seam").
      */
     fun parseEvent(frame: String): ChannelEvent? {
@@ -113,7 +113,9 @@ internal object RemoteChannel {
         return ChannelEvent(name = root.text("event") ?: return null, token = root.token())
     }
 
-    /** protocol.md#parser-limits: one frame, one depth. Over-limit input is malformed, not a crash. */
+    /**
+     * protocol.md#parser-limits: one frame, one depth. Over-limit input is malformed, not a crash.
+     */
     private fun withinFrameLimits(frame: String): Boolean =
         frame.codePointCount(0, frame.length) <= MAX_FRAME_CODE_POINTS &&
             DeviceInfoParser.withinDepth(frame, MAX_JSON_DEPTH)
@@ -121,8 +123,9 @@ internal object RemoteChannel {
     /**
      * The frame as a JSON object, or null when it is not one.
      *
-     * kotlinx.serialization raises SerializationException, an IllegalArgumentException, for anything
-     * that is not valid JSON, including a non-object root. Contained here, never across the seam.
+     * kotlinx.serialization raises SerializationException, an IllegalArgumentException, for
+     * anything that is not valid JSON, including a non-object root. Contained here, never across
+     * the seam.
      */
     private fun parseObject(frame: String): JsonObject? =
         try {
@@ -132,15 +135,17 @@ internal object RemoteChannel {
         }
 }
 
-/** One inbound `ms.channel.*` event. [token] is transient live-session evidence, never persisted. */
+/**
+ * One inbound `ms.channel.*` event. [token] is transient live-session evidence, never persisted.
+ */
 internal data class ChannelEvent(val name: String, val token: String?)
 
-private fun JsonObject.text(key: String): String? =
-    (this[key] as? JsonPrimitive)?.contentOrNull
+private fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
 
 /**
- * protocol.md: "Read token from `data.token`, else from the client attributes." The data member is an
- * object on most televisions and a bare string on some; both are accepted and both are transient.
+ * protocol.md: "Read token from `data.token`, else from the client attributes." The data member is
+ * an object on most televisions and a bare string on some; both are accepted and both are
+ * transient.
  */
 private fun JsonObject.token(): String? {
     val data = this["data"] ?: return null

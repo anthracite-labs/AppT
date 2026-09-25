@@ -25,13 +25,11 @@ data class RemoteUiState(
 ) {
     companion object {
         val Initial: RemoteUiState =
-            RemoteUiState(
-                tvName = "",
-                connection = ConnectionUi.Connecting,
-                keys = emptyList(),
-            )
+            RemoteUiState(tvName = "", connection = ConnectionUi.Connecting, keys = emptyList())
 
-        /** Maps a live session snapshot onto the remote presentation. Pure, so it is a unit test. */
+        /**
+         * Maps a live session snapshot onto the remote presentation. Pure, so it is a unit test.
+         */
         fun of(tvName: String, session: SessionSnapshot?): RemoteUiState {
             val state = session?.state ?: SessionState.Connecting
             return RemoteUiState(
@@ -106,8 +104,8 @@ sealed interface CommandOutcome {
 }
 
 /**
- * The keys the minimal remote renders, in the order the layout shows them
- * (presentation.md#remote: "Every control comes from live capability evidence").
+ * The keys the minimal remote renders, in the order the layout shows them (presentation.md#remote:
+ * "Every control comes from live capability evidence").
  *
  * Power is deliberately absent: this surface is a volume and directional set, and power control
  * arrives with the chrome zone that isolates it.

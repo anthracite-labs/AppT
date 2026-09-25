@@ -20,8 +20,7 @@ import org.junit.Test
  * entity, so there is no migration yet; `roomMigrationEveryVersion` starts to apply at version 2.
  */
 class TvProfileSchemaTest {
-    private val schemaRoot: File =
-        File("schemas").takeIf { it.isDirectory } ?: File("app/schemas")
+    private val schemaRoot: File = File("schemas").takeIf { it.isDirectory } ?: File("app/schemas")
 
     /**
      * data.md#room's forbidden column names. `wifi` is matched as a prefix so `wifiName` and
@@ -75,22 +74,20 @@ class TvProfileSchemaTest {
         )
     }
 
-    /** Room names each column twice; the field path is the Kotlin one and the column name is SQL. */
+    /**
+     * Room names each column twice; the field path is the Kotlin one and the column name is SQL.
+     */
     private fun JsonObject.columnNames(): List<String> =
-        getValue("fields")
-            .jsonArray
-            .map { field ->
-                val entry = field.jsonObject
-                (entry["fieldPath"] ?: entry.getValue("columnName")).jsonPrimitive.content
-            }
+        getValue("fields").jsonArray.map { field ->
+            val entry = field.jsonObject
+            (entry["fieldPath"] ?: entry.getValue("columnName")).jsonPrimitive.content
+        }
 
     private fun schemaFile(version: Int): File {
         val directory =
-            schemaRoot
-                .listFiles()
-                .orEmpty()
-                .singleOrNull { it.isDirectory && File(it, "$version.json").isFile }
-                ?: error("no exported schema for version $version under " + schemaRoot.path)
+            schemaRoot.listFiles().orEmpty().singleOrNull {
+                it.isDirectory && File(it, "$version.json").isFile
+            } ?: error("no exported schema for version $version under " + schemaRoot.path)
         return File(directory, "$version.json")
     }
 

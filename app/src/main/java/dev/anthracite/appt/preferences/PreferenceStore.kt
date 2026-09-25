@@ -35,9 +35,9 @@ class PreferenceStore(private val store: DataStore<Preferences>) {
     /**
      * True once a command has returned `Accepted` on a television (data.md).
      *
-     * This is a socket-write proxy, not visible television action. sync.md#remote-entry-gate reads it
-     * to decide whether the exempt first session has been used; setting it never shows account UI
-     * and never interrupts the session that earned it.
+     * This is a socket-write proxy, not visible television action. sync.md#remote-entry-gate reads
+     * it to decide whether the exempt first session has been used; setting it never shows account
+     * UI and never interrupts the session that earned it.
      */
     val firstControlAchieved: Flow<Boolean> =
         store.data

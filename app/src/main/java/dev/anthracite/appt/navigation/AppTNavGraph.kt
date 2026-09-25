@@ -47,9 +47,9 @@ import dev.anthracite.appt.welcome.WelcomeScreen
  * Nothing loops on its own.
  *
  * S03 flow (Issue #79): choosing a controllable Discovery card enters the television through
- * [ActiveRemoteHost] and navigates to Pairing, which observes that session. When the session reaches
- * `Ready`, Pairing hands the same session to Remote. Cancel from Pairing closes the session and
- * returns to Discovery.
+ * [ActiveRemoteHost] and navigates to Pairing, which observes that session. When the session
+ * reaches `Ready`, Pairing hands the same session to Remote. Cancel from Pairing closes the session
+ * and returns to Discovery.
  */
 @Composable
 fun AppTNavGraph(
@@ -103,9 +103,9 @@ fun AppTNavGraph(
 /**
  * S03's two destinations (presentation.md#route-graph).
  *
- * Pairing observes the session [ActiveRemoteHost] already holds and hands the same session to Remote
- * when it reaches `Ready`. Cancel from Pairing closes the session and returns to Discovery, because
- * `popBackStack` returns to whatever Discovery left underneath.
+ * Pairing observes the session [ActiveRemoteHost] already holds and hands the same session to
+ * Remote when it reaches `Ready`. Cancel from Pairing closes the session and returns to Discovery,
+ * because `popBackStack` returns to whatever Discovery left underneath.
  */
 private fun NavGraphBuilder.s03Destinations(
     navController: NavHostController,
@@ -223,9 +223,7 @@ private fun PairingDestination(
     onCancel: () -> Unit,
     onApproved: () -> Unit,
 ) {
-    val viewModel = viewModel {
-        PairingViewModel(TvId(tvId), activeRemoteHost, tvProfiles)
-    }
+    val viewModel = viewModel { PairingViewModel(TvId(tvId), activeRemoteHost, tvProfiles) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val current by activeRemoteHost.current.collectAsStateWithLifecycle()
     val currentOnApproved by rememberUpdatedState(onApproved)
@@ -241,11 +239,7 @@ private fun PairingDestination(
     LaunchedEffect(current?.snapshot?.state) {
         if (current?.snapshot?.state == SessionState.Ready) currentOnApproved()
     }
-    PairingScreen(
-        state = state,
-        onCancel = onCancel,
-        onRetryApproval = viewModel::onRetryApproval,
-    )
+    PairingScreen(state = state, onCancel = onCancel, onRetryApproval = viewModel::onRetryApproval)
 }
 
 /** Remote for the same television, on the session Pairing opened. */
@@ -273,5 +267,7 @@ private fun RemoteDestination(
 /** The owner key Pairing holds, so its interest is one owner rather than one composition. */
 private const val PAIRING = "pairing"
 
-/** The owner key Remote holds. Distinct from [PAIRING] so the handoff never drops to zero owners. */
+/**
+ * The owner key Remote holds. Distinct from [PAIRING] so the handoff never drops to zero owners.
+ */
 private const val REMOTE = "remote"

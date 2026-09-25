@@ -7,8 +7,8 @@ import androidx.room.RoomDatabase
  * The device-local application database (data.md#room): `appt.db`, version 1.
  *
  * Version 1 has one entity, so there is no migration yet; every later version ships an explicit
- * `Migration` and a migration test. `fallbackToDestructiveMigration` is deliberately absent: losing a
- * user's television names is a visible loss, not a repair.
+ * `Migration` and a migration test. `fallbackToDestructiveMigration` is deliberately absent: losing
+ * a user's television names is a visible loss, not a repair.
  */
 @Database(entities = [TvProfile::class], version = AppTDatabase.VERSION, exportSchema = true)
 abstract class AppTDatabase : RoomDatabase() {

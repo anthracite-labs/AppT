@@ -6,11 +6,11 @@ import kotlinx.coroutines.flow.Flow
 /**
  * The external interface of the `samsung` module (docs/architecture/samsung-interface.md).
  *
- * S02 realizes [discover] only. S03 adds the first live control session: [open] plus [RemoteSession]
- * and the command path. The canonical contract also lists `wake`, `forget`, `rememberedIds` and
- * `redactedDiagnostics`; each arrives, unchanged in shape, in the slice that makes it observable
- * (S04 secrets and `forget`, S12 wake). Declaring them now would force either a stub that pretends to
- * work or an exception path no caller is allowed to rely on.
+ * S02 realizes [discover] only. S03 adds the first live control session: [open] plus
+ * [RemoteSession] and the command path. The canonical contract also lists `wake`, `forget`,
+ * `rememberedIds` and `redactedDiagnostics`; each arrives, unchanged in shape, in the slice that
+ * makes it observable (S04 secrets and `forget`, S12 wake). Declaring them now would force either a
+ * stub that pretends to work or an exception path no caller is allowed to rely on.
  *
  * Two adapters cross this seam: the production `SamsungTvsImpl` (internal to this module, created
  * through [SamsungModule]) and the scripted fake that `app` tests use.
@@ -34,7 +34,6 @@ interface SamsungTvs {
     /**
      * Opens one live control session for [id] and returns it immediately with a `Connecting`
      * snapshot; the snapshot is never null and never absent.
-     *
      * * Pass a `TvId` from `discover()`. The most recent confirmed control evidence for that
      *   television is private to this module, so the caller never supplies an address, a port, a
      *   MAC, or a protocol generation.

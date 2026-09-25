@@ -20,9 +20,9 @@ import kotlinx.coroutines.launch
  * The television the Active Remote currently holds: its live session, and the session's latest
  * snapshot.
  *
- * Both are needed. The snapshot is what the surfaces render, and the session is what they act on
- * (a command, an approval retry). The host is the only place that holds the session, so a surface
- * can never reach one the host does not hold.
+ * Both are needed. The snapshot is what the surfaces render, and the session is what they act on (a
+ * command, an approval retry). The host is the only place that holds the session, so a surface can
+ * never reach one the host does not hold.
  */
 data class ActiveRemoteSnapshot(
     val tvId: TvId,
@@ -40,8 +40,9 @@ data class ActiveRemoteSnapshot(
  * account slice lands.
  *
  * Interest counting is [retain]/[release], not navigation: Pairing, Remote, a sheet and a
- * configuration change all hold interest, so a rotation never releases and never re-opens. Releasing
- * the last interest starts the 15-second grace [lifecycle.md] owns, and [close] is immediate.
+ * configuration change all hold interest, so a rotation never releases and never re-opens.
+ * Releasing the last interest starts the 15-second grace [lifecycle.md] owns, and [close] is
+ * immediate.
  */
 class ActiveRemoteHost(
     private val samsungTvs: SamsungTvs,
@@ -171,8 +172,9 @@ class ActiveRemoteHost(
         const val GRACE = 15_000L
 
         /**
-         * A state the host can still act on. `NeedsRepair` is live: the session object is usable and
-         * `retryApproval` is how it recovers, so re-entering would throw away a recoverable attempt.
+         * A state the host can still act on. `NeedsRepair` is live: the session object is usable
+         * and `retryApproval` is how it recovers, so re-entering would throw away a recoverable
+         * attempt.
          */
         fun SessionState.isLive(): Boolean =
             this == SessionState.Connecting ||

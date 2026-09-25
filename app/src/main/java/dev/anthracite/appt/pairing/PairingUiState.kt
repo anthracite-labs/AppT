@@ -23,7 +23,9 @@ data class PairingUiState(
         val Initial: PairingUiState =
             PairingUiState(tvName = "", phase = PairingPhase.Connecting, recallHintVisible = false)
 
-        /** Maps a live session snapshot onto the pairing presentation. Pure, so it is a unit test. */
+        /**
+         * Maps a live session snapshot onto the pairing presentation. Pure, so it is a unit test.
+         */
         fun of(tvName: String, session: SessionSnapshot?): PairingUiState {
             val state = session?.state ?: SessionState.Connecting
             val phase =

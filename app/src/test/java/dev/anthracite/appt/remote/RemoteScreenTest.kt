@@ -35,11 +35,7 @@ class RemoteScreenTest {
     private fun setRemote(state: RemoteUiState) {
         composeRule.setContent {
             AppTTheme {
-                RemoteScreen(
-                    state = state,
-                    onCommand = { commands += it },
-                    onRetry = { retries++ },
-                )
+                RemoteScreen(state = state, onCommand = { commands += it }, onRetry = { retries++ })
             }
         }
     }
@@ -123,7 +119,11 @@ class RemoteScreenTest {
     @Test
     fun aRepairSessionExplainsTheApprovalInOrdinaryLanguage() {
         setRemote(
-            RemoteUiState("Living Room TV", ConnectionUi.NeedsRepair(TvFailure.NeedsRepair), emptyList())
+            RemoteUiState(
+                "Living Room TV",
+                ConnectionUi.NeedsRepair(TvFailure.NeedsRepair),
+                emptyList(),
+            )
         )
         val shown =
             composeRule

@@ -45,12 +45,13 @@ class PreferenceStoreTest {
         // the user's television state in Room is unaffected. Nothing here may throw to the caller.
         val file = File(folder.newFolder(), "preferences")
         file.writeBytes(ByteArray(32) { 0x7f })
-        val store = PreferenceStore(
-            PreferenceDataStoreFactory.create(
-                scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-                produceFile = { file },
+        val store =
+            PreferenceStore(
+                PreferenceDataStoreFactory.create(
+                    scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+                    produceFile = { file },
+                )
             )
-        )
 
         assertEquals(false, store.firstControlAchieved.first())
     }

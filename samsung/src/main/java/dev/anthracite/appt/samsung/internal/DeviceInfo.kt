@@ -67,8 +67,7 @@ internal object DeviceInfoParser {
      * and a flag may be reported as the string `"true"`. An absent or unreadable flag is not
      * evidence, so it reads as false.
      */
-    private fun String?.asBoolean(): Boolean =
-        this?.trim()?.lowercase(Locale.ROOT) == TRUE
+    private fun String?.asBoolean(): Boolean = this?.trim()?.lowercase(Locale.ROOT) == TRUE
 
     /**
      * protocol.md: "Non-Tizen explicit OS supports `Unsupported`". A television that states a

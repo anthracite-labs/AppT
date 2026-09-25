@@ -7,8 +7,9 @@ import dev.anthracite.appt.samsung.TvId
  * (docs/architecture/protocol.md#device-info-handling, connection.md).
  *
  * S02 confirms a television with device-info but deliberately does not expose its address to `app`.
- * S03 keeps that privacy: this record is how `open(tvId)` reaches the selected television without an
- * address, host, port, MAC, protocol generation, or raw device-info field ever crossing the seam.
+ * S03 keeps that privacy: this record is how `open(tvId)` reaches the selected television without
+ * an address, host, port, MAC, protocol generation, or raw device-info field ever crossing the
+ * seam.
  *
  * The record is in-memory only. Durable Samsung-private reconnect and pairing storage is S04+; S03
  * needs the evidence only for the immediate session.
@@ -41,8 +42,8 @@ internal data class ConfirmedTelevision(
 /**
  * The private, in-memory record of the most recent confirmed television per [TvId].
  *
- * Discovery writes it when a candidate is confirmed; `open` reads it. It holds no caller-visible type
- * and no durable state, so a process death simply means the next `discover()` re-confirms.
+ * Discovery writes it when a candidate is confirmed; `open` reads it. It holds no caller-visible
+ * type and no durable state, so a process death simply means the next `discover()` re-confirms.
  */
 internal class ConfirmedTelevisions {
     private val confirmed = java.util.concurrent.ConcurrentHashMap<TvId, ConfirmedTelevision>()

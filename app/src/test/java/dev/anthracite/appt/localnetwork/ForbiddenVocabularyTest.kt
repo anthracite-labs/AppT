@@ -12,8 +12,8 @@ import org.robolectric.annotation.Config
 
 /**
  * Issue #73 / discovery.md#permission-gate and Issue #79 / presentation.md#pairing: the
- * explanations, Pairing, and Remote all use ordinary language, never protocol,
- * discovery-mechanism, port, address, or television-security vocabulary.
+ * explanations, Pairing, and Remote all use ordinary language, never protocol, discovery-mechanism,
+ * port, address, or television-security vocabulary.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
@@ -57,9 +57,17 @@ class ForbiddenVocabularyTest {
             userFacingStrings()
                 .filter { it.name.startsWith("remote_") }
                 .joinToString(" ") { context.getString(it.getInt(null)) }
-        listOf("KEY_VOLUP", "KEY_VOLDOWN", "KEY_UP", "KEY_ENTER", "KEY_POWEROFF", "ms.remote.control").forEach {
-            assertFalse("the copy names a wire key: $it", copy.contains(it, ignoreCase = true))
-        }
+        listOf(
+                "KEY_VOLUP",
+                "KEY_VOLDOWN",
+                "KEY_UP",
+                "KEY_ENTER",
+                "KEY_POWEROFF",
+                "ms.remote.control",
+            )
+            .forEach {
+                assertFalse("the copy names a wire key: $it", copy.contains(it, ignoreCase = true))
+            }
     }
 
     @Test

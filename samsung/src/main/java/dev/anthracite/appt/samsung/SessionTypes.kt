@@ -61,8 +61,8 @@ enum class RepairReason {
 }
 
 /**
- * Live capability evidence for one television. `app` renders only the keys present here and keeps no
- * parallel model or year table (docs/architecture/commands.md#evidence).
+ * Live capability evidence for one television. `app` renders only the keys present here and keeps
+ * no parallel model or year table (docs/architecture/commands.md#evidence).
  */
 data class TvCapabilities(val keys: Set<RemoteKey>)
 

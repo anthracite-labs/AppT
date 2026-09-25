@@ -9,12 +9,12 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 
 /**
- * The scripted [SessionTransport] adapter (docs/architecture/modules.md#internal-seams-inside-samsung,
- * testing.md#fake-adapters).
+ * The scripted [SessionTransport] adapter
+ * (docs/architecture/modules.md#internal-seams-inside-samsung, testing.md#fake-adapters).
  *
  * It replays fixture frames with their delays, can end the socket, can refuse the connection, and
- * carries a generated test certificate identity. It records every frame the session writes and every
- * socket it opened, which is how the one-socket command rule is proven.
+ * carries a generated test certificate identity. It records every frame the session writes and
+ * every socket it opened, which is how the one-socket command rule is proven.
  */
 internal class ScriptedSessionTransport(
     private vararg val fixtures: SessionFixture,
@@ -69,15 +69,14 @@ internal class ScriptedSessionConnection(
                     is SessionEvent.Close -> return@flow
                 }
             }
-            // The script is exhausted and the television has not ended the session: the socket stays
+            // The script is exhausted and the television has not ended the session: the socket
+            // stays
             // open, as a live one does, until the holder releases it.
             awaitCancellation()
         } finally {
             // Tests can hold cancellation cleanup open to exercise races between an expired
             // approval attempt and retryApproval().
-            cancellationBarrier?.let { barrier ->
-                withContext(NonCancellable) { barrier.await() }
-            }
+            cancellationBarrier?.let { barrier -> withContext(NonCancellable) { barrier.await() } }
         }
     }
 
