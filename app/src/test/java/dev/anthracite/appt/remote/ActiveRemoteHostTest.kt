@@ -147,6 +147,39 @@ class ActiveRemoteHostTest {
         assertNull(host.current.value)
     }
 
+    /** data.md: `lastOpenedAt` is written when the session reaches `Ready`, once per session. */
+    @Test
+    fun reachingReadyReportsTheTelevisionOnce() = runTest {
+        val ready = mutableListOf<TvId>()
+        val host = ActiveRemoteHost(tvs, this) { tvId -> ready += tvId }
+        host.enter(livingRoom)
+        advanceUntilIdle()
+        val session = tvs.sessionFor(livingRoom)!!
+
+        session.ready()
+        advanceUntilIdle()
+        session.ready(setOf(RemoteKey.Mute))
+        advanceUntilIdle()
+
+        assertEquals("one report per session, not one per snapshot", listOf(livingRoom), ready)
+        host.close()
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun aSessionThatNeverReachesReadyReportsNothing() = runTest {
+        val ready = mutableListOf<TvId>()
+        val host = ActiveRemoteHost(tvs, this) { tvId -> ready += tvId }
+        host.enter(livingRoom)
+        advanceUntilIdle()
+        tvs.sessionFor(livingRoom)!!.publish(SessionState.AwaitingTvApproval)
+        advanceUntilIdle()
+
+        assertEquals(emptyList<TvId>(), ready)
+        host.close()
+        advanceUntilIdle()
+    }
+
     @Test
     fun theLastReleaseStartsGraceAndTheSessionSurvivesIt() = runTest {
         val host = host()

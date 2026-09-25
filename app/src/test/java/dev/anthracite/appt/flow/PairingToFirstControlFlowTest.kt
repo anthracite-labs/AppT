@@ -71,8 +71,14 @@ class PairingToFirstControlFlowTest {
             produceFile = { File(folder.newFolder(), "preferences") },
         )
     )
+    // Wired exactly as AppTApplication wires it: the host notices the transition to `Ready` and the
+    // profile row records when the television was last opened.
     private val host =
-        ActiveRemoteHost(tvs, CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate))
+        ActiveRemoteHost(
+            samsungTvs = tvs,
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+            onSessionReady = { tvId -> profiles.markOpened(tvId) },
+        )
     private val livingRoom = TvId(FakeSamsungTvs.LIVING_ROOM_ID)
 
     private fun setGraph() {
@@ -136,6 +142,11 @@ class PairingToFirstControlFlowTest {
         // The same session handed off to Remote, which shows the volume control it was told about.
         composeRule.onNodeWithTag(RemoteTestTags.CONTROLS).assertExists()
         composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.VolumeUp)).assertExists()
+        assertEquals(
+            "reaching Ready records when the television was last opened",
+            1L,
+            dao.current().single().lastOpenedAt,
+        )
 
         composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.VolumeUp)).performClick()
         composeRule.waitForIdle()

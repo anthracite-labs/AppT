@@ -34,6 +34,14 @@ class ActiveRemoteHost(
     private val samsungTvs: SamsungTvs,
     private val scope: CoroutineScope,
     private val entryAllowed: (TvId) -> Boolean = { true },
+    /**
+     * Called once per session, when that session reaches [SessionState.Ready].
+     *
+     * data.md: `lastOpenedAt` is written when the session reaches `Ready`. The host is the one
+     * place that observes every session, so it is the one place that can notice the transition
+     * without a surface re-reading a snapshot it has already seen.
+     */
+    private val onSessionReady: suspend (TvId) -> Unit = {},
 ) {
     private val mutableCurrent = MutableStateFlow<ActiveRemoteSnapshot?>(null)
     val current: StateFlow<ActiveRemoteSnapshot?> = mutableCurrent.asStateFlow()
@@ -95,8 +103,15 @@ class ActiveRemoteHost(
         observation?.cancel()
         observation =
             scope.launch {
+                // Once per session: a rotation or a re-attach collects the same `Ready` snapshot
+                // again and must not write the row twice.
+                var reachedReady = false
                 session.snapshot.collect { snapshot ->
                     mutableCurrent.value = ActiveRemoteSnapshot(tvId, snapshot)
+                    if (snapshot.state == SessionState.Ready && !reachedReady) {
+                        reachedReady = true
+                        onSessionReady(tvId)
+                    }
                 }
             }
     }

@@ -66,6 +66,9 @@ class AppTApplication : Application() {
         ActiveRemoteHost(
             samsungTvs = samsungTvs,
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+            // data.md: `lastOpenedAt` is written when the session reaches `Ready`, which is the
+            // host's transition to notice rather than a surface's.
+            onSessionReady = { tvId -> tvProfiles.markOpened(tvId) },
         )
     }
 
