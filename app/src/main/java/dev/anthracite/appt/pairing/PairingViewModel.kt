@@ -34,7 +34,7 @@ class PairingViewModel(
     val state: StateFlow<PairingUiState> =
         combine(activeRemoteHost.current, name) { current, label ->
             val held = current?.takeIf { it.tvId == tvId }
-            PairingUiState.of(label.orEmpty(), held?.session)
+            PairingUiState.of(label.orEmpty(), held?.snapshot)
         }
             .stateIn(
                 scope = viewModelScope,
@@ -48,7 +48,8 @@ class PairingViewModel(
      */
     fun onRetryApproval() {
         viewModelScope.launch {
-            activeRemoteHost.current.value?.takeIf { it.tvId == tvId }?.session?.retryApproval()
+            val held = activeRemoteHost.current.value?.takeIf { it.tvId == tvId } ?: return@launch
+            held.session.retryApproval()
         }
     }
 

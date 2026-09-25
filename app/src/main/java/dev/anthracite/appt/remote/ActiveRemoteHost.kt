@@ -15,8 +15,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
-/** The television the Active Remote currently holds, and its live session snapshot. */
-data class ActiveRemoteSnapshot(val tvId: TvId, val session: SessionSnapshot)
+/**
+ * The television the Active Remote currently holds: its live session, and the session's latest
+ * snapshot.
+ *
+ * Both are needed. The snapshot is what the surfaces render, and the session is what they act on
+ * (a command, an approval retry). The host is the only place that holds the session, so a surface
+ * can never reach one the host does not hold.
+ */
+data class ActiveRemoteSnapshot(
+    val tvId: TvId,
+    val session: RemoteSession,
+    val snapshot: SessionSnapshot,
+)
 
 /**
  * The application-scoped owner of the single Active Remote (lifecycle.md, presentation.md).
@@ -51,6 +62,9 @@ class ActiveRemoteHost(
     private var observation: Job? = null
     private var grace: Job? = null
 
+    /** The session the host holds. Reaching it through [current] is the only way to act on it. */
+    private var heldSession: RemoteSession? = null
+
     /**
      * Opens (or reuses) the session for [tvId].
      *
@@ -76,6 +90,7 @@ class ActiveRemoteHost(
         // old surface's retain into the new session.
         closeSession(clearOwners = !retryingSameTelevision)
         val session = samsungTvs.open(tvId, scope)
+        heldSession = session
         observe(tvId, session)
     }
 
@@ -106,13 +121,14 @@ class ActiveRemoteHost(
         grace = null
         observation?.cancel()
         observation = null
-        mutableCurrent.value?.session?.close()
+        heldSession?.close()
+        heldSession = null
         mutableCurrent.value = null
         if (clearOwners) owners.clear()
     }
 
     private fun observe(tvId: TvId, session: RemoteSession) {
-        mutableCurrent.value = ActiveRemoteSnapshot(tvId, session.snapshot.value)
+        mutableCurrent.value = ActiveRemoteSnapshot(tvId, session, session.snapshot.value)
         observation?.cancel()
         observation =
             scope.launch {
@@ -120,7 +136,7 @@ class ActiveRemoteHost(
                 // again and must not write the row twice.
                 var reachedReady = false
                 session.snapshot.collect { snapshot ->
-                    mutableCurrent.value = ActiveRemoteSnapshot(tvId, snapshot)
+                    mutableCurrent.value = ActiveRemoteSnapshot(tvId, session, snapshot)
                     if (snapshot.state == SessionState.Ready && !reachedReady) {
                         reachedReady = true
                         try {

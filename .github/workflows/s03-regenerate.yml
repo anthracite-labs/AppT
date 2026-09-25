@@ -61,6 +61,9 @@ jobs:
           set -e
           echo "ciCheck exit code: $code"
 
+          # Every Kotlin compiler diagnostic, which is the fastest way to see all of them at once.
+          grep -E "^e: " /tmp/ci.log | sed 's/^/::error::KOTLIN /' | sed -n '1,60p'
+
           awk '
             {
               if ($0 ~ /^> Task .* FAILED$/) { print "::error::TASK " $0 }
@@ -73,6 +76,18 @@ jobs:
               }
             }
           ' /tmp/ci.log
+
+          # detekt findings, from the report the task already wrote.
+          for report in $(find . -path '*/build/reports/detekt/detekt.xml' 2>/dev/null); do
+            grep -o '<error[^>]*>' "$report" | sed "s|^|::error::DETEKT $report |" \
+              | sed -n '1,20p'
+          done
+
+          # lint findings.
+          for report in $(find . -path '*/build/reports/lint-results-debug.txt' 2>/dev/null); do
+            grep -E "^(/|[A-Za-z]).*: (Error|Warning): " "$report" \
+              | sed "s|^|::error::LINT $report |" | sed -n '1,20p'
+          done
 
           awk '
             /^\* What went wrong:/ { capture = 1 }

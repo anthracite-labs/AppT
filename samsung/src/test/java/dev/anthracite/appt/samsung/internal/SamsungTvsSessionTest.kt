@@ -283,7 +283,7 @@ class SamsungTvsSessionTest {
         val cleanupBarrier = CompletableDeferred<Unit>()
         val transport =
             ScriptedSessionTransport(
-                fixtures = script(prompt()),
+                script(prompt()),
                 cancellationBarrier = cleanupBarrier,
             )
         val session = LiveSession(television, transport, this, approvalWait = 1.seconds)

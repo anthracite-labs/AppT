@@ -37,7 +37,7 @@ class RemoteViewModel(
     val state: StateFlow<RemoteUiState> =
         combine(activeRemoteHost.current, name) { current, label ->
             val held = current?.takeIf { it.tvId == tvId }
-            RemoteUiState.of(label.orEmpty(), held?.session)
+            RemoteUiState.of(label.orEmpty(), held?.snapshot)
         }
             .stateIn(
                 scope = viewModelScope,
@@ -54,9 +54,8 @@ class RemoteViewModel(
      */
     fun onCommand(command: TvCommand) {
         viewModelScope.launch {
-            val session = activeRemoteHost.current.value?.takeIf { it.tvId == tvId }?.session
-                ?: return@launch
-            if (session.command(command) is CommandResult.Accepted) {
+            val held = activeRemoteHost.current.value?.takeIf { it.tvId == tvId } ?: return@launch
+            if (held.session.command(command) is CommandResult.Accepted) {
                 preferenceStore.setFirstControlAchieved()
             }
         }

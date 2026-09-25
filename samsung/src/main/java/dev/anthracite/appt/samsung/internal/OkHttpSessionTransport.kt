@@ -1,5 +1,6 @@
 package dev.anthracite.appt.samsung.internal
 
+import android.annotation.SuppressLint
 import java.security.MessageDigest
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
@@ -150,7 +151,18 @@ internal class OkHttpSessionTransport : SessionTransport {
  * certificate as a candidate to speak the handshake and keeps it in memory for that session only. A
  * second, different certificate on the same connection is rejected. Persisting the candidate together
  * with the token, and comparing a saved pin before the token is placed on the wire, is S04.
+ *
+ * This is not a trust-all `TrustManager`, which is why lint's `CustomX509TrustManager` warning does
+ * not apply here: connection.md#security-identity names exactly this shape — "The module may accept
+ * one certificate as a candidate to speak the handshake... A second, different certificate on that
+ * connection is rejected" — and forbids a trust-all switch outright. The two properties lint is
+ * worried about are both absent. Expiry is still enforced by [X509Certificate.checkValidity] on every
+ * chain, so a lapsed certificate is never a candidate, and the candidate is a single in-memory value
+ * scoped to one socket, so it cannot be read as another television's identity. What the candidate
+ * cannot do is distinguish an unexpected television from the expected one on first contact, which is
+ * the documented residual LAN risk of "No TLS pin and no UUID" until S04 persists the pin.
  */
+@SuppressLint("CustomX509TrustManager")
 internal class SpkiTrustManager : X509TrustManager {
 
     private val candidatePin = AtomicReference<String?>(null)

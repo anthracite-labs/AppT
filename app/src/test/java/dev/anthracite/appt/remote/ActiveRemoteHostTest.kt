@@ -174,7 +174,7 @@ class ActiveRemoteHostTest {
     @Test
     fun reachingReadyReportsTheTelevisionOnce() = runTest {
         val ready = mutableListOf<TvId>()
-        val host = ActiveRemoteHost(tvs, this) { tvId -> ready += tvId }
+        val host = ActiveRemoteHost(tvs, this, onSessionReady = { tvId -> ready += tvId })
         host.enter(livingRoom)
         advanceUntilIdle()
         val session = tvs.sessionFor(livingRoom)!!
@@ -220,7 +220,7 @@ class ActiveRemoteHostTest {
     @Test
     fun aSessionThatNeverReachesReadyReportsNothing() = runTest {
         val ready = mutableListOf<TvId>()
-        val host = ActiveRemoteHost(tvs, this) { tvId -> ready += tvId }
+        val host = ActiveRemoteHost(tvs, this, onSessionReady = { tvId -> ready += tvId })
         host.enter(livingRoom)
         advanceUntilIdle()
         tvs.sessionFor(livingRoom)!!.publish(SessionState.AwaitingTvApproval)
