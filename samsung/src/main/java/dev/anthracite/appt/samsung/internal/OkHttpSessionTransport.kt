@@ -183,8 +183,8 @@ internal class SpkiTrustManager : X509TrustManager {
 
     /**
      * AppT is the TLS client in every session this module opens, so a peer never presents a client
-     * certificate to it and this is never reached. It refuses rather than accepting, because a
-     * path that must not be taken is not a path to leave open.
+     * certificate to it and this is never reached. It refuses rather than accepting, because a path
+     * that must not be taken is not a path to leave open.
      */
     override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
         throw CertificateException("AppT is never a TLS server")
