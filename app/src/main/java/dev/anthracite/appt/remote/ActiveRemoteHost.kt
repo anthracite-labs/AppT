@@ -3,6 +3,7 @@ package dev.anthracite.appt.remote
 import dev.anthracite.appt.samsung.RemoteSession
 import dev.anthracite.appt.samsung.SamsungTvs
 import dev.anthracite.appt.samsung.SessionSnapshot
+import dev.anthracite.appt.samsung.SessionState
 import dev.anthracite.appt.samsung.TvId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -50,11 +51,16 @@ class ActiveRemoteHost(
      *
      * Not a suspending function on purpose: `open` is not suspending either, so a caller can enter
      * the television and act on the result in the same frame rather than racing a recomposition.
+     *
+     * A session is reused only while it is still live. A dead one — `Unreachable`, `Unsupported`,
+     * `Closed` — is closed and replaced, which is what makes Remote's Try again open a real socket
+     * instead of re-reading a session that already ended (connection.md: `Unreachable → Connecting:
+     * caller opens again`).
      */
     fun enter(tvId: TvId) {
         if (!entryAllowed(tvId)) return
         val held = mutableCurrent.value
-        if (held != null && held.tvId == tvId) return
+        if (held != null && held.tvId == tvId && held.session.state.isLive()) return
         close()
         val session = samsungTvs.open(tvId, scope)
         observe(tvId, session)
@@ -107,5 +113,15 @@ class ActiveRemoteHost(
     private companion object {
         /** lifecycle.md: the grace window owned by the host, in milliseconds. */
         const val GRACE = 15_000L
+
+        /**
+         * A state the host can still act on. `NeedsRepair` is live: the session object is usable and
+         * `retryApproval` is how it recovers, so re-entering would throw away a recoverable attempt.
+         */
+        fun SessionState.isLive(): Boolean =
+            this == SessionState.Connecting ||
+                this == SessionState.AwaitingTvApproval ||
+                this == SessionState.Ready ||
+                this == SessionState.NeedsRepair
     }
 }

@@ -2,6 +2,7 @@ package dev.anthracite.appt.remote
 
 import dev.anthracite.appt.samsung.CommandResult
 import dev.anthracite.appt.samsung.RemoteKey
+import dev.anthracite.appt.samsung.RepairReason
 import dev.anthracite.appt.samsung.SessionState
 import dev.anthracite.appt.samsung.TvCommand
 import dev.anthracite.appt.samsung.TvId
@@ -40,6 +41,46 @@ class ActiveRemoteHostTest {
         assertEquals(listOf(livingRoom), tvs.openedIds)
         assertEquals(livingRoom, host.current.value?.tvId)
         assertEquals(SessionState.Connecting, host.current.value?.session?.state)
+    }
+
+    @Test
+    fun enteringATelevisionWhoseSessionEndedOpensANewOne() = runTest {
+        val host = host()
+        host.enter(livingRoom)
+        advanceUntilIdle()
+        val dead = tvs.sessionFor(livingRoom)!!
+        dead.publish(SessionState.Unreachable)
+        advanceUntilIdle()
+
+        host.enter(livingRoom)
+        advanceUntilIdle()
+
+        assertTrue("the ended session is released", dead.closed)
+        assertEquals(listOf(livingRoom, livingRoom), tvs.openedIds)
+        assertEquals(
+            "the replacement reports Connecting, not the state that failed",
+            SessionState.Connecting,
+            host.current.value?.session?.state,
+        )
+    }
+
+    @Test
+    fun aRepairableSessionIsNotReplaced() = runTest {
+        val host = host()
+        host.enter(livingRoom)
+        advanceUntilIdle()
+        val repairable = tvs.sessionFor(livingRoom)!!
+        repairable.publish(
+            SessionState.NeedsRepair,
+            repairReason = dev.anthracite.appt.samsung.RepairReason.ApprovalDenied,
+        )
+        advanceUntilIdle()
+
+        host.enter(livingRoom)
+        advanceUntilIdle()
+
+        assertFalse("retryApproval is how a repairable session recovers", repairable.closed)
+        assertEquals(listOf(livingRoom), tvs.openedIds)
     }
 
     @Test

@@ -9,6 +9,7 @@ import dev.anthracite.appt.samsung.SessionState
 import dev.anthracite.appt.samsung.TvCapabilities
 import dev.anthracite.appt.samsung.TvCommand
 import dev.anthracite.appt.samsung.TvFailure
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
@@ -53,6 +54,9 @@ internal class LiveSession(
     private var openConnection: SessionConnection? = null
     private var approvalTimer: Job? = null
 
+    /** True once the holder released this session, so an ended attempt is a release, not a loss. */
+    private val released = AtomicBoolean(false)
+
     /** A user-requested retry of the approval prompt, after the previous attempt has ended. */
     private val retrySignals = Channel<Unit>(Channel.CONFLATED)
 
@@ -73,7 +77,7 @@ internal class LiveSession(
 
     override suspend fun command(command: TvCommand): CommandResult {
         val connection =
-            if (mutableSnapshot.value.state == SessionState.Ready) openConnection else null
+            (if (mutableSnapshot.value.state == SessionState.Ready) openConnection else null)
                 ?: return CommandResult.Rejected(TvFailure.Unavailable)
         val frame =
             when (command) {
@@ -99,6 +103,7 @@ internal class LiveSession(
     }
 
     override fun close() {
+        released.set(true)
         attempt?.cancel()
         approvalTimer?.cancel()
         publish(SessionState.Closed)
@@ -134,7 +139,9 @@ internal class LiveSession(
             approvalTimer?.cancel()
             approvalToken = null
             candidateCertificate = null
-            if (!coroutineContext.isActive) publish(SessionState.Closed)
+            // The holder released the session; `close` already published `Closed`, and repeating
+            // it here keeps the state `Closed` when the cancellation lands after that publish.
+            if (released.get()) publish(SessionState.Closed)
         }
     }
 

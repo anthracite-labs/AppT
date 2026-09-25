@@ -213,6 +213,25 @@ class DiscoveryViewModelTest {
         }
 
     @Test
+    fun aHandledSelectionIsConsumedSoReturningToDiscoveryDoesNotReEnter() =
+        runTest(mainRule.dispatcher) {
+            val dao = FakeTvProfileDao()
+            val viewModel = DiscoveryViewModel(tvs, gate, TvProfiles(dao) { 7L })
+            runCurrent()
+            tvs.latest.send(FakeSamsungTvs.found())
+            runCurrent()
+
+            viewModel.onPick(TvId(FakeSamsungTvs.LIVING_ROOM_ID))
+            advanceUntilIdle()
+            assertEquals(TvId(FakeSamsungTvs.LIVING_ROOM_ID), viewModel.selected.value)
+
+            viewModel.onSelectionHandled()
+            advanceUntilIdle()
+            assertNull("a consumed selection is not acted on twice", viewModel.selected.value)
+            assertEquals("the row is not rewritten", 1, dao.upserted.size)
+        }
+
+    @Test
     fun reselectingTheSameCardKeepsOneRow() =
         runTest(mainRule.dispatcher) {
             val dao = FakeTvProfileDao()

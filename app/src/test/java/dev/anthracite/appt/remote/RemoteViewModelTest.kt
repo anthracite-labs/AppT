@@ -166,20 +166,27 @@ class RemoteViewModelTest {
         assertFalse(store.firstControlAchieved.first())
     }
 
+    /**
+     * A dead session is not reused. `Unreachable` is a session that already ended, so Try again has
+     * to open a real socket rather than re-reading the one that failed (connection.md:
+     * `Unreachable → Connecting: caller opens again`).
+     */
     @Test
-    fun retryReEntersTheTelevisionWithoutASecondSession() = runTest(mainRule.dispatcher) {
+    fun retryAfterUnavailableOpensANewSession() = runTest(mainRule.dispatcher) {
         val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
         advanceUntilIdle()
-        tvs.sessionFor(livingRoom)!!.publish(SessionState.Unreachable)
+        val dead = tvs.sessionFor(livingRoom)!!
+        dead.publish(SessionState.Unreachable)
         advanceUntilIdle()
 
         viewModel.onRetry()
         advanceUntilIdle()
 
         assertEquals(
-            ConnectionUi.Unavailable(TvFailure.Unreachable),
+            ConnectionUi.Connecting,
             viewModel.state.value.connection,
         )
-        assertEquals("the host reuses its retained session", listOf(livingRoom), tvs.openedIds)
+        assertTrue("the dead session is released", dead.closed)
+        assertEquals("one television, opened again", listOf(livingRoom, livingRoom), tvs.openedIds)
     }
 }

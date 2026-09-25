@@ -49,9 +49,20 @@ class DiscoveryViewModel(
 
     /**
      * The television the user chose, once its profile row is written. The route enters it and
-     * navigates to Pairing; a configuration change re-reads this rather than picking again.
+     * navigates to Pairing, then consumes it with [onSelectionHandled].
      */
     val selected: StateFlow<TvId?> = mutableSelected.asStateFlow()
+
+    /**
+     * Marks [selected] as handled.
+     *
+     * Without this, returning to Discovery from Remote or Pairing would re-enter the television and
+     * navigate straight back out: the route re-reads the same selection and acts on it again. The
+     * ViewModel survives that trip, so the selection has to be a one-shot event rather than state.
+     */
+    fun onSelectionHandled() {
+        mutableSelected.value = null
+    }
 
     private var scan: Job? = null
 

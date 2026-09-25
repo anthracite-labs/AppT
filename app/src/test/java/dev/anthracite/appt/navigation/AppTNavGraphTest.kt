@@ -270,6 +270,35 @@ class AppTNavGraphTest {
         assertEquals(1, session.commands.size)
     }
 
+    /**
+     * Discovery stays on the back stack under Pairing and Remote, so coming back to it must not
+     * act on the selection a second time: one television is opened once for the whole trip.
+     */
+    @Test
+    fun `returning from Remote does not re-enter the television`() {
+        setGraph()
+        openDiscovery()
+        tvs.latest.send(FakeSamsungTvs.found())
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Living Room TV").performClick()
+        composeRule.waitForIdle()
+        composeRule.waitForIdle()
+        tvs.sessionFor(TvId(FakeSamsungTvs.LIVING_ROOM_ID))!!.ready(setOf(RemoteKey.VolumeUp))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(RemoteTestTags.TV_NAME).assertExists()
+
+        composeRule.runOnUiThread { navController.popBackStack() }
+        composeRule.waitForIdle()
+
+        assertEquals(
+            "the selection was consumed, so nothing re-enters",
+            listOf(TvId(FakeSamsungTvs.LIVING_ROOM_ID)),
+            tvs.openedIds,
+        )
+        assertEquals(listOf("Welcome", "Discovery"), backStackRoutes())
+        composeRule.onNodeWithTag(DiscoveryTestTags.TITLE).assertExists()
+    }
+
     @Test
     fun `cancelling Pairing closes the session and returns to Discovery`() {
         setGraph()

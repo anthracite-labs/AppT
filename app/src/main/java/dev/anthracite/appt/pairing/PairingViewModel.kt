@@ -47,7 +47,9 @@ class PairingViewModel(
      * anywhere else, so this needs no local phase bookkeeping.
      */
     fun onRetryApproval() {
-        viewModelScope.launch { activeRemoteHost.current.value?.session?.retryApproval() }
+        viewModelScope.launch {
+            activeRemoteHost.current.value?.takeIf { it.tvId == tvId }?.session?.retryApproval()
+        }
     }
 
     private companion object {

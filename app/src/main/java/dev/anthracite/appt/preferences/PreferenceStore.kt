@@ -49,7 +49,13 @@ class PreferenceStore(private val store: DataStore<Preferences>) {
      * value, and nothing else in the app can set or clear it.
      */
     suspend fun setFirstControlAchieved() {
-        store.edit { preferences -> preferences[FIRST_CONTROL_ACHIEVED] = true }
+        try {
+            store.edit { preferences -> preferences[FIRST_CONTROL_ACHIEVED] = true }
+        } catch (ignored: IOException) {
+            // A failed write must not interrupt the session that earned the command, and it must
+            // not reach the caller as a crash. A later accepted command writes the same value
+            // again, so the flag is retried rather than lost.
+        }
     }
 
     private companion object {

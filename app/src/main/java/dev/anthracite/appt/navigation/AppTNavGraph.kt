@@ -2,6 +2,7 @@ package dev.anthracite.appt.navigation
 
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -162,12 +163,18 @@ private fun DiscoveryDestination(
     DiscoveryScreen(state = state, onRescan = viewModel::onRescan, onPick = viewModel::onPick)
     // The route, not the screen, enters the television and navigates: `onPick` writes the profile
     // row first, and this runs once that row exists. Entering is the host's job, so one television
-    // is opened once and never a second time, and a configuration change re-reads `selected`
-    // rather than entering again.
-    LaunchedEffect(viewModel.selected) { selected ->
-        selected?.let {
-            activeRemoteHost.enter(it)
-            currentOnPicked(it)
+    // is opened once and never a second time.
+    //
+    // The selection is collected rather than read as a key, and it is consumed once handled:
+    // Discovery stays on the back stack under Pairing and Remote, so returning to it would
+    // otherwise re-enter the television and navigate straight back out.
+    LaunchedEffect(viewModel) {
+        viewModel.selected.collect { selected ->
+            selected?.let {
+                activeRemoteHost.enter(it)
+                viewModel.onSelectionHandled()
+                currentOnPicked(it)
+            }
         }
     }
 }
@@ -193,6 +200,13 @@ private fun PairingDestination(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val current by activeRemoteHost.current.collectAsStateWithLifecycle()
     val currentOnApproved by rememberUpdatedState(onApproved)
+    // lifecycle.md: interest is counted, not inferred from navigation. Holding an interest here is
+    // what makes a rotation a re-attach rather than a release, and what starts the 15-second grace
+    // when this is the last surface interested in the session.
+    DisposableEffect(activeRemoteHost) {
+        activeRemoteHost.retain(PAIRING)
+        onDispose { activeRemoteHost.release(PAIRING) }
+    }
     // presentation.md: "Success transitions directly into Remote". The handoff happens once, when
     // the session the host already holds becomes Ready.
     LaunchedEffect(current?.session?.state) {
@@ -217,5 +231,16 @@ private fun RemoteDestination(
         RemoteViewModel(TvId(tvId), activeRemoteHost, tvProfiles, preferenceStore)
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // The same interest Pairing held, taken over by the surface the session handed off to.
+    DisposableEffect(activeRemoteHost) {
+        activeRemoteHost.retain(REMOTE)
+        onDispose { activeRemoteHost.release(REMOTE) }
+    }
     RemoteScreen(state = state, onCommand = viewModel::onCommand, onRetry = viewModel::onRetry)
 }
+
+/** The owner key Pairing holds, so its interest is one owner rather than one composition. */
+private const val PAIRING = "pairing"
+
+/** The owner key Remote holds. Distinct from [PAIRING] so the handoff never drops to zero owners. */
+private const val REMOTE = "remote"
