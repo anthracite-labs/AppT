@@ -17,13 +17,13 @@ Phase: `implementation`
 
 ## Current objective
 
-Objective: `Resume S02 — Local-network explanation and bounded discovery — now that the pre-S02 security baseline in Issue #36 has been accepted and merged. S07 remains dependency-ready but is not active or authorized.`
+Objective: `Advance to S03 — Pair on the television and the first command — after S02 was accepted through PR #75 and corrective closeout PR #77. S07 remains dependency-ready but is not active or authorized.`
 
-Success condition: `S02 is implemented and accepted against the architecture/slice contract while preserving the merged security baseline, privacy constraints, and supply-chain controls.`
+Success condition: `S03 is implemented and accepted against the architecture/slice contract while preserving S02 discovery/privacy boundaries and the merged security and supply-chain controls.`
 
 ## Active work
 
-Primary: `S01 remains the accepted product implementation baseline through PR #30, the pre-S02 security baseline is accepted through PR #38, dependency/toolchain modernization is accepted through PR #55, and the verification/AI-assurance redesign is accepted through merged PR #60. S02 is the next product slice to compile and dispatch.`
+Primary: `S02 is accepted through implementation PR #75 and corrective closeout PR #77. S03 — Pair on the television and the first command — is the next authorized product slice to compile and dispatch. S07 remains dependency-ready but is not active or authorized.`
 
 Secondary:
 
@@ -101,6 +101,7 @@ Secondary:
 - `The implementation route is the accepted seventeen-slice map in docs/architecture/slices.md, merged through PR #25; it replaces the sixteen-slice map and contains no television-sync slice.`
 - `Architecture closure was explicitly accepted by the human on 2026-09-23; implementation is now authorized, one accepted slice at a time.`
 - `S01 — Walking skeleton and CI floor — is the accepted implementation baseline, merged through PR #30 with green Android, runtime-emulator, backend, and secret-scanning checks.`
+- `S02 — Local-network explanation and bounded discovery — is accepted through PR #75 plus corrective closeout PR #77; discovery remains bounded and command-free, technical network identifiers are kept out of cards, and the complete hosted verify and CodeQL surfaces were green on the corrective head before merge.`
 - `The pre-S02 security baseline is accepted through merged PR #38 / closed Issue #36: full standard-profile audit evidence was produced, and CodeQL for Java/Kotlin plus JavaScript/TypeScript, detekt, GitHub dependency review, Dependabot configuration, and the repository-owned security script are now part of the repository floor while preserving the existing secret scanner.`
 - `Generic Semgrep is deferred; add it only for a later AppT-specific invariant that CodeQL, detekt, Android lint, existing Gradle guards, or simple repository checks cannot express cleanly.`
 - `Verification architecture is one-owner by concern: GitHub owns repository-host security controls, Gradle owns Android verification, the backend package owns TypeScript verification, AppT guards own product-specific invariants, and repository workflow YAML exposes one stable verify/gate interface without a path classifier unless measured cost later justifies one.`
@@ -116,7 +117,7 @@ Secondary:
 
 ## Recent change
 
-- `PR #60 merged as commit 2898b2ace007c84b21a85eed95b496027ac4ef86, completing Issue #56's verification and AI-code assurance redesign: one-owner verify workflow, stable gate, strict Android/backend verification, Gradle Managed Devices, CI-based SonarQube Cloud, temporary Advanced CodeQL bundle 2.27.1 for Kotlin 2.4.20, version-controlled CodeRabbit policy, coordinated Dependabot updates, and retirement of the legacy CI/maintenance topology.`
+- `PR #77 merged as commit 0fd3fa54036ae645944d6bfe42bcf784308cfdce, completing the S02 corrective closeout after PR #75: digit-free IPv6 technical identifiers are blocked at both the Samsung sanitization layer and the app presentation guard; the Markdown/Spotless regressions were fixed; full hosted verify and full CodeQL were green on the reviewed head; stale PR #74 was closed rather than merged.`
 
 ## Relevant canonical references
 
@@ -133,16 +134,17 @@ Secondary:
 - `GitHub Issue #36 — completed security-baseline Arena work order; closed by merged PR #38.`
 - `GitHub Issue #54 / PR #55 — completed one-pass dependency and toolchain modernization.`
 - `GitHub Issue #56 / PR #60 — completed verification and AI-code assurance redesign, merged through commit 2898b2ace007c84b21a85eed95b496027ac4ef86.`
+- `GitHub Issue #73 / PR #75 / PR #77 — completed S02 implementation and corrective closeout.`
 - `.agents/CAPABILITIES.md — architecture/decision/review routing.`
 - `.agents/ARENA-DISPATCH.md — Arena work-order compilation contract.`
 - `AGENTS.md — repository operating entry point.`
 
 ## Next
 
-`Compile and dispatch S02 — Local-network explanation and bounded discovery — as the next authorized product implementation slice.`
+`Compile and dispatch S03 — Pair on the television and the first command — as the next authorized product implementation slice.`
 
 ## After that
 
-1. `Implement and review S02 against the accepted architecture/slice contract.`
-2. `Observe the merged verification stack on the next ordinary PR, including CodeRabbit target-branch configuration and the stable gate.`
-3. `Keep the confirmed security-audit follow-up findings, S07's explicit authorization gate, provider needs-validation facts, and the two external public-release gates visible; do not silently fold them into unrelated work.`
+1. `Implement and review S03 against the accepted architecture/slice contract.`
+2. `Keep S07 behind its explicit authorization gate; do not start it implicitly while advancing the control spine.`
+3. `Keep provider needs-validation facts, physical-device evidence, and the source-license and Samsung vendor-terms public-release gates visible as their owning slices become relevant.`
