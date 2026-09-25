@@ -37,9 +37,11 @@ jobs:
           cache-provider: basic
 
       # Temporary diagnostic. The run log is not reachable from the environment this branch is
-      # maintained in, so both Gradle logs are mirrored into a check run's output text, which is
-      # readable through the REST API. `--continue` lets one run report every failure instead of
-      # stopping at the first. This workflow is removed before the branch is finished.
+      # maintained in, so both Gradle logs are mirrored into workflow annotations, which are
+      # readable through the REST API. Annotations are capped at ten per step, so the readout is
+      # spread over the four diagnose steps below rather than crammed into one. `--continue` lets
+      # one run report every failure instead of stopping at the first. This workflow is removed
+      # before the branch is finished.
       - name: Regenerate dependency state and verify strictly
         shell: bash
         run: |
@@ -55,47 +57,52 @@ jobs:
           ci=$?
 
           echo "regenerate exit: $regen ; ciCheck exit: $ci"
-
-          # Failure surface only, so the mirrored report stays inside the check-run text limit.
-          {
-            echo "regenerate exit: $regen ; ciCheck exit: $ci"
-            echo
-            echo "===== regen.log : failure surface ====="
-            grep -nE "^\* What went wrong|^> |Execution failed|^e: |^w: |FAILURE:|Could not |Cannot |error:|> Task .* FAILED|BUILD (SUCCESSFUL|FAILED)|^\* Try|Deprecated Gradle" /tmp/regen.log | head -n 200
-            echo
-            echo "===== regen.log : last 120 lines ====="
-            tail -n 120 /tmp/regen.log
-            echo
-            echo "===== ci.log : failure surface ====="
-            grep -nE "^\* What went wrong|^> |Execution failed|^e: |^w: |FAILURE:|Could not |Cannot |error:|> Task .* FAILED|BUILD (SUCCESSFUL|FAILED)|^\* Try|Deprecated Gradle" /tmp/ci.log | head -n 200
-            echo
-            echo "===== ci.log : last 120 lines ====="
-            tail -n 120 /tmp/ci.log
-          } | head -c 60000 > /tmp/report.txt
-
-          jq -n --rawfile text /tmp/report.txt --arg sha "$GITHUB_SHA" \
-            --arg title "regenerate=$regen ciCheck=$ci" \
-            '{name: "S03 diagnostics", head_sha: $sha, status: "completed",
-              conclusion: "failure",
-              output: {title: $title,
-                       summary: "Gradle output mirrored out of the unreachable run log.",
-                       text: $text}}' > /tmp/payload.json
-
-          curl -sS -X POST \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/check-runs" \
-            --data-binary @/tmp/payload.json > /tmp/checkrun.json
-          head -c 200 /tmp/checkrun.json
-
-          # Bounded fallback: annotations are capped at ten per step, so only the head of the
-          # report is mirrored there.
-          head -c 3000 /tmp/report.txt | fold -w 3000 \
-            | while IFS= read -r line; do echo "::error::DIAG $line"; done
+          echo "regen log bytes: $(wc -c < /tmp/regen.log) ; ci log bytes: $(wc -c < /tmp/ci.log)"
+          printf '%s\n' "$regen" > /tmp/regen.exit
+          printf '%s\n' "$ci" > /tmp/ci.exit
 
           [ "$regen" -eq 0 ] && [ "$ci" -eq 0 ]
 
+      # Each diagnose step emits at most nine annotations of at most 2000 characters, which is the
+      # whole reason there are four of them.
+      - name: Diagnose: regeneration failure surface
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          echo "::error::REGEN exit $(cat /tmp/regen.exit) bytes $(wc -c < /tmp/regen.log)"
+          grep -nE "^\* What went wrong|FAILURE:|^e: |^w: |BUILD (SUCCESSFUL|FAILED)|Could not |Cannot |Execution failed|> Task .* FAILED|Caused by:|OutOfMemory|Killed|Deprecated Gradle|^\* Try|^> " /tmp/regen.log \
+            | grep -vE "^[0-9]+:> Task " | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
+            | while IFS= read -r line; do echo "::error::REGEN $line"; done
+
+      - name: Diagnose: regeneration log tail
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          tail -n 45 /tmp/regen.log | head -c 16000 | fold -w 2000 | head -n 8 \
+            | while IFS= read -r line; do echo "::error::REGENTAIL $line"; done
+
+      - name: Diagnose: strict ciCheck failure surface
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          echo "::error::CI exit $(cat /tmp/ci.exit) bytes $(wc -c < /tmp/ci.log)"
+          grep -nE "^\* What went wrong|FAILURE:|^e: |^w: |BUILD (SUCCESSFUL|FAILED)|Could not |Cannot |Execution failed|> Task .* FAILED|Caused by:|OutOfMemory|Killed|Deprecated Gradle|^\* Try|^> " /tmp/ci.log \
+            | grep -vE "^[0-9]+:> Task " | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
+            | while IFS= read -r line; do echo "::error::CI $line"; done
+
+      - name: Diagnose: strict ciCheck log tail
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          tail -n 45 /tmp/ci.log | head -c 16000 | fold -w 2000 | head -n 8 \
+            | while IFS= read -r line; do echo "::error::CITAIL $line"; done
+
       - name: Enforce generated-artifact allowlist
+        if: always()
         shell: bash
         run: |
           set +e
