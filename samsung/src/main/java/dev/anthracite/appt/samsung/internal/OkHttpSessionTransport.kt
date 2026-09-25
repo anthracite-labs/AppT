@@ -25,6 +25,12 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 
 /**
+ * Hexadecimal radix, named because detekt's MagicNumber does not ignore 16. File-private: both
+ * companion objects in this file build lowercase hex.
+ */
+private const val HEX_RADIX = 16
+
+/**
  * The production [SessionTransport] adapter: the repository-adopted OkHttp WebSocket and TLS stack
  * (docs/architecture/modules.md#internal-seams-inside-samsung, protocol.md#tls).
  *
@@ -140,9 +146,6 @@ internal class OkHttpSessionTransport : SessionTransport {
 
         /** samsung-interface.md: unsent frames held before further commands are rejected. */
         const val UNSENT_FRAME_CAP: Long = 32L
-
-        /** Hexadecimal radix, named because detekt's MagicNumber does not ignore 16. */
-        private const val HEX_RADIX = 16
     }
 }
 

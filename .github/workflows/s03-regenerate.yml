@@ -46,6 +46,7 @@ jobs:
         shell: bash
         run: |
           set +e
+          set +o pipefail
 
           ./gradlew --no-daemon --write-verification-metadata sha256 \
             resolveAndLockAll --write-locks :app:kspDebugKotlin spotlessApply \
@@ -98,71 +99,86 @@ jobs:
         shell: bash
         run: |
           set +e
+          set +o pipefail
           echo "::error::REGEN exit $(cat /tmp/regen.exit) bytes $(wc -c < /tmp/regen.log)"
-          grep -nE "^\* What went wrong|FAILURE:|BUILD (SUCCESSFUL|FAILED)|Could not |Cannot |Execution failed|> Task .* FAILED|Caused by:|OutOfMemory|Killed|^\* Try" /tmp/regen.log \
+          grep -n -A8 -E "^\* What went wrong|FAILURE:|BUILD FAILED|Execution failed for task|Could not |Cannot |Caused by:|OutOfMemory|Killed" /tmp/regen.log \
             | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
             | while IFS= read -r line; do echo "::error::REGEN $line"; done
+          true
 
       - name: Diagnose regeneration log tail
         if: always()
         shell: bash
         run: |
           set +e
+          set +o pipefail
           tail -n 45 /tmp/regen.log | head -c 16000 | fold -w 2000 | head -n 8 \
             | while IFS= read -r line; do echo "::error::REGENTAIL $line"; done
+          true
 
       - name: Diagnose strict ciCheck failure surface
         if: always()
         shell: bash
         run: |
           set +e
+          set +o pipefail
           echo "::error::CI exit $(cat /tmp/ci.exit) bytes $(wc -c < /tmp/ci.log)"
-          grep -nE "^\* What went wrong|FAILURE:|BUILD (SUCCESSFUL|FAILED)|Could not |Cannot |Execution failed|> Task .* FAILED|Caused by:|OutOfMemory|Killed|^\* Try" /tmp/ci.log \
+          grep -n -A8 -E "^\* What went wrong|FAILURE:|BUILD FAILED|Execution failed for task|Could not |Cannot |Caused by:|OutOfMemory|Killed" /tmp/ci.log \
             | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
             | while IFS= read -r line; do echo "::error::CI $line"; done
+          true
 
       - name: Diagnose strict ciCheck compiler diagnostics
         if: always()
         shell: bash
         run: |
           set +e
+          set +o pipefail
           grep -nE "^e: |^w: " /tmp/ci.log | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
             | while IFS= read -r line; do echo "::error::CIDIAG $line"; done
+          true
 
       - name: Diagnose strict ciCheck log tail
         if: always()
         shell: bash
         run: |
           set +e
+          set +o pipefail
           tail -n 45 /tmp/ci.log | head -c 16000 | fold -w 2000 | head -n 8 \
             | while IFS= read -r line; do echo "::error::CITAIL $line"; done
+          true
 
       - name: Diagnose detekt findings
         if: always()
         shell: bash
         run: |
           set +e
+          set +o pipefail
           grep -nE "\\.kt:[0-9]+:[0-9]+" /tmp/ci.log \
             | grep -vE "^[0-9]+:[ew]: " | head -n 120 | head -c 16000 | fold -w 2000 | head -n 9 \
             | while IFS= read -r line; do echo "::error::DETEKT $line"; done
+          true
 
       - name: Diagnose lint findings
         if: always()
         shell: bash
         run: |
           set +e
+          set +o pipefail
           grep -nE "Error:|Warning:|Lint found|lint-results|^/home/runner" /tmp/ci.log \
             | head -n 40 | head -c 16000 | fold -w 2000 | head -n 4 \
             | while IFS= read -r line; do echo "::error::LINT $line"; done
           python3 -c 'import json,glob; f=glob.glob("app/build/reports/lint-results-debug.sarif")+glob.glob("*/build/reports/lint-results-debug.sarif"); print("no sarif report found") if not f else [print(r.get("ruleId"),"|",l.get("physicalLocation",{}).get("artifactLocation",{}).get("uri","?"),"|",str(l.get("physicalLocation",{}).get("region",{}).get("snippet",{}).get("text","")).replace(chr(10)," / "),"|",r.get("message",{}).get("text","")) for run in (json.load(open(f[0])).get("runs",[]) if f else []) for r in run.get("results",[]) for l in r.get("locations",[])]' \
             2>&1 | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
             | while IFS= read -r line; do echo "::error::LINTSARIF $line"; done
+          true
 
       - name: Enforce generated-artifact allowlist
         if: always()
         shell: bash
         run: |
           set +e
+          set +o pipefail
           git status --short
           while IFS= read -r path; do
             case "$path" in
