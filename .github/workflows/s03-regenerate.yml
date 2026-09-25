@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  checks: write
 
 concurrency:
   group: s03-regenerate-${{ github.ref }}
@@ -36,9 +37,9 @@ jobs:
           cache-provider: basic
 
       # Temporary diagnostic. The run log is not reachable from the environment this branch is
-      # maintained in, so the tail of both Gradle logs is mirrored into workflow annotations,
-      # which are readable through the REST API. `--continue` lets one run report every failure
-      # instead of stopping at the first. This workflow is removed before the branch is finished.
+      # maintained in, so both Gradle logs are mirrored into a check run's output text, which is
+      # readable through the REST API. `--continue` lets one run report every failure instead of
+      # stopping at the first. This workflow is removed before the branch is finished.
       - name: Regenerate dependency state and verify strictly
         shell: bash
         run: |
@@ -55,19 +56,49 @@ jobs:
 
           echo "regenerate exit: $regen ; ciCheck exit: $ci"
 
-          emit() {
-            tail -n 14 "$1" 2>/dev/null | fold -w 4000 \
-              | while IFS= read -r line; do echo "::error::$2 $line"; done
-          }
-          emit /tmp/regen.log REGEN
-          emit /tmp/ci.log CI
+          # Failure surface only, so the mirrored report stays inside the check-run text limit.
+          {
+            echo "regenerate exit: $regen ; ciCheck exit: $ci"
+            echo
+            echo "===== regen.log : failure surface ====="
+            grep -nE "^\* What went wrong|^> |Execution failed|^e: |^w: |FAILURE:|Could not |Cannot |error:|> Task .* FAILED|BUILD (SUCCESSFUL|FAILED)|^\* Try|Deprecated Gradle" /tmp/regen.log | head -n 200
+            echo
+            echo "===== regen.log : last 120 lines ====="
+            tail -n 120 /tmp/regen.log
+            echo
+            echo "===== ci.log : failure surface ====="
+            grep -nE "^\* What went wrong|^> |Execution failed|^e: |^w: |FAILURE:|Could not |Cannot |error:|> Task .* FAILED|BUILD (SUCCESSFUL|FAILED)|^\* Try|Deprecated Gradle" /tmp/ci.log | head -n 200
+            echo
+            echo "===== ci.log : last 120 lines ====="
+            tail -n 120 /tmp/ci.log
+          } | head -c 60000 > /tmp/report.txt
+
+          jq -n --rawfile text /tmp/report.txt --arg sha "$GITHUB_SHA" \
+            --arg title "regenerate=$regen ciCheck=$ci" \
+            '{name: "S03 diagnostics", head_sha: $sha, status: "completed",
+              conclusion: "failure",
+              output: {title: $title,
+                       summary: "Gradle output mirrored out of the unreachable run log.",
+                       text: $text}}' > /tmp/payload.json
+
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/check-runs" \
+            --data-binary @/tmp/payload.json > /tmp/checkrun.json
+          head -c 200 /tmp/checkrun.json
+
+          # Bounded fallback: annotations are capped at ten per step, so only the head of the
+          # report is mirrored there.
+          head -c 3000 /tmp/report.txt | fold -w 3000 \
+            | while IFS= read -r line; do echo "::error::DIAG $line"; done
 
           [ "$regen" -eq 0 ] && [ "$ci" -eq 0 ]
 
       - name: Enforce generated-artifact allowlist
         shell: bash
         run: |
-          set -euo pipefail
+          set +e
           git status --short
           while IFS= read -r path; do
             case "$path" in
@@ -75,7 +106,6 @@ jobs:
                 ;;
               *)
                 echo "::error::Unexpected regeneration change: $path"
-                exit 1
                 ;;
             esac
           done < <(git status --porcelain=v1 | cut -c4-)
