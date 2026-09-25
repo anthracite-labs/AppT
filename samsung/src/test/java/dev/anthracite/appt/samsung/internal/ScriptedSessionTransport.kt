@@ -44,7 +44,7 @@ internal class ScriptedSessionTransport(
     }
 }
 
-private class ScriptedSessionConnection(
+internal class ScriptedSessionConnection(
     private val fixture: SessionFixture,
     override val certificateIdentity: String?,
     private val sent: MutableList<String>,
