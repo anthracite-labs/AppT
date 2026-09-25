@@ -6,6 +6,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 
 /**
@@ -115,7 +116,7 @@ internal object RemoteChannel {
 internal data class ChannelEvent(val name: String, val token: String?)
 
 private fun JsonObject.text(key: String): String? =
-    (this[key] as? JsonPrimitive)?.takeIf { !it.isNull }?.content
+    (this[key] as? JsonPrimitive)?.contentOrNull
 
 /**
  * protocol.md: "Read token from `data.token`, else from the client attributes." The data member is an
@@ -124,7 +125,7 @@ private fun JsonObject.text(key: String): String? =
 private fun JsonObject.token(): String? {
     val data = this["data"] ?: return null
     return when (data) {
-        is JsonPrimitive -> if (data.isNull) null else data.content.takeIf { it.isNotBlank() }
+        is JsonPrimitive -> data.contentOrNull?.takeIf { it.isNotBlank() }
         is JsonObject -> data.text("token")
         else -> null
     }
