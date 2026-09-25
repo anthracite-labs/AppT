@@ -136,12 +136,15 @@ kotlin {
 // can read it; `resolveAndLockAll --write-locks` and CI regenerate it when the
 // entities change.
 //
-// Room's Kotlin codegen is deliberately not opted into: it writes an explicit `public` on every
-// declaration it emits and leaves `var` properties unwritten, which `extraWarnings` above reports
-// and `allWarningsAsErrors` turns into a build failure on code no one wrote. Room's default
-// (Java) keeps the generated layer out of the Kotlin warning surface entirely.
+// Room's KSP processor emits Kotlin unless it is told otherwise here. That codegen writes an
+// explicit `public` on every declaration it emits and leaves `var` properties unwritten, which
+// `extraWarnings` above reports and `allWarningsAsErrors` turns into a build failure on code
+// nobody wrote - and a generated file cannot carry a file-level `@Suppress`. Java codegen keeps
+// the generated layer out of the Kotlin warning surface entirely. The exported schema and the DAO
+// contract are identical either way; only the language of `*_Impl` differs.
 ksp {
     arg("room.schemaLocation", "${projectDir}/schemas")
+    arg("room.generateKotlin", "false")
 }
 
 // ---------------------------------------------------------------------------

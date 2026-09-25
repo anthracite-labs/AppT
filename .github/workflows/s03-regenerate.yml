@@ -39,8 +39,8 @@ jobs:
       # Temporary diagnostic. The run log is not reachable from the environment this branch is
       # maintained in, so both Gradle logs are mirrored into workflow annotations, which are
       # readable through the REST API. Annotations are capped at ten per step, so the readout is
-      # spread over the four diagnose steps below rather than crammed into one. `--continue` lets
-      # one run report every failure instead of stopping at the first. This workflow is removed
+      # spread over the diagnose steps below rather than crammed into one. `--continue` lets one
+      # run report every failure instead of stopping at the first. This workflow is removed
       # before the branch is finished.
       - name: Regenerate dependency state and verify strictly
         shell: bash
@@ -63,16 +63,44 @@ jobs:
 
           [ "$regen" -eq 0 ] && [ "$ci" -eq 0 ]
 
+      # ktfmt is the repository's formatter and the sandbox has no JDK, so the reformatting it
+      # wants on the S03 sources is applied here and committed. The change set is restricted to
+      # Kotlin sources and Gradle build scripts; anything else fails the step instead of being
+      # committed.
+      - name: Apply repository formatting to S03 sources
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -u -- '*.kt' '*.gradle.kts'
+          if git diff --cached --quiet; then
+            echo "No formatting changes to commit."
+            exit 0
+          fi
+          while IFS= read -r path; do
+            case "$path" in
+              */src/*.kt|*.gradle.kts) ;;
+              *)
+                echo "::error::Formatting touched an unexpected path: $path"
+                exit 1
+                ;;
+            esac
+          done < <(git diff --cached --name-only)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "style: apply ktfmt to the S03 sources"
+          git push
+
       # Each diagnose step emits at most nine annotations of at most 2000 characters, which is the
-      # whole reason there are four of them.
+      # whole reason there are five of them.
       - name: Diagnose regeneration failure surface
         if: always()
         shell: bash
         run: |
           set +e
           echo "::error::REGEN exit $(cat /tmp/regen.exit) bytes $(wc -c < /tmp/regen.log)"
-          grep -nE "^\* What went wrong|FAILURE:|^e: |^w: |BUILD (SUCCESSFUL|FAILED)|Could not |Cannot |Execution failed|> Task .* FAILED|Caused by:|OutOfMemory|Killed|Deprecated Gradle|^\* Try|^> " /tmp/regen.log \
-            | grep -vE "^[0-9]+:> Task " | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
+          grep -nE "^\* What went wrong|FAILURE:|BUILD (SUCCESSFUL|FAILED)|Could not |Cannot |Execution failed|> Task .* FAILED|Caused by:|OutOfMemory|Killed|^\* Try" /tmp/regen.log \
+            | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
             | while IFS= read -r line; do echo "::error::REGEN $line"; done
 
       - name: Diagnose regeneration log tail
@@ -89,9 +117,17 @@ jobs:
         run: |
           set +e
           echo "::error::CI exit $(cat /tmp/ci.exit) bytes $(wc -c < /tmp/ci.log)"
-          grep -nE "^\* What went wrong|FAILURE:|^e: |^w: |BUILD (SUCCESSFUL|FAILED)|Could not |Cannot |Execution failed|> Task .* FAILED|Caused by:|OutOfMemory|Killed|Deprecated Gradle|^\* Try|^> " /tmp/ci.log \
-            | grep -vE "^[0-9]+:> Task " | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
+          grep -nE "^\* What went wrong|FAILURE:|BUILD (SUCCESSFUL|FAILED)|Could not |Cannot |Execution failed|> Task .* FAILED|Caused by:|OutOfMemory|Killed|^\* Try" /tmp/ci.log \
+            | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
             | while IFS= read -r line; do echo "::error::CI $line"; done
+
+      - name: Diagnose strict ciCheck compiler diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          grep -nE "^e: |^w: " /tmp/ci.log | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
+            | while IFS= read -r line; do echo "::error::CIDIAG $line"; done
 
       - name: Diagnose strict ciCheck log tail
         if: always()
