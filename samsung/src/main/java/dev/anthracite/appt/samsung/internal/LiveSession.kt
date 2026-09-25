@@ -101,8 +101,9 @@ internal class LiveSession(
             current.state == SessionState.NeedsRepair &&
                 (reason == RepairReason.ApprovalDenied || reason == RepairReason.ApprovalTimedOut)
         if (!retryable) return
-        // The previous attempt has already ended, so asking again costs no extra socket.
-        publish(SessionState.Connecting)
+        // Queue the retry, but do not publish Connecting yet. The previous attempt may still be
+        // unwinding a canceled frame collector; sessionLoop publishes Connecting only after that
+        // attempt has fully closed, so stale connection-loss callbacks cannot overwrite the retry.
         retrySignals.trySend(Unit)
     }
 
@@ -118,6 +119,10 @@ internal class LiveSession(
             runAttempt()
             if (mutableSnapshot.value.state == SessionState.Closed) return
             retrySignals.receive()
+            if (mutableSnapshot.value.state == SessionState.Closed) return
+            // The old attempt is now fully cleaned up. Only the session loop starts the next
+            // attempt, so an old collector cannot overwrite this state with Unreachable.
+            publish(SessionState.Connecting)
         }
     }
 
