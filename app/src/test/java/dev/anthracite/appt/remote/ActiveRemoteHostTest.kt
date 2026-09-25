@@ -167,6 +167,34 @@ class ActiveRemoteHostTest {
     }
 
     @Test
+    fun aReadyProfileWriteFailureDoesNotStopSessionObservation() = runTest {
+        val host =
+            ActiveRemoteHost(
+                samsungTvs = tvs,
+                scope = this,
+                onSessionReady = { throw IllegalStateException("profile store unavailable") },
+            )
+        host.enter(livingRoom)
+        advanceUntilIdle()
+        val session = tvs.sessionFor(livingRoom)!!
+
+        session.ready()
+        advanceUntilIdle()
+        assertEquals(SessionState.Ready, host.current.value?.session?.state)
+
+        session.publish(SessionState.Unreachable)
+        advanceUntilIdle()
+
+        assertEquals(
+            "persistence failure does not detach the live session observer",
+            SessionState.Unreachable,
+            host.current.value?.session?.state,
+        )
+        host.close()
+        advanceUntilIdle()
+    }
+
+    @Test
     fun aSessionThatNeverReachesReadyReportsNothing() = runTest {
         val ready = mutableListOf<TvId>()
         val host = ActiveRemoteHost(tvs, this) { tvId -> ready += tvId }
