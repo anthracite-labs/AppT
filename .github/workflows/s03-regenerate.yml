@@ -82,6 +82,10 @@ jobs:
             grep -o '<error[^>]*>' "$report" | sed "s|^|::error::DETEKT $report |" \
               | sed -n '1,20p'
           done
+          # detekt also prints its findings to the console, which is where they land when the
+          # report is not written because the task failed.
+          grep -E "^[^ ]+\.kt:[0-9]+:[0-9]+: " /tmp/ci.log \
+            | sed 's/^/::error::DETEKT-CONSOLE /' | sed -n '1,30p'
 
           # lint findings.
           for report in $(find . -path '*/build/reports/lint-results-debug.txt' 2>/dev/null); do

@@ -40,7 +40,7 @@ class ActiveRemoteHostTest {
 
         assertEquals(listOf(livingRoom), tvs.openedIds)
         assertEquals(livingRoom, host.current.value?.tvId)
-        assertEquals(SessionState.Connecting, host.current.value?.session?.state)
+        assertEquals(SessionState.Connecting, host.current.value?.snapshot?.state)
     }
 
     @Test
@@ -60,7 +60,7 @@ class ActiveRemoteHostTest {
         assertEquals(
             "the replacement reports Connecting, not the state that failed",
             SessionState.Connecting,
-            host.current.value?.session?.state,
+            host.current.value?.snapshot?.state,
         )
     }
 
@@ -140,8 +140,8 @@ class ActiveRemoteHostTest {
         tvs.sessionFor(livingRoom)!!.ready()
         advanceUntilIdle()
 
-        assertEquals(SessionState.Ready, host.current.value?.session?.state)
-        assertEquals(RemoteKey.entries.toSet(), host.current.value?.session?.capabilities?.keys)
+        assertEquals(SessionState.Ready, host.current.value?.snapshot?.state)
+        assertEquals(RemoteKey.entries.toSet(), host.current.value?.snapshot?.capabilities?.keys)
     }
 
     @Test
@@ -203,7 +203,7 @@ class ActiveRemoteHostTest {
 
         session.ready()
         advanceUntilIdle()
-        assertEquals(SessionState.Ready, host.current.value?.session?.state)
+        assertEquals(SessionState.Ready, host.current.value?.snapshot?.state)
 
         session.publish(SessionState.Unreachable)
         advanceUntilIdle()
@@ -211,7 +211,7 @@ class ActiveRemoteHostTest {
         assertEquals(
             "persistence failure does not detach the live session observer",
             SessionState.Unreachable,
-            host.current.value?.session?.state,
+            host.current.value?.snapshot?.state,
         )
         host.close()
         advanceUntilIdle()

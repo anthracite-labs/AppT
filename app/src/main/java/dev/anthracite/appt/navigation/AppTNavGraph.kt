@@ -216,8 +216,8 @@ private fun PairingDestination(
     }
     // presentation.md: "Success transitions directly into Remote". The handoff happens once, when
     // the session the host already holds becomes Ready.
-    LaunchedEffect(current?.session?.state) {
-        if (current?.session?.state == SessionState.Ready) currentOnApproved()
+    LaunchedEffect(current?.snapshot?.state) {
+        if (current?.snapshot?.state == SessionState.Ready) currentOnApproved()
     }
     PairingScreen(
         state = state,

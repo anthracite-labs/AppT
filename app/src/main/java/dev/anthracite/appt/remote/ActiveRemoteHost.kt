@@ -84,7 +84,7 @@ class ActiveRemoteHost(
         if (!entryAllowed(tvId)) return
         val held = mutableCurrent.value
         val retryingSameTelevision = held != null && held.tvId == tvId
-        if (retryingSameTelevision && held.session.state.isLive()) return
+        if (retryingSameTelevision && held.snapshot.state.isLive()) return
         // A retry from a visible Remote keeps its owner so releasing that surface still starts
         // grace. Entering a different television is an ownership handoff and must not carry the
         // old surface's retain into the new session.
