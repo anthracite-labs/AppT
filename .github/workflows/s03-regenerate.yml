@@ -1,0 +1,163 @@
+name: S03 targeted unit tests
+
+on:
+  push:
+    branches:
+      - arena/01a0d990-appt
+
+permissions:
+  contents: write
+  checks: write
+
+concurrency:
+  group: s03-regenerate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  targeted:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up JDK
+        # actions/setup-java v6.0.1
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        # gradle/actions/setup-gradle v6.3.0
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+        with:
+          gradle-version: '9.7.1'
+          cache-provider: basic
+
+      # Temporary diagnostic. The run log is not reachable from the environment this branch is
+      # maintained in, so the Gradle log is mirrored into workflow annotations, which are readable
+      # through the REST API. Annotations are capped at ten per step, so the readout is spread over
+      # the diagnose steps below rather than crammed into one. `--continue` lets one run report
+      # every failure instead of stopping at the first. This workflow is removed before the branch
+      # is finished.
+      #
+      # Deliberately narrow: the dependency state is already generated and committed, and this is
+      # the edit/fix loop, so it runs the unit-test tasks rather than the whole `ciCheck`. The full
+      # aggregate is what the terminal verification runs. `spotlessApply` is here because ktfmt is
+      # the repository's formatter and the sandbox has no JDK, so the reformatting has to happen on
+      # the runner and be committed back.
+      - name: Run the targeted unit tests
+        shell: bash
+        run: |
+          set +e
+          set +o pipefail
+
+          ./gradlew --no-daemon --dependency-verification=strict spotlessApply \
+            :app:testDebugUnitTest :samsung:test --continue > /tmp/ci.log 2>&1
+          ci=$?
+
+          echo "unit-test exit: $ci"
+          echo "ci log bytes: $(wc -c < /tmp/ci.log)"
+          printf '%s\n' "$ci" > /tmp/ci.exit
+
+          [ "$ci" -eq 0 ]
+
+      # ktfmt is the repository's formatter and the sandbox has no JDK, so the reformatting it
+      # wants on the S03 sources is applied here and committed. The change set is restricted to
+      # Kotlin sources and Gradle build scripts; anything else fails the step instead of being
+      # committed.
+      - name: Apply repository formatting to S03 sources
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -u -- '*.kt' '*.gradle.kts'
+          if git diff --cached --quiet; then
+            echo "No formatting changes to commit."
+            exit 0
+          fi
+          while IFS= read -r path; do
+            case "$path" in
+              */src/*.kt|*.gradle.kts) ;;
+              *)
+                echo "::error::Formatting touched an unexpected path: $path"
+                exit 1
+                ;;
+            esac
+          done < <(git diff --cached --name-only)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "style: apply ktfmt to the S03 sources"
+          git push
+
+      # Names only, no messages and no stack: this is the readout that has to survive the ten
+      # annotation cap, so it trades detail for coverage and lists every failing test in the run.
+      - name: List every failing unit test
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          set +o pipefail
+          python3 -c 'import glob,xml.etree.ElementTree as ET;fs=sorted(glob.glob("app/build/test-results/testDebugUnitTest/TEST-*.xml"))+sorted(glob.glob("samsung/build/test-results/test/TEST-*.xml"));bad=[(tc.get("classname"),tc.get("name")) for f in fs for tc in ET.parse(f).getroot().iter("testcase") if tc.find("failure") is not None or tc.find("error") is not None];print("NO TEST REPORTS FOUND") if not fs else (print("FAILING TESTS %d"%len(bad)) or [print("%s :: %s"%c) for c in bad])' \
+            2>&1 | head -n 200 | head -c 18000 | fold -w 2000 | head -n 9 \
+            | while IFS= read -r line; do echo "::error::TESTS $line"; done
+          true
+
+      - name: Diagnose strict test failure surface
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          set +o pipefail
+          echo "::error::CI exit $(cat /tmp/ci.exit) bytes $(wc -c < /tmp/ci.log)"
+          grep -n -A8 -E "^\* What went wrong|FAILURE:|BUILD FAILED|Execution failed for task|Could not |Cannot |Caused by:|OutOfMemory|Killed" /tmp/ci.log \
+            | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
+            | while IFS= read -r line; do echo "::error::CI $line"; done
+          true
+
+      - name: Diagnose strict test compiler diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          set +o pipefail
+          grep -nE "^e: |^w: " /tmp/ci.log | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
+            | while IFS= read -r line; do echo "::error::CIDIAG $line"; done
+          true
+
+      - name: Diagnose strict test log tail
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          set +o pipefail
+          tail -n 45 /tmp/ci.log | head -c 16000 | fold -w 2000 | head -n 8 \
+            | while IFS= read -r line; do echo "::error::CITAIL $line"; done
+          true
+
+      # One message per failing test, capped so the nine annotation budget still covers the whole
+      # set rather than the first nine.
+      - name: Diagnose unit-test failure messages
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          set +o pipefail
+          python3 -c 'import glob,xml.etree.ElementTree as ET;fs=glob.glob("app/build/test-results/testDebugUnitTest/TEST-*.xml");print("no test reports found") if not fs else [print(tc.get("classname"),"::",tc.get("name"),"::",(f.get("message") or "")[:180]) for f0 in fs for tc in ET.parse(f0).getroot().iter("testcase") if (tc.find("failure") is not None or tc.find("error") is not None) for f in [tc.find("failure") if tc.find("failure") is not None else tc.find("error")]]' \
+            2>&1 | head -n 120 | head -c 16000 | fold -w 2000 | head -n 9 \
+            | while IFS= read -r line; do echo "::error::TESTS $line"; done
+          true
+
+      # The stack, one line per failing test. This is the step that names the file and line.
+      - name: Diagnose unit-test failure stacks
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          set +o pipefail
+          python3 -c 'import glob,xml.etree.ElementTree as ET;fs=glob.glob("app/build/test-results/testDebugUnitTest/TEST-*.xml");print("no test reports found") if not fs else [print(tc.get("name"),"::",(f.text or "")[:200].replace(chr(10)," / ")) for f0 in fs for tc in ET.parse(f0).getroot().iter("testcase") if (tc.find("failure") is not None or tc.find("error") is not None) for f in [tc.find("failure") if tc.find("failure") is not None else tc.find("error")]]' \
+            2>&1 | head -n 120 | head -c 16000 | fold -w 2000 | head -n 9 \
+            | while IFS= read -r line; do echo "::error::TESTSTACK $line"; done
+          true

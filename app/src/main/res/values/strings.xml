@@ -8,6 +8,11 @@
   rule: no protocol, discovery-mechanism, port or address vocabulary. A test
   (ForbiddenVocabularyTest) enforces it for every localnetwork_ and discovery_
   string.
+
+  Pairing and Remote copy (S03, Issue #79) follow it too, and add the
+  television-security vocabulary that may never appear: no port, no certificate,
+  no transport name, no token, no protocol generation. Pairing speaks in ordinary
+  language about allowing AppT on the television.
 -->
 <resources>
     <string name="app_name">AppT</string>
@@ -46,4 +51,40 @@
     <string name="discovery_status_glyph_ready" translatable="false">✓</string>
     <string name="discovery_status_glyph_needs_pairing" translatable="false">●</string>
     <string name="discovery_status_glyph_unsupported" translatable="false">⊘</string>
+
+    <!-- Pairing (docs/architecture/presentation.md#pairing). Ordinary language only. -->
+    <string name="pairing_title">Setting up your television</string>
+    <string name="pairing_connecting">Connecting to your television…</string>
+    <string name="pairing_waiting">Approve AppT on %1$s. Look for the message on your television and choose Allow.</string>
+    <string name="pairing_recall_hint">If nothing appears on your television, check that it is switched on and showing its normal menu.</string>
+    <string name="pairing_succeeded">%1$s is ready. You can use your phone as the remote.</string>
+    <string name="pairing_failed_needs_repair">AppT isn\'t allowed on this television yet. Allow it on the television, then try again.</string>
+    <string name="pairing_failed_unreachable">AppT couldn\'t reach your television. Check that it is switched on and on the same Wi-Fi as this phone.</string>
+    <string name="pairing_failed_unsupported">AppT can\'t control this television yet.</string>
+    <string name="pairing_failed_unavailable">Something went wrong while setting up this television. Please try again.</string>
+    <string name="pairing_tv_unnamed">your television</string>
+    <string name="pairing_cancel">Cancel</string>
+    <string name="pairing_retry">Try again</string>
+
+    <!-- Remote (docs/architecture/presentation.md#remote). The S03 minimal control set. -->
+    <string name="remote_tv_unnamed">Your television</string>
+    <string name="remote_connecting">Connecting…</string>
+    <string name="remote_waiting">Approve AppT on your television to continue</string>
+    <string name="remote_ready">Ready</string>
+    <string name="remote_needs_repair">AppT isn\'t allowed on this television yet.</string>
+    <string name="remote_unreachable">AppT couldn\'t reach your television. Check that it is switched on and on the same Wi-Fi as this phone.</string>
+    <string name="remote_unsupported">AppT can\'t control this television yet.</string>
+    <string name="remote_unavailable">AppT isn\'t connected to this television right now.</string>
+    <string name="remote_retry">Try again</string>
+    <string name="remote_volume_up">Volume up</string>
+    <string name="remote_volume_down">Volume down</string>
+    <string name="remote_mute">Mute</string>
+    <string name="remote_direction_up">Up</string>
+    <string name="remote_direction_down">Down</string>
+    <string name="remote_direction_left">Left</string>
+    <string name="remote_direction_right">Right</string>
+    <string name="remote_enter">Select</string>
+    <string name="remote_back">Back</string>
+    <string name="remote_home">Home</string>
+    <string name="remote_power">Power</string>
 </resources>

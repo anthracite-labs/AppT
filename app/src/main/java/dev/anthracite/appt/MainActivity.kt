@@ -14,7 +14,8 @@ import dev.anthracite.appt.tokens.LocalMotionDurationScale
  * The single activity (presentation.md#route-graph: "One activity").
  *
  * It declares no `android:configChanges`, so rotation and window resizing recreate it, as
- * lifecycle.md requires.
+ * lifecycle.md requires. Nothing the activity holds owns a session: the graph's screens observe the
+ * application-scoped `ActiveRemoteHost`, so recreation re-attaches instead of re-opening.
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,6 +31,9 @@ class MainActivity : ComponentActivity() {
                         samsungTvs = app.samsungTvs,
                         permissionGate = app.permissionGate,
                         appSettings = app.appSettings,
+                        activeRemoteHost = app.activeRemoteHost,
+                        tvProfiles = app.tvProfiles,
+                        preferenceStore = app.preferenceStore,
                     )
                 }
             }

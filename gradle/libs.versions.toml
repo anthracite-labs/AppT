@@ -31,6 +31,24 @@ androidx-test-core = "1.7.0"
 androidx-test-runner = "1.7.0"
 androidx-test-uiautomator = "2.4.0"
 kotlinx-serialization = "1.11.0"
+# S03 (Issue #79): Room for the device-local TvProfile row, DataStore for the
+# typed preference keys, OkHttp for the live WebSocket session inside :samsung,
+# and KSP for Room's annotation processing.
+#   * room 2.8.5 (2026-09-09) is the latest stable 2.x line. Room 3.0.x moves to
+#     the androidx.room3 package and the SQLiteDriver API surface, which is a
+#     bigger change than a pairing slice needs; kapt is not an option because
+#     AGP 9's built-in Kotlin has no kapt support.
+#   * datastore-preferences 1.2.1 (2026-03-11) is the latest stable.
+#   * okhttp 5.5.0 (2026-08-16) is the latest stable; the 5.x line uses
+#     kotlin.time.Duration in its builder APIs.
+#   * ksp 2.3.12 (2026-09-09) is the latest release and supports Kotlin 2.4.x
+#     together with AGP 9's built-in Kotlin.
+# Licenses: Apache-2.0. Publishers: Google (AndroidX), Square (OkHttp),
+# Google (KSP), Maven Central / Google Maven.
+room = "2.8.5"
+androidx-datastore = "1.2.1"
+okhttp = "5.5.0"
+ksp = "2.3.12"
 # S02 (Issue #73): coroutines for :samsung discovery and the Discovery
 # ViewModel. 1.9.0 is exactly the version the AndroidX/Compose graph already
 # resolves on :app, so declaring it adds no new artifact to the app graph; it
@@ -63,6 +81,15 @@ androidx-navigation-compose = { module = "androidx.navigation:navigation-compose
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
+# S03 (Issue #79): the live WebSocket session inside :samsung. Declared only
+# there: no networking library belongs in :app.
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+# S03 (Issue #79): the device-local TvProfile row (data.md#room).
+androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+# S03 (Issue #79): typed preference keys (data.md#datastore).
+androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "androidx-datastore" }
 
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "androidx-compose-bom" }
 androidx-compose-foundation = { module = "androidx.compose.foundation:foundation" }
@@ -89,6 +116,9 @@ android-test = { id = "com.android.test", version.ref = "agp" }
 # every module that applies AGP (docs/BUILD.md, Issue #54).
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+# S03 (Issue #79): Room's annotation processor. AGP 9's built-in Kotlin has no
+# kapt support, so KSP is the only supported processing path.
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }

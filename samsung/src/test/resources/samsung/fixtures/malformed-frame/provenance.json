@@ -1,0 +1,9 @@
+{
+  "caseId": "malformed-frame",
+  "captured": "2026-09-25",
+  "generation": "tizen-websocket-tls",
+  "sourceRole": "synthetic",
+  "source": "Authored for S03 (Issue #79) from the parser limits in docs/architecture/protocol.md#parser-limits and the containment rule in docs/architecture/connection.md. Not captured from a physical television.",
+  "redaction": "Contains no address, MAC, Wi-Fi name, token, serial, certificate, account or personal identifier. The malformed bodies are deliberately invalid: a truncated JSON object and a frame beyond the 64 KiB frame limit. No host, port or URL appears in any frame. The truncation stops inside a member name rather than inside a value, so no committed text can be mistaken for a token; that is also what keeps the redaction guard in FixtureProvenanceTest satisfied.",
+  "notes": "Malformed and oversized inbound frames are dropped inside the module and the session continues: the television then prompts for approval and connects, so the caller sees AwaitingTvApproval then Ready and no parse exception crosses the seam. Each trace line is valid JSON; the malformed content is the frame body the line carries, which is how a truncated frame is recorded without recording an identifying value."
+}

@@ -2,7 +2,9 @@ package dev.anthracite.appt.discovery
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.anthracite.appt.data.TvProfiles
 import dev.anthracite.appt.gate.PermissionGate
+import dev.anthracite.appt.samsung.DiscoveredTv
 import dev.anthracite.appt.samsung.DiscoveryEvent
 import dev.anthracite.appt.samsung.SamsungTvs
 import dev.anthracite.appt.samsung.TvFailure
@@ -27,18 +29,48 @@ import kotlinx.coroutines.launch
  *   bounded scan in its place. A scan that already ended is not restarted, and the first
  *   [onStarted] after creation does not duplicate the initial scan.
  * * Each [onRescan] starts a fresh `discover()`.
- * * [onPick] cancels the scan. S02 ends there: opening a session, creating a Room row, and pairing
- *   navigation belong to S03+.
+ * * [onPick] cancels the scan, upserts the device-local profile row for the selected card, and
+ *   publishes it as [selected] so the route can enter the television through `ActiveRemoteHost`
+ *   (data.md#ownership-rules). Opening the session and pairing navigation are not this ViewModel's
+ *   job.
  * * `Failed(LocalNetworkDenied)` is reported to the gate, which returns the user to the
  *   explanation; nothing here retries it.
  */
-class DiscoveryViewModel(private val samsungTvs: SamsungTvs, private val gate: PermissionGate) :
-    ViewModel() {
+class DiscoveryViewModel(
+    private val samsungTvs: SamsungTvs,
+    private val gate: PermissionGate,
+    private val tvProfiles: TvProfiles,
+) : ViewModel() {
 
     private val mutableState = MutableStateFlow(DiscoveryUiState.Initial)
     val state: StateFlow<DiscoveryUiState> = mutableState.asStateFlow()
 
+    private val mutableSelected = MutableStateFlow<TvId?>(null)
+
+    /**
+     * The television the user chose, once its profile row is written. The route enters it and
+     * navigates to Pairing, then consumes it with [onSelectionHandled].
+     */
+    val selected: StateFlow<TvId?> = mutableSelected.asStateFlow()
+
+    /**
+     * Marks [selected] as handled.
+     *
+     * Without this, returning to Discovery from Remote or Pairing would re-enter the television and
+     * navigate straight back out: the route re-reads the same selection and acts on it again. The
+     * ViewModel survives that trip, so the selection has to be a one-shot event rather than state.
+     */
+    fun onSelectionHandled() {
+        mutableSelected.value = null
+    }
+
     private var scan: Job? = null
+
+    /**
+     * The cards discovery confirmed, kept so a selection can be recorded without widening the UI
+     * state with a type the screen never renders.
+     */
+    private val discovered = mutableMapOf<TvId, DiscoveredTv>()
 
     /** A running scan was cancelled by [onStopped] and is owed a fresh one on [onStarted]. */
     private var resumeOnStart = false
@@ -65,15 +97,28 @@ class DiscoveryViewModel(private val samsungTvs: SamsungTvs, private val gate: P
         resumeOnStart = true
     }
 
+    /**
+     * The user chose a card.
+     *
+     * Unsupported cards have no control affordance, so a pick of one is not an intent: no row is
+     * written and no session is opened. A `NeedsPairing` or `ReadyToOpen` card cancels the scan,
+     * upserts the profile row, and publishes the selection.
+     */
     fun onPick(tvId: TvId) {
         val card = mutableState.value.cards.firstOrNull { it.tvId == tvId }
-        // Unsupported cards have no control affordance, so a pick of one is not an intent.
         if (card == null || card.state == CardState.Unsupported) return
+        val tv = discovered[tvId] ?: return
         scan?.cancel()
         scan = null
         mutableState.update { current ->
             if (current.scan == ScanPhase.Scanning) current.copy(scan = ScanPhase.Finished)
             else current
+        }
+        viewModelScope.launch {
+            // The row is written before the session opens: remembering is the user's action, and
+            // the television is not opened for a card this phone has not recorded.
+            tvProfiles.rememberSelected(card.tvId, card.label, tv.stableIdentity)
+            mutableSelected.value = card.tvId
         }
     }
 
@@ -84,6 +129,7 @@ class DiscoveryViewModel(private val samsungTvs: SamsungTvs, private val gate: P
         scan =
             viewModelScope.launch {
                 samsungTvs.discover().collect { event ->
+                    if (event is DiscoveryEvent.Found) discovered[event.tv.id] = event.tv
                     mutableState.update { it.reduce(event) }
                     if (event == DiscoveryEvent.Failed(TvFailure.LocalNetworkDenied))
                         gate.reportDenied()

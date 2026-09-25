@@ -1,5 +1,6 @@
 package dev.anthracite.appt.samsung.internal
 
+import dev.anthracite.appt.samsung.ControlAvailability
 import dev.anthracite.appt.samsung.DiscoveredTv
 import dev.anthracite.appt.samsung.DiscoveryEvent
 import dev.anthracite.appt.samsung.TvFailure
@@ -23,12 +24,17 @@ import kotlinx.coroutines.withTimeoutOrNull
  * 4. Release the lock in `finally` (bound, failure, and cancellation alike), then emit `Finished`
  *    or the single failure.
  *
+ * Each confirmed television is also written to [ConfirmedTelevisions] with the private control
+ * evidence `open` needs later. Nothing in that record is caller-visible, and the raw device-info
+ * document is discarded as soon as the card is emitted.
+ *
  * The scan deliberately runs on its caller's dispatcher and never switches dispatchers itself: the
  * transport moves blocking socket work off-thread. That keeps the bound on the caller's clock,
  * which is what lets tests run the full 10 seconds in virtual time.
  */
 internal class DiscoveryScan(
     private val transport: DiscoveryTransport,
+    private val confirmed: ConfirmedTelevisions,
     private val mintId: () -> String = TvIdentity::mint,
     private val bound: Duration = SCAN_BOUND,
 ) {
@@ -86,6 +92,16 @@ internal class DiscoveryScan(
 
         val id = TvId(info.uuid ?: mintId())
         if (!claims.claimTv(id)) return
+        // Private control evidence for `open`: the address the television answered on, and which
+        // adopted channel its own flags select. Never caller-visible, never durable in S03.
+        confirmed.record(
+            ConfirmedTelevision(
+                id = id,
+                host = host,
+                tls = info.tokenAuthSupport,
+                adoptedChannel = info.availability != ControlAvailability.Unsupported,
+            )
+        )
         emit(
             DiscoveryEvent.Found(
                 DiscoveredTv(
@@ -118,8 +134,9 @@ internal class DiscoveryScan(
          * Device-info ports tried for a candidate, on the candidate's own host only. No other port
          * is ever contacted: there is no LAN port scan.
          *
-         * S02 reads device-info over port 8001. The 8002 TLS variant needs the candidate-pin trust
-         * rules in connection.md, which arrive with the S03 session; see the S02 pull request.
+         * S02 reads device-info over port 8001, and S03 keeps that read: the TokenAuthSupport flag
+         * is the handshake evidence that selects the TLS remote channel (port 8002) for the
+         * session, so no 8002 probe is needed before open.
          */
         val DEVICE_INFO_PORTS: List<Int> = listOf(8001)
     }

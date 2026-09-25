@@ -1,5 +1,8 @@
 package dev.anthracite.appt.discovery
 
+import dev.anthracite.appt.data.FakeTvProfileDao
+import dev.anthracite.appt.data.NameSource
+import dev.anthracite.appt.data.TvProfiles
 import dev.anthracite.appt.gate.LocalNetworkPhase
 import dev.anthracite.appt.samsung.ControlAvailability
 import dev.anthracite.appt.samsung.DiscoveryEvent
@@ -14,6 +17,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -26,7 +30,7 @@ class DiscoveryViewModelTest {
     private val tvs = FakeSamsungTvs()
     private val gate = FakePermissionGate(LocalNetworkPhase.Granted)
 
-    private fun viewModel() = DiscoveryViewModel(tvs, gate)
+    private fun viewModel() = DiscoveryViewModel(tvs, gate, TvProfiles(FakeTvProfileDao()) { 1L })
 
     @Test
     fun entersScanningAndStartsExactlyOneScanImmediately() =
@@ -162,25 +166,33 @@ class DiscoveryViewModelTest {
         }
 
     @Test
-    fun pickingACardCancelsTheScanAndGoesNoFurther() =
+    fun pickingACardCancelsTheScanWritesTheProfileAndPublishesTheSelection() =
         runTest(mainRule.dispatcher) {
-            val viewModel = viewModel()
+            val dao = FakeTvProfileDao()
+            val viewModel = DiscoveryViewModel(tvs, gate, TvProfiles(dao) { 1L })
             runCurrent()
             tvs.latest.send(FakeSamsungTvs.found())
             runCurrent()
 
             viewModel.onPick(TvId(FakeSamsungTvs.LIVING_ROOM_ID))
             advanceUntilIdle()
+
             assertTrue(tvs.latest.cancelled)
             assertEquals(ScanPhase.Finished, viewModel.state.value.scan)
             assertEquals(1, viewModel.state.value.cards.size)
-            assertEquals("no new scan, no other side effect", 1, tvs.discoverCalls)
+            assertEquals("no new scan", 1, tvs.discoverCalls)
+            assertEquals(TvId(FakeSamsungTvs.LIVING_ROOM_ID), viewModel.selected.value)
+            val row = dao.current().single()
+            assertEquals(FakeSamsungTvs.LIVING_ROOM_ID, row.tvId)
+            assertEquals("Living Room TV", row.friendlyName)
+            assertEquals(NameSource.TV, row.nameSource)
         }
 
     @Test
-    fun pickingAnUnsupportedCardIsNotAnIntent() =
+    fun anUnsupportedCardWritesNoProfileAndOpensNoSession() =
         runTest(mainRule.dispatcher) {
-            val viewModel = viewModel()
+            val dao = FakeTvProfileDao()
+            val viewModel = DiscoveryViewModel(tvs, gate, TvProfiles(dao) { 1L })
             runCurrent()
             tvs.latest.send(
                 FakeSamsungTvs.found(
@@ -193,8 +205,49 @@ class DiscoveryViewModelTest {
             viewModel.onPick(TvId(FakeSamsungTvs.OLDER_ID))
             viewModel.onPick(TvId("unknown"))
             runCurrent()
+
             assertFalse(tvs.latest.cancelled)
             assertEquals(ScanPhase.Scanning, viewModel.state.value.scan)
+            assertNull(viewModel.selected.value)
+            assertTrue("no row for an Unsupported television", dao.current().isEmpty())
+        }
+
+    @Test
+    fun aHandledSelectionIsConsumedSoReturningToDiscoveryDoesNotReEnter() =
+        runTest(mainRule.dispatcher) {
+            val dao = FakeTvProfileDao()
+            val viewModel = DiscoveryViewModel(tvs, gate, TvProfiles(dao) { 7L })
+            runCurrent()
+            tvs.latest.send(FakeSamsungTvs.found())
+            runCurrent()
+
+            viewModel.onPick(TvId(FakeSamsungTvs.LIVING_ROOM_ID))
+            advanceUntilIdle()
+            assertEquals(TvId(FakeSamsungTvs.LIVING_ROOM_ID), viewModel.selected.value)
+
+            viewModel.onSelectionHandled()
+            advanceUntilIdle()
+            assertNull("a consumed selection is not acted on twice", viewModel.selected.value)
+            assertEquals("the row is not rewritten", 1, dao.upserted.size)
+        }
+
+    @Test
+    fun reselectingTheSameCardKeepsOneRow() =
+        runTest(mainRule.dispatcher) {
+            val dao = FakeTvProfileDao()
+            val viewModel = DiscoveryViewModel(tvs, gate, TvProfiles(dao) { 7L })
+            runCurrent()
+            tvs.latest.send(FakeSamsungTvs.found())
+            runCurrent()
+
+            viewModel.onPick(TvId(FakeSamsungTvs.LIVING_ROOM_ID))
+            advanceUntilIdle()
+            viewModel.onPick(TvId(FakeSamsungTvs.LIVING_ROOM_ID))
+            advanceUntilIdle()
+
+            assertEquals("one row per television", 1, dao.current().size)
+            // The second pick kept the row the first one wrote, timestamp and all.
+            assertEquals(7L, dao.current().single().createdAt)
         }
 
     @Test
