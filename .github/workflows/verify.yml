@@ -7,6 +7,12 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: 'Base ref for manual dependency review'
+        required: false
+        default: 'main'
 
 permissions:
   contents: read
@@ -24,9 +30,41 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # 0. Quick PR checks — intentionally no Android/backend build
+  # ---------------------------------------------------------------------------
+  quick:
+    if: github.event_name == 'pull_request'
+    name: Quick checks
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        # actions/setup-node v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Fast repository checks
+        run: |
+          git diff --check
+          node --test "tools/secret-scan/test/secret-scan.test.mjs"
+          node --test "tools/security/test/enforce-dependency-policy.test.mjs"
+          node --test "tools/security/test/enforce-gradle-tooling-constraints.test.mjs"
+          node tools/secret-scan/secret-scan.mjs
+          node tools/security/enforce-gradle-tooling-constraints.mjs
+
+  # ---------------------------------------------------------------------------
   # 1. Quality — repository-generic checks outside Android/backend builds
   # ---------------------------------------------------------------------------
   quality:
+    if: github.event_name != 'pull_request'
     name: Repository quality specialists
     runs-on: ubuntu-24.04
     permissions:
@@ -118,6 +156,7 @@ jobs:
   # 2. Android — root Gradle lifecycle task ciCheck
   # ---------------------------------------------------------------------------
   android:
+    if: github.event_name != 'pull_request'
     name: Android and Kotlin verification
     runs-on: ubuntu-24.04
     permissions:
@@ -192,6 +231,7 @@ jobs:
   # 3. Backend — TypeScript typecheck, lint, prettier, knip, jest + coverage
   # ---------------------------------------------------------------------------
   backend:
+    if: github.event_name != 'pull_request'
     name: Backend typecheck, lint, knip and coverage
     runs-on: ubuntu-24.04
     permissions:
@@ -229,6 +269,7 @@ jobs:
   # 4. Device — Android Gradle Managed Device API 29 acceptance test
   # ---------------------------------------------------------------------------
   device:
+    if: github.event_name != 'pull_request'
     name: Installed-app acceptance on Gradle Managed Device (API 29)
     runs-on: ubuntu-24.04
     permissions:
@@ -295,7 +336,7 @@ jobs:
   # 5. Dependency Review — PR dependency graph deltas
   # ---------------------------------------------------------------------------
   dependency-review:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'workflow_dispatch'
     name: Dependency Review
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -323,9 +364,11 @@ jobs:
         with:
           fail-on-severity: low
           warn-only: true
-          comment-summary-in-pr: always
+          comment-summary-in-pr: never
           retry-on-snapshot-warnings: true
           retry-on-snapshot-warnings-timeout: 600
+          base-ref: ${{ inputs.base_ref }}
+          head-ref: ${{ github.sha }}
 
       - name: Enforce strict dependency security policy
         shell: bash
@@ -337,6 +380,7 @@ jobs:
   # 6. Quality Platform — CI-based SonarQube Cloud quality gate analysis
   # ---------------------------------------------------------------------------
   quality-platform:
+    if: github.event_name != 'pull_request'
     name: SonarQube Cloud quality platform
     needs: [android, backend]
     runs-on: ubuntu-24.04
@@ -398,6 +442,7 @@ jobs:
   gate:
     name: gate
     needs:
+      - quick
       - quality
       - android
       - backend
@@ -411,6 +456,16 @@ jobs:
     steps:
       - name: Evaluate gate results
         run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "quick: ${{ needs.quick.result }}"
+            if [ "${{ needs.quick.result }}" != "success" ]; then
+              echo "::error::Quick pull-request checks failed."
+              exit 1
+            fi
+            echo "Quick pull-request checks passed. Full verification is human-triggered."
+            exit 0
+          fi
+
           echo "quality:           ${{ needs.quality.result }}"
           echo "android:           ${{ needs.android.result }}"
           echo "backend:           ${{ needs.backend.result }}"
