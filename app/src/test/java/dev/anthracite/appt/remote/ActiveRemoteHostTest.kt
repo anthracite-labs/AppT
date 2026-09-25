@@ -30,7 +30,12 @@ class ActiveRemoteHostTest {
     private val livingRoom = TvId(FakeSamsungTvs.LIVING_ROOM_ID)
     private val bedroom = TvId(FakeSamsungTvs.OLDER_ID)
 
-    private fun TestScope.host() = ActiveRemoteHost(tvs, this)
+    /**
+     * The host runs on [TestScope.backgroundScope] rather than the test scope: its
+     * session observation and grace coroutines outlive the last `advanceUntilIdle`, and
+     * `runTest` cancels the background scope when the test finishes.
+     */
+    private fun TestScope.host() = ActiveRemoteHost(tvs, backgroundScope)
 
     @Test
     fun enterOpensOneSessionForOneTelevision() = runTest {
@@ -162,7 +167,7 @@ class ActiveRemoteHostTest {
 
     @Test
     fun aDeniedEntryOpensNothing() = runTest {
-        val host = ActiveRemoteHost(tvs, this, entryAllowed = { false })
+        val host = ActiveRemoteHost(tvs, backgroundScope, entryAllowed = { false })
         host.enter(livingRoom)
         advanceUntilIdle()
 
@@ -174,7 +179,7 @@ class ActiveRemoteHostTest {
     @Test
     fun reachingReadyReportsTheTelevisionOnce() = runTest {
         val ready = mutableListOf<TvId>()
-        val host = ActiveRemoteHost(tvs, this, onSessionReady = { tvId -> ready += tvId })
+        val host = ActiveRemoteHost(tvs, backgroundScope, onSessionReady = { tvId -> ready += tvId })
         host.enter(livingRoom)
         advanceUntilIdle()
         val session = tvs.sessionFor(livingRoom)!!
@@ -194,7 +199,7 @@ class ActiveRemoteHostTest {
         val host =
             ActiveRemoteHost(
                 samsungTvs = tvs,
-                scope = this,
+                scope = backgroundScope,
                 onSessionReady = { throw IllegalStateException("profile store unavailable") },
             )
         host.enter(livingRoom)
@@ -220,7 +225,7 @@ class ActiveRemoteHostTest {
     @Test
     fun aSessionThatNeverReachesReadyReportsNothing() = runTest {
         val ready = mutableListOf<TvId>()
-        val host = ActiveRemoteHost(tvs, this, onSessionReady = { tvId -> ready += tvId })
+        val host = ActiveRemoteHost(tvs, backgroundScope, onSessionReady = { tvId -> ready += tvId })
         host.enter(livingRoom)
         advanceUntilIdle()
         tvs.sessionFor(livingRoom)!!.publish(SessionState.AwaitingTvApproval)

@@ -15,6 +15,7 @@ import dev.anthracite.appt.samsung.TvId
 import dev.anthracite.appt.testing.FakeSamsungTvs
 import dev.anthracite.appt.testing.MainDispatcherRule
 import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
+import dev.anthracite.appt.testing.subscribeTo
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -62,7 +63,7 @@ class RemoteViewModelTest {
 
     /** A host that has already entered the television, as the Pairing route did. */
     private suspend fun TestScope.entered(): ActiveRemoteHost {
-        val host = ActiveRemoteHost(tvs, this)
+        val host = ActiveRemoteHost(tvs, backgroundScope)
         host.enter(livingRoom)
         advanceUntilIdle()
         return host
@@ -72,6 +73,7 @@ class RemoteViewModelTest {
     fun readyExposesOnlyTheKeysTheTelevisionAccepts() =
         runTest(mainRule.dispatcher) {
             val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            subscribeTo(viewModel.state)
             advanceUntilIdle()
             tvs.sessionFor(livingRoom)!!.ready(setOf(RemoteKey.VolumeUp, RemoteKey.VolumeDown))
             advanceUntilIdle()
@@ -87,6 +89,7 @@ class RemoteViewModelTest {
     fun anUnreadySessionExposesNoKeys() =
         runTest(mainRule.dispatcher) {
             val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            subscribeTo(viewModel.state)
             advanceUntilIdle()
             tvs.sessionFor(livingRoom)!!.publish(SessionState.AwaitingTvApproval)
             advanceUntilIdle()
@@ -109,6 +112,7 @@ class RemoteViewModelTest {
                 )
             )
             val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            subscribeTo(viewModel.state)
             advanceUntilIdle()
 
             assertEquals("Living Room TV", viewModel.state.value.tvName)
@@ -118,6 +122,7 @@ class RemoteViewModelTest {
     fun anAcceptedCommandSetsFirstControlAchievedOnce() =
         runTest(mainRule.dispatcher) {
             val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            subscribeTo(viewModel.state)
             advanceUntilIdle()
             val session = tvs.sessionFor(livingRoom)!!
             session.ready()
@@ -142,6 +147,7 @@ class RemoteViewModelTest {
     fun aRejectedCommandNeverSetsFirstControlAchieved() =
         runTest(mainRule.dispatcher) {
             val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            subscribeTo(viewModel.state)
             advanceUntilIdle()
             val session = tvs.sessionFor(livingRoom)!!
             session.ready()
@@ -157,7 +163,8 @@ class RemoteViewModelTest {
     @Test
     fun aReadySessionNeverSetsFirstControlAchieved() =
         runTest(mainRule.dispatcher) {
-            RemoteViewModel(livingRoom, entered(), profiles, store)
+            val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            subscribeTo(viewModel.state)
             advanceUntilIdle()
             tvs.sessionFor(livingRoom)!!.ready()
             advanceUntilIdle()
@@ -169,6 +176,7 @@ class RemoteViewModelTest {
     fun aCommandBeforeTheSessionIsReadyWritesNothing() =
         runTest(mainRule.dispatcher) {
             val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            subscribeTo(viewModel.state)
             advanceUntilIdle()
             val session = tvs.sessionFor(livingRoom)!!
             session.nextResult = CommandResult.Accepted
@@ -194,6 +202,7 @@ class RemoteViewModelTest {
     fun retryAfterUnavailableOpensANewSession() =
         runTest(mainRule.dispatcher) {
             val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            subscribeTo(viewModel.state)
             advanceUntilIdle()
             val dead = tvs.sessionFor(livingRoom)!!
             dead.publish(SessionState.Unreachable)

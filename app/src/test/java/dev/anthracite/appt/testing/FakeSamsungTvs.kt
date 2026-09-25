@@ -109,9 +109,14 @@ class FakeSamsungTvs : SamsungTvs {
     val latest: Scan
         get() = scans.last()
 
-    /** The session [open] returned for [tvId], or null when it was never opened. */
+    /**
+     * The most recent session [open] returned for [tvId], or null when it was never opened.
+     *
+     * Most recent, not first: a session that ended is opened again for the same television, and a
+     * test driving the live session has to reach the replacement rather than the one that died.
+     */
     fun sessionFor(tvId: TvId): Session? =
-        openedIds.indexOf(tvId).takeIf { it >= 0 }?.let { sessions[it] }
+        openedIds.lastIndexOf(tvId).takeIf { it >= 0 }?.let { sessions[it] }
 
     override fun discover(): Flow<DiscoveryEvent> = flow {
         val scan = Scan()

@@ -1,4 +1,4 @@
-name: S03 dependency state regeneration
+name: S03 targeted unit tests
 
 on:
   push:
@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  regenerate:
+  targeted:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     steps:
@@ -37,32 +37,32 @@ jobs:
           cache-provider: basic
 
       # Temporary diagnostic. The run log is not reachable from the environment this branch is
-      # maintained in, so both Gradle logs are mirrored into workflow annotations, which are
-      # readable through the REST API. Annotations are capped at ten per step, so the readout is
-      # spread over the diagnose steps below rather than crammed into one. `--continue` lets one
-      # run report every failure instead of stopping at the first. This workflow is removed
-      # before the branch is finished.
-      - name: Regenerate dependency state and verify strictly
+      # maintained in, so the Gradle log is mirrored into workflow annotations, which are readable
+      # through the REST API. Annotations are capped at ten per step, so the readout is spread over
+      # the diagnose steps below rather than crammed into one. `--continue` lets one run report
+      # every failure instead of stopping at the first. This workflow is removed before the branch
+      # is finished.
+      #
+      # Deliberately narrow: the dependency state is already generated and committed, and this is
+      # the edit/fix loop, so it runs the unit-test tasks rather than the whole `ciCheck`. The full
+      # aggregate is what the terminal verification runs. `spotlessApply` is here because ktfmt is
+      # the repository's formatter and the sandbox has no JDK, so the reformatting has to happen on
+      # the runner and be committed back.
+      - name: Run the targeted unit tests
         shell: bash
         run: |
           set +e
           set +o pipefail
 
-          ./gradlew --no-daemon --write-verification-metadata sha256 \
-            resolveAndLockAll --write-locks :app:kspDebugKotlin spotlessApply \
-            > /tmp/regen.log 2>&1
-          regen=$?
-
-          ./gradlew --no-daemon --dependency-verification=strict ciCheck --continue \
-            > /tmp/ci.log 2>&1
+          ./gradlew --no-daemon --dependency-verification=strict spotlessApply \
+            :app:testDebugUnitTest :samsung:test --continue > /tmp/ci.log 2>&1
           ci=$?
 
-          echo "regenerate exit: $regen ; ciCheck exit: $ci"
-          echo "regen log bytes: $(wc -c < /tmp/regen.log) ; ci log bytes: $(wc -c < /tmp/ci.log)"
-          printf '%s\n' "$regen" > /tmp/regen.exit
+          echo "unit-test exit: $ci"
+          echo "ci log bytes: $(wc -c < /tmp/ci.log)"
           printf '%s\n' "$ci" > /tmp/ci.exit
 
-          [ "$regen" -eq 0 ] && [ "$ci" -eq 0 ]
+          [ "$ci" -eq 0 ]
 
       # ktfmt is the repository's formatter and the sandbox has no JDK, so the reformatting it
       # wants on the S03 sources is applied here and committed. The change set is restricted to
@@ -92,31 +92,20 @@ jobs:
           git commit -m "style: apply ktfmt to the S03 sources"
           git push
 
-      # Each diagnose step emits at most nine annotations of at most 2000 characters, which is the
-      # whole reason there are five of them.
-      - name: Diagnose regeneration failure surface
+      # Names only, no messages and no stack: this is the readout that has to survive the ten
+      # annotation cap, so it trades detail for coverage and lists every failing test in the run.
+      - name: List every failing unit test
         if: always()
         shell: bash
         run: |
           set +e
           set +o pipefail
-          echo "::error::REGEN exit $(cat /tmp/regen.exit) bytes $(wc -c < /tmp/regen.log)"
-          grep -n -A8 -E "^\* What went wrong|FAILURE:|BUILD FAILED|Execution failed for task|Could not |Cannot |Caused by:|OutOfMemory|Killed" /tmp/regen.log \
-            | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
-            | while IFS= read -r line; do echo "::error::REGEN $line"; done
+          python3 -c 'import glob,xml.etree.ElementTree as ET;fs=sorted(glob.glob("app/build/test-results/testDebugUnitTest/TEST-*.xml"))+sorted(glob.glob("samsung/build/test-results/test/TEST-*.xml"));bad=[(tc.get("classname"),tc.get("name")) for f in fs for tc in ET.parse(f).getroot().iter("testcase") if tc.find("failure") is not None or tc.find("error") is not None];print("NO TEST REPORTS FOUND") if not fs else (print("FAILING TESTS %d"%len(bad)) or [print("%s :: %s"%c) for c in bad])' \
+            2>&1 | head -n 200 | head -c 18000 | fold -w 2000 | head -n 9 \
+            | while IFS= read -r line; do echo "::error::TESTS $line"; done
           true
 
-      - name: Diagnose regeneration log tail
-        if: always()
-        shell: bash
-        run: |
-          set +e
-          set +o pipefail
-          tail -n 45 /tmp/regen.log | head -c 16000 | fold -w 2000 | head -n 8 \
-            | while IFS= read -r line; do echo "::error::REGENTAIL $line"; done
-          true
-
-      - name: Diagnose strict ciCheck failure surface
+      - name: Diagnose strict test failure surface
         if: always()
         shell: bash
         run: |
@@ -128,7 +117,7 @@ jobs:
             | while IFS= read -r line; do echo "::error::CI $line"; done
           true
 
-      - name: Diagnose strict ciCheck compiler diagnostics
+      - name: Diagnose strict test compiler diagnostics
         if: always()
         shell: bash
         run: |
@@ -138,7 +127,7 @@ jobs:
             | while IFS= read -r line; do echo "::error::CIDIAG $line"; done
           true
 
-      - name: Diagnose strict ciCheck log tail
+      - name: Diagnose strict test log tail
         if: always()
         shell: bash
         run: |
@@ -148,77 +137,27 @@ jobs:
             | while IFS= read -r line; do echo "::error::CITAIL $line"; done
           true
 
-      - name: Diagnose detekt findings
+      # One message per failing test, capped so the nine annotation budget still covers the whole
+      # set rather than the first nine.
+      - name: Diagnose unit-test failure messages
         if: always()
         shell: bash
         run: |
           set +e
           set +o pipefail
-          grep -nE "\\.kt:[0-9]+:[0-9]+" /tmp/ci.log \
-            | grep -vE "^[0-9]+:[ew]: " | head -n 120 | head -c 16000 | fold -w 2000 | head -n 9 \
-            | while IFS= read -r line; do echo "::error::DETEKT $line"; done
-          true
-
-      - name: Diagnose lint findings
-        if: always()
-        shell: bash
-        run: |
-          set +e
-          set +o pipefail
-          grep -nE "Error:|Warning:|Lint found|lint-results|^/home/runner" /tmp/ci.log \
-            | head -n 40 | head -c 16000 | fold -w 2000 | head -n 4 \
-            | while IFS= read -r line; do echo "::error::LINT $line"; done
-          python3 -c 'import json,glob; f=glob.glob("app/build/reports/lint-results-debug.sarif")+glob.glob("*/build/reports/lint-results-debug.sarif"); print("no sarif report found") if not f else [print(r.get("ruleId"),"|",l.get("physicalLocation",{}).get("artifactLocation",{}).get("uri","?"),"|",str(l.get("physicalLocation",{}).get("region",{}).get("snippet",{}).get("text","")).replace(chr(10)," / "),"|",r.get("message",{}).get("text","")) for run in (json.load(open(f[0])).get("runs",[]) if f else []) for r in run.get("results",[]) for l in r.get("locations",[])]' \
-            2>&1 | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
-            | while IFS= read -r line; do echo "::error::LINTSARIF $line"; done
-          true
-
-      - name: Diagnose unit-test failures
-        if: always()
-        shell: bash
-        run: |
-          set +e
-          set +o pipefail
-          python3 -c 'import glob,xml.etree.ElementTree as ET;fs=glob.glob("app/build/test-results/testDebugUnitTest/TEST-*.xml");print("no test reports found") if not fs else [print(tc.get("classname"),"::",tc.get("name"),"::",(f.get("message") or "")[:180],"::",(f.text or "")[:250].replace(chr(10)," / ")) for f0 in fs for tc in ET.parse(f0).getroot().iter("testcase") if (tc.find("failure") is not None or tc.find("error") is not None) for f in [tc.find("failure") if tc.find("failure") is not None else tc.find("error")]]' \
+          python3 -c 'import glob,xml.etree.ElementTree as ET;fs=glob.glob("app/build/test-results/testDebugUnitTest/TEST-*.xml");print("no test reports found") if not fs else [print(tc.get("classname"),"::",tc.get("name"),"::",(f.get("message") or "")[:180]) for f0 in fs for tc in ET.parse(f0).getroot().iter("testcase") if (tc.find("failure") is not None or tc.find("error") is not None) for f in [tc.find("failure") if tc.find("failure") is not None else tc.find("error")]]' \
             2>&1 | head -n 120 | head -c 16000 | fold -w 2000 | head -n 9 \
             | while IFS= read -r line; do echo "::error::TESTS $line"; done
           true
 
-      - name: Enforce generated-artifact allowlist
+      # The stack, one line per failing test. This is the step that names the file and line.
+      - name: Diagnose unit-test failure stacks
         if: always()
         shell: bash
         run: |
           set +e
           set +o pipefail
-          git status --short
-          while IFS= read -r path; do
-            case "$path" in
-              gradle.lockfile|app/gradle.lockfile|samsung/gradle.lockfile|macrobenchmark/gradle.lockfile|settings-gradle.lockfile|gradle/verification-metadata.xml|app/schemas/*)
-                ;;
-              *)
-                echo "::error::Unexpected regeneration change: $path"
-                ;;
-            esac
-          done < <(git status --porcelain=v1 | cut -c4-)
-
-      - name: Commit generated state
-        # Not gated on the verification step: the lockfiles have to land while a test still
-        # fails, or every subsequent run keeps testing the stale lock state.
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          git add gradle.lockfile app/gradle.lockfile samsung/gradle.lockfile \
-            macrobenchmark/gradle.lockfile settings-gradle.lockfile \
-            gradle/verification-metadata.xml
-          if [ -d app/schemas ]; then
-            git add app/schemas
-          fi
-          if git diff --cached --quiet; then
-            echo "No generated changes to commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "build: regenerate S03 dependency state"
-          git push
+          python3 -c 'import glob,xml.etree.ElementTree as ET;fs=glob.glob("app/build/test-results/testDebugUnitTest/TEST-*.xml");print("no test reports found") if not fs else [print(tc.get("name"),"::",(f.text or "")[:200].replace(chr(10)," / ")) for f0 in fs for tc in ET.parse(f0).getroot().iter("testcase") if (tc.find("failure") is not None or tc.find("error") is not None) for f in [tc.find("failure") if tc.find("failure") is not None else tc.find("error")]]' \
+            2>&1 | head -n 120 | head -c 16000 | fold -w 2000 | head -n 9 \
+            | while IFS= read -r line; do echo "::error::TESTSTACK $line"; done
+          true

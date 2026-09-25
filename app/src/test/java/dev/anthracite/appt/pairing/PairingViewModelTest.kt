@@ -12,6 +12,7 @@ import dev.anthracite.appt.samsung.TvFailure
 import dev.anthracite.appt.samsung.TvId
 import dev.anthracite.appt.testing.FakeSamsungTvs
 import dev.anthracite.appt.testing.MainDispatcherRule
+import dev.anthracite.appt.testing.subscribeTo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -34,7 +35,7 @@ class PairingViewModelTest {
 
     /** A host that has already entered [tvId], as the Discovery route does. */
     private suspend fun TestScope.entered(tvId: TvId = livingRoom): ActiveRemoteHost {
-        val host = ActiveRemoteHost(tvs, this)
+        val host = ActiveRemoteHost(tvs, backgroundScope)
         host.enter(tvId)
         advanceUntilIdle()
         return host
@@ -53,7 +54,8 @@ class PairingViewModelTest {
     @Test
     fun connectingIsTheInitialPhaseBeforeAnySessionIsHeld() =
         runTest(mainRule.dispatcher) {
-            val viewModel = PairingViewModel(livingRoom, ActiveRemoteHost(tvs, this), profiles)
+            val viewModel = PairingViewModel(livingRoom, ActiveRemoteHost(tvs, backgroundScope), profiles)
+            subscribeTo(viewModel.state)
             advanceUntilIdle()
 
             assertEquals(PairingPhase.Connecting, viewModel.state.value.phase)
@@ -66,6 +68,7 @@ class PairingViewModelTest {
             dao.upsert(profile(livingRoom, "Living Room TV"))
             val host = entered()
             val viewModel = PairingViewModel(livingRoom, host, profiles)
+            subscribeTo(viewModel.state)
             advanceUntilIdle()
 
             assertEquals("Living Room TV", viewModel.state.value.tvName)
@@ -76,6 +79,7 @@ class PairingViewModelTest {
         runTest(mainRule.dispatcher) {
             val host = entered()
             val viewModel = PairingViewModel(livingRoom, host, profiles)
+            subscribeTo(viewModel.state)
             advanceUntilIdle()
             tvs.sessionFor(livingRoom)!!.publish(SessionState.AwaitingTvApproval)
             advanceUntilIdle()
@@ -90,6 +94,7 @@ class PairingViewModelTest {
         runTest(mainRule.dispatcher) {
             val host = entered()
             val viewModel = PairingViewModel(livingRoom, host, profiles)
+            subscribeTo(viewModel.state)
             advanceUntilIdle()
             tvs.sessionFor(livingRoom)!!.ready(setOf(RemoteKey.VolumeUp))
             advanceUntilIdle()
@@ -103,6 +108,7 @@ class PairingViewModelTest {
         runTest(mainRule.dispatcher) {
             val host = entered()
             val viewModel = PairingViewModel(livingRoom, host, profiles)
+            subscribeTo(viewModel.state)
             advanceUntilIdle()
             tvs.sessionFor(livingRoom)!!.publish(
                 SessionState.NeedsRepair,
@@ -121,6 +127,7 @@ class PairingViewModelTest {
         runTest(mainRule.dispatcher) {
             val host = entered()
             val viewModel = PairingViewModel(livingRoom, host, profiles)
+            subscribeTo(viewModel.state)
             advanceUntilIdle()
             val session = tvs.sessionFor(livingRoom)!!
             session.publish(SessionState.NeedsRepair, repairReason = RepairReason.ApprovalDenied)
@@ -135,7 +142,8 @@ class PairingViewModelTest {
     @Test
     fun pairingNeverOpensASessionItself() =
         runTest(mainRule.dispatcher) {
-            val viewModel = PairingViewModel(livingRoom, ActiveRemoteHost(tvs, this), profiles)
+            val viewModel = PairingViewModel(livingRoom, ActiveRemoteHost(tvs, backgroundScope), profiles)
+            subscribeTo(viewModel.state)
             advanceUntilIdle()
 
             assertEquals("the host is the only opener", emptyList<TvId>(), tvs.openedIds)
@@ -147,6 +155,7 @@ class PairingViewModelTest {
         runTest(mainRule.dispatcher) {
             val host = entered()
             val viewModel = PairingViewModel(older, host, profiles)
+            subscribeTo(viewModel.state)
             advanceUntilIdle()
 
             tvs.sessionFor(livingRoom)!!.ready()
