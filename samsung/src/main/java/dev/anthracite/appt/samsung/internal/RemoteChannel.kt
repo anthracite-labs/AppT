@@ -1,6 +1,7 @@
 package dev.anthracite.appt.samsung.internal
 
 import dev.anthracite.appt.samsung.RemoteKey
+import java.net.URLEncoder
 import java.util.Base64
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -69,8 +70,17 @@ internal object RemoteChannel {
      */
     fun remoteUrl(television: ConfirmedTelevision): String {
         val scheme = if (television.tls) "wss" else "ws"
-        return "$scheme://${television.host}:${television.remotePort}" +
-            "/api/v2/channels/samsung.remote.control?name=$CLIENT_NAME_ENCODED"
+        val host =
+            if (':' in television.host && !television.host.startsWith("[")) {
+                // InetAddress.hostAddress returns an unbracketed IPv6 literal. URL authorities
+                // require brackets; encode a link-local scope marker if one is present.
+                "[${television.host.replace("%", "%25")}]"
+            } else {
+                television.host
+            }
+        val encodedName = URLEncoder.encode(CLIENT_NAME_ENCODED, Charsets.UTF_8.name())
+        return "$scheme://$host:${television.remotePort}" +
+            "/api/v2/channels/samsung.remote.control?name=$encodedName"
     }
 
     /** The outbound frame for one key tap, in the documented `ms.remote.control` shape. */
