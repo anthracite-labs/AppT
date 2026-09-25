@@ -145,10 +145,10 @@ class ActiveRemoteHost(
                             onSessionReady(tvId)
                         } catch (cancellation: CancellationException) {
                             throw cancellation
-                        } catch (unavailable: IOException) {
+                        } catch (ignoredWriteFailure: IOException) {
                             // A failed local write. Losing the profile row must not terminate
                             // control of a live television, so it is contained here.
-                        } catch (closed: IllegalStateException) {
+                        } catch (ignoredClosedStore: IllegalStateException) {
                             // Room reports a store that has already gone away this way. Same
                             // reasoning as above: metadata is recoverable, the session is not.
                             // Local diagnostics arrives in S13.

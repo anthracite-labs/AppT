@@ -140,6 +140,9 @@ internal class OkHttpSessionTransport : SessionTransport {
 
         /** samsung-interface.md: unsent frames held before further commands are rejected. */
         const val UNSENT_FRAME_CAP: Long = 32L
+
+        /** Hexadecimal radix, named because detekt's MagicNumber does not ignore 16. */
+        private const val HEX_RADIX = 16
     }
 }
 
@@ -178,7 +181,14 @@ internal class SpkiTrustManager : X509TrustManager {
 
     fun hasCheckedCertificate(): Boolean = candidatePin.get() != null
 
-    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+    /**
+     * AppT is the TLS client in every session this module opens, so a peer never presents a client
+     * certificate to it and this is never reached. It refuses rather than accepting, because a
+     * path that must not be taken is not a path to leave open.
+     */
+    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+        throw CertificateException("AppT is never a TLS server")
+    }
 
     override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
         val certificates = chain ?: throw IllegalArgumentException("no peer certificate chain")
@@ -199,7 +209,7 @@ internal class SpkiTrustManager : X509TrustManager {
             MessageDigest.getInstance("SHA-256").digest(certificate.publicKey.encoded).joinToString(
                 ""
             ) { byte ->
-                byte.toUInt().toString(16).padStart(2, '0')
+                byte.toUInt().toString(HEX_RADIX).padStart(2, '0')
             }
     }
 }

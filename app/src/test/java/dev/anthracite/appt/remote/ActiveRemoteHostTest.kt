@@ -162,7 +162,7 @@ class ActiveRemoteHostTest {
 
     @Test
     fun aDeniedEntryOpensNothing() = runTest {
-        val host = ActiveRemoteHost(tvs, this) { false }
+        val host = ActiveRemoteHost(tvs, this, entryAllowed = { false })
         host.enter(livingRoom)
         advanceUntilIdle()
 

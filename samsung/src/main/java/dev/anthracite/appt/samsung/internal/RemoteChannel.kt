@@ -110,7 +110,13 @@ internal object RemoteChannel {
     fun parseEvent(frame: String): ChannelEvent? {
         if (!withinFrameLimits(frame)) return null
         val root = parseObject(frame) ?: return null
-        return ChannelEvent(name = root.text("event") ?: return null, token = root.token())
+        return root.channelEvent()
+    }
+
+    /** The object as a channel event, or null when it carries no event name. */
+    private fun JsonObject.channelEvent(): ChannelEvent? {
+        val name = text("event") ?: return null
+        return ChannelEvent(name = name, token = token())
     }
 
     /**

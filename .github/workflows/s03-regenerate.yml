@@ -142,8 +142,8 @@ jobs:
         shell: bash
         run: |
           set +e
-          grep -nE "\\.kt:[0-9]+:[0-9]+|findings|Findings|detekt" /tmp/ci.log \
-            | grep -vE "^[0-9]+:e: " | head -n 80 | head -c 16000 | fold -w 2000 | head -n 8 \
+          grep -nE "\\.kt:[0-9]+:[0-9]+" /tmp/ci.log \
+            | grep -vE "^[0-9]+:[ew]: " | head -n 120 | head -c 16000 | fold -w 2000 | head -n 9 \
             | while IFS= read -r line; do echo "::error::DETEKT $line"; done
 
       - name: Diagnose lint findings
@@ -152,8 +152,11 @@ jobs:
         run: |
           set +e
           grep -nE "Error:|Warning:|Lint found|lint-results|^/home/runner" /tmp/ci.log \
-            | head -n 80 | head -c 16000 | fold -w 2000 | head -n 8 \
+            | head -n 40 | head -c 16000 | fold -w 2000 | head -n 4 \
             | while IFS= read -r line; do echo "::error::LINT $line"; done
+          python3 -c 'import json,glob; f=glob.glob("app/build/reports/lint-results-debug.sarif")+glob.glob("*/build/reports/lint-results-debug.sarif"); print("no sarif report found") if not f else [print(r.get("ruleId"),"|",l.get("physicalLocation",{}).get("artifactLocation",{}).get("uri","?"),"|",str(l.get("physicalLocation",{}).get("region",{}).get("snippet",{}).get("text","")).replace(chr(10)," / "),"|",r.get("message",{}).get("text","")) for run in (json.load(open(f[0])).get("runs",[]) if f else []) for r in run.get("results",[]) for l in r.get("locations",[])]' \
+            2>&1 | head -n 60 | head -c 16000 | fold -w 2000 | head -n 8 \
+            | while IFS= read -r line; do echo "::error::LINTSARIF $line"; done
 
       - name: Enforce generated-artifact allowlist
         if: always()

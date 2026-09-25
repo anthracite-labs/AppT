@@ -149,7 +149,7 @@ class RemoteViewModelTest {
     @Test
     fun aReadySessionNeverSetsFirstControlAchieved() =
         runTest(mainRule.dispatcher) {
-            val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            RemoteViewModel(livingRoom, entered(), profiles, store)
             advanceUntilIdle()
             tvs.sessionFor(livingRoom)!!.ready()
             advanceUntilIdle()
