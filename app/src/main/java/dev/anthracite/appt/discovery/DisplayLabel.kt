@@ -18,5 +18,15 @@ internal object DisplayLabel {
                 """(?<=\S):\d{2,5}\b|(?i:\bport\s*\d{1,5}\b)|://"""
         )
 
-    fun of(name: String): String = if (IDENTIFIER.containsMatchIn(name)) "" else name
+    // Also reject IPv6 without decimal digits. Compression or all eight groups, with a hex
+    // character, excludes a bare "::" or an ordinary colon-separated name like "A:B:C".
+    private val IPV6_LITERAL =
+        Regex(
+            """(?<![\w:])(?=[0-9A-Fa-f:]{0,39}[0-9A-Fa-f])""" +
+                """(?:(?=[0-9A-Fa-f:]{0,39}::)(?:$HEX{0,4}:){2,8}$HEX{0,4}|""" +
+                """(?:$HEX{1,4}:){7}$HEX{1,4})(?![\w:])"""
+        )
+
+    fun of(name: String): String =
+        if (IDENTIFIER.containsMatchIn(name) || IPV6_LITERAL.containsMatchIn(name)) "" else name
 }

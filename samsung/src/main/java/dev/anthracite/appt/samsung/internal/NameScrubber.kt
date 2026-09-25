@@ -27,14 +27,21 @@ internal object NameScrubber {
             Regex("""\b[A-Za-z][A-Za-z0-9+.-]*://\S*"""),
             // A UUID, optionally prefixed "uuid:".
             Regex("""(?i)\b(?:uuid:)?$HEX{8}-$HEX{4}-$HEX{4}-$HEX{4}-$HEX{12}\b"""),
-            // A MAC address, colon or hyphen separated.
-            Regex("""\b$HEX{2}(?:[:-]$HEX{2}){5}\b"""),
-            // An IPv6 address ("::" compression and a trailing dotted quad included). It must
-            // contain a digit, so a bare "::" in a name is left alone.
+            // IPv6 with a decimal digit, including compression or a trailing dotted quad.
             Regex(
                 """(?<![\w:])(?=[\w:.]{0,45}\d)(?:$HEX{0,4}:){2,7}(?:$DOTTED_QUAD|$HEX{1,4})?""" +
                     """(?![\w:])"""
             ),
+            // Hex-only IPv6: compression or all eight groups, and at least one hex character.
+            // A bare "::" and a non-address name such as "A:B:C" are not identifiers.
+            // Scrub IPv6 before MACs so a MAC-shaped prefix cannot leave an address fragment.
+            Regex(
+                """(?<![\w:])(?=[0-9A-Fa-f:]{0,39}[0-9A-Fa-f])""" +
+                    """(?:(?=[0-9A-Fa-f:]{0,39}::)(?:$HEX{0,4}:){2,8}$HEX{0,4}|""" +
+                    """(?:$HEX{1,4}:){7}$HEX{1,4})(?![\w:])"""
+            ),
+            // A MAC address, colon or hyphen separated.
+            Regex("""\b$HEX{2}(?:[:-]$HEX{2}){5}\b"""),
             // An IPv4 address, with an optional port.
             Regex("""\b$DOTTED_QUAD(?::\d{1,5})?\b"""),
             // A port attached to a word ("Kitchen:8001") or spelled out ("port 8002").

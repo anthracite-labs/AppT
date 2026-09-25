@@ -70,6 +70,14 @@ class DeviceInfoParserTest {
                 "Kitchen:8001" to "Kitchen",
                 "Study port 8002" to "Study",
                 "Lounge fe80::1c2b:3d4e" to "Lounge",
+                "feee::face" to "",
+                "Living Room (feee::face)" to "Living Room",
+                "Den [FEED::BEEF]:8002" to "Den",
+                "::cafe" to "",
+                "::a:b:c:d:e:f:a" to "",
+                "a:b:c:d:e:f:a::" to "",
+                "aaaa:bbbb:cccc:dddd:eeee:ffff:aaaa:bbbb" to "",
+                "aa:bb:cc:dd:ee:ff:aa:bb" to "",
                 "[2001:db8::7]:8002 Office" to "Office",
                 "::ffff:192.0.2.1" to "",
                 "Hall wss://tv.example:8002/api" to "Hall",
@@ -77,7 +85,7 @@ class DeviceInfoParserTest {
         cases.forEach { (raw, expected) ->
             assertEquals(raw, expected, DeviceInfoParser.sanitizeName(raw))
         }
-        val parsed = DeviceInfoParser.parse(document(""""name":"Living Room (192.0.2.20)""""))
+        val parsed = DeviceInfoParser.parse(document(""""name":"Living Room (feee::face)""""))
         assertEquals("Living Room", parsed!!.name)
     }
 
@@ -89,6 +97,8 @@ class DeviceInfoParserTest {
                 "Mum & Dad's TV",
                 "Samsung 8 Series: 75",
                 "Den :: Main",
+                "::",
+                "A:B:C TV",
             )
             .forEach { name -> assertEquals(name, DeviceInfoParser.sanitizeName(name)) }
     }
