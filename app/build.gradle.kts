@@ -135,18 +135,13 @@ kotlin {
 // committed so `schemaContainsNoForbiddenColumn` and every later migration test
 // can read it; `resolveAndLockAll --write-locks` and CI regenerate it when the
 // entities change.
-# `room.generateKotlin` is off on purpose. Room's Kotlin codegen writes an explicit `public` on
-# every declaration it emits and leaves `var` properties unwritten, which `extraWarnings` reports
-# as REDUNDANT_VISIBILITY_MODIFIER and CAN_BE_VAL; `allWarningsAsErrors` then fails the build on
-# code no one wrote. A generated file cannot carry a file-level @Suppress, the two flags are the
-# repository's warning floor and are not traded for generated code, and disabling individual
-# diagnostics module-wide would also silence them in hand-written source. Generating Java keeps
-# the generated layer out of the Kotlin warning surface entirely, and it stays out of it however
-# Room's codegen changes at the next release. The exported schema and the DAO contract are
-# identical either way; only the language of `*_Impl` differs.
+//
+// Room's Kotlin codegen is deliberately not opted into: it writes an explicit `public` on every
+// declaration it emits and leaves `var` properties unwritten, which `extraWarnings` above reports
+// and `allWarningsAsErrors` turns into a build failure on code no one wrote. Room's default
+// (Java) keeps the generated layer out of the Kotlin warning surface entirely.
 ksp {
     arg("room.schemaLocation", "${projectDir}/schemas")
-    arg("room.generateKotlin", "false")
 }
 
 // ---------------------------------------------------------------------------
