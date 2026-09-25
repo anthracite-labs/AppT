@@ -5,6 +5,7 @@ import dev.anthracite.appt.samsung.SamsungTvs
 import dev.anthracite.appt.samsung.SessionSnapshot
 import dev.anthracite.appt.samsung.SessionState
 import dev.anthracite.appt.samsung.TvId
+import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -143,10 +144,13 @@ class ActiveRemoteHost(
                             onSessionReady(tvId)
                         } catch (cancellation: CancellationException) {
                             throw cancellation
-                        } catch (failure: Exception) {
-                            // A local profile-write failure must not terminate observation of the
-                            // live television session. Local diagnostics arrives in S13; for S03,
-                            // keep control alive and allow later lifecycle work to recover metadata.
+                        } catch (unavailable: IOException) {
+                            // A failed local write. Losing the profile row must not terminate
+                            // control of a live television, so it is contained here.
+                        } catch (closed: IllegalStateException) {
+                            // Room reports a store that has already gone away this way. Same
+                            // reasoning as above: metadata is recoverable, the session is not.
+                            // Local diagnostics arrives in S13.
                         }
                     }
                 }

@@ -108,18 +108,28 @@ internal object RemoteChannel {
      * continues (connection.md: "Malformed frames do not throw across the seam").
      */
     fun parseEvent(frame: String): ChannelEvent? {
-        if (frame.codePointCount(0, frame.length) > MAX_FRAME_CODE_POINTS) return null
-        if (!DeviceInfoParser.withinDepth(frame, MAX_JSON_DEPTH)) return null
-        val root =
-            try {
-                Json.parseToJsonElement(frame).jsonObject
-            } catch (malformed: IllegalArgumentException) {
-                // kotlinx.serialization raises SerializationException, an IllegalArgumentException,
-                // for anything that is not valid JSON, including a non-object root.
-                return null
-            }
+        if (!withinFrameLimits(frame)) return null
+        val root = parseObject(frame) ?: return null
         return ChannelEvent(name = root.text("event") ?: return null, token = root.token())
     }
+
+    /** protocol.md#parser-limits: one frame, one depth. Over-limit input is malformed, not a crash. */
+    private fun withinFrameLimits(frame: String): Boolean =
+        frame.codePointCount(0, frame.length) <= MAX_FRAME_CODE_POINTS &&
+            DeviceInfoParser.withinDepth(frame, MAX_JSON_DEPTH)
+
+    /**
+     * The frame as a JSON object, or null when it is not one.
+     *
+     * kotlinx.serialization raises SerializationException, an IllegalArgumentException, for anything
+     * that is not valid JSON, including a non-object root. Contained here, never across the seam.
+     */
+    private fun parseObject(frame: String): JsonObject? =
+        try {
+            Json.parseToJsonElement(frame).jsonObject
+        } catch (ignored: IllegalArgumentException) {
+            null
+        }
 }
 
 /** One inbound `ms.channel.*` event. [token] is transient live-session evidence, never persisted. */

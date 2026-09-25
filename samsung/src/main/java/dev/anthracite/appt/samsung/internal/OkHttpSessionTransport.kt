@@ -100,7 +100,7 @@ internal class OkHttpSessionTransport : SessionTransport {
         val request = Request.Builder().url(RemoteChannel.remoteUrl(television)).build()
         return try {
             client.newWebSocket(request, listener)
-        } catch (unusable: IllegalArgumentException) {
+        } catch (ignored: IllegalArgumentException) {
             // An unusable URL never reaches a socket. Contained here, not across the seam.
             opened.complete(false)
             null
@@ -196,7 +196,7 @@ internal class SpkiTrustManager : X509TrustManager {
         fun spkiSha256(certificate: X509Certificate): String =
             MessageDigest.getInstance("SHA-256")
                 .digest(certificate.publicKey.encoded)
-                .joinToString("") { byte -> String.format("%02x", byte) }
+                .joinToString("") { byte -> byte.toUInt().toString(16).padStart(2, '0') }
     }
 }
 

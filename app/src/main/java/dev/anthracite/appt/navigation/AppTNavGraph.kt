@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -90,38 +91,59 @@ fun AppTNavGraph(
                 onPicked = { tvId -> navController.navigate(PairingRoute(tvId.value)) },
             )
         }
-        composable<PairingRoute> { entry ->
-            val route = entry.toRoute<PairingRoute>()
-            PairingDestination(
-                tvId = route.tvId,
-                activeRemoteHost = activeRemoteHost,
-                tvProfiles = tvProfiles,
-                onCancel = {
-                    activeRemoteHost.close()
-                    navController.popBackStack()
-                },
-                onApproved = {
-                    navController.navigate(RemoteRoute(route.tvId)) {
-                        popUpTo<PairingRoute> { inclusive = true }
-                    }
-                },
-            )
-        }
-        composable<RemoteRoute> { entry ->
-            val route = entry.toRoute<RemoteRoute>()
-            RemoteDestination(
-                tvId = route.tvId,
-                activeRemoteHost = activeRemoteHost,
-                tvProfiles = tvProfiles,
-                preferenceStore = preferenceStore,
-                onBack = {
-                    // lifecycle.md: Back leaves the television immediately; grace is for a
-                    // temporary loss of surface ownership, not an explicit navigation exit.
-                    activeRemoteHost.close()
-                    navController.popBackStack()
-                },
-            )
-        }
+        s03Destinations(
+            navController = navController,
+            activeRemoteHost = activeRemoteHost,
+            tvProfiles = tvProfiles,
+            preferenceStore = preferenceStore,
+        )
+    }
+}
+
+/**
+ * S03's two destinations (presentation.md#route-graph).
+ *
+ * Pairing observes the session [ActiveRemoteHost] already holds and hands the same session to Remote
+ * when it reaches `Ready`. Cancel from Pairing closes the session and returns to Discovery, because
+ * `popBackStack` returns to whatever Discovery left underneath.
+ */
+private fun NavGraphBuilder.s03Destinations(
+    navController: NavHostController,
+    activeRemoteHost: ActiveRemoteHost,
+    tvProfiles: TvProfiles,
+    preferenceStore: PreferenceStore,
+) {
+    composable<PairingRoute> { entry ->
+        val route = entry.toRoute<PairingRoute>()
+        PairingDestination(
+            tvId = route.tvId,
+            activeRemoteHost = activeRemoteHost,
+            tvProfiles = tvProfiles,
+            onCancel = {
+                activeRemoteHost.close()
+                navController.popBackStack()
+            },
+            onApproved = {
+                navController.navigate(RemoteRoute(route.tvId)) {
+                    popUpTo<PairingRoute> { inclusive = true }
+                }
+            },
+        )
+    }
+    composable<RemoteRoute> { entry ->
+        val route = entry.toRoute<RemoteRoute>()
+        RemoteDestination(
+            tvId = route.tvId,
+            activeRemoteHost = activeRemoteHost,
+            tvProfiles = tvProfiles,
+            preferenceStore = preferenceStore,
+            onBack = {
+                // lifecycle.md: Back leaves the television immediately; grace is for a temporary
+                // loss of surface ownership, not an explicit navigation exit.
+                activeRemoteHost.close()
+                navController.popBackStack()
+            },
+        )
     }
 }
 

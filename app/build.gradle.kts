@@ -124,17 +124,6 @@ kotlin {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         allWarningsAsErrors.set(true)
         extraWarnings.set(true)
-        // Room's Kotlin codegen writes an explicit `public` on every declaration it emits,
-        // which `extraWarnings` reports as REDUNDANT_VISIBILITY_MODIFIER. The generated file
-        // cannot carry a file-level @Suppress, so the only ways past it are to drop
-        // `extraWarnings`, to drop `allWarningsAsErrors`, or to accept the diagnostic — and
-        // this repository does not trade its warning floor for generated code.
-        //
-        // Disabling exactly this one diagnostic keeps every other warning an error, including
-        // every one in hand-written source. The same rule stays enforced there by detekt's
-        // `RedundantVisibilityModifier`, which is active under `buildUponDefaultConfig` and is
-        // unaffected by a compiler flag.
-        freeCompilerArgs.add("-Xwarning-level=REDUNDANT_VISIBILITY_MODIFIER:disabled")
     }
 }
 
@@ -146,9 +135,18 @@ kotlin {
 // committed so `schemaContainsNoForbiddenColumn` and every later migration test
 // can read it; `resolveAndLockAll --write-locks` and CI regenerate it when the
 // entities change.
+# `room.generateKotlin` is off on purpose. Room's Kotlin codegen writes an explicit `public` on
+# every declaration it emits and leaves `var` properties unwritten, which `extraWarnings` reports
+# as REDUNDANT_VISIBILITY_MODIFIER and CAN_BE_VAL; `allWarningsAsErrors` then fails the build on
+# code no one wrote. A generated file cannot carry a file-level @Suppress, the two flags are the
+# repository's warning floor and are not traded for generated code, and disabling individual
+# diagnostics module-wide would also silence them in hand-written source. Generating Java keeps
+# the generated layer out of the Kotlin warning surface entirely, and it stays out of it however
+# Room's codegen changes at the next release. The exported schema and the DAO contract are
+# identical either way; only the language of `*_Impl` differs.
 ksp {
     arg("room.schemaLocation", "${projectDir}/schemas")
-    arg("room.generateKotlin", "true")
+    arg("room.generateKotlin", "false")
 }
 
 // ---------------------------------------------------------------------------
