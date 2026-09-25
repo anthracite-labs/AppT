@@ -31,6 +31,12 @@ androidx-test-core = "1.7.0"
 androidx-test-runner = "1.7.0"
 androidx-test-uiautomator = "2.4.0"
 kotlinx-serialization = "1.11.0"
+# S02 (Issue #73): coroutines for :samsung discovery and the Discovery
+# ViewModel. 1.9.0 is exactly the version the AndroidX/Compose graph already
+# resolves on :app, so declaring it adds no new artifact to the app graph; it
+# becomes a direct, reviewed pin instead of a transitive one.
+# License: Apache-2.0. Publisher: JetBrains (org.jetbrains.kotlinx), Maven Central.
+kotlinx-coroutines = "1.9.0"
 junit = "4.13.2"
 robolectric = "4.17"
 # detekt is AppT's Kotlin static-analysis floor (Issue #36). Pinned to the
@@ -51,8 +57,12 @@ kover = "0.9.5"
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "androidx-lifecycle" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
+androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "androidx-navigation" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
 
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "androidx-compose-bom" }
 androidx-compose-foundation = { module = "androidx.compose.foundation:foundation" }

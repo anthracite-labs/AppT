@@ -1,0 +1,9 @@
+{
+  "caseId": "device-info-unreadable",
+  "captured": "2026-09-24",
+  "generation": "unknown",
+  "sourceRole": "synthetic",
+  "source": "Authored for S02 (Issue #73) from the device-info field list in docs/architecture/protocol.md and the probe rules in docs/architecture/discovery.md. Not captured from a physical television.",
+  "redaction": "Contains no address, MAC, Wi-Fi name, token, serial or certificate. Hosts are placeholders such as [host-a]; address-like and identifying device-info fields are replaced with bracketed placeholders; UUIDs are randomly generated for this fixture.",
+  "notes": "Three candidates whose device-info cannot be used: one returns a non-JSON body, one never answers (no entry), and one returns a document that names a different host than the one probed. Expect no card and never an address as a label."
+}

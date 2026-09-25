@@ -20,11 +20,18 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val app = application as AppTApplication
         setContent {
             CompositionLocalProvider(
                 LocalMotionDurationScale provides platformMotionDurationScale()
             ) {
-                AppTTheme { AppTNavGraph() }
+                AppTTheme {
+                    AppTNavGraph(
+                        samsungTvs = app.samsungTvs,
+                        permissionGate = app.permissionGate,
+                        appSettings = app.appSettings,
+                    )
+                }
             }
         }
     }

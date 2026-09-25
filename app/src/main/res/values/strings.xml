@@ -3,6 +3,11 @@
   Welcome copy (docs/architecture/ui-ux.md#onboarding): core value proposition,
   a short privacy/local-control reassurance, and one primary action.
   Ordinary language only: no protocol vocabulary, no address, no port.
+
+  Local-network explanation and Discovery copy (S02, Issue #73) follow the same
+  rule: no protocol, discovery-mechanism, port or address vocabulary. A test
+  (ForbiddenVocabularyTest) enforces it for every localnetwork_ and discovery_
+  string.
 -->
 <resources>
     <string name="app_name">AppT</string>
@@ -12,4 +17,33 @@
     <string name="welcome_primary_action">Find my TV</string>
     <!-- Decorative brand mark. Hidden from the semantics tree; carries no meaning. -->
     <string name="welcome_mascot_glyph" translatable="false">📺</string>
+
+    <!-- Local-network explanation (docs/architecture/discovery.md#permission-gate). -->
+    <string name="localnetwork_title">Find your TV on your home network</string>
+    <string name="localnetwork_explanation">To find and control your television, AppT needs to reach it over your home network. Make sure this phone is connected to the same Wi-Fi as your TV.</string>
+    <string name="localnetwork_continue">Continue</string>
+    <string name="localnetwork_denied">AppT couldn\'t reach your home network. Check that this phone is on Wi-Fi and that AppT is allowed to use your local network, then try again.</string>
+    <string name="localnetwork_retry">Try again</string>
+    <string name="localnetwork_open_settings">Open settings</string>
+
+    <!-- Discovery (docs/architecture/presentation.md#discovery). -->
+    <string name="discovery_title">Your televisions</string>
+    <string name="discovery_status_scanning">Looking for televisions on your home network…</string>
+    <string name="discovery_status_finished">Search finished</string>
+    <string name="discovery_card_unnamed">Samsung TV</string>
+    <string name="discovery_card_choose">Choose this television</string>
+    <string name="discovery_card_ready">Ready to use</string>
+    <string name="discovery_card_needs_pairing">Needs setting up</string>
+    <string name="discovery_card_unsupported">AppT can\'t control this television yet</string>
+    <string name="discovery_card_remembered">Saved on this phone</string>
+    <string name="discovery_empty_title">No televisions found</string>
+    <string name="discovery_empty_hint">Make sure your TV is switched on and connected to the same Wi-Fi as this phone.</string>
+    <string name="discovery_failed_unreachable">This phone isn\'t connected to a home network. Connect to the same Wi-Fi as your TV, then scan again.</string>
+    <string name="discovery_failed_denied">AppT can\'t reach your home network right now.</string>
+    <string name="discovery_failed_other">Something went wrong while looking for televisions. Please scan again.</string>
+    <string name="discovery_rescan">Scan again</string>
+    <!-- Status icons: a distinct shape per state, always shown beside the state text. -->
+    <string name="discovery_status_glyph_ready" translatable="false">✓</string>
+    <string name="discovery_status_glyph_needs_pairing" translatable="false">●</string>
+    <string name="discovery_status_glyph_unsupported" translatable="false">⊘</string>
 </resources>

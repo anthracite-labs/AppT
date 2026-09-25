@@ -1,19 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  S01 declares no permission at all.
-
   docs/architecture/release.md#manifest-allowlist owns an *allowlist* of what
-  may eventually be declared; nothing on it is needed by a walking skeleton
-  whose only destination is Welcome. Permissions arrive in the slice that uses
-  them, and CI fails on anything outside the allowlist.
+  may be declared. Permissions arrive in the slice that uses them, and CI fails
+  on anything outside the allowlist (manifestPermissionAllowlist).
+
+  S02 (Issue #73) declares exactly the four install-time permissions local
+  discovery uses (docs/architecture/discovery.md#permission-gate). They are
+  normal permissions: at targetSdk 36 none of them shows a runtime prompt, so
+  the in-app explanation's Continue grants the permission gate. :samsung
+  declares the same four in its own manifest, next to the code that needs them.
 
   Explicitly absent and not to be added here: AD_ID, any location permission,
-  ACCESS_LOCAL_NETWORK, NEARBY_WIFI_DEVICES, boot receivers, foreground-service
+  ACCESS_LOCAL_NETWORK (not while targetSdk is 36), NEARBY_WIFI_DEVICES (the
+  V1 probes do not require it), boot receivers, foreground-service
   permissions, and install-package permissions.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
     <application
+        android:name=".AppTApplication"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
