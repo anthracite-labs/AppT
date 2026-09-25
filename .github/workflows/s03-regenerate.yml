@@ -46,11 +46,11 @@ jobs:
             spotlessApply
 
       # Temporary diagnostic. The run log is not reachable from the environment this branch is
-      # maintained in, so every strict ciCheck failure is mirrored into workflow annotations,
+      # maintained in, so every strict-ciCheck failure is mirrored into workflow annotations,
       # which are readable through the REST API. `--continue` lets one run report every failure
-      # instead of stopping at the first. This step and the workflow are removed before the
-      # branch is finished.
-      - name: Strict ciCheck with failure annotations
+      # instead of stopping at the first. GitHub caps annotations per step, so the findings are
+      # split across two steps. This workflow is removed before the branch is finished.
+      - name: Strict ciCheck
         shell: bash
         run: |
           set -uo pipefail
@@ -61,8 +61,23 @@ jobs:
           set -e
           echo "ciCheck exit code: $code"
 
-          # Every Kotlin compiler diagnostic, which is the fastest way to see all of them at once.
-          grep -E "^e: " /tmp/ci.log | sed 's/^/::error::KOTLIN /' | sed -n '1,60p'
+          grep -E "^> Task .* FAILED$" /tmp/ci.log | sed 's/^/::error::TASK /' | sed -n '1,6p'
+
+          # Deduplicated so one root cause is one annotation, not one per line and column.
+          grep -E "^e: " /tmp/ci.log | sed 's|:[0-9]*:[0-9]*:|::|' | sort -u \
+            | sed 's/^/::error::KOTLIN /' | sed -n '1,6p'
+
+          grep -E "^w: " /tmp/ci.log | sed 's|:[0-9]*:[0-9]*:|::|' | sort -u \
+            | sed 's/^/::warning::KOTLIN-WARN /' | sed -n '1,4p'
+
+          exit $code
+
+      - name: Report test, detekt and lint findings
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          [ -f /tmp/ci.log ] || { echo "no ciCheck log"; exit 0; }
 
           awk '
             {
@@ -75,36 +90,16 @@ jobs:
                 pending = ""
               }
             }
-          ' /tmp/ci.log
+          ' /tmp/ci.log | sed -n '1,6p'
 
-          # detekt findings, from the report the task already wrote.
-          for report in $(find . -path '*/build/reports/detekt/detekt.xml' 2>/dev/null); do
-            grep -o '<error[^>]*>' "$report" | sed "s|^|::error::DETEKT $report |" \
-              | sed -n '1,20p'
-          done
-          # detekt also prints its findings to the console, which is where they land when the
-          # report is not written because the task failed.
+          # detekt prints its findings to the console, which is where they land when the task
+          # fails before writing its XML report.
           grep -E "^[^ ]+\.kt:[0-9]+:[0-9]+: " /tmp/ci.log \
-            | sed 's/^/::error::DETEKT-CONSOLE /' | sed -n '1,30p'
+            | sed 's/^/::error::DETEKT /' | sed -n '1,6p'
 
-          # lint findings.
           for report in $(find . -path '*/build/reports/lint-results-debug.txt' 2>/dev/null); do
-            grep -E "^(/|[A-Za-z]).*: (Error|Warning): " "$report" \
-              | sed "s|^|::error::LINT $report |" | sed -n '1,20p'
+            grep -E ": (Error|Warning): " "$report" | sed "s|^|::error::LINT |" | sed -n '1,4p'
           done
-
-          awk '
-            /^\* What went wrong:/ { capture = 1 }
-            capture && /^\* Try:/ { capture = 0 }
-            capture { block = block " " $0 }
-            /^BUILD FAILED/ { if (block != "") { print "::error::GRADLE " block; block = "" } }
-          ' /tmp/ci.log
-
-          # Fallback: a chunked tail, in case Gradle prints the failure differently.
-          tail -n 300 /tmp/ci.log | fold -w 2500 | sed -n '1,12p' \
-            | sed 's/^/::error::CILOG /'
-
-          exit $code
 
       - name: Enforce generated-artifact allowlist
         shell: bash

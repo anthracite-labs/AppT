@@ -124,6 +124,17 @@ kotlin {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         allWarningsAsErrors.set(true)
         extraWarnings.set(true)
+        // Room's Kotlin codegen writes an explicit `public` on every declaration it emits,
+        // which `extraWarnings` reports as REDUNDANT_VISIBILITY_MODIFIER. The generated file
+        // cannot carry a file-level @Suppress, so the only ways past it are to drop
+        // `extraWarnings`, to drop `allWarningsAsErrors`, or to accept the diagnostic — and
+        // this repository does not trade its warning floor for generated code.
+        //
+        // Disabling exactly this one diagnostic keeps every other warning an error, including
+        // every one in hand-written source. The same rule stays enforced there by detekt's
+        // `RedundantVisibilityModifier`, which is active under `buildUponDefaultConfig` and is
+        // unaffected by a compiler flag.
+        freeCompilerArgs.add("-Xwarning-level=REDUNDANT_VISIBILITY_MODIFIER:disabled")
     }
 }
 
