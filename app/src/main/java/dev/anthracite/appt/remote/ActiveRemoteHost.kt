@@ -5,6 +5,7 @@ import dev.anthracite.appt.samsung.SamsungTvs
 import dev.anthracite.appt.samsung.SessionSnapshot
 import dev.anthracite.appt.samsung.SessionState
 import dev.anthracite.appt.samsung.TvId
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -69,7 +70,7 @@ class ActiveRemoteHost(
         if (!entryAllowed(tvId)) return
         val held = mutableCurrent.value
         if (held != null && held.tvId == tvId && held.session.state.isLive()) return
-        close()
+        closeSession(clearOwners = false)
         val session = samsungTvs.open(tvId, scope)
         observe(tvId, session)
     }
@@ -89,13 +90,21 @@ class ActiveRemoteHost(
 
     /** Releases the socket now. Closing is not forgetting: S03 persists no pairing material. */
     fun close() {
+        closeSession(clearOwners = true)
+    }
+
+    /**
+     * Replacing a dead session keeps the visible surfaces' retain ownership. Explicit close clears
+     * owners because the television has been left; retrying the same visible Remote has not.
+     */
+    private fun closeSession(clearOwners: Boolean) {
         grace?.cancel()
         grace = null
         observation?.cancel()
         observation = null
         mutableCurrent.value?.session?.close()
         mutableCurrent.value = null
-        owners.clear()
+        if (clearOwners) owners.clear()
     }
 
     private fun observe(tvId: TvId, session: RemoteSession) {
@@ -110,7 +119,15 @@ class ActiveRemoteHost(
                     mutableCurrent.value = ActiveRemoteSnapshot(tvId, snapshot)
                     if (snapshot.state == SessionState.Ready && !reachedReady) {
                         reachedReady = true
-                        onSessionReady(tvId)
+                        try {
+                            onSessionReady(tvId)
+                        } catch (cancellation: CancellationException) {
+                            throw cancellation
+                        } catch (failure: Exception) {
+                            // A local profile-write failure must not terminate observation of the
+                            // live television session. Local diagnostics arrives in S13; for S03,
+                            // keep control alive and allow later lifecycle work to recover metadata.
+                        }
                     }
                 }
             }
