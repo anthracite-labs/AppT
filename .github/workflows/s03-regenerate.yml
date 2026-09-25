@@ -38,19 +38,35 @@ jobs:
       - name: Regenerate reviewed dependency state and Room schema
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          set +e
           ./gradlew --no-daemon \
             --write-verification-metadata sha256 \
             resolveAndLockAll --write-locks \
             :app:kspDebugKotlin \
-            spotlessApply
+            spotlessApply > /tmp/regen.log 2>&1
+          code=$?
+          set -e
+          echo "regenerate exit code: $code"
+
+          grep -E "^> Task .* FAILED$" /tmp/regen.log | sed 's/^/::error::REGEN-TASK /' \
+            | sed -n '1,4p'
+          grep -E "^e: " /tmp/regen.log | sed 's|:[0-9]*:[0-9]*:|::|' | sort -u \
+            | sed 's/^/::error::REGEN-KOTLIN /' | sed -n '1,3p'
+          grep -E "^w: " /tmp/regen.log | sed 's|:[0-9]*:[0-9]*:|::|' | sort -u \
+            | sed 's/^/::warning::REGEN-WARN /' | sed -n '1,3p'
+          tail -n 40 /tmp/regen.log | fold -w 2400 | sed -n '1,3p' \
+            | sed 's/^/::error::REGEN-TAIL /'
+
+          exit $code
 
       # Temporary diagnostic. The run log is not reachable from the environment this branch is
       # maintained in, so every strict-ciCheck failure is mirrored into workflow annotations,
       # which are readable through the REST API. `--continue` lets one run report every failure
       # instead of stopping at the first. GitHub caps annotations per step, so the findings are
-      # split across two steps. This workflow is removed before the branch is finished.
+      # split across steps. This workflow is removed before the branch is finished.
       - name: Strict ciCheck
+        if: always()
         shell: bash
         run: |
           set -uo pipefail
