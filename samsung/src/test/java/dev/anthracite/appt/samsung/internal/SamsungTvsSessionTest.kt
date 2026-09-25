@@ -226,15 +226,42 @@ class SamsungTvsSessionTest {
 
     @Test
     fun anUnansweredApprovalTimesOutAndCanBeRetried() = runTest {
-        val (session, _) = session(script(prompt(), approved(60_000)))
+        val (session, transport) = session(script(prompt(), approved(60_000)))
         advanceTimeBy(46_000)
         advanceUntilIdle()
         assertEquals(SessionState.NeedsRepair, session.snapshot.value.state)
         assertEquals(RepairReason.ApprovalTimedOut, session.snapshot.value.repairReason)
+        // The unanswered prompt gives up the socket it was waiting on.
+        assertEquals(listOf(true), transport.sockets.map { it.closed })
 
         session.retryApproval()
         advanceUntilIdle()
         assertEquals(SessionState.AwaitingTvApproval, session.snapshot.value.state)
+
+        // The television answers this time, on the fresh attempt the retry started.
+        advanceTimeBy(15_000)
+        advanceUntilIdle()
+        assertEquals(SessionState.Ready, session.snapshot.value.state)
+        assertEquals("the retry costs exactly one socket", 2, transport.sockets.size)
+
+        session.close()
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun anUnansweredApprovalDoesNotLeaveTheAttemptCollecting() = runTest {
+        val (session, transport) = session(script(prompt(), approved(60_000)))
+        advanceTimeBy(46_000)
+        advanceUntilIdle()
+        assertEquals(SessionState.NeedsRepair, session.snapshot.value.state)
+
+        // The retry must not be swallowed by an attempt that is still collecting a socket nobody
+        // is using: the loop has to be free to start a fresh one.
+        session.retryApproval()
+        advanceUntilIdle()
+        assertEquals(SessionState.AwaitingTvApproval, session.snapshot.value.state)
+        assertEquals(2, transport.sockets.size)
+        assertEquals(listOf(true, false), transport.sockets.map { it.closed })
 
         session.close()
         advanceUntilIdle()

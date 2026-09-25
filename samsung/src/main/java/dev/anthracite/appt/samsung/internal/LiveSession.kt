@@ -14,6 +14,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,6 +54,9 @@ internal class LiveSession(
     private var attempt: Job? = null
     private var openConnection: SessionConnection? = null
     private var approvalTimer: Job? = null
+
+    /** The in-flight frame collection, so an approval that goes unanswered can end it. */
+    private var collecting: Job? = null
 
     /** True once the holder released this session, so an ended attempt is a release, not a loss. */
     private val released = AtomicBoolean(false)
@@ -130,10 +134,15 @@ internal class LiveSession(
         openConnection = connection
         candidateCertificate = connection.certificateIdentity
         try {
-            connection.frames.collect { frame -> onFrame(frame) }
-            // The television ended the session without a close from the holder.
+            // The collection is a child of this attempt, so ending it ends the attempt and the
+            // loop is free to start a fresh one; the holder's close cancels it with the attempt.
+            coroutineScope {
+                collecting = launch { collectFrames(connection) }
+                collecting?.join()
+            }
             onConnectionLost()
         } finally {
+            collecting = null
             connection.close()
             openConnection = null
             approvalTimer?.cancel()
@@ -178,9 +187,35 @@ internal class LiveSession(
     private fun onTimeOut() {
         if (mutableSnapshot.value.state == SessionState.AwaitingTvApproval) {
             publish(SessionState.NeedsRepair, RepairReason.ApprovalTimedOut)
+            endUnansweredAttempt()
         } else {
             onConnectionLost()
         }
+    }
+
+    /**
+     * Reads the connection until the television ends it, the holder releases the session, or the
+     * approval wait ends an attempt whose prompt was never answered.
+     */
+    private suspend fun collectFrames(connection: SessionConnection) {
+        try {
+            connection.frames.collect { frame -> onFrame(frame) }
+        } finally {
+            // The television ended the socket, or the approval wait ended the attempt.
+            onConnectionLost()
+        }
+    }
+
+    /**
+     * Ends an attempt whose approval prompt was never answered.
+     *
+     * Without this the attempt keeps collecting the still-open socket, so `sessionLoop` never
+     * reaches `retrySignals.receive()` and `retryApproval` has nothing to act on: the session would
+     * sit in `Connecting` with a socket nobody is using. Ending the collection is what lets the loop
+     * start a fresh attempt, which is the only way a television that did not answer is asked again.
+     */
+    private fun endUnansweredAttempt() {
+        collecting?.cancel()
     }
 
     private fun onConnectionLost() {
@@ -188,7 +223,8 @@ internal class LiveSession(
             // The prompt ended without approval: the same recovery as a denial.
             SessionState.AwaitingTvApproval ->
                 publish(SessionState.NeedsRepair, RepairReason.ApprovalDenied)
-            SessionState.NeedsRepair -> Unit
+            // Already reported, or already released by the holder: neither is a connection loss.
+            SessionState.NeedsRepair, SessionState.Closed -> Unit
             else -> publish(SessionState.Unreachable)
         }
     }
@@ -200,6 +236,7 @@ internal class LiveSession(
                 delay(approvalWait)
                 if (mutableSnapshot.value.state == SessionState.AwaitingTvApproval) {
                     publish(SessionState.NeedsRepair, RepairReason.ApprovalTimedOut)
+                    endUnansweredAttempt()
                 }
             }
     }
