@@ -137,6 +137,24 @@ jobs:
           tail -n 45 /tmp/ci.log | head -c 16000 | fold -w 2000 | head -n 8 \
             | while IFS= read -r line; do echo "::error::CITAIL $line"; done
 
+      - name: Diagnose detekt findings
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          grep -nE "\\.kt:[0-9]+:[0-9]+|findings|Findings|detekt" /tmp/ci.log \
+            | grep -vE "^[0-9]+:e: " | head -n 80 | head -c 16000 | fold -w 2000 | head -n 8 \
+            | while IFS= read -r line; do echo "::error::DETEKT $line"; done
+
+      - name: Diagnose lint findings
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          grep -nE "Error:|Warning:|Lint found|lint-results|^/home/runner" /tmp/ci.log \
+            | head -n 80 | head -c 16000 | fold -w 2000 | head -n 8 \
+            | while IFS= read -r line; do echo "::error::LINT $line"; done
+
       - name: Enforce generated-artifact allowlist
         if: always()
         shell: bash
@@ -145,7 +163,7 @@ jobs:
           git status --short
           while IFS= read -r path; do
             case "$path" in
-              app/gradle.lockfile|samsung/gradle.lockfile|macrobenchmark/gradle.lockfile|settings-gradle.lockfile|gradle/verification-metadata.xml|app/schemas/*)
+              gradle.lockfile|app/gradle.lockfile|samsung/gradle.lockfile|macrobenchmark/gradle.lockfile|settings-gradle.lockfile|gradle/verification-metadata.xml|app/schemas/*)
                 ;;
               *)
                 echo "::error::Unexpected regeneration change: $path"
@@ -157,8 +175,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git add app/gradle.lockfile samsung/gradle.lockfile macrobenchmark/gradle.lockfile \
-            settings-gradle.lockfile gradle/verification-metadata.xml
+          git add gradle.lockfile app/gradle.lockfile samsung/gradle.lockfile \
+            macrobenchmark/gradle.lockfile settings-gradle.lockfile \
+            gradle/verification-metadata.xml
           if [ -d app/schemas ]; then
             git add app/schemas
           fi

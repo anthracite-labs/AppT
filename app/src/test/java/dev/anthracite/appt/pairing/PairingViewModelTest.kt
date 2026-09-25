@@ -112,7 +112,7 @@ class PairingViewModelTest {
 
             val phase = viewModel.state.value.phase
             assertTrue(phase is PairingPhase.Failed)
-            assertEquals(TvFailure.NeedsRepair, phase.failure)
+            assertEquals(TvFailure.NeedsRepair, (phase as PairingPhase.Failed).failure)
             assertTrue(!viewModel.state.value.recallHintVisible)
         }
 

@@ -2,7 +2,6 @@ package dev.anthracite.appt.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -76,9 +75,9 @@ class AppTNavGraphTest {
     private lateinit var navController: NavHostController
 
     /**
-     * @param host replaces the activity as the graph's lifecycle owner, to drive ON_STOP/ON_START.
+     * @param lifecycleOwner replaces the activity as the graph's owner, to drive ON_STOP/ON_START.
      */
-    private fun setGraph(host: LifecycleOwner? = null) {
+    private fun setGraph(lifecycleOwner: LifecycleOwner? = null) {
         composeRule.setContent {
             val graph: @Composable () -> Unit = {
                 navController = rememberNavController()
@@ -94,8 +93,13 @@ class AppTNavGraphTest {
                     )
                 }
             }
-            if (host == null) graph()
-            else CompositionLocalProvider(LocalLifecycleOwner provides host, content = graph)
+            if (lifecycleOwner == null) graph()
+            else {
+                CompositionLocalProvider(
+                    LocalLifecycleOwner provides lifecycleOwner,
+                    content = graph,
+                )
+            }
         }
         composeRule.waitForIdle()
     }
