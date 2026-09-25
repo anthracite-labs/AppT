@@ -217,8 +217,11 @@ class SamsungTvsSessionTest {
         assertEquals(SessionState.NeedsRepair, session.snapshot.value.state)
         assertEquals(RepairReason.ApprovalDenied, session.snapshot.value.repairReason)
 
+        // `advanceUntilIdle` would run the approval wait out on the fresh attempt as well, so the
+        // retry is observed on the virtual clock instead.
         session.retryApproval()
-        advanceUntilIdle()
+        advanceTimeBy(10)
+        runCurrent()
         assertEquals(SessionState.AwaitingTvApproval, session.snapshot.value.state)
         assertEquals("the retry costs exactly one socket", 2, transport.sockets.size)
 
@@ -228,7 +231,11 @@ class SamsungTvsSessionTest {
 
     @Test
     fun anUnansweredApprovalTimesOutAndCanBeRetried() = runTest {
-        val (session, transport) = session(script(prompt(), approved(60_000)))
+        // The first attempt is never answered. The second one is, inside its own approval wait:
+        // each attempt replays its own script from the moment its socket opens.
+        val transport =
+            ScriptedSessionTransport(script(prompt()), script(prompt(), approved(10_000)))
+        val session = LiveSession(television, transport, this)
         advanceTimeBy(46_000)
         advanceUntilIdle()
         assertEquals(SessionState.NeedsRepair, session.snapshot.value.state)
@@ -237,11 +244,12 @@ class SamsungTvsSessionTest {
         assertEquals(listOf(true), transport.sockets.map { it.closed })
 
         session.retryApproval()
-        advanceUntilIdle()
+        advanceTimeBy(10)
+        runCurrent()
         assertEquals(SessionState.AwaitingTvApproval, session.snapshot.value.state)
 
-        // The television answers this time, on the fresh attempt the retry started.
-        advanceTimeBy(15_000)
+        // The television answers this time, on the fresh attempt the retry started. Running the
+        // clock out is safe here: the answer cancels the approval wait before it expires.
         advanceUntilIdle()
         assertEquals(SessionState.Ready, session.snapshot.value.state)
         assertEquals("the retry costs exactly one socket", 2, transport.sockets.size)
@@ -260,7 +268,8 @@ class SamsungTvsSessionTest {
         // The retry must not be swallowed by an attempt that is still collecting a socket nobody
         // is using: the loop has to be free to start a fresh one.
         session.retryApproval()
-        advanceUntilIdle()
+        advanceTimeBy(10)
+        runCurrent()
         assertEquals(SessionState.AwaitingTvApproval, session.snapshot.value.state)
         assertEquals(2, transport.sockets.size)
         assertEquals(listOf(true, false), transport.sockets.map { it.closed })
@@ -274,7 +283,7 @@ class SamsungTvsSessionTest {
         val cleanupBarrier = CompletableDeferred<Unit>()
         val transport =
             ScriptedSessionTransport(
-                fixture = script(prompt()),
+                fixtures = script(prompt()),
                 cancellationBarrier = cleanupBarrier,
             )
         val session = LiveSession(television, transport, this, approvalWait = 1.seconds)
@@ -365,7 +374,8 @@ class SamsungTvsSessionTest {
     fun anUnknownEventIsIgnoredAndTheSessionContinues() = runTest {
         val unknown = SessionEvent.Frame(0, """{"event":"ms.something.else"}""")
         val (session, _) = session(script(unknown, prompt()))
-        advanceUntilIdle()
+        advanceTimeBy(10)
+        runCurrent()
         assertEquals(SessionState.AwaitingTvApproval, session.snapshot.value.state)
         session.close()
         advanceUntilIdle()

@@ -70,7 +70,7 @@ internal data class SessionFixture(
         private fun inboundEvent(event: JsonObject): SessionEvent? {
             val atMs = event.long("tMs")
             return when (event.string("kind")) {
-                "ws-text" -> SessionEvent.Frame(atMs, event.getValue("body").toString())
+                "ws-text" -> SessionEvent.Frame(atMs, event.frameBody())
                 "ws-oversize" -> SessionEvent.Frame(atMs, oversizedFrame())
                 "ws-close" -> SessionEvent.Close(atMs)
                 else -> null
@@ -84,6 +84,19 @@ internal data class SessionFixture(
         }
 
         private fun JsonObject.string(key: String): String = getValue(key).jsonPrimitive.content
+
+        /**
+         * The exact frame text the television sent.
+         *
+         * An object body is compacted, so a well-formed frame is delivered byte-for-byte as the
+         * channel would write it. A string body is delivered unescaped, which is how a deliberately
+         * malformed frame — truncated, or a non-object root — is recorded without the fixture file
+         * itself becoming invalid JSON.
+         */
+        private fun JsonObject.frameBody(): String {
+            val body = getValue("body")
+            return if (body is JsonPrimitive && body.isString) body.content else body.toString()
+        }
 
         private fun JsonObject.long(key: String): Long =
             (getValue(key) as? JsonPrimitive)?.content?.toLong() ?: error("fixture event without $key")

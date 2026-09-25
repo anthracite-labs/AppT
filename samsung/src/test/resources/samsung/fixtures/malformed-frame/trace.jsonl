@@ -1,4 +1,4 @@
-{"tMs":0,"dir":"in","kind":"ws-text","body":{"event":"ms.channel.connect","data":{"token":"[fixtu}}
+{"tMs":0,"dir":"in","kind":"ws-text","body":"{\"event\":\"ms.channel.connect\",\"data\":{\"tok"}
 {"tMs":20,"dir":"in","kind":"ws-text","body":"x"}
 {"tMs":40,"dir":"in","kind":"ws-oversize","body":"[oversized-frame]"}
 {"tMs":60,"dir":"in","kind":"ws-text","body":{"event":"ms.channel.unauthorized"}}

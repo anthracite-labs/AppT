@@ -17,7 +17,7 @@ import kotlinx.coroutines.withContext
  * socket it opened, which is how the one-socket command rule is proven.
  */
 internal class ScriptedSessionTransport(
-    private val fixture: SessionFixture,
+    private vararg val fixtures: SessionFixture,
     private val certificateIdentity: String? = null,
     private val connectDelayMs: Long = 0,
     private val refusesConnection: Boolean = false,
@@ -37,6 +37,10 @@ internal class ScriptedSessionTransport(
         connects += television
         if (connectDelayMs > 0) delay(connectDelayMs)
         if (refusesConnection) return null
+        // A retry opens a fresh connection, and a television that refused to answer the first time
+        // is free to answer the second. The last script is reused once the list runs out, so the
+        // single-fixture case replays the same television behaviour on every attempt.
+        val fixture = fixtures.getOrElse(sockets.size) { fixtures.last() }
         val connection =
             ScriptedSessionConnection(fixture, certificateIdentity, sent, cancellationBarrier)
         sockets += connection
