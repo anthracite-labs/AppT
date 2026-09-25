@@ -235,8 +235,7 @@ private fun CardStatus(style: CardStatusStyle, text: String) {
             style = TypeTokens.label,
             color = ColorTokens.contentSecondary,
             // Spoken once, as the card's state description, rather than twice.
-            modifier =
-                Modifier.testTag(DiscoveryTestTags.CARD_STATUS_LABEL).clearAndSetSemantics {},
+            modifier = Modifier.testTag(DiscoveryTestTags.CARD_STATUS_LABEL).clearAndSetSemantics {},
         )
     }
 }

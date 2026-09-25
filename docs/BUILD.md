@@ -184,6 +184,7 @@ suite. Pushes to `main` continue to run the full suite automatically.
 
 Do not regenerate Gradle locks or verification metadata as an iteration step.
 Regenerate them only after an actual reviewed dependency change requires it.
+
 ## CodeQL static analysis
 
 CodeQL static analysis keeps ordinary pull-request synchronization build-free:
