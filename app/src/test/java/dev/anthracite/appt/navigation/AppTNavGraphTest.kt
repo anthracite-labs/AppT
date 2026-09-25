@@ -33,6 +33,7 @@ import dev.anthracite.appt.samsung.TvFailure
 import dev.anthracite.appt.samsung.TvId
 import dev.anthracite.appt.testing.FakePermissionGate
 import dev.anthracite.appt.testing.FakeSamsungTvs
+import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 import dev.anthracite.appt.tokens.AppTTheme
 import dev.anthracite.appt.welcome.WelcomeTestTags
 import java.io.File
@@ -47,7 +48,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
-import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 
 /**
  * The route graph and the S02 flow (Issue #73): Welcome → LocalNetwork → Discovery, with a denied

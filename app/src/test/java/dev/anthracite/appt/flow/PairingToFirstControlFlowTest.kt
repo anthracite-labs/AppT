@@ -25,6 +25,7 @@ import dev.anthracite.appt.samsung.TvCommand
 import dev.anthracite.appt.samsung.TvId
 import dev.anthracite.appt.testing.FakePermissionGate
 import dev.anthracite.appt.testing.FakeSamsungTvs
+import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 import dev.anthracite.appt.tokens.AppTTheme
 import dev.anthracite.appt.welcome.WelcomeTestTags
 import java.io.File
@@ -44,7 +45,6 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
-import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 
 /**
  * The S03 acceptance flow (Issue #79, flows.md#first-run-to-first-control): choose a card, approve

@@ -14,6 +14,7 @@ import dev.anthracite.appt.samsung.TvFailure
 import dev.anthracite.appt.samsung.TvId
 import dev.anthracite.appt.testing.FakeSamsungTvs
 import dev.anthracite.appt.testing.MainDispatcherRule
+import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +30,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 
 /**
  * Remote observes the host's session, sends typed commands on it, and is the only place

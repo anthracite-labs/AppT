@@ -1,6 +1,7 @@
 package dev.anthracite.appt.preferences
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -11,7 +12,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 
 /** data.md#datastore: `firstControlAchieved` is a typed key, off until a command is accepted. */
 class PreferenceStoreTest {
