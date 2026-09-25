@@ -45,7 +45,47 @@ jobs:
             :app:kspDebugKotlin \
             spotlessApply
 
-          ./gradlew --no-daemon --dependency-verification=strict ciCheck
+      # Temporary diagnostic. The run log is not reachable from the environment this branch is
+      # maintained in, so every strict ciCheck failure is mirrored into workflow annotations,
+      # which are readable through the REST API. `--continue` lets one run report every failure
+      # instead of stopping at the first. This step and the workflow are removed before the
+      # branch is finished.
+      - name: Strict ciCheck with failure annotations
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          ./gradlew --no-daemon --dependency-verification=strict ciCheck --continue \
+            > /tmp/ci.log 2>&1
+          code=$?
+          set -e
+          echo "ciCheck exit code: $code"
+
+          awk '
+            {
+              if ($0 ~ /^> Task .* FAILED$/) { print "::error::TASK " $0 }
+              else if ($0 ~ / FAILED$/) {
+                t = $0; gsub(/^[ \t]+/, "", t); pending = t
+              } else if (pending != "" && NF > 0) {
+                l = $0; gsub(/^[ \t]+/, "", l)
+                print "::error::TEST " pending " || " l
+                pending = ""
+              }
+            }
+          ' /tmp/ci.log
+
+          awk '
+            /^\* What went wrong:/ { capture = 1 }
+            capture && /^\* Try:/ { capture = 0 }
+            capture { block = block " " $0 }
+            /^BUILD FAILED/ { if (block != "") { print "::error::GRADLE " block; block = "" } }
+          ' /tmp/ci.log
+
+          # Fallback: a chunked tail, in case Gradle prints the failure differently.
+          tail -n 300 /tmp/ci.log | fold -w 2500 | sed -n '1,12p' \
+            | sed 's/^/::error::CILOG /'
+
+          exit $code
 
       - name: Enforce generated-artifact allowlist
         shell: bash
