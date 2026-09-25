@@ -2,9 +2,16 @@
 //
 // S01 scope: one activity, a Navigation Compose graph, and the design-token
 // package. S02 (Issue #73) adds the local-network explanation, the permission
-// gate and Discovery. No Room, DataStore, Hilt, Firebase, billing or networking
-// library is declared here: each belongs to the slice that first makes it real
-// (all network traffic lives in :samsung).
+// gate and Discovery. S03 (Issue #79) adds the device-local Room row for a
+// selected television, the typed DataStore preference keys, the application-
+// scoped ActiveRemoteHost, and the Pairing and Remote surfaces.
+//
+// No Hilt, Firebase, billing, WorkManager or networking library is declared
+// here: the account, entitlement and deferred-work slices own those, and all
+// network traffic lives in :samsung (modules.md).
+//
+// Room is processed by KSP: AGP 9's built-in Kotlin has no kapt support, so
+// KSP is the only annotation-processing path available (docs/BUILD.md).
 
 import java.util.Locale
 
@@ -14,6 +21,7 @@ plugins {
     // module's Kotlin sources (docs/BUILD.md, Issue #54).
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
     alias(libs.plugins.detekt)
     alias(libs.plugins.kover)
 }
@@ -120,6 +128,19 @@ kotlin {
 }
 
 // ---------------------------------------------------------------------------
+// Room - the device-local application store (data.md#room)
+// ---------------------------------------------------------------------------
+//
+// `appt.db`, version 1, no destructive fallback. The exported schema is
+// committed so `schemaContainsNoForbiddenColumn` and every later migration test
+// can read it; `resolveAndLockAll --write-locks` and CI regenerate it when the
+// entities change.
+ksp {
+    arg("room.schemaLocation", "${projectDir}/schemas")
+    arg("room.generateKotlin", "true")
+}
+
+// ---------------------------------------------------------------------------
 // detekt — the Kotlin static-analysis floor (Issue #36)
 // ---------------------------------------------------------------------------
 //
@@ -152,6 +173,15 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.serialization.json)
+
+    // S03 (Issue #79): the device-local application store. Room holds the
+    // selected-television profile; DataStore holds the typed preference keys.
+    // No television secret, address, certificate or command text is stored in
+    // either (data.md#room, data.md#datastore).
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.datastore.preferences)
 
     val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)

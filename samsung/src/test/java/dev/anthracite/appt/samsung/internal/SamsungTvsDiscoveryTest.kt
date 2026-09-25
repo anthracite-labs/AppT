@@ -36,8 +36,14 @@ class SamsungTvsDiscoveryTest {
 
     private var minted = 0
 
-    private fun tvs(transport: FixtureTransport): SamsungTvs = SamsungTvsImpl {
-        DiscoveryScan(transport, mintId = { "local-test-${++minted}" })
+    private fun tvs(transport: FixtureTransport): SamsungTvs {
+        val confirmed = ConfirmedTelevisions()
+        return SamsungTvsImpl(
+            newScan = {
+                DiscoveryScan(transport, confirmed, mintId = { "local-test-" + ++minted })
+            },
+            confirmed = confirmed,
+        )
     }
 
     /** Runs one full scan of [caseId] to completion and returns its events. */

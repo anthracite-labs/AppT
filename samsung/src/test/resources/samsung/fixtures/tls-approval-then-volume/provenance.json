@@ -1,0 +1,9 @@
+{
+  "caseId": "tls-approval-then-volume",
+  "captured": "2026-09-25",
+  "generation": "tizen-websocket-tls",
+  "sourceRole": "synthetic",
+  "source": "Authored for S03 (Issue #79) from the session-frame and event shapes in docs/architecture/protocol.md and the first-contact state path in docs/architecture/connection.md. Not captured from a physical television.",
+  "redaction": "Contains no address, MAC, Wi-Fi name, certificate, serial, account or personal identifier. The approval token is the placeholder [fixture-token]; the test injects a known token when it must prove a token was or was not written to the socket. No host, port or URL appears in any frame.",
+  "notes": "First contact on the adopted TLS remote channel. The television asks for approval, the successful channel-connect event delivers a token as transient live-session evidence, the session reaches Ready, and the volume tap is written on the same session transport. Proves approval, token receipt as transient session evidence, Ready and the command write. Durable token persistence across process death is the S04 token-resume contract, not this case."
+}
