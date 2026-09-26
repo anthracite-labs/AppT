@@ -102,7 +102,7 @@ jobs:
           config: '.markdownlint-cli2.jsonc'
           globs: |
             **/*.md
-            !.agents/**
+            !.project-ai/**
             !node_modules/**
             !backend/node_modules/**
 

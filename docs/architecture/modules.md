@@ -1,6 +1,6 @@
 # Modules, dependencies, and composition
 
-Vocabulary follows `.agents/skills/codebase-design/SKILL.md`: **module**, **interface**, **seam**, **adapter**, **depth**, **leverage**, **locality**.
+Vocabulary follows `.project-ai/skills/architecture-interface-design/SKILL.md`: **module**, **interface**, **seam**, **adapter**, **depth**, **leverage**, **locality**.
 
 ## Shape
 

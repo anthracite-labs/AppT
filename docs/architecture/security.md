@@ -2,7 +2,7 @@
 
 Source-controlled threat model for AppT V1. It matches the trust boundaries the accepted architecture actually has.
 
-Method: `.agents/skills/security-audit/SKILL.md` in **guidance mode**. No six-phase audit, no external audit artifacts, no probing of live systems. Implementation does not exist yet, so absent implementation is never recorded here as a vulnerability. Weaknesses are recorded as controls, best-effort mitigations, or provider facts that still need validation.
+Method: `.project-ai/skills/security-engineering/SKILL.md` in design/review mode. This document records architecture controls and residual risk; it is not a full implementation security audit and does not probe live systems. Absent implementation is not recorded as a vulnerability. Weaknesses are recorded as controls, best-effort mitigations, or provider facts that still need validation.
 
 ## Confidence classes
 
