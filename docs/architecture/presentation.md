@@ -4,7 +4,7 @@ Technical realization of the settled product-surface decisions in [ui-ux.md](ui-
 
 Ownership: [ui-ux.md](ui-ux.md) owns what the user sees and which product decisions are settled. This file owns how those surfaces are built. It does not reopen a settled decision. Module seams and dependency direction are owned by [modules.md](modules.md); lifecycle transitions are owned by [lifecycle.md](lifecycle.md); entitlement semantics by [sync.md](sync.md).
 
-Vocabulary follows `.project-ai/skills/architecture-interface-design/SKILL.md`: **module**, **interface**, **seam**, **adapter**, **depth**, **leverage**, **locality**.
+Architecture vocabulary follows [modules.md](modules.md): **module**, **interface**, **seam**, **adapter**, **depth**, **leverage**, and **locality**.
 
 ## Composition rules
 
