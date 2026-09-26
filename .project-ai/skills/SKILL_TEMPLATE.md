@@ -7,6 +7,8 @@ It is maintenance guidance, not a runtime skill.
 ## Authoring rules
 
 - Keep frontmatter first.
+- Use exactly two frontmatter fields: `name` and `description`.
+- Keep both values as single-line YAML plain scalars; rewrite wording rather than introducing quoted, multiline, or nested frontmatter.
 - `name` must exactly match the skill directory.
 - Write `description` as trigger conditions only. Start with `Use when...`.
 - Keep descriptions provider-neutral and under 500 characters where practical.
