@@ -66,6 +66,15 @@ This boundary governs execution safety only. Security findings and audit depth r
 
 Project implementation is normally executed by Arena through the self-contained GitHub Issue contract defined in `../execution/arena-dispatch.md`.
 
+Preparing or updating that Issue and launching Arena are distinct operations.
+
+When an Issue becomes Arena-ready:
+
+1. use a direct Arena launch mechanism when the current host exposes one;
+2. otherwise use the manual handoff route by returning the short copy/paste prompt defined in `../execution/arena-dispatch.md` in the same response.
+
+The manual handoff prompt references the Issue rather than repeating its contract. Do not claim Arena was launched or dispatched when only the Issue or prompt was produced.
+
 Arena receives bounded implementation authority. It is not responsible for reconstructing project intent from prior chats.
 
 ## Hosted and provider execution

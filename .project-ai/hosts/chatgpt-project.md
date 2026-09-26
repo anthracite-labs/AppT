@@ -20,6 +20,7 @@ At the start of each new substantive project chat:
 6. Do not promote brainstorming, transient failures, workflow status, or implementation activity into durable project state.
 7. Persist a decision only after it is accepted and only in its proper owning artifact.
 8. Use GitHub Issues and pull requests for active work. Do not create a parallel task database under `.project-ai/`.
+9. When Arena work becomes Arena-ready and no direct Arena launch mechanism is available, immediately return the short handoff prompt defined by `.project-ai/execution/arena-dispatch.md` in the same reply. Do not wait for the user to ask for a prompt.
 
 ## Control-plane language
 
