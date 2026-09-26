@@ -1,0 +1,3 @@
+{"tMs":0,"dir":"in","kind":"ws-text","body":{"event":"ms.channel.unauthorized"}}
+{"tMs":250,"dir":"in","kind":"ws-text","body":{"event":"ms.channel.connect","data":{"token":"[fixture-token]"}}}
+{"tMs":400,"dir":"out","kind":"ws-text","body":{"method":"ms.remote.control","params":{"Cmd":"Click","DataOfCmd":"KEY_VOLUP","Option":"false","TypeOfRemote":"SendRemoteKey"}}}
