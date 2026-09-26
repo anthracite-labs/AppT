@@ -75,9 +75,14 @@ internal object WebSocketFrames {
     fun encodeClose(): ByteArray = encodeMasked(OPCODE_CLOSE, ByteArray(0))
 
     fun read(input: InputStream): Inbound {
-        val first = input.read()
-        val second = if (first < 0) -1 else input.read()
-        return if (first < 0 || second < 0) Inbound.End else readBody(input, first, second)
+        return try {
+            val first = input.read()
+            val second = if (first < 0) -1 else input.read()
+            if (first < 0 || second < 0) Inbound.End else readBody(input, first, second)
+        } catch (_: IOException) {
+            // Header, length, and payload reads all fail this way on a reset socket.
+            Inbound.End
+        }
     }
 
     private fun readBody(input: InputStream, first: Int, second: Int): Inbound {

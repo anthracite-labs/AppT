@@ -115,6 +115,28 @@ class PlaintextWebSocketTransportTest {
     }
 
     @Test
+    fun aReadSideResetCompletesTheFrameFlowWithoutThrowing() = runBlocking {
+        ServerSocket(0, 1, loopback).use { server ->
+            val peer = thread {
+                server.accept().use { socket ->
+                    val request = readRequest(socket.getInputStream())
+                    writeHandshake(socket, request)
+                    // RST rather than a clean FIN: the client read must not escape IOException.
+                    socket.setSoLinger(true, 0)
+                    socket.close()
+                }
+            }
+            val connection =
+                PlaintextWebSocketTransport(keepalive = 1.hours)
+                    .open(loopback.hostAddress, server.localPort)!!
+            val inbound = withTimeout(5.seconds) { connection.frames.firstOrNull() }
+            connection.close()
+            peer.join()
+            assertNull(inbound)
+        }
+    }
+
+    @Test
     fun productionPlaintextAdapterDoesNotImportOkHttp() {
         val source =
             File("src/main/java/dev/anthracite/appt/samsung/internal/PlaintextWebSocketTransport.kt")

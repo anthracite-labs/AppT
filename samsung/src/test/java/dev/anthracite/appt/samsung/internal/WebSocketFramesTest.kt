@@ -1,6 +1,8 @@
 package dev.anthracite.appt.samsung.internal
 
 import java.io.ByteArrayInputStream
+import java.io.IOException
+import java.io.InputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -70,5 +72,26 @@ class WebSocketFramesTest {
             WebSocketFrames.Inbound.End,
             WebSocketFrames.read(ByteArrayInputStream(ByteArray(0))),
         )
+    }
+
+    @Test
+    fun readTreatsThrownIoExceptionAsEnd() {
+        val throwing =
+            object : InputStream() {
+                override fun read(): Int = throw IOException("connection reset")
+            }
+        assertEquals(WebSocketFrames.Inbound.End, WebSocketFrames.read(throwing))
+
+        val afterHeader =
+            object : InputStream() {
+                private var reads = 0
+
+                override fun read(): Int {
+                    reads += 1
+                    if (reads == 1) return 0x81
+                    throw IOException("reset after header")
+                }
+            }
+        assertEquals(WebSocketFrames.Inbound.End, WebSocketFrames.read(afterHeader))
     }
 }

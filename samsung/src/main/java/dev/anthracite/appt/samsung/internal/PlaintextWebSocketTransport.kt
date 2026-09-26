@@ -134,13 +134,17 @@ internal class PlaintextWebSocketTransport(
         }
 
         private fun readLoop() {
-            val input = socket.getInputStream()
-            while (!closed.get()) {
-                when (val inboundFrame = WebSocketFrames.read(input)) {
-                    WebSocketFrames.Inbound.End,
-                    WebSocketFrames.Inbound.Invalid -> break
-                    is WebSocketFrames.Inbound.Frame -> onFrame(inboundFrame)
+            try {
+                val input = socket.getInputStream()
+                while (!closed.get()) {
+                    when (val inboundFrame = WebSocketFrames.read(input)) {
+                        WebSocketFrames.Inbound.End,
+                        WebSocketFrames.Inbound.Invalid -> break
+                        is WebSocketFrames.Inbound.Frame -> onFrame(inboundFrame)
+                    }
                 }
+            } catch (_: IOException) {
+                // A reset or closed stream is connection loss, not a crash.
             }
             inbound.close()
             socket.closeQuietly()
