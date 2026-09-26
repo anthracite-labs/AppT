@@ -87,7 +87,7 @@ These stay inside the module. They are not parameters of `SamsungTvs` and are no
 | Internal seam | Production adapter | Test adapter |
 |---|---|---|
 | Discovery transport | SSDP client, `NsdManager`, device-info HTTP | Scripted candidates |
-| Session transport | OkHttp WebSocket and TLS | Scripted frames, delays, closes, certificate identities |
+| Session transport | OkHttp WebSocket/TLS on port 8002; bounded raw-socket WebSocket on plaintext port 8001 | Scripted frames, delays, closes, certificate identities |
 | Secret store | Android Keystore AES-GCM files | In-memory |
 | Wake sender | UDP magic packet | Records sends, transmits nothing |
 | Clock | System clock | Controllable |
@@ -95,7 +95,7 @@ These stay inside the module. They are not parameters of `SamsungTvs` and are no
 
 `SamsungTvsImpl` is `internal`. Tests in the `samsung` module construct it with fake internal adapters. `app` receives only `SamsungTvs`.
 
-OkHttp is the HTTP and WebSocket stack inside `samsung`. Android networking primitives are used where multicast, NSD, or Wake-on-LAN require them. No second HTTP stack. No Firebase, Play services, or telemetry dependency on the `samsung` Gradle graph; a CI check fails if one appears.
+OkHttp is the HTTPS and TLS WebSocket stack inside `samsung`. The adopted plaintext remote channel on port 8001 does not use OkHttp or any HTTP library: it is a bounded raw TCP WebSocket, the same class of Android networking primitive as the 8001 device-info read, so the app does not opt into cleartext traffic. No second HTTP library. No Firebase, Play services, or telemetry dependency on the `samsung` Gradle graph; a CI check fails if one appears.
 
 ## Dependency direction
 
@@ -223,5 +223,5 @@ From the accepted baseline, restated only where implementers need the number bes
   follows the toolchain; `targetSdk` moves only with the architecture map
   (docs/architecture/discovery.md).
 - Kotlin, Jetpack Compose, ViewModel, Coroutines, StateFlow.
-- One `OkHttpClient` shared by `samsung` and by the entitlement client, configured per consumer. No logging interceptor in release.
+- One `OkHttpClient` shared by `samsung` TLS sessions and by the entitlement client, configured per consumer. No logging interceptor in release. Plaintext port 8001 is not an OkHttp client.
 - `ACCESS_LOCAL_NETWORK` is not declared and not requested while `targetSdk` is 36. Broad local-network permission is a requirement of a later target-37 bump, not of V1. `NEARBY_WIFI_DEVICES` is not a V1 permission. The gate is specified in [discovery.md](discovery.md).

@@ -55,6 +55,18 @@ class RemoteChannelTest {
     }
 
     @Test
+    fun remoteRequestTargetIsOriginFormAndCarriesNoToken() {
+        val target = RemoteChannel.remoteRequestTarget()
+        assertTrue(target.startsWith("/api/v2/channels/samsung.remote.control?name="))
+        assertFalse("raw-socket GET is origin-form, not a URL", target.contains("://"))
+        assertFalse(target.contains("token"))
+        assertEquals(
+            "ws://[host-b]:8001$target",
+            RemoteChannel.remoteUrl(plaintextTelevision),
+        )
+    }
+
+    @Test
     fun tapFrameUsesTheDocumentedRemoteControlShape() {
         val expected =
             """
