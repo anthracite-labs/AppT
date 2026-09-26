@@ -1,0 +1,77 @@
+# Execution Routing
+
+Route answers **where or through what execution mechanism a required operation should run**.
+
+It is separate from capability classification and from the skill that defines the method for the work.
+
+## Default sequence
+
+For each required operation:
+
+1. Identify the exact operation required.
+2. Probe the execution mechanisms and tools available in the current session/environment.
+3. Prefer existing local or directly connected tooling when it can safely perform the operation.
+4. Attempt the smallest relevant command or action.
+5. If blocked, preserve concrete failure evidence.
+6. Try a safe alternate route when one exists.
+7. Escalate only the genuinely blocked operation to hosted or remote execution.
+8. Return to the narrowest effective route after the blocked operation is complete.
+
+Do not move an entire development loop to hosted infrastructure merely because one operation is unavailable locally.
+
+## Valid blocker evidence
+
+A blocker report should identify:
+
+- the required operation;
+- the current-session execution/tooling probe;
+- the command or action attempted;
+- the route attempted;
+- the relevant failure output;
+- safe alternatives attempted;
+- why escalation is necessary.
+
+“The environment cannot do X” without evidence is not a sufficient blocker report.
+
+
+## AppT execution facts
+
+Project-owned commands and environment facts live in `../../docs/BUILD.md`, project configuration, and `../../.github/workflows/`.
+
+When Android/JVM verification is required and the current execution environment lacks the required toolchain or network path, use the project-owned hosted verification route documented there rather than treating the local limitation as an implementation defect.
+
+Dependency or generated-state regeneration remains a distinct operation. Use the narrowest safe route that can produce the required artifacts, then verify the resulting candidate with the repository's strict checks.
+
+Repository-administration settings remain owner/provider operations. Do not weaken project workflows merely to work around missing administration permission.
+
+## Security-audit execution boundary
+
+Static source inspection is read-only.
+
+When security-audit evidence requires executing target-controlled builds, tests, processes, browsers, emulators, fuzzers, or fixture processing, use an OS-enforced sandbox that provides all of the following:
+
+- no external network; isolated loopback only when the check genuinely requires local client/server traffic;
+- an empty environment populated from an explicit safe allowlist;
+- a read-only target and toolchain;
+- writes confined to an isolated scratch location;
+- bounded CPU, memory, process, file-size, disk, and wall-clock resources.
+
+Use dummy principals, fixtures, and secrets. Do not probe production, shared infrastructure, real user data, external services, or live control planes.
+
+If every required control cannot be enforced, do not execute the target-controlled code for audit evidence. Record the exact **NEEDS VERIFICATION** blocker and provide the smallest safe validation plan.
+
+This boundary governs execution safety only. Security findings and audit depth remain owned by `../skills/security-engineering/SKILL.md`.
+
+## Arena
+
+Project implementation is normally executed by Arena through the self-contained GitHub Issue contract defined in `../execution/arena-dispatch.md`.
+
+Arena receives bounded implementation authority. It is not responsible for reconstructing project intent from prior chats.
+
+## Hosted and provider execution
+
+Hosted execution, CI, or provider administration may be used when the exact operation genuinely requires it.
+
+Escalate the blocked operation, not the entire workflow.
+
+Repository/provider settings remain owned by the provider where enforcement actually occurs.

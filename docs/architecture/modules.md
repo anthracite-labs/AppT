@@ -1,6 +1,6 @@
 # Modules, dependencies, and composition
 
-Vocabulary follows `.agents/skills/codebase-design/SKILL.md`: **module**, **interface**, **seam**, **adapter**, **depth**, **leverage**, **locality**.
+This document owns AppT's architecture vocabulary for **module**, **interface**, **seam**, **adapter**, **depth**, **leverage**, and **locality**. `.project-ai/skills/architecture-interface-design/SKILL.md` supplies the architecture-design method; it is not the glossary for AppT's accepted architecture.
 
 ## Shape
 
