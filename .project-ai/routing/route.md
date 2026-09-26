@@ -33,6 +33,35 @@ A blocker report should identify:
 
 “The environment cannot do X” without evidence is not a sufficient blocker report.
 
+
+## AppT execution facts
+
+Project-owned commands and environment facts live in `../../docs/BUILD.md`, project configuration, and `../../.github/workflows/`.
+
+When Android/JVM verification is required and the current execution environment lacks the required toolchain or network path, use the project-owned hosted verification route documented there rather than treating the local limitation as an implementation defect.
+
+Dependency or generated-state regeneration remains a distinct operation. Use the narrowest safe route that can produce the required artifacts, then verify the resulting candidate with the repository's strict checks.
+
+Repository-administration settings remain owner/provider operations. Do not weaken project workflows merely to work around missing administration permission.
+
+## Security-audit execution boundary
+
+Static source inspection is read-only.
+
+When security-audit evidence requires executing target-controlled builds, tests, processes, browsers, emulators, fuzzers, or fixture processing, use an OS-enforced sandbox that provides all of the following:
+
+- no external network; isolated loopback only when the check genuinely requires local client/server traffic;
+- an empty environment populated from an explicit safe allowlist;
+- a read-only target and toolchain;
+- writes confined to an isolated scratch location;
+- bounded CPU, memory, process, file-size, disk, and wall-clock resources.
+
+Use dummy principals, fixtures, and secrets. Do not probe production, shared infrastructure, real user data, external services, or live control planes.
+
+If every required control cannot be enforced, do not execute the target-controlled code for audit evidence. Record the exact **NEEDS VERIFICATION** blocker and provide the smallest safe validation plan.
+
+This boundary governs execution safety only. Security findings and audit depth remain owned by `../skills/security-engineering/SKILL.md`.
+
 ## Arena
 
 Project implementation is normally executed by Arena through the self-contained GitHub Issue contract defined in `../execution/arena-dispatch.md`.
