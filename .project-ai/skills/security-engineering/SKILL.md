@@ -110,6 +110,8 @@ For a full audit, each material finding should include:
 - smallest effective fix;
 - verification requirement.
 
+When audit evidence would execute target-controlled code, follow the security-audit execution boundary in `../../routing/route.md`.
+
 Avoid reproduction that could damage users, data, or systems.
 
 ### 7. Verify corrections
@@ -134,7 +136,7 @@ Produce only what the active mode requires:
 - Do not report vulnerabilities from pattern matching alone.
 - Do not confuse authentication with resource-level authorization.
 - Do not log secrets or sensitive payloads for debugging.
-- Do not silently expand product scope to fix a material architecture or trust-boundary problem.
+- Do not silently expand project scope to fix a material architecture or trust-boundary problem.
 - Do not let a passing dependency audit substitute for dependency provenance and reachability judgment.
 
 ## Completion gate
