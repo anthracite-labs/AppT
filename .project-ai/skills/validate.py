@@ -10,6 +10,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 FRONTMATTER_OPEN = "---\n"
 FRONTMATTER_CLOSE = "\n---\n"
+IGNORED_SUPPORT_DIRS = {"__pycache__"}
+REQUIRED_FRONTMATTER_KEYS = {"name", "description"}
 
 REQUIRED_HEADINGS = [
     "Purpose",
@@ -36,8 +38,12 @@ LEGACY_RUNTIME_TERMS = [
     "terminal repository acceptance",
 ]
 
+FRONTMATTER_LINE = re.compile(r"^(name|description): (.+)$")
+YAML_PLAIN_FORBIDDEN_START = tuple("-?:,[]{}#&*!|>'\"%@")
+
 
 def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
+    """Parse the canonical two-field plain-scalar YAML frontmatter subset."""
     if not text.startswith(FRONTMATTER_OPEN):
         raise ValueError("frontmatter must start on line 1")
 
@@ -50,15 +56,41 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
 
     fields: dict[str, str] = {}
     for line in raw.splitlines():
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        fields[key.strip()] = value.strip().strip('"').strip("'")
+        match = FRONTMATTER_LINE.fullmatch(line)
+        if match is None:
+            raise ValueError(
+                "frontmatter must use exactly 'name: <plain scalar>' and "
+                "'description: <plain scalar>' lines"
+            )
+
+        key, value = match.groups()
+        if key in fields:
+            raise ValueError(f"duplicate frontmatter key {key!r}")
+
+        if (
+            not value
+            or value != value.strip()
+            or value.startswith(YAML_PLAIN_FORBIDDEN_START)
+            or ": " in value
+            or " #" in value
+        ):
+            raise ValueError(
+                f"frontmatter {key!r} must be a canonical YAML plain scalar"
+            )
+
+        fields[key] = value
+
+    missing = REQUIRED_FRONTMATTER_KEYS - fields.keys()
+    if missing:
+        raise ValueError(
+            "missing frontmatter key(s): " + ", ".join(sorted(missing))
+        )
 
     return fields, body
 
 
 def heading_positions(body: str) -> dict[str, int]:
+    """Return level-two heading positions for canonical-order validation."""
     positions: dict[str, int] = {}
     for match in re.finditer(r"^##\s+(.+?)\s*$", body, re.MULTILINE):
         positions[match.group(1)] = match.start()
@@ -66,6 +98,7 @@ def heading_positions(body: str) -> dict[str, int]:
 
 
 def validate_skill(skill_dir: Path) -> list[str]:
+    """Return structural errors for one immediate skill directory."""
     errors: list[str] = []
     skill_file = skill_dir / "SKILL.md"
     if not skill_file.exists():
@@ -79,8 +112,8 @@ def validate_skill(skill_dir: Path) -> list[str]:
     except ValueError as exc:
         return [f"{skill_dir.name}: {exc}"]
 
-    name = fields.get("name", "")
-    description = fields.get("description", "")
+    name = fields["name"]
+    description = fields["description"]
 
     if name != skill_dir.name:
         errors.append(
@@ -123,10 +156,13 @@ def validate_skill(skill_dir: Path) -> list[str]:
 
 
 def main() -> int:
+    """Validate every immediate skill directory and return a process status."""
     skill_dirs = sorted(
         path
         for path in ROOT.iterdir()
-        if path.is_dir() and (path / "SKILL.md").is_file()
+        if path.is_dir()
+        and not path.name.startswith(".")
+        and path.name not in IGNORED_SUPPORT_DIRS
     )
 
     errors: list[str] = []
@@ -144,7 +180,7 @@ def main() -> int:
         except ValueError:
             continue
 
-        name = fields.get("name", "")
+        name = fields["name"]
         if name in names:
             errors.append(f"{skill_dir.name}: duplicate skill name {name!r}")
         names.add(name)
