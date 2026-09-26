@@ -62,6 +62,29 @@ Use project-owned commands and artifacts rather than inventing generic stack com
 
 State the categories of discovery that require Arena to stop and return control rather than silently changing the contract.
 
+### Arena-ready handoff
+
+An Issue is **Arena-ready** when its contract satisfies the dispatch-eligibility and Issue-contract requirements above.
+
+Creating or updating an Arena-ready Issue does not by itself mean Arena has started.
+
+When the control plane makes an Issue Arena-ready, complete the handoff in the same user-facing reply:
+
+- if a direct Arena launch mechanism is available, use it;
+- otherwise return one short copy/paste prompt for the human to hand to Arena.
+
+The fallback prompt must reference the repository Issue as the complete contract and must not duplicate its scope, constraints, acceptance criteria, or verification instructions. The user should not need a separate turn to ask for the prompt.
+
+For new work, use this shape:
+
+`Execute <owner/repository> Issue #<issue> in Arena. Treat the Issue as the complete implementation contract and return the resulting PR.`
+
+For continuation work with an existing PR, use this shape:
+
+`Continue <owner/repository> Issue #<issue> / PR #<pr> in Arena from the current branch and follow the latest Issue instructions.`
+
+Do not say Arena was launched or dispatched unless a real launch mechanism was invoked. When using the fallback route, say the work is Arena-ready and present the prompt.
+
 ## 3. Arena autonomy
 
 Within the approved contract Arena may:
