@@ -45,21 +45,12 @@ class WebSocketFramesTest {
         )
 
         val rsv = byteArrayOf(0xC1.toByte(), 0x00)
-        assertEquals(WebSocketFrames.Inbound.Invalid, WebSocketFrames.read(ByteArrayInputStream(rsv)))
+        assertEquals(
+            WebSocketFrames.Inbound.Invalid,
+            WebSocketFrames.read(ByteArrayInputStream(rsv)),
+        )
 
-        val oversizeHeader =
-            byteArrayOf(
-                0x81.toByte(),
-                127,
-                0,
-                0,
-                0,
-                0,
-                0,
-                1,
-                0,
-                1,
-            )
+        val oversizeHeader = byteArrayOf(0x81.toByte(), 127, 0, 0, 0, 0, 0, 1, 0, 1)
         assertEquals(
             WebSocketFrames.Inbound.Invalid,
             WebSocketFrames.read(ByteArrayInputStream(oversizeHeader)),

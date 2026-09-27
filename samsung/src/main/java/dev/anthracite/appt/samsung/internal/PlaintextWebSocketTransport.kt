@@ -243,8 +243,7 @@ internal class PlaintextWebSocketTransport(
             return "$display:$port"
         }
 
-        private fun unbracketed(host: String): String =
-            host.removePrefix("[").removeSuffix("]")
+        private fun unbracketed(host: String): String = host.removePrefix("[").removeSuffix("]")
 
         private fun websocketKey(): String {
             val bytes = ByteArray(WEBSOCKET_KEY_BYTES)

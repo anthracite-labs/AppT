@@ -8,9 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
 
-/**
- * Issue #79 revision 2: TLS stays on OkHttp; plaintext 8001 never reaches it.
- */
+/** Issue #79 revision 2: TLS stays on OkHttp; plaintext 8001 never reaches it. */
 class ProductionSessionTransportTest {
     @Test
     fun tlsTelevisionsUseTheTlsAdapterAndPlaintextUsesTheRawSocketAdapter() = runBlocking {
