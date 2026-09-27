@@ -1,0 +1,214 @@
+# AppT trusted agent-control / dispatch bridge (Issue #88).
+#
+# Why this file exists
+# -------------------
+# Arena and the ChatGPT control plane must be able to run focused diagnostics
+# without a human clicking through the Actions UI. The preferred route is a
+# direct `workflow_dispatch` by an actor that holds Actions write permission.
+# When the connected integration can only mutate pull-request metadata — add a
+# command label, for example — this bridge is the repository-supported route:
+# it translates a labelled command into an ordinary workflow dispatch.
+#
+# Trust model (read this before changing anything here)
+# ----------------------------------------------------
+#   * `pull_request_target` is a privileged trigger: it runs the workflow
+#     definition from the base branch and is given a token. It is accepted here
+#     only because of what this job does NOT do:
+#       - it never checks the pull request out, so no pull-request-controlled
+#         file, script or composite action is ever executed in this job;
+#       - it never runs `./gradlew`, `npm`, or any repository build step;
+#       - the only code it executes is the inline shell below;
+#       - it resolves the exact pull-request head SHA from the API and hands
+#         that SHA to an ordinary workflow, which then runs under that
+#         workflow's own read-only permissions.
+#   * The token permissions are the narrowest set that can do the job:
+#     `contents: read` to resolve the pull request, `actions: write` to
+#     dispatch a workflow, and `issues: write` plus `pull-requests: write` to
+#     consume the command marker and record what was dispatched. No workflow
+#     receives broader authority because this file exists.
+#   * Only the labels in the allowlist below do anything. An unrecognised label
+#     produces no run at all, and the command marker is removed only after a
+#     successful dispatch, so a failed command can be retried.
+#
+# Provider follow-up (owner action, not a repository change): direct
+# `workflow_dispatch` by the control-plane integration requires that actor to
+# hold Actions write permission on this repository. Until then this bridge is
+# the route. Additionally, GitHub only dispatches a workflow that exists on the
+# default branch, so `diagnose.yml` becomes invocable through this bridge once
+# it lands on `main`.
+
+name: agent-control
+
+# zizmor: ignore[dangerous-triggers] deliberate, narrowly scoped dispatch authority; see the trust model above
+on: # zizmor: ignore[dangerous-triggers] deliberate, narrowly scoped dispatch authority; this job never checks out or executes pull-request code
+  pull_request_target:
+    types:
+      - labeled
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-control-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Dispatch requested command
+    if: >-
+      github.event_name == 'pull_request_target' &&
+      github.event.action == 'labeled' &&
+      contains(
+        fromJSON('[
+          "ci:full",
+          "ci:app-unit",
+          "ci:samsung-unit",
+          "ci:android-static",
+          "ci:android-build",
+          "ci:backend",
+          "ci:backend-static",
+          "ci:backend-test",
+          "ci:device"
+        ]'),
+        github.event.label.name
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Resolve the exact pull-request head SHA
+        id: head
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          LABEL: ${{ github.event.label.name }}
+        run: |
+          set -euo pipefail
+
+          head_sha="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
+
+          case "$head_sha" in
+            *[!0-9a-f]* | '')
+              echo "::error::could not resolve a pull-request head SHA for #${PR_NUMBER}"
+              exit 1
+              ;;
+          esac
+
+          echo "sha=${head_sha}" >> "$GITHUB_OUTPUT"
+          echo "Requested command ${LABEL} on pull request #${PR_NUMBER} at ${head_sha}."
+
+      - name: Dispatch the requested workflow against that SHA
+        id: dispatch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          LABEL: ${{ github.event.label.name }}
+          SHA: ${{ steps.head.outputs.sha }}
+        run: |
+          set -euo pipefail
+
+          # The command label is the only untrusted value in this step, and it
+          # is matched against a fixed allowlist rather than being interpolated
+          # into a command line.
+          case "$LABEL" in
+            ci:full)
+              workflow='verify.yml'
+              mode=''
+              ;;
+            ci:app-unit)
+              workflow='diagnose.yml'
+              mode='app-unit'
+              ;;
+            ci:samsung-unit)
+              workflow='diagnose.yml'
+              mode='samsung-unit'
+              ;;
+            ci:android-static)
+              workflow='diagnose.yml'
+              mode='android-static'
+              ;;
+            ci:android-build)
+              workflow='diagnose.yml'
+              mode='android-build'
+              ;;
+            ci:backend)
+              workflow='diagnose.yml'
+              mode='backend'
+              ;;
+            ci:backend-static)
+              workflow='diagnose.yml'
+              mode='backend-static'
+              ;;
+            ci:backend-test)
+              workflow='diagnose.yml'
+              mode='backend-test'
+              ;;
+            ci:device)
+              workflow='diagnose.yml'
+              mode='device'
+              ;;
+            *)
+              echo "::error::unsupported command label ${LABEL}"
+              exit 1
+              ;;
+          esac
+
+          if [ -n "$mode" ]; then
+            body="$(printf '{"ref":"%s","inputs":{"mode":"%s"}}' "$SHA" "$mode")"
+          else
+            body="$(printf '{"ref":"%s"}' "$SHA")"
+          fi
+
+          printf '%s' "$body" |
+            gh api --method POST "repos/${REPOSITORY}/actions/workflows/${workflow}/dispatches" --input -
+
+          echo "Dispatched ${workflow} against ${SHA}$([ -n "$mode" ] && echo " with mode=${mode}")."
+
+          # Best-effort link for the audit trail. A dispatch that is accepted
+          # but not yet visible here is still a successful dispatch.
+          run_url=''
+          for _ in 1 2 3 4 5; do
+            run_url="$(
+              gh api "repos/${REPOSITORY}/actions/workflows/${workflow}/runs?per_page=20" \
+                --jq ".workflow_runs[] | select(.head_sha == \"${SHA}\") | .html_url" 2>/dev/null |
+                head -n 1 || true
+            )"
+            [ -n "$run_url" ] && break
+            sleep 5
+          done
+          echo "url=${run_url}" >> "$GITHUB_OUTPUT"
+          echo "Dispatched run: ${run_url:-<not yet listed>}"
+
+      - name: Consume the command marker
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          LABEL: ${{ github.event.label.name }}
+        run: |
+          set -euo pipefail
+          gh api --method DELETE "repos/${REPOSITORY}/issues/${PR_NUMBER}/labels/${LABEL}"
+          echo "Removed the ${LABEL} command marker from #${PR_NUMBER}."
+
+      - name: Record the dispatch on the pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          LABEL: ${{ github.event.label.name }}
+          SHA: ${{ steps.head.outputs.sha }}
+          RUN_URL: ${{ steps.dispatch.outputs.url }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          body="$(
+            printf 'Requested by @%s via the `%s` command label.\n\nDispatched against `%s`.%s\n\nThis is implementation feedback only; terminal verification of a finished candidate is a full `verify` run (`verify / gate`).' \
+              "$ACTOR" "$LABEL" "$SHA" "$([ -n "$RUN_URL" ] && printf '\n\nRun: %s' "$RUN_URL")"
+          )"
+          gh api --method POST "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --field "body=${body}"

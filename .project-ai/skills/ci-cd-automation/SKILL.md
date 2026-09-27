@@ -38,7 +38,7 @@ Prefer the project's equivalent of:
 
 Use terminal repository verification only for a finished candidate.
 
-AppT's live repository workflow inventory is `.github/workflows/verify.yml` and `.github/workflows/codeql.yml`. Do not add per-slice or one-shot workflow YAML unless a live capability probe proves no narrower route exists. Historical retired workflow names (`ci.yml`, `maintenance.yml`, slice regeneration workflows) are archival evidence, not templates to restore.
+AppT's live repository workflow inventory is `.github/workflows/verify.yml` (authoritative verification, one stable `verify / gate`), `.github/workflows/diagnose.yml` (focused, permanent, non-terminal diagnostics), `.github/workflows/codeql.yml` (security SAST), `.github/workflows/maintenance.yml` (manual-only, confirmed, destructive Actions maintenance), and `.github/workflows/agent-control.yml` (trusted dispatch bridge). Do not add per-slice or one-shot workflow YAML unless a live capability probe proves no narrower route exists; add a mode to `diagnose.yml` instead. Historical retired workflow names (`ci.yml`, slice regeneration workflows) are archival evidence, not templates to restore; `maintenance.yml` exists again as the manual-only purge, not as the retired cleanup plumbing.
 
 ### 4. Keep execution reproducible
 

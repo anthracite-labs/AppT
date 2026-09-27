@@ -18,7 +18,9 @@
     "test:coverage": "jest --config jest.config.js --coverage",
     "clean": "rimraf lib",
     "format:check": "prettier --check .",
-    "verify": "npm run typecheck && npm run lint && npm run format:check && npm run knip && npm run test:coverage"
+    "verify:static": "npm run typecheck && npm run lint && npm run format:check && npm run knip",
+    "verify:test": "npm run test:coverage",
+    "verify": "npm run verify:static && npm run verify:test"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

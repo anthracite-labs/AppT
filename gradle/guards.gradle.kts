@@ -11,6 +11,14 @@
 //   adIdAbsentFromManifest
 //   noProductionModuleDependsOnBenchmark
 //
+// Issue #88 removed the duplicated work behind two of these names without
+// removing a guarantee:
+//   * `noTelemetryDependency` resolves :app only. Its :samsung instance was a
+//     strict subset of `samsungDependencyBoundary` on the same configuration.
+//   * `noCrashReportingInApp` is gone. It was a strict subset of
+//     `noTelemetryDependency` on :app's runtime graph.
+// See the notes at each site below.
+//
 // Manifest-derived guards (`adIdAbsentFromManifest`,
 // `manifestPermissionAllowlist`) are registered in `app/build.gradle.kts`,
 // because only there can they read AGP's MERGED_MANIFEST artifact. The
@@ -89,10 +97,20 @@ fun matches(artifactId: String, patterns: List<String>): Boolean {
 // noTelemetryDependency
 // ---------------------------------------------------------------------------
 
-// Real resolution runs inside :app and :samsung; the root task below only
-// aggregates them under the accepted name.
+// Real resolution runs inside :app; the root task below only re-exposes it
+// under the accepted name.
+//
+// Issue #88 deduplication: this guard used to resolve :app AND :samsung. The
+// :samsung instance was a strict subset of `samsungDependencyBoundary` — same
+// configuration (`:samsung:debugRuntimeClasspath`), same vocabulary
+// (`samsungForbiddenArtifactPatterns` is `telemetryArtifactPatterns` plus the
+// Firebase/Play/billing families). Resolving the same graph twice to ask the
+// same question produced duplicate work and duplicate failure evidence without
+// adding a guarantee, so the :samsung instance is gone and the boundary guard
+// owns that question. The accepted check name, the :app coverage, the failure
+// message and the vocabulary are unchanged.
 val noTelemetryInstances =
-    listOf(":app", ":samsung").map { path ->
+    listOf(":app").map { path ->
         val target = project(path)
         target.tasks.register("noTelemetryDependency") {
             group = "verification"
@@ -128,7 +146,7 @@ tasks.register("noTelemetryDependency") {
 }
 
 // ---------------------------------------------------------------------------
-// :app must contain no Firestore client and no crash reporter
+// :app must contain no Firestore client
 // ---------------------------------------------------------------------------
 
 val noFirestoreClientInAppInstance =
@@ -157,33 +175,17 @@ tasks.register("noFirestoreClientInApp") {
     dependsOn(noFirestoreClientInAppInstance)
 }
 
-val noCrashReportingInAppInstance =
-    project(":app").tasks.register("noCrashReportingInApp") {
-        group = "verification"
-        description = "Fails if a crash-reporting artifact appears on :app's runtime graph."
-        doLast {
-            val crashPatterns =
-                listOf("crashlytics", "acra", "bugsnag", "sentry", "instabug", "embrace")
-            val offenders =
-                project(":app").resolvedArtifactIds("debugRuntimeClasspath").filter {
-                    matches(it, crashPatterns)
-                }
-            if (offenders.isNotEmpty()) {
-                throw GradleException(
-                    "noCrashReportingInApp failed. V1 ships no crash-reporting SDK " +
-                        "(docs/architecture/diagnostics.md).\n" +
-                        offenders.joinToString("\n") { "  $it" }
-                )
-            }
-            logger.lifecycle("noCrashReportingInApp: OK — no crash-reporting artifact on :app.")
-        }
-    }
-
-tasks.register("noCrashReportingInApp") {
-    group = "verification"
-    description = "Fails if a crash-reporting artifact appears on :app's runtime graph."
-    dependsOn(noCrashReportingInAppInstance)
-}
+// ---------------------------------------------------------------------------
+// Issue #88 deduplication: the former `noCrashReportingInApp` guard was a
+// strict subset of `noTelemetryDependency` on :app — the same configuration
+// (`:app:debugRuntimeClasspath`) and a crash-reporting vocabulary that
+// `telemetryArtifactPatterns` already contains in full. It resolved the graph a
+// second time to ask a narrower version of a question another guard already
+// answers, so it is gone. The guarantee it carried ("V1 ships no crash-reporting
+// SDK", docs/architecture/diagnostics.md) is unchanged and still owned by
+// `noTelemetryDependency`, which fails on crashlytics, acra, bugsnag, sentry,
+// instabug and embrace plus every other telemetry family.
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // :samsung dependency boundary
@@ -475,7 +477,6 @@ tasks.register("appTGuards") {
         tasks.named("versionCatalogPinned"),
         tasks.named("noTelemetryDependency"),
         tasks.named("noFirestoreClientInApp"),
-        tasks.named("noCrashReportingInApp"),
         tasks.named("samsungDependencyBoundary"),
         tasks.named("noProductionModuleDependsOnBenchmark"),
         tasks.named("noLogInSamsungSource"),

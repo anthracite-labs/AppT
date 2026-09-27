@@ -47,7 +47,11 @@ gradle wrapper --gradle-version 9.7.1 --distribution-type bin
 
 ## Commands
 
-Android/Kotlin verification interface, from the repository root:
+Android/Kotlin verification interfaces, from the repository root.
+
+CI runs the four failure domains below as independent parallel jobs so one
+failing domain cannot hide another's evidence; `ciCheck` is the local umbrella
+over exactly the same work, in one invocation:
 
 ```bash
 # Root Android/Kotlin verification lifecycle interface aggregating strict
@@ -55,6 +59,12 @@ Android/Kotlin verification interface, from the repository root:
 # tests, Android Lint, detekt, Kover coverage verification, dependency locks,
 # appTGuards, and macrobenchmark compilation:
 ./gradlew --no-daemon --dependency-verification=strict ciCheck
+
+# The CI-owned failure domains, one at a time:
+./gradlew --no-daemon --dependency-verification=strict androidFormat
+./gradlew --no-daemon --dependency-verification=strict --continue androidStatic
+./gradlew --no-daemon --dependency-verification=strict --continue androidBuild
+./gradlew --no-daemon --dependency-verification=strict --continue androidUnit
 
 # Spotless formatting:
 ./gradlew spotlessApply
@@ -65,6 +75,10 @@ Android/Kotlin verification interface, from the repository root:
   -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
   :app:pixel2api29DebugAndroidTest
 ```
+
+`androidUnit` runs `:app:testDebugUnitTest` **and** `:samsung:test` plus Kover
+coverage generation and verification: Samsung unit tests are authoritative
+verification evidence, not diagnostics.
 
 ### Dependency verification
 
@@ -143,8 +157,13 @@ Backend, always package-prefixed from the repository root
 
 ```bash
 npm ci --prefix backend
-# Backend verification interface aggregating typecheck, typed ESLint,
-# Prettier, Knip dead-code/export/dependency analysis, Jest, and LCOV coverage:
+# Backend static verification interface (typecheck, typed ESLint, Prettier, Knip):
+npm run verify:static --prefix backend
+
+# Backend tests with LCOV coverage:
+npm run verify:test --prefix backend
+
+# Backend verification interface aggregating both of the above:
 npm run verify --prefix backend
 ```
 
@@ -163,23 +182,17 @@ when safe, and escalate only the blocked operation.
    narrowest local command that can falsify the current change.
 3. After a concrete capability blocker (failed probe plus failed
    install/download), escalate only that blocked operation. The hosted fallback
-   for Android/JVM implementation feedback is a **Samsung-targeted**
-   `workflow_dispatch` of `.github/workflows/verify.yml` with
-   `mode=samsung-targeted`. That run executes only:
-
-   ```bash
-   ./gradlew --no-daemon --dependency-verification=strict spotlessCheck
-   ./gradlew --no-daemon --dependency-verification=strict :samsung:compileDebugUnitTestKotlin
-   ./gradlew --no-daemon --dependency-verification=strict :samsung:test
-   ```
-
-   It is not terminal repository verification and does not satisfy
-   `verify / gate` for a finished candidate. Do not dispatch the full suite
-   merely to discover the next compile, format, or unit-test error.
+   for Android/JVM implementation feedback is a `workflow_dispatch` of
+   `.github/workflows/diagnose.yml` with the narrowest mode that answers the
+   question: `app-unit`, `samsung-unit`, `android-static`, `android-build`, or
+   `device`. A diagnostic run is implementation feedback only. It is not terminal
+   repository verification and does not satisfy `verify / gate` for a finished
+   candidate. Do not dispatch a full `verify` run merely to discover the next
+   compile, format, or unit-test error.
 4. Temporary branch-scoped workflow YAML is last-resort, only when a live
-   capability probe shows no narrower route exists (local tooling or an
-   existing `verify.yml` mode). Do not add per-slice workflow files as slice
-   infrastructure.
+   capability probe shows no narrower route exists (local tooling or an existing
+   `diagnose.yml` mode). Do not add per-slice workflow files as slice
+   infrastructure: add a mode to `diagnose.yml` instead.
 
 The backend package, the secret scanner, yamllint, markdownlint, and ShellCheck
 run locally when those tools are present:
@@ -187,6 +200,7 @@ run locally when those tools are present:
 - `npm ci --prefix backend`
 - `npm run verify --prefix backend`
 - `node --test "tools/secret-scan/test/secret-scan.test.mjs" && node tools/secret-scan/secret-scan.mjs`
+- `node --test "tools/ci/test/purge-actions.test.mjs"`
 - `yamllint -c .yamllint.yml .`
 - `tools/security/run.sh`
 
@@ -196,19 +210,58 @@ Installed-app acceptance executes on GitHub Actions via Gradle Managed Devices
 ## Verification cadence
 
 Pull-request synchronization is intentionally cheap. `.github/workflows/verify.yml`
-runs only the fast repository checks on ordinary PR updates: whitespace/diff
-validation, repository security-policy self-tests, secret scanning, and tooling
-constraint checks. It does not build Android, run backend verification, start a
-managed device, run SonarQube, regenerate dependency state, or execute `ciCheck`.
+runs only the two cheap repository domains on ordinary PR updates — repository
+policy (whitespace/diff validation, repository security-policy self-tests, secret
+scanning, tooling constraint checks) and repository quality (yamllint,
+markdownlint, ShellCheck, shfmt, actionlint, zizmor) — plus dependency review
+when the candidate changed dependency inputs. It does not build Android, run
+backend verification, start a managed device, run SonarQube, regenerate
+dependency state, or execute `ciCheck` or any of its narrower domains.
 
-The human decides when to pay for full verification of a finished candidate. Use
-the `verify` workflow's **Run workflow** action with `mode=full` (the default)
-on the branch that needs the complete suite. Pushes to `main` continue to run
-the full suite automatically. The `samsung-targeted` dispatch mode is
-implementation feedback only.
+The full verification domains run on pushes to `main` and on an explicit
+**Run workflow** dispatch of `verify` on the branch that needs the complete
+suite. There is no `mode` input: a dispatched run is the full suite. Focused,
+non-terminal feedback is a `diagnose.yml` dispatch, never a `verify` dispatch.
 
 Do not regenerate Gradle locks or verification metadata as an iteration step.
 Regenerate them only after an actual reviewed dependency change requires it.
+
+## CI topology and agent invocation
+
+Five active workflows, each with one responsibility:
+
+| Workflow | Trigger | Responsibility |
+|---|---|---|
+| `verify.yml` | `pull_request`, `push` to `main`, `workflow_dispatch` | Authoritative verification and the sole stable `verify / gate` |
+| `diagnose.yml` | `workflow_dispatch` only | Focused, permanent, non-terminal diagnostics |
+| `codeql.yml` | `pull_request`, `push` to `main`, `schedule`, `workflow_dispatch` | Security SAST |
+| `maintenance.yml` | `workflow_dispatch` only, confirmed with `PURGE` | Manual destructive Actions maintenance |
+| `agent-control.yml` | `pull_request_target` (label added) | Trusted dispatch bridge for agents |
+
+Repository-local composite setup actions live under `.github/actions/**`
+(`setup-node`, `setup-jvm`). Runner filesystem state is never shared between
+jobs, so each job re-establishes its own toolchain; the Gradle version is not
+duplicated in workflow configuration because the committed wrapper plus its
+`distributionSha256Sum` is the version authority.
+
+Invoking diagnostics without clicking through the Actions UI:
+
+- an actor with Actions write permission dispatches `diagnose.yml` directly;
+- an integration that can only mutate pull-request metadata adds one of the
+  command labels (`ci:app-unit`, `ci:samsung-unit`, `ci:android-static`,
+  `ci:android-build`, `ci:backend`, `ci:backend-static`, `ci:backend-test`,
+  `ci:device`, `ci:full`) to the pull request, and `agent-control.yml` resolves
+  that pull request's head SHA, dispatches the matching workflow against it,
+  removes the label, and records what it dispatched.
+
+The maintenance purge deletes every Actions cache and every workflow run except
+its own. Its logic is `tools/ci/purge-actions.mjs`, which is proven by
+`tools/ci/test/purge-actions.test.mjs` against a fake API; preview what it would
+touch with:
+
+```bash
+node tools/ci/purge-actions.mjs --dry-run
+```
 
 ## CodeQL static analysis
 

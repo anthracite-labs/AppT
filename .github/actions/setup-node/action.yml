@@ -1,0 +1,38 @@
+# Repository-local composite setup action: the Node.js toolchain.
+#
+# Issue #88: runner filesystem state is never shared between jobs, so each
+# verification job re-establishes its own toolchain. Centralising that here
+# keeps the pinned versions and the checkout posture in one reviewable place
+# instead of repeating them in every job of every workflow.
+#
+# Checkout is always `persist-credentials: false`: no verification job needs to
+# push, and a job that cannot authenticate with the repository is a job that
+# cannot be used to move code.
+name: Setup Node
+description: >-
+  Checks out the repository without persisted credentials and sets up the
+  pinned Node.js runtime.
+
+inputs:
+  node-version:
+    description: >-
+      Node.js major version. backend/package.json `engines.node` owns this
+      value; the workflow passes it so there is exactly one declaration per
+      workflow file.
+    required: false
+    default: '24'
+
+runs:
+  using: composite
+  steps:
+    - name: Check out
+      # actions/checkout v7.0.1
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+
+    - name: Set up Node
+      # actions/setup-node v7.0.0
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      with:
+        node-version: ${{ inputs.node-version }}

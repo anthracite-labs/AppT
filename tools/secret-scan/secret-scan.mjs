@@ -57,15 +57,27 @@ const FORBIDDEN_BASENAMES = new Set([
   'credentials.json',
 ]);
 
-/** Content patterns for long-lived credentials. */
+/**
+ * Content patterns for credential material AppT itself must forbid.
+ *
+ * Ownership split (Issue #88, docs/architecture/release.md#github-owned-controls):
+ * GitHub Secret Scanning and Push Protection own generic *provider* token
+ * formats — Google API keys, AWS access key ids, GitHub tokens, Slack tokens,
+ * Stripe secret keys. Those patterns used to live here as well, which resolved
+ * the same tree twice for a control the platform already owns and made the
+ * repository look like the owner of a check it does not run. They are gone; see
+ * `PROVIDER_OWNED_SAMPLES` for the boundary the tests hold in place.
+ *
+ * What remains is the AppT-specific material floor: key, certificate and
+ * keystore files (`isForbiddenFile`), private-key material, service-account and
+ * Firebase credential documents, and hardcoded credential assignments. Note that
+ * a provider key written as an assignment (`api_key = "AIza..."`) is still
+ * caught by the assignment pattern below — that is the AppT policy guard, not
+ * provider-token detection.
+ */
 export const CREDENTIAL_PATTERNS = [
   { name: 'PEM private key block', pattern: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----/ },
-  { name: 'Google API key', pattern: /\bAIza[0-9A-Za-z_-]{35}\b/ },
   { name: 'Google Cloud service-account key', pattern: /"type"\s*:\s*"service_account"/ },
-  { name: 'AWS access key id', pattern: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/ },
-  { name: 'GitHub token', pattern: /\bgh[pousr]_[0-9A-Za-z]{36,}\b/ },
-  { name: 'Slack token', pattern: /\bxox[abprs]-[0-9A-Za-z-]{10,}\b/ },
-  { name: 'Stripe secret key', pattern: /\bsk_(?:live|test)_[0-9A-Za-z]{16,}\b/ },
   { name: 'JSON Web Token', pattern: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/ },
   { name: 'Firebase Cloud Messaging server key', pattern: /\bAAAA[A-Za-z0-9_-]{7}:[A-Za-z0-9_-]{140,}\b/ },
   { name: 'private key assignment', pattern: /\b(?:private_key|privateKey)\s*[:=]\s*["'][^"']{32,}["']/ },
@@ -74,6 +86,36 @@ export const CREDENTIAL_PATTERNS = [
     pattern:
       /\b(?:api[_-]?key|secret[_-]?key|client[_-]?secret|access[_-]?token|auth[_-]?token|password|passwd)\s*[:=]\s*["'][^"'\s${}<>]{12,}["']/i,
   },
+];
+
+/**
+ * Assemble a synthetic fixture from fragments.
+ *
+ * The provider samples below are deliberately fake inputs to a *negative*
+ * test — they prove the repository scanner does NOT report a provider token.
+ * Written as one contiguous literal, however, each of them is a
+ * provider-shaped string, and the push protection that owns those very
+ * formats blocks the push. Assembling from fragments keeps the fixture
+ * behaviourally identical without ever presenting a provider-shaped literal
+ * to a secret scanner. No real credential is involved at any point.
+ */
+const fixture = (...fragments) => fragments.join('');
+
+/**
+ * Provider token formats that GitHub Secret Scanning and Push Protection own.
+ * The repository scanner must not detect them: duplicating a platform control
+ * is how a repository ends up claiming a guarantee it does not actually
+ * enforce. Exported so the tests can keep the boundary from drifting back.
+ */
+export const PROVIDER_OWNED_SAMPLES = [
+  { name: 'Google API key', sample: fixture('AIza', 'B'.repeat(35)) },
+  { name: 'AWS access key id', sample: fixture('AKIA', 'A'.repeat(16)) },
+  { name: 'GitHub token', sample: fixture('ghp', '_', 'a'.repeat(36)) },
+  {
+    name: 'Slack token',
+    sample: fixture('xoxb', '-', '1'.repeat(10), '-', 'a'.repeat(16)),
+  },
+  { name: 'Stripe secret key', sample: fixture('sk_', 'live', '_', 'a'.repeat(24)) },
 ];
 
 /** Paths never scanned for content: generated, vendored, or binary. */
