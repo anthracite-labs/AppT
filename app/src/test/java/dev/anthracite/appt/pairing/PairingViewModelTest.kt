@@ -12,10 +12,10 @@ import dev.anthracite.appt.samsung.TvFailure
 import dev.anthracite.appt.samsung.TvId
 import dev.anthracite.appt.testing.FakeSamsungTvs
 import dev.anthracite.appt.testing.MainDispatcherRule
+import dev.anthracite.appt.testing.settle
 import dev.anthracite.appt.testing.subscribeTo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -37,7 +37,7 @@ class PairingViewModelTest {
     private suspend fun TestScope.entered(tvId: TvId = livingRoom): ActiveRemoteHost {
         val host = ActiveRemoteHost(tvs, backgroundScope)
         host.enter(tvId)
-        advanceUntilIdle()
+        settle()
         return host
     }
 
@@ -57,7 +57,7 @@ class PairingViewModelTest {
             val viewModel =
                 PairingViewModel(livingRoom, ActiveRemoteHost(tvs, backgroundScope), profiles)
             subscribeTo(viewModel.state)
-            advanceUntilIdle()
+            settle()
 
             assertEquals(PairingPhase.Connecting, viewModel.state.value.phase)
             assertTrue(!viewModel.state.value.recallHintVisible)
@@ -70,7 +70,7 @@ class PairingViewModelTest {
             val host = entered()
             val viewModel = PairingViewModel(livingRoom, host, profiles)
             subscribeTo(viewModel.state)
-            advanceUntilIdle()
+            settle()
 
             assertEquals("Living Room TV", viewModel.state.value.tvName)
         }
@@ -81,9 +81,9 @@ class PairingViewModelTest {
             val host = entered()
             val viewModel = PairingViewModel(livingRoom, host, profiles)
             subscribeTo(viewModel.state)
-            advanceUntilIdle()
+            settle()
             tvs.sessionFor(livingRoom)!!.publish(SessionState.AwaitingTvApproval)
-            advanceUntilIdle()
+            settle()
 
             val state = viewModel.state.value
             assertEquals(PairingPhase.WaitingForApproval, state.phase)
@@ -96,9 +96,9 @@ class PairingViewModelTest {
             val host = entered()
             val viewModel = PairingViewModel(livingRoom, host, profiles)
             subscribeTo(viewModel.state)
-            advanceUntilIdle()
+            settle()
             tvs.sessionFor(livingRoom)!!.ready(setOf(RemoteKey.VolumeUp))
-            advanceUntilIdle()
+            settle()
 
             assertEquals(PairingPhase.Succeeded, viewModel.state.value.phase)
             assertTrue(!viewModel.state.value.recallHintVisible)
@@ -110,12 +110,12 @@ class PairingViewModelTest {
             val host = entered()
             val viewModel = PairingViewModel(livingRoom, host, profiles)
             subscribeTo(viewModel.state)
-            advanceUntilIdle()
+            settle()
             tvs.sessionFor(livingRoom)!!.publish(
                 SessionState.NeedsRepair,
                 repairReason = RepairReason.ApprovalDenied,
             )
-            advanceUntilIdle()
+            settle()
 
             val phase = viewModel.state.value.phase
             assertTrue(phase is PairingPhase.Failed)
@@ -129,13 +129,13 @@ class PairingViewModelTest {
             val host = entered()
             val viewModel = PairingViewModel(livingRoom, host, profiles)
             subscribeTo(viewModel.state)
-            advanceUntilIdle()
+            settle()
             val session = tvs.sessionFor(livingRoom)!!
             session.publish(SessionState.NeedsRepair, repairReason = RepairReason.ApprovalDenied)
-            advanceUntilIdle()
+            settle()
 
             viewModel.onRetryApproval()
-            advanceUntilIdle()
+            settle()
 
             assertEquals(1, session.retryApprovals)
         }
@@ -146,7 +146,7 @@ class PairingViewModelTest {
             val viewModel =
                 PairingViewModel(livingRoom, ActiveRemoteHost(tvs, backgroundScope), profiles)
             subscribeTo(viewModel.state)
-            advanceUntilIdle()
+            settle()
 
             assertEquals("the host is the only opener", emptyList<TvId>(), tvs.openedIds)
             assertEquals(PairingPhase.Connecting, viewModel.state.value.phase)
@@ -158,10 +158,10 @@ class PairingViewModelTest {
             val host = entered()
             val viewModel = PairingViewModel(older, host, profiles)
             subscribeTo(viewModel.state)
-            advanceUntilIdle()
+            settle()
 
             tvs.sessionFor(livingRoom)!!.ready()
-            advanceUntilIdle()
+            settle()
 
             assertEquals(
                 "a session for another television is not this route's",

@@ -137,13 +137,19 @@ class PairingToFirstControlFlowTest {
         assertEquals(NameSource.TV, row.nameSource)
         assertNull("a newly remembered television has never been opened", row.lastOpenedAt)
 
+        // Exactly one session: the television is opened once, and never a second time.
+        assertEquals(listOf(livingRoom), tvs.openedIds)
+        val session = tvs.sessionFor(livingRoom)!!
+        // A real session asks the television for approval once it has connected; the scripted one
+        // starts at `Connecting` and stays there until it is told, and Pairing renders the approval
+        // prompt only for `AwaitingTvApproval` (presentation.md#pairing).
+        session.publish(SessionState.AwaitingTvApproval)
+        composeRule.waitForIdle()
+
         // Pairing is showing, and it is asking the user to allow AppT on the television.
         composeRule.onNodeWithTag(PairingTestTags.TITLE).assertExists()
         composeRule.onNodeWithTag(PairingTestTags.WAITING).assertExists()
 
-        // Exactly one session: the television is opened once, and never a second time.
-        assertEquals(listOf(livingRoom), tvs.openedIds)
-        val session = tvs.sessionFor(livingRoom)!!
         session.nextResult = CommandResult.Accepted
         session.ready(setOf(RemoteKey.VolumeUp, RemoteKey.VolumeDown))
         composeRule.waitForIdle()

@@ -15,6 +15,7 @@ import dev.anthracite.appt.samsung.TvId
 import dev.anthracite.appt.testing.FakeSamsungTvs
 import dev.anthracite.appt.testing.MainDispatcherRule
 import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
+import dev.anthracite.appt.testing.settle
 import dev.anthracite.appt.testing.subscribeTo
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -23,7 +24,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -65,7 +65,7 @@ class RemoteViewModelTest {
     private suspend fun TestScope.entered(): ActiveRemoteHost {
         val host = ActiveRemoteHost(tvs, backgroundScope)
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
         return host
     }
 
@@ -74,9 +74,9 @@ class RemoteViewModelTest {
         runTest(mainRule.dispatcher) {
             val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
             subscribeTo(viewModel.state)
-            advanceUntilIdle()
+            settle()
             tvs.sessionFor(livingRoom)!!.ready(setOf(RemoteKey.VolumeUp, RemoteKey.VolumeDown))
-            advanceUntilIdle()
+            settle()
 
             assertEquals(
                 listOf(RemoteKey.VolumeUp, RemoteKey.VolumeDown),
@@ -90,9 +90,9 @@ class RemoteViewModelTest {
         runTest(mainRule.dispatcher) {
             val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
             subscribeTo(viewModel.state)
-            advanceUntilIdle()
+            settle()
             tvs.sessionFor(livingRoom)!!.publish(SessionState.AwaitingTvApproval)
-            advanceUntilIdle()
+            settle()
 
             assertEquals(emptyList<RemoteKey>(), viewModel.state.value.keys)
             assertEquals(ConnectionUi.WaitingForApproval, viewModel.state.value.connection)
@@ -113,7 +113,7 @@ class RemoteViewModelTest {
             )
             val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
             subscribeTo(viewModel.state)
-            advanceUntilIdle()
+            settle()
 
             assertEquals("Living Room TV", viewModel.state.value.tvName)
         }
@@ -123,19 +123,19 @@ class RemoteViewModelTest {
         runTest(mainRule.dispatcher) {
             val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
             subscribeTo(viewModel.state)
-            advanceUntilIdle()
+            settle()
             val session = tvs.sessionFor(livingRoom)!!
             session.ready()
             session.nextResult = CommandResult.Accepted
-            advanceUntilIdle()
+            settle()
             assertFalse("no command has been accepted yet", store.firstControlAchieved.first())
 
             viewModel.onCommand(TvCommand.Tap(RemoteKey.VolumeUp))
-            advanceUntilIdle()
+            settle()
             assertTrue(store.firstControlAchieved.first())
 
             viewModel.onCommand(TvCommand.Tap(RemoteKey.VolumeDown))
-            advanceUntilIdle()
+            settle()
             assertTrue("idempotent", store.firstControlAchieved.first())
             assertEquals(
                 listOf(TvCommand.Tap(RemoteKey.VolumeUp), TvCommand.Tap(RemoteKey.VolumeDown)),
@@ -148,14 +148,14 @@ class RemoteViewModelTest {
         runTest(mainRule.dispatcher) {
             val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
             subscribeTo(viewModel.state)
-            advanceUntilIdle()
+            settle()
             val session = tvs.sessionFor(livingRoom)!!
             session.ready()
             session.nextResult = CommandResult.Rejected(TvFailure.Unavailable)
-            advanceUntilIdle()
+            settle()
 
             viewModel.onCommand(TvCommand.Tap(RemoteKey.VolumeUp))
-            advanceUntilIdle()
+            settle()
 
             assertFalse(store.firstControlAchieved.first())
         }
@@ -165,9 +165,9 @@ class RemoteViewModelTest {
         runTest(mainRule.dispatcher) {
             val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
             subscribeTo(viewModel.state)
-            advanceUntilIdle()
+            settle()
             tvs.sessionFor(livingRoom)!!.ready()
-            advanceUntilIdle()
+            settle()
 
             assertFalse("reaching Ready is not a command", store.firstControlAchieved.first())
         }
@@ -177,13 +177,13 @@ class RemoteViewModelTest {
         runTest(mainRule.dispatcher) {
             val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
             subscribeTo(viewModel.state)
-            advanceUntilIdle()
+            settle()
             val session = tvs.sessionFor(livingRoom)!!
             session.nextResult = CommandResult.Accepted
-            advanceUntilIdle()
+            settle()
 
             viewModel.onCommand(TvCommand.Tap(RemoteKey.VolumeUp))
-            advanceUntilIdle()
+            settle()
 
             assertEquals(
                 "the session rejects anything before Ready",
@@ -203,13 +203,13 @@ class RemoteViewModelTest {
         runTest(mainRule.dispatcher) {
             val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
             subscribeTo(viewModel.state)
-            advanceUntilIdle()
+            settle()
             val dead = tvs.sessionFor(livingRoom)!!
             dead.publish(SessionState.Unreachable)
-            advanceUntilIdle()
+            settle()
 
             viewModel.onRetry()
-            advanceUntilIdle()
+            settle()
 
             assertEquals(ConnectionUi.Connecting, viewModel.state.value.connection)
             assertTrue("the dead session is released", dead.closed)

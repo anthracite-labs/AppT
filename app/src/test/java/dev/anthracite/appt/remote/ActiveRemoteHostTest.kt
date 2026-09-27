@@ -7,10 +7,10 @@ import dev.anthracite.appt.samsung.SessionState
 import dev.anthracite.appt.samsung.TvCommand
 import dev.anthracite.appt.samsung.TvId
 import dev.anthracite.appt.testing.FakeSamsungTvs
+import dev.anthracite.appt.testing.settle
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -32,8 +32,9 @@ class ActiveRemoteHostTest {
 
     /**
      * The host runs on [TestScope.backgroundScope] rather than the test scope: its session
-     * observation and grace coroutines outlive the last `advanceUntilIdle`, and `runTest` cancels
-     * the background scope when the test finishes.
+     * observation and grace coroutines outlive the test body, and `runTest` cancels the background
+     * scope when the test finishes. Because of that the tests drive time with [settle], not with
+     * `advanceUntilIdle`, which upstream stops before background coroutines have run.
      */
     private fun TestScope.host() = ActiveRemoteHost(tvs, backgroundScope)
 
@@ -41,7 +42,7 @@ class ActiveRemoteHostTest {
     fun enterOpensOneSessionForOneTelevision() = runTest {
         val host = host()
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
 
         assertEquals(listOf(livingRoom), tvs.openedIds)
         assertEquals(livingRoom, host.current.value?.tvId)
@@ -52,13 +53,13 @@ class ActiveRemoteHostTest {
     fun enteringATelevisionWhoseSessionEndedOpensANewOne() = runTest {
         val host = host()
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
         val dead = tvs.sessionFor(livingRoom)!!
         dead.publish(SessionState.Unreachable)
-        advanceUntilIdle()
+        settle()
 
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
 
         assertTrue("the ended session is released", dead.closed)
         assertEquals(listOf(livingRoom, livingRoom), tvs.openedIds)
@@ -73,16 +74,16 @@ class ActiveRemoteHostTest {
     fun aRepairableSessionIsNotReplaced() = runTest {
         val host = host()
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
         val repairable = tvs.sessionFor(livingRoom)!!
         repairable.publish(
             SessionState.NeedsRepair,
             repairReason = dev.anthracite.appt.samsung.RepairReason.ApprovalDenied,
         )
-        advanceUntilIdle()
+        settle()
 
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
 
         assertFalse("retryApproval is how a repairable session recovers", repairable.closed)
         assertEquals(listOf(livingRoom), tvs.openedIds)
@@ -93,12 +94,12 @@ class ActiveRemoteHostTest {
         val host = host()
         host.enter(livingRoom)
         host.retain("remote")
-        advanceUntilIdle()
+        settle()
         tvs.sessionFor(livingRoom)!!.publish(SessionState.Unreachable)
-        advanceUntilIdle()
+        settle()
 
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
         val replacement = tvs.sessionFor(livingRoom)!!
 
         host.release("remote")
@@ -115,9 +116,9 @@ class ActiveRemoteHostTest {
     fun enteringTheSameTelevisionAgainOpensNoSecondSession() = runTest {
         val host = host()
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
 
         assertEquals("no second open, so no second socket", listOf(livingRoom), tvs.openedIds)
         assertFalse("the first session is not replaced", tvs.sessionFor(livingRoom)!!.closed)
@@ -127,9 +128,9 @@ class ActiveRemoteHostTest {
     fun enteringAnotherTelevisionClosesTheFirst() = runTest {
         val host = host()
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
         host.enter(bedroom)
-        advanceUntilIdle()
+        settle()
 
         assertTrue(tvs.sessionFor(livingRoom)!!.closed)
         assertEquals(listOf(livingRoom, bedroom), tvs.openedIds)
@@ -140,10 +141,10 @@ class ActiveRemoteHostTest {
     fun theSnapshotFollowsTheSessionWithoutPolling() = runTest {
         val host = host()
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
 
         tvs.sessionFor(livingRoom)!!.ready()
-        advanceUntilIdle()
+        settle()
 
         assertEquals(SessionState.Ready, host.current.value?.snapshot?.state)
         assertEquals(RemoteKey.entries.toSet(), host.current.value?.snapshot?.capabilities?.keys)
@@ -153,11 +154,11 @@ class ActiveRemoteHostTest {
     fun aCommandIsSentOnTheRetainedSession() = runTest {
         val host = host()
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
         val session = tvs.sessionFor(livingRoom)!!
         session.ready()
         session.nextResult = CommandResult.Accepted
-        advanceUntilIdle()
+        settle()
 
         val result = host.current.value!!.session.command(TvCommand.Tap(RemoteKey.VolumeUp))
 
@@ -169,7 +170,7 @@ class ActiveRemoteHostTest {
     fun aDeniedEntryOpensNothing() = runTest {
         val host = ActiveRemoteHost(tvs, backgroundScope, entryAllowed = { false })
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
 
         assertEquals("no session, no socket", emptyList<TvId>(), tvs.openedIds)
         assertNull(host.current.value)
@@ -182,17 +183,17 @@ class ActiveRemoteHostTest {
         val host =
             ActiveRemoteHost(tvs, backgroundScope, onSessionReady = { tvId -> ready += tvId })
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
         val session = tvs.sessionFor(livingRoom)!!
 
         session.ready()
-        advanceUntilIdle()
+        settle()
         session.ready(setOf(RemoteKey.Mute))
-        advanceUntilIdle()
+        settle()
 
         assertEquals("one report per session, not one per snapshot", listOf(livingRoom), ready)
         host.close()
-        advanceUntilIdle()
+        settle()
     }
 
     @Test
@@ -204,15 +205,15 @@ class ActiveRemoteHostTest {
                 onSessionReady = { throw IllegalStateException("profile store unavailable") },
             )
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
         val session = tvs.sessionFor(livingRoom)!!
 
         session.ready()
-        advanceUntilIdle()
+        settle()
         assertEquals(SessionState.Ready, host.current.value?.snapshot?.state)
 
         session.publish(SessionState.Unreachable)
-        advanceUntilIdle()
+        settle()
 
         assertEquals(
             "persistence failure does not detach the live session observer",
@@ -220,7 +221,7 @@ class ActiveRemoteHostTest {
             host.current.value?.snapshot?.state,
         )
         host.close()
-        advanceUntilIdle()
+        settle()
     }
 
     @Test
@@ -229,20 +230,20 @@ class ActiveRemoteHostTest {
         val host =
             ActiveRemoteHost(tvs, backgroundScope, onSessionReady = { tvId -> ready += tvId })
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
         tvs.sessionFor(livingRoom)!!.publish(SessionState.AwaitingTvApproval)
-        advanceUntilIdle()
+        settle()
 
         assertEquals(emptyList<TvId>(), ready)
         host.close()
-        advanceUntilIdle()
+        settle()
     }
 
     @Test
     fun theLastReleaseStartsGraceAndTheSessionSurvivesIt() = runTest {
         val host = host()
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
         host.retain("pairing")
         host.release("pairing")
 
@@ -261,7 +262,7 @@ class ActiveRemoteHostTest {
     fun returningInsideGraceKeepsTheSameSession() = runTest {
         val host = host()
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
         host.retain("remote")
         host.release("remote")
         advanceTimeBy(5_000)
@@ -281,7 +282,7 @@ class ActiveRemoteHostTest {
     fun oneOwnerReleasingDoesNotStartGrace() = runTest {
         val host = host()
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
         host.retain("pairing")
         host.retain("remote")
         host.release("pairing")
@@ -297,12 +298,12 @@ class ActiveRemoteHostTest {
     fun closeIsImmediateAndIdempotent() = runTest {
         val host = host()
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
 
         host.close()
-        advanceUntilIdle()
+        settle()
         host.close()
-        advanceUntilIdle()
+        settle()
 
         assertTrue(tvs.sessionFor(livingRoom)!!.closed)
         assertNull(host.current.value)
@@ -312,10 +313,10 @@ class ActiveRemoteHostTest {
     fun aReleasedHostHoldsNothingToSendThrough() = runTest {
         val host = host()
         host.enter(livingRoom)
-        advanceUntilIdle()
+        settle()
 
         host.close()
-        advanceUntilIdle()
+        settle()
 
         assertNull("nothing routes a command through a closed host", host.current.value)
         assertTrue(tvs.sessionFor(livingRoom)!!.closed)
