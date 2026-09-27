@@ -136,35 +136,57 @@ jobs:
               if len(failures) > 10:
                   print('::error title=Remaining failures::%s' % flat(', '.join('%s.%s' % (c, n) for c, n, _, _, _ in failures[10:])))
           else:
-              print('No JUnit XML was produced, so the tests never ran. Build-level output follows.')
-              try:
-                  with open(log_path, encoding='utf-8', errors='replace') as handle:
-                      lines = handle.read().splitlines()
-              except OSError:
-                  lines = []
-              interesting = [l for l in lines if re.search(r'^e: |FAILED$|Execution failed for task|What went wrong|^\s*>\s', l)]
-              for line in interesting[-12:]:
-                  print('::error title=Build output::%s' % flat(line))
+              if files:
+                  print('Every test in the focused cluster passed.')
+              else:
+                  print('No JUnit XML was produced, so the tests never ran. Build output follows.')
+                  try:
+                      with open(log_path, encoding='utf-8', errors='replace') as handle:
+                          lines = handle.read().splitlines()
+                  except OSError:
+                      lines = []
+                  interesting = [l for l in lines if re.search(r'^e: |FAILED$|Execution failed for task|What went wrong|^\s*>\s', l)]
+                  for line in interesting[-12:]:
+                      print('::error title=Build output::%s' % flat(line))
           PY
 
       # Widening to the full app unit-test scope happens only when the focused
       # reproducer is green, as the contract requires. A Kotlin compilation
       # failure may legitimately stop the tests from running; that shows up as a
       # non-zero focused exit code rather than a hidden pass.
-      - name: Diagnostic verdict and full app unit scope
+      - name: Full app unit scope, only when the focused cluster is green
+        if: always() && env.focused_rc == '0'
+        run: |
+          set +e
+          ./gradlew --no-daemon --dependency-verification=strict :app:testDebugUnitTest
+          rc=$?
+          set -e
+          echo "Diagnostic full app unit scope exit code: $rc"
+          echo "app_scope_rc=$rc" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+
+          files = sorted(glob.glob('app/build/test-results/testDebugUnitTest/TEST-*.xml'))
+          total = failing = skipped = 0
+          classes = []
+          for path in files:
+              root = ET.parse(path).getroot()
+              tests = int(root.get('tests') or 0)
+              total += tests
+              failing += int(root.get('failures') or 0) + int(root.get('errors') or 0)
+              skipped += int(root.get('skipped') or 0)
+              classes.append('%s=%d' % ((root.get('name') or path).split('.')[-1], tests))
+          print('::notice title=Full app unit scope::classes=%d tests=%d failing=%d skipped=%d' % (len(files), total, failing, skipped))
+          print('::notice title=Classes in the full app unit scope::%s' % ', '.join(classes)[:1200])
+          PY
+
+      - name: Diagnostic verdict
         if: always()
         run: |
           spotless_rc="${spotless_rc:-missing}"
           focused_rc="${focused_rc:-missing}"
-          scope_rc="skipped"
-          if [ "$focused_rc" = "0" ]; then
-            set +e
-            ./gradlew --no-daemon --dependency-verification=strict :app:testDebugUnitTest
-            scope_rc=$?
-            set -e
-          else
-            echo "Skipping the full app unit-test scope: the focused cluster is not green (rc=$focused_rc)."
-          fi
+          scope_rc="${app_scope_rc:-skipped}"
           echo "spotlessCheck:       $spotless_rc"
           echo "focused app cluster: $focused_rc"
           echo "full app unit scope: $scope_rc"
