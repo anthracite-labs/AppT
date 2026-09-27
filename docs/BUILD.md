@@ -150,16 +150,39 @@ npm run verify --prefix backend
 
 ## Where the Android verification runs
 
-The implementing sandbox has no JDK, no Android SDK, and no egress to
-`dl.google.com`, `repo1.maven.org` or `services.gradle.org`, so Gradle cannot
-resolve or run there. GitHub Actions is therefore the authoritative execution
-environment for every Android command in this file. During active implementation,
-the human-triggered full `.github/workflows/verify.yml` run is the evidence that
-the long Android verification passes; ordinary pull-request synchronization runs
-only the quick check.
+Probe the live session before assuming Gradle cannot run. Missing preinstalled
+JDK, Android SDK, or network egress is not by itself unavailability. Follow
+`.project-ai/routing/route.md`: probe, use or install disposable local tooling
+when safe, and escalate only the blocked operation.
+
+1. Probe `java -version`, `./gradlew --version`, and (when a download is
+   required) reachability of `services.gradle.org`, `repo1.maven.org`, and
+   `dl.google.com`.
+2. If the toolchain is missing but the session can install a disposable JDK 17
+   and the Android SDK components this file requires, install them and run the
+   narrowest local command that can falsify the current change.
+3. After a concrete capability blocker (failed probe plus failed
+   install/download), escalate only that blocked operation. The hosted fallback
+   for Android/JVM implementation feedback is a **Samsung-targeted**
+   `workflow_dispatch` of `.github/workflows/verify.yml` with
+   `mode=samsung-targeted`. That run executes only:
+
+   ```bash
+   ./gradlew --no-daemon --dependency-verification=strict spotlessCheck
+   ./gradlew --no-daemon --dependency-verification=strict :samsung:compileDebugUnitTestKotlin
+   ./gradlew --no-daemon --dependency-verification=strict :samsung:test
+   ```
+
+   It is not terminal repository verification and does not satisfy
+   `verify / gate` for a finished candidate. Do not dispatch the full suite
+   merely to discover the next compile, format, or unit-test error.
+4. Temporary branch-scoped workflow YAML is last-resort, only when a live
+   capability probe shows no narrower route exists (local tooling or an
+   existing `verify.yml` mode). Do not add per-slice workflow files as slice
+   infrastructure.
 
 The backend package, the secret scanner, yamllint, markdownlint, and ShellCheck
-run locally:
+run locally when those tools are present:
 
 - `npm ci --prefix backend`
 - `npm run verify --prefix backend`
@@ -178,9 +201,11 @@ validation, repository security-policy self-tests, secret scanning, and tooling
 constraint checks. It does not build Android, run backend verification, start a
 managed device, run SonarQube, regenerate dependency state, or execute `ciCheck`.
 
-The human decides when to pay for full verification during implementation. Use
-the `verify` workflow's **Run workflow** action on the branch that needs the full
-suite. Pushes to `main` continue to run the full suite automatically.
+The human decides when to pay for full verification of a finished candidate. Use
+the `verify` workflow's **Run workflow** action with `mode=full` (the default)
+on the branch that needs the complete suite. Pushes to `main` continue to run
+the full suite automatically. The `samsung-targeted` dispatch mode is
+implementation feedback only.
 
 Do not regenerate Gradle locks or verification metadata as an iteration step.
 Regenerate them only after an actual reviewed dependency change requires it.

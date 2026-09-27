@@ -13,6 +13,17 @@ on:
         description: 'Base ref for manual dependency review'
         required: false
         default: 'main'
+      mode:
+        description: >-
+          full: terminal repository verification. samsung-targeted: Android/JVM
+          implementation feedback only (spotlessCheck, :samsung compile+test).
+          Not terminal evidence; does not satisfy verify/gate.
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - samsung-targeted
 
 permissions:
   contents: read
@@ -65,7 +76,7 @@ jobs:
   # 1. Quality — repository-generic checks outside Android/backend builds
   # ---------------------------------------------------------------------------
   quality:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.event.inputs.mode != 'samsung-targeted'
     name: Repository quality specialists
     runs-on: ubuntu-24.04
     permissions:
@@ -160,7 +171,7 @@ jobs:
   # 2. Android — root Gradle lifecycle task ciCheck
   # ---------------------------------------------------------------------------
   android:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.event.inputs.mode != 'samsung-targeted'
     name: Android and Kotlin verification
     runs-on: ubuntu-24.04
     permissions:
@@ -235,7 +246,7 @@ jobs:
   # 3. Backend — TypeScript typecheck, lint, prettier, knip, jest + coverage
   # ---------------------------------------------------------------------------
   backend:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.event.inputs.mode != 'samsung-targeted'
     name: Backend typecheck, lint, knip and coverage
     runs-on: ubuntu-24.04
     permissions:
@@ -273,7 +284,7 @@ jobs:
   # 4. Device — Android Gradle Managed Device API 29 acceptance test
   # ---------------------------------------------------------------------------
   device:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.event.inputs.mode != 'samsung-targeted'
     name: Installed-app acceptance on Gradle Managed Device (API 29)
     runs-on: ubuntu-24.04
     permissions:
@@ -340,7 +351,7 @@ jobs:
   # 5. Dependency Review — PR dependency graph deltas
   # ---------------------------------------------------------------------------
   dependency-review:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'samsung-targeted'
     name: Dependency Review
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -384,7 +395,7 @@ jobs:
   # 6. Quality Platform — CI-based SonarQube Cloud quality gate analysis
   # ---------------------------------------------------------------------------
   quality-platform:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.event.inputs.mode != 'samsung-targeted'
     name: SonarQube Cloud quality platform
     needs: [android, backend]
     runs-on: ubuntu-24.04
@@ -441,6 +452,54 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ---------------------------------------------------------------------------
+  # 2b. Samsung-targeted feedback — implementation loop only, never terminal
+  # ---------------------------------------------------------------------------
+  samsung-feedback:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'samsung-targeted'
+    name: Samsung-targeted feedback (not terminal verification)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK
+        # actions/setup-java v6.0.1
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        # gradle/actions/setup-gradle v6.3.0
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+          cache-provider: 'basic'
+
+      - name: Record that this run is not terminal verification
+        run: |
+          {
+            echo "### Samsung-targeted feedback"
+            echo
+            echo "This dispatch is implementation feedback only."
+            echo "It is **not** terminal repository verification and does not satisfy \`verify / gate\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Spotless check
+        run: ./gradlew --no-daemon --dependency-verification=strict spotlessCheck
+
+      - name: Compile Samsung debug unit tests
+        run: ./gradlew --no-daemon --dependency-verification=strict :samsung:compileDebugUnitTestKotlin
+
+      - name: Run Samsung unit tests
+        run: ./gradlew --no-daemon --dependency-verification=strict :samsung:test
+
+  # ---------------------------------------------------------------------------
   # 7. Gate — required status interface for default branch protection (verify / gate)
   # ---------------------------------------------------------------------------
   gate:
@@ -453,7 +512,7 @@ jobs:
       - device
       - dependency-review
       - quality-platform
-    if: always()
+    if: always() && (github.event_name != 'workflow_dispatch' || github.event.inputs.mode != 'samsung-targeted')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
