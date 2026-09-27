@@ -87,6 +87,8 @@ Do not say Arena was launched or dispatched unless a real launch mechanism was i
 
 ## 3. Arena autonomy
 
+Arena implementation work uses `../skills/incremental-implementation/SKILL.md`. When another lifecycle trigger from `../routing/capabilities.md` applies, Arena also loads that skill rather than improvising an alternate method.
+
 Within the approved contract Arena may:
 
 - inspect relevant project code and documentation;
@@ -148,6 +150,8 @@ A contract revision normally continues on that branch/PR unless the revision inv
 
 ## 7. Arena PR completion report
 
+Before Arena calls a candidate complete, fixed, passing, ready, or technically verified, it must use `../skills/verification-before-completion/SKILL.md` and satisfy its fresh-evidence gate for the exact candidate.
+
 The PR should contain:
 
 ### Contract
@@ -177,6 +181,8 @@ Identify anything the control plane or the human should inspect particularly clo
 Do not turn the PR into an implementation diary. Final evidence and unresolved limitations matter; every exploratory command does not.
 
 ## 8. Control-plane contract review
+
+The control plane uses `../skills/code-review/SKILL.md` for this review so accepted-contract compliance and engineering quality are examined separately before human acceptance.
 
 The control plane reviews the PR against the active Issue revision and available technical evidence.
 
