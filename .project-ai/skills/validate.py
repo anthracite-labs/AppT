@@ -9,14 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 PROJECT_AI_ROOT = ROOT.parent
-ROUTING_OWNER_PATHS = [
-    PROJECT_AI_ROOT / "hosts" / "chatgpt-project.md",
-    PROJECT_AI_ROOT / "routing" / "capabilities.md",
-    PROJECT_AI_ROOT / "routing" / "route.md",
-    PROJECT_AI_ROOT / "execution" / "arena-dispatch.md",
-    PROJECT_AI_ROOT / "execution" / "verification.md",
-    PROJECT_AI_ROOT / "bootstrap" / "project.md",
-]
+ROUTING_OWNER = PROJECT_AI_ROOT / "routing" / "capabilities.md"
+ROUTING_HEADING = "## Mandatory lifecycle skill routing"
 FRONTMATTER_OPEN = "---\n"
 FRONTMATTER_CLOSE = "\n---\n"
 IGNORED_SUPPORT_DIRS = {"__pycache__"}
@@ -165,24 +159,35 @@ def validate_skill(skill_dir: Path) -> list[str]:
 
 
 def validate_routing_coverage(skill_names: set[str]) -> list[str]:
-    """Require every skill to be reachable from canonical control-plane owners."""
+    """Require every skill exactly once in the mandatory lifecycle routing table."""
     errors: list[str] = []
-    owner_texts: list[str] = []
 
-    for owner in ROUTING_OWNER_PATHS:
-        if not owner.exists():
-            errors.append(f"routing owner missing: {owner.relative_to(PROJECT_AI_ROOT)}")
-            continue
-        owner_texts.append(owner.read_text(encoding="utf-8"))
+    if not ROUTING_OWNER.exists():
+        return [
+            f"routing owner missing: {ROUTING_OWNER.relative_to(PROJECT_AI_ROOT)}"
+        ]
 
-    combined = "\n".join(owner_texts)
-    referenced = set(re.findall(r"skills/([a-z0-9-]+)/SKILL\.md", combined))
+    text = ROUTING_OWNER.read_text(encoding="utf-8")
+    start = text.find(ROUTING_HEADING)
+    if start == -1:
+        return ["mandatory lifecycle skill routing heading is missing"]
+
+    section_start = text.find("\n", start) + 1
+    section_end = text.find("\n## ", section_start)
+    section = text[section_start:] if section_end == -1 else text[section_start:section_end]
+
+    references = re.findall(r"skills/([a-z0-9-]+)/SKILL\.md", section)
+    referenced = set(references)
 
     for name in sorted(skill_names - referenced):
-        errors.append(f"{name}: skill has no canonical control-plane routing reference")
+        errors.append(f"{name}: missing from mandatory lifecycle skill routing")
 
     for name in sorted(referenced - skill_names):
-        errors.append(f"routing references unknown skill {name!r}")
+        errors.append(f"mandatory routing references unknown skill {name!r}")
+
+    duplicates = sorted({name for name in references if references.count(name) > 1})
+    for name in duplicates:
+        errors.append(f"{name}: appears more than once in mandatory lifecycle skill routing")
 
     return errors
 
