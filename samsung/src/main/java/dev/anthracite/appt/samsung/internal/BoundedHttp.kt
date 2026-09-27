@@ -21,9 +21,9 @@ import kotlinx.coroutines.Dispatchers
  *
  * Why a socket and not an HTTP library: device-info on 8001 is plaintext, and Android's cleartext
  * policy (enforced by HTTP libraries on API 28+) would require an application-wide cleartext
- * network-security configuration for this one request. That is a security-posture decision the
- * architecture has not taken; discovery.md already lists raw sockets among the V1 probes. See the
- * S02 pull request for the follow-up question this raises for the S03 session.
+ * network-security configuration for this one request. That posture is not taken; discovery.md
+ * already lists raw sockets among the V1 probes. The S03 plaintext remote channel uses the same
+ * class of bounded raw socket, for the same reason, instead of OkHttp `ws://`.
  */
 internal class DeviceInfoHttp(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,

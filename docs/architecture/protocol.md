@@ -40,7 +40,9 @@ ws://<host>:8001/api/v2/channels/samsung.remote.control?name=<base64>
 
 `name` is standard Base64, no newlines, of the UTF-8 string `AppT`. Omit `token` until a pin check has passed and a token exists. URL-encode query values. Never log the URL.
 
-One `OkHttpClient`. No body or header logging interceptor. Connect timeout 5 seconds. Read limits below.
+TLS remote-channel sessions (port 8002) use one `OkHttpClient` per session. No body or header logging interceptor. Connect timeout 5 seconds. Read limits below.
+
+Plaintext remote-channel sessions (port 8001) do not use OkHttp or any HTTP library. They open a bounded raw TCP socket and speak the WebSocket handshake and frames on it, so Android's cleartext-traffic policy is not widened. Connect timeout, keepalive, and parser limits are the same as the TLS path.
 
 ## Device-info handling
 

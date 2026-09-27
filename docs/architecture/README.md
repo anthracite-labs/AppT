@@ -69,7 +69,7 @@ The binding text is the numbered list in `docs/ARCHITECTURE.md`. This table is o
 
 ## Settled decision ownership
 
-Every settled decision in `docs/PROJECT_STATE.md` has an owning canonical path. This table is the check that keeps that true.
+Every settled decision projected into `.project-ai/PROJECT_STATE.md` has an owning canonical path. This table is the check that keeps that true.
 
 | Settled decision group | Owning path |
 |---|---|
@@ -155,4 +155,4 @@ Pre-existing and not blockers for this map:
 - the focused Samsung vendor-terms and legal review before public release;
 - physical-device evidence that tunes the reliability targets in [reliability.md](reliability.md).
 
-This map was accepted with the architecture closure on 2026-09-23, which authorized the phase transition to implementation. The next gate is human review and acceptance of the reconciled implementation route in [slices.md](slices.md) before S01 is compiled; the current position lives in `docs/PROJECT_STATE.md`.
+This map was accepted with the architecture closure on 2026-09-23, which authorized the phase transition to implementation. The next gate is human review and acceptance of the reconciled implementation route in [slices.md](slices.md) before S01 is compiled; the current position lives in `.project-ai/PROJECT_STATE.md`.

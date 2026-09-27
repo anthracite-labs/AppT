@@ -5,9 +5,10 @@ import kotlinx.coroutines.flow.Flow
 /**
  * The internal session-transport seam (docs/architecture/modules.md#internal-seams-inside-samsung).
  *
- * Production uses [OkHttpSessionTransport] (OkHttp WebSocket and TLS); the scripted test adapter
- * replays fixture frames, delays, closes and generated certificate identities. Both adapters exist,
- * so this is a real seam rather than an implementation detail.
+ * Production uses [ProductionSessionTransport]: OkHttp WebSocket and TLS on port 8002, and a
+ * bounded raw-socket WebSocket on plaintext port 8001. The scripted test adapter replays fixture
+ * frames, delays, closes and generated certificate identities. Both adapters exist, so this is a
+ * real seam rather than an implementation detail.
  *
  * This is a test detail of the `samsung` module, not a caller-facing interface: `app` never sees
  * it, and the wire format, ports, key strings, URL and TLS mechanics stay behind it

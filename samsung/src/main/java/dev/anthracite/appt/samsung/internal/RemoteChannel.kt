@@ -64,12 +64,17 @@ internal object RemoteChannel {
             RemoteKey.Power to "KEY_POWER",
         )
 
+    /** protocol.md: the remote-channel path, origin-form, first contact, no token. */
+    fun remoteRequestTarget(): String {
+        val encodedName = URLEncoder.encode(CLIENT_NAME_ENCODED, Charsets.UTF_8.name())
+        return "/api/v2/channels/samsung.remote.control?name=$encodedName"
+    }
+
     /**
-     * The remote-channel URL for [television]. First contact attaches no token: S03 holds no saved
-     * pairing material, so the query carries the encoded client name only.
+     * Host header / URL authority for [television]. IPv6 literals are bracketed; a link-local scope
+     * marker is percent-encoded.
      */
-    fun remoteUrl(television: ConfirmedTelevision): String {
-        val scheme = if (television.tls) "wss" else "ws"
+    fun authority(television: ConfirmedTelevision): String {
         val host =
             if (':' in television.host && !television.host.startsWith("[")) {
                 // InetAddress.hostAddress returns an unbracketed IPv6 literal. URL authorities
@@ -78,9 +83,17 @@ internal object RemoteChannel {
             } else {
                 television.host
             }
-        val encodedName = URLEncoder.encode(CLIENT_NAME_ENCODED, Charsets.UTF_8.name())
-        return "$scheme://$host:${television.remotePort}" +
-            "/api/v2/channels/samsung.remote.control?name=$encodedName"
+        return "$host:${television.remotePort}"
+    }
+
+    /**
+     * The remote-channel URL for [television]. First contact attaches no token: S03 holds no saved
+     * pairing material, so the query carries the encoded client name only. The TLS adapter passes
+     * this to OkHttp; the plaintext adapter uses [remoteRequestTarget] on a raw socket instead.
+     */
+    fun remoteUrl(television: ConfirmedTelevision): String {
+        val scheme = if (television.tls) "wss" else "ws"
+        return "$scheme://${authority(television)}${remoteRequestTarget()}"
     }
 
     /** The outbound frame for one key tap, in the documented `ms.remote.control` shape. */

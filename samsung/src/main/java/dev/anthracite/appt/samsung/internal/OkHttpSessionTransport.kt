@@ -31,8 +31,11 @@ import okhttp3.WebSocketListener
 private const val HEX_RADIX = 16
 
 /**
- * The production [SessionTransport] adapter: the repository-adopted OkHttp WebSocket and TLS stack
+ * The TLS [SessionTransport] adapter: OkHttp WebSocket on `wss` port 8002
  * (docs/architecture/modules.md#internal-seams-inside-samsung, protocol.md#tls).
+ *
+ * Plaintext port 8001 is not opened here. Android's cleartext policy would reject `ws://` on this
+ * stack at targetSdk 36; [PlaintextWebSocketTransport] speaks that fallback on a raw socket.
  *
  * One client per session, so one television's candidate pin can never be confused with another's.
  * There is no body or header logging interceptor, and no URL, frame, token, certificate, address or

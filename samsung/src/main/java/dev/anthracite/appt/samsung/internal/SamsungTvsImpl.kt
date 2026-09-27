@@ -40,7 +40,7 @@ internal class SamsungTvsImpl(
     private val confirmed: ConfirmedTelevisions = ConfirmedTelevisions(),
     private val newSession: (ConfirmedTelevision, CoroutineScope) -> RemoteSession =
         { television, scope ->
-            LiveSession(television, OkHttpSessionTransport(), scope)
+            LiveSession(television, ProductionSessionTransport(), scope)
         },
 ) : SamsungTvs {
     private val activeScan = AtomicReference<Job?>(null)
