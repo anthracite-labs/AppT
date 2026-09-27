@@ -91,11 +91,13 @@ verification; the backend package owns TypeScript verification; repository-owned
 guards own AppT-specific privacy and module invariants. A tool is added only when
 it owns a concern that no existing control owns.
 
-The current `.github/workflows/ci.yml` + `.github/workflows/maintenance.yml`
-implementation remains the operational baseline until the migration described
-below is accepted. This section owns the target architecture that replaces it.
+The live repository workflows are `.github/workflows/verify.yml` and
+`.github/workflows/codeql.yml`. Historical `ci.yml` and `maintenance.yml` are
+retired; their GitHub Actions runs remain archival evidence, not an active
+baseline. This section describes the current verification topology.
 
-Repository-side implementation of this accepted target is tracked by GitHub Issue #56. Issue #56 is executable only after this architecture change is merged to `main`.
+Issue #56 landed that topology on `main`. Do not recreate deleted one-shot or
+legacy workflow YAML.
 
 ### GitHub-owned controls
 
@@ -133,15 +135,21 @@ Android, execute `ciCheck`, run backend verification, start a managed device,
 run SonarQube, or regenerate dependency state.
 
 The full verification groups run only when a human explicitly dispatches the
-workflow for a branch, and automatically after changes land on `main`. This is
-the accepted response to measured Actions cost and implementation latency:
-coding iterations stay cheap, while the human chooses the point at which the
-long verification bill is paid.
+workflow for a branch with `mode=full` (the default), and automatically after
+changes land on `main`. This is the accepted response to measured Actions cost
+and implementation latency: coding iterations stay cheap, while the human
+chooses the point at which the long verification bill is paid.
+
+A separate `workflow_dispatch` `mode=samsung-targeted` runs only Spotless,
+`:samsung:compileDebugUnitTestKotlin`, and `:samsung:test`. That mode is
+implementation feedback. It skips backend, managed-device, SonarQube, and
+dependency-review jobs and does not produce `verify / gate`.
 
 The workflow exposes one stable branch-protection interface: `verify / gate`.
 On ordinary pull requests that gate represents the quick check. A manually
 dispatched full run produces the same gate after the complete verification
-groups. Internal job names may evolve without changing branch protection.
+groups. Internal job names may evolve without changing branch protection. The
+Samsung-targeted mode must not satisfy or masquerade as that gate.
 
 The workflow contains these responsibility groups:
 
@@ -299,16 +307,22 @@ it.
 
 A separate `deep.yml` is created only if long-running or hardware-backed checks
 eventually need a cadence/trust domain that cannot sensibly live in pull-request
-verification. The target repository therefore owns one workflow now and at most
-three ordinary workflows when those later responsibilities become real:
-`verify.yml`, optional `deep.yml`, and `release.yml`.
+verification. The target repository therefore owns one verification workflow now
+(`verify.yml`) and at most three ordinary verification/release workflows when
+those later responsibilities become real: `verify.yml`, optional `deep.yml`, and
+`release.yml`. `.github/workflows/codeql.yml` is the separate security-analysis
+workflow and is not counted in that ordinary-verification inventory.
 
 Routine GitHub retention/cache settings own Actions housekeeping. No permanent
 maintenance workflow exists merely to delete old runs or caches.
 
 ### Migration sequencing
 
-The replacement is an expand-contract migration; verification coverage must not
+The expand-contract migration below has landed on `main`. The live inventory is
+`verify.yml` and `codeql.yml`. The steps remain as the accepted history of that
+contraction, not as pending work to resurrect `ci.yml` or `maintenance.yml`.
+
+The replacement was an expand-contract migration; verification coverage must not
 be silently dropped while infrastructure changes.
 
 1. Introduce the project-owned verification interfaces (`ciCheck` and backend
