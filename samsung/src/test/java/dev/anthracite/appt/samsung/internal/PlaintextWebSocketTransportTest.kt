@@ -181,7 +181,7 @@ class PlaintextWebSocketTransportTest {
     fun productionPlaintextAdapterDoesNotImportOkHttp() {
         val source =
             File(
-                "src/main/java/dev/anthracite/appt/samsung/internal/PlaintextWebSocketTransport.kt",
+                "src/main/java/dev/anthracite/appt/samsung/internal/PlaintextWebSocketTransport.kt"
             )
         assertTrue(source.isFile)
         assertFalse(source.readText().contains("okhttp3"))
