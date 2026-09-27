@@ -29,6 +29,7 @@ import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 import dev.anthracite.appt.tokens.AppTTheme
 import dev.anthracite.appt.welcome.WelcomeTestTags
 import java.io.File
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -126,11 +127,17 @@ class PairingToFirstControlFlowTest {
         observations.cancel()
     }
 
-    private fun awaitFirstControlAchieved() {
+    private fun awaitFirstControlAchieved(timeoutMillis: Long = 10_000L) {
         observations.launch { store.firstControlAchieved.collect { firstControlAchieved.set(it) } }
-        composeRule.waitUntil("the first accepted command is recorded", 10_000L) {
-            firstControlAchieved.get()
+        // Neither `waitUntil` nor a `runBlocking` read can observe this flag: `waitUntil` sleeps
+        // the calling thread and only advances the Compose clock, and `runBlocking` blocks this
+        // thread outright, so in both cases the pending work on the main looper never runs. Idling
+        // the looper is what runs the write's resumption and the collector that reads it back.
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
+        while (!firstControlAchieved.get() && System.nanoTime() < deadline) {
+            composeRule.waitForIdle()
         }
+        assertTrue("the first accepted command is recorded", firstControlAchieved.get())
     }
 
     @Test
