@@ -217,14 +217,14 @@ export async function dispatchCommand({
 
   const head = await resolvePullRequestHead({ gh, repo, prNumber });
 
-  // The provider dispatches a ref that must exist in this repository. A fork's
-  // head branch does not, so there is no provider-valid way to dispatch it.
-  // Fail closed rather than dispatching something else.
-  if (head.headRepo && head.headRepo !== repo) {
+  // Trusted assertion logic resolves the target branch inside this repository.
+  // Require a known same-repository head, including when a deleted head repo
+  // is returned as null, rather than following a colliding local branch name.
+  if (head.headRepo !== repo) {
     throw new Error(
-      `pull request #${prNumber} heads from ${head.headRepo}, not ${repo}. ` +
-        'The provider can only dispatch a ref that exists in this repository, ' +
-        'so a cross-repository (fork) head cannot be dispatched.'
+      `pull request #${prNumber} heads from ${head.headRepo || '<unavailable repository>'}, not ${repo}. ` +
+        'The target branch must resolve within this repository, ' +
+        'so an unavailable repository or cross-repository (fork) head cannot be dispatched.'
     );
   }
 

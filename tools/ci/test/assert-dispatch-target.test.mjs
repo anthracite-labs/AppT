@@ -15,7 +15,7 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
@@ -77,7 +77,8 @@ function createSandbox({
   const gh = `#!/usr/bin/env bash
 echo "$*" >> '${log}'
 case "$2" in
-  */commits/*)
+  */git/ref/heads/*)
+    [ "$3" = "--jq" ] && [ "$4" = ".object.sha" ] || exit 1
     if [ "\${REF_UNRESOLVABLE:-0}" = "1" ]; then exit 1; fi
     printf '%s\\n' "\${REF_SHA}"
     ;;
@@ -268,29 +269,72 @@ describe('a bridge dispatch', () => {
     assert.equal(result.output.trim(), `sha=${HEAD_SHA}`);
   });
 
-  // `TARGET_REF` reaches two API URLs, so its shape is validated before either
-  // is built. A branch name cannot contain the characters that would alter a
-  // path or a query string, and anything else is refused rather than encoded.
-  it('refuses a target ref that is not a valid branch name', () => {
-    const hostile = [
+  it('refuses Git-forbidden branch names before making any API call', () => {
+    const invalid = [
       'feature?x=1',
-      'feature#frag',
-      'feature&state=all',
       'feature space',
       'feature\ttab',
+      'feature\nnewline',
+      'feature\x7f',
       'fea..ture',
       '/leading',
       'trailing/',
-      'feature$({IFS})',
-      'feature;rm',
+      'double//slash',
+      'trailing.',
+      '.hidden',
+      'feature/.hidden',
+      'feature.lock',
+      'feature.lock/child',
+      'feature@{1}',
+      '@{-1}',
+      '-option',
+      'feature:bad',
+      'feature*',
+      'feature[bad',
+      'feature\\bad',
+      'feature~1',
+      'feature^',
     ];
-    for (const targetRef of hostile) {
+    for (const targetRef of invalid) {
       const sandbox = createSandbox();
       const { stderr } = runAssertionExpectingFailure(sandbox, {
         expectedSha: HEAD_SHA,
         targetRef,
       });
       assert.match(stderr, /Invalid dispatch target ref/, targetRef);
+      assert.equal(readFileSync(join(sandbox.dir, 'github-output'), 'utf8'), '');
+      assert.equal(existsSync(sandbox.log), false, 'invalid names never reach the API');
+    }
+  });
+
+  it('encodes legal reserved characters as data in both API requests', () => {
+    const legal = [
+      'feature/#frag&state=closed',
+      'feature/%23literal',
+      'feature+plus=equals',
+      'feature$({IFS})',
+      'feature;rm',
+      "feature/'quoted'",
+      'feature/日本語',
+    ];
+    for (const targetRef of legal) {
+      const sandbox = createSandbox();
+      const result = runAssertion(sandbox, { expectedSha: HEAD_SHA, targetRef });
+      assert.equal(result.output.trim(), `sha=${HEAD_SHA}`, targetRef);
+      const calls = readFileSync(sandbox.log, 'utf8').trim().split('\n');
+      // Compute expectations independently using the standard URL encoder.
+      const pathRef = targetRef.split('/').map(encodeURIComponent).join('/');
+      const queryHead = encodeURIComponent(`${OWNER}:${targetRef}`);
+      assert.deepEqual(calls, [
+        `api repos/${REPO}/git/ref/heads/${pathRef} --jq .object.sha`,
+        `api repos/${REPO}/pulls?head=${queryHead}&state=open --jq .[].head.sha`,
+      ]);
+      const url = new URL(`https://api.github.com/${calls[1].split(' ')[1]}`);
+      assert.equal(url.hash, '');
+      assert.deepEqual([...url.searchParams], [
+        ['head', `${OWNER}:${targetRef}`],
+        ['state', 'open'],
+      ]);
     }
   });
 

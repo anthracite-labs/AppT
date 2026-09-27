@@ -113,21 +113,22 @@ runs:
         # A bridge dispatch: this run executes trusted default-branch content, so
         # its own commit is the anchor rather than the target.
         #
-        # `TARGET_REF` reaches two API URLs below, so its shape is validated
-        # first. A branch name cannot contain the characters that would alter a
-        # path or a query string -- `?`, `#`, `&`, a space, a control character
-        # -- so anything outside this grammar is refused rather than encoded and
-        # hoped for. `/` stays allowed because it is legal in a branch name.
-        case "$TARGET_REF" in
-          *..* | /* | */ | *[!A-Za-z0-9._/-]*)
-            {
-              echo "::error title=Invalid dispatch target ref::'${TARGET_REF}' is not a valid branch name. A dispatch target ref must be a plain branch name, so nothing was run."
-            } >&2
-            exit 1
-            ;;
-        esac
+        # Validate Git branch syntax independently from URL transport. Legal
+        # names can contain reserved URL characters such as '#' and '&'. Use a
+        # full heads ref to avoid expanding checkout shorthand such as @{-1};
+        # branch names also cannot start with '-'.
+        if [[ "$TARGET_REF" == -* ]] || ! git check-ref-format "refs/heads/${TARGET_REF}"; then
+          {
+            echo "::error title=Invalid dispatch target ref::'${TARGET_REF}' is not a valid branch name, so nothing was run."
+          } >&2
+          exit 1
+        fi
 
-        resolved="$(gh api "repos/${REPOSITORY}/commits/${TARGET_REF}" --jq '.sha' 2>/dev/null || true)"
+        # Preserve slash separators in the branch path, but encode every other
+        # URL metacharacter. The branch-only endpoint cannot resolve a tag or a
+        # SHA-prefix in place of the requested head branch.
+        encoded_ref="$(jq -rn --arg ref "$TARGET_REF" '$ref | @uri | gsub("%2F"; "/")')"
+        resolved="$(gh api "repos/${REPOSITORY}/git/ref/heads/${encoded_ref}" --jq '.object.sha' 2>/dev/null || true)"
         if [ -z "$resolved" ]; then
           {
             echo "::error title=Dispatch target unresolvable::Could not resolve ${TARGET_REF} in ${REPOSITORY} to a commit. The requested target cannot be verified, so nothing was run."
@@ -148,7 +149,8 @@ runs:
         # built. Requiring it to be the head of an open pull request whose head
         # ref is the requested one means only a commit a real pull request
         # actually points at can be verified.
-        open_heads="$(gh api "repos/${REPOSITORY}/pulls?head=${REPOSITORY_OWNER}:${TARGET_REF}&state=open" --jq '.[].head.sha' 2>/dev/null || true)"
+        encoded_head="$(jq -rn --arg head "${REPOSITORY_OWNER}:${TARGET_REF}" '$head | @uri')"
+        open_heads="$(gh api "repos/${REPOSITORY}/pulls?head=${encoded_head}&state=open" --jq '.[].head.sha' 2>/dev/null || true)"
         if ! printf '%s\n' "$open_heads" | grep -Fxq "$EXPECTED_SHA"; then
           {
             echo "::error title=Dispatch target is not an open pull-request head::Commit ${EXPECTED_SHA} is not the head of any open pull request from ${TARGET_REF} in ${REPOSITORY}. A dispatch target must be the head of a real open pull request, so nothing was run."

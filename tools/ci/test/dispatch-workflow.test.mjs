@@ -345,6 +345,27 @@ describe('dispatchCommand', () => {
     assert.deepEqual(api.bodies, []);
   });
 
+  for (const headRepo of [null, undefined, {}, { full_name: '' }]) {
+    it(`refuses an unavailable head repository (${JSON.stringify(headRepo)}) before dispatch`, async () => {
+      const api = createFakeApi({
+        pr: { head: { sha: HEAD_SHA, ref: HEAD_REF, repo: headRepo } },
+      });
+      await assert.rejects(
+        dispatchCommand({
+          label: 'ci:app-unit',
+          gh: api.gh,
+          repo: REPO,
+          prNumber: PR_NUMBER,
+          log: () => {},
+        }),
+        /heads from <unavailable repository>/
+      );
+      assert.ok(!api.calls.some((call) => call.includes('/dispatches')));
+      assert.deepEqual(api.bodies, []);
+      assert.equal(api.calls.length, 1, 'only the PR lookup is allowed');
+    });
+  }
+
   it('refuses a pull request that heads from the default branch itself', async () => {
     // There would be no trusted anchor distinct from the target, so the bridge
     // fails closed rather than dispatching the branch it is meant to verify.

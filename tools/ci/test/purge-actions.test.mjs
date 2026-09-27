@@ -465,6 +465,32 @@ describe('purgeActions', () => {
     );
   });
 
+  it('never deletes an active run introduced after the final settled snapshot', async () => {
+    const api = createFakeApi({
+      runs: [run(CURRENT_RUN_ID, 'in_progress', 'maintenance'), run(3, 'completed')],
+    });
+    let listings = 0;
+    const gh = async (args) => {
+      if (/\/actions\/runs\?/.test(args[0]) && ++listings === 3) {
+        // First listing: initial state. Second: final settled snapshot.
+        // The next listing must verify the result, not add unchecked runs to
+        // the deletion set.
+        api.state.runs.push(run(777, 'in_progress', 'arrived-after-settlement'));
+      }
+      return api.gh(args);
+    };
+    const result = await purgeActions({
+      repo: 'owner/name',
+      runId: CURRENT_RUN_ID,
+      gh,
+      wait: async () => {},
+      log: () => {},
+    });
+    assert.equal(result.state.ok, false, 'concurrent arrivals prevent a clean-purge claim');
+    assert.deepEqual(result.deleted, ['3']);
+    assert.ok(!api.calls.some((call) => call.includes('/actions/runs/777')));
+  });
+
   it('needs no cancellation and no deletion when the repository is already clean', async () => {
     const api = createFakeApi({
       runs: [run(CURRENT_RUN_ID, 'in_progress', 'maintenance')],

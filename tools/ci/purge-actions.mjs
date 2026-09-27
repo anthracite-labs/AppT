@@ -307,7 +307,9 @@ export async function purgeActions({
     }
   }
 
-  runs = await listRuns(gh, repo);
+  // Delete only the snapshot the loop just proved settled. A fresh unchecked
+  // listing here could introduce an active run after that proof. Runs created
+  // after this snapshot are reported by the final-state verification instead.
   ({ other } = partitionRuns(runs, runId));
   const deleted = [];
   for (const run of other) {
