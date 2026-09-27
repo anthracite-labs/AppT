@@ -18,7 +18,7 @@ Dispatch only when:
 - acceptance criteria are observable;
 - the work can be expressed as one sensible reviewable implementation unit.
 
-Plan only to the depth required to make the Issue executable. Do not pre-implement the solution in prose.
+Use `../skills/implementation-planning/SKILL.md` when approved work needs decomposition, sequencing, risk-first proof, or a bounded Arena contract. Plan only to the depth required to make the Issue executable. Do not pre-implement the solution in prose.
 
 If the work cannot fit one sensible branch/PR, reconsider decomposition before dispatch rather than allowing Arena to invent project-level work decomposition.
 
@@ -88,6 +88,8 @@ Do not say Arena was launched or dispatched unless a real launch mechanism was i
 ## 3. Arena autonomy
 
 Arena implementation work uses `../skills/incremental-implementation/SKILL.md`. When another lifecycle trigger from `../routing/capabilities.md` applies, Arena also loads that skill rather than improvising an alternate method.
+
+For non-trivial multi-step or multi-file implementation, Arena uses `../skills/incremental-implementation/SKILL.md`. When executable tests can define new/changed behavior or a bug, also use `../skills/test-driven-development/SKILL.md`.
 
 Within the approved contract Arena may:
 
