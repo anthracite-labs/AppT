@@ -222,7 +222,7 @@ Arena must:
 8. regain targeted green evidence for the reproducer and affected scope;
 9. only then produce a new finished candidate for terminal repository verification.
 
-If the current environment cannot run the practical reproducer, Arena must report the exact failed capability/tooling probe and use `../routing/route.md` to try the narrowest safe alternate route. It must not use repeated full CI/workflow runs as the primary edit-run loop.
+If the current environment cannot run the practical reproducer, Arena must report the exact failed capability/tooling probe and use `../routing/route.md` to try the narrowest safe alternate route. If that route provides equivalent targeted evidence for the same failure and affected scope, that evidence satisfies step 8. If no safe route can provide equivalent targeted evidence, Arena must stop the correction cycle and return control with the blocker report; it must not edit further, produce a new finished candidate, or run terminal repository verification. It must not use repeated full CI/workflow runs as the primary edit-run loop.
 
 A correction report must identify:
 
