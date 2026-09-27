@@ -1,0 +1,237 @@
+# TEMPORARY — Issue #79 / PR #80 Sonar-gate coverage diagnostic.
+#
+# Authorized for this Arena session branch only, as a Revision 3-style temporary
+# diagnostic (user direction, 2026-09-28): workflow_dispatch is 403 for this session, and
+# Issue #79 comment 5860009341 requires narrow affected-scope green before terminal verify.
+# It runs project-owned Gradle commands only, reads nothing secret, writes nothing, and
+# must be deleted before the candidate is consolidated onto PR #80. It is not terminal
+# verification and does not replace verify.yml or codeql.yml.
+name: S03 coverage diagnostic (temporary)
+
+on:
+  push:
+    branches:
+      - arena/01a0e3cf-appt
+
+permissions:
+  contents: read
+
+concurrency:
+  group: s03-coverage-diagnostic-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  JAVA_VERSION: '17'
+  GRADLE_VERSION: '9.7.1'
+
+jobs:
+  coverage-diagnostic:
+    name: S03 coverage diagnostic (temporary, not terminal verification)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          # Full history: new code is decided by git blame against the Sonar period start.
+          fetch-depth: 0
+
+      - name: Set up JDK
+        # actions/setup-java v6.0.1
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        # gradle/actions/setup-gradle v6.3.0
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+          cache-provider: 'basic'
+
+      - name: Signal 1 - spotlessCheck
+        run: |
+          set +e
+          ./gradlew --no-daemon --dependency-verification=strict spotlessCheck
+          rc=$?
+          echo "spotless_rc=$rc" >> "$GITHUB_ENV"
+          echo "::notice title=Signal 1 spotlessCheck::exit $rc"
+
+      - name: Signal 2 - Samsung compile and unit tests (samsung-targeted scope)
+        if: always()
+        run: |
+          set +e
+          ./gradlew --no-daemon --dependency-verification=strict \
+            :samsung:compileDebugUnitTestKotlin :samsung:test
+          rc=$?
+          echo "samsung_rc=$rc" >> "$GITHUB_ENV"
+          echo "::notice title=Signal 2 samsung tests::exit $rc"
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+
+          files = sorted(glob.glob("samsung/build/test-results/*/TEST-*.xml"))
+          if not files:
+              print("::error title=Samsung test results::no TEST-*.xml produced")
+          total = failing = skipped = 0
+          errors = 0
+          for path in files:
+              suite = ET.parse(path).getroot()
+              name = suite.get("name", "")
+              tests = int(suite.get("tests", 0))
+              bad = int(suite.get("failures", 0)) + int(suite.get("errors", 0))
+              total += tests
+              failing += bad
+              skipped += int(suite.get("skipped", 0))
+              if name.endswith("OkHttpSessionTransportTest"):
+                  task = path.split("/")[-2]
+                  print(f"::notice title=OkHttpSessionTransportTest ({task})::"
+                        f"{tests} tests, {bad} failing")
+              for case in suite.iter("testcase"):
+                  for tag in ("failure", "error"):
+                      node = case.find(tag)
+                      if node is not None and errors < 9:
+                          errors += 1
+                          text = (node.get("message") or node.text or "")[:700]
+                          text = text.replace("\n", " ").replace("%", "%25")
+                          print(f"::error title={case.get('classname')}."
+                                f"{case.get('name')}::{text}")
+          print(f"::notice title=Samsung test totals::{len(files)} suites, {total} tests, "
+                f"{failing} failing, {skipped} skipped")
+          PY
+
+      - name: Signal 3 - Kover XML report and Sonar-equivalent new-code coverage
+        if: always() && env.samsung_rc == '0'
+        run: |
+          set +e
+          ./gradlew --no-daemon --dependency-verification=strict koverXmlReport
+          rc=$?
+          echo "kover_rc=$rc" >> "$GITHUB_ENV"
+          echo "::notice title=Signal 3 koverXmlReport::exit $rc"
+          if [ "$rc" != "0" ]; then
+            exit 0
+          fi
+          python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+          import xml.etree.ElementTree as ET
+
+          # SonarCloud new-code period for anthracite-labs_AppT: previous_version,
+          # 2026-09-24T05:26:58+0000 (api/measures/component, periods[0].date).
+          start = 1790227618
+          # Sonar on ff19ef7 (analysis 50b5a2d9, api/measures/component):
+          sonar = {"lines": 1990, "uncovered_lines": 331, "conds": 1146, "uncovered_conds": 323}
+          report = "build/reports/kover/report.xml"
+          roots = ["app/src/main/java", "samsung/src/main/java",
+                   "app/src/main/kotlin", "samsung/src/main/kotlin"]
+
+          def blame(path):
+              out = subprocess.run(["git", "blame", "--line-porcelain", "HEAD", "--", path],
+                                   capture_output=True, text=True, check=True).stdout
+              times, final, author, committer = {}, 0, 0, 0
+              for line in out.splitlines():
+                  head = re.match(r"^[0-9a-f]{40} \d+ (\d+)", line)
+                  if head:
+                      final = int(head.group(1))
+                  elif line.startswith("author-time "):
+                      author = int(line.split()[1])
+                  elif line.startswith("committer-time "):
+                      committer = int(line.split()[1])
+                  elif line.startswith("\t"):
+                      times[final] = (author, committer)
+              return times
+
+          totals = {k: {"lines": 0, "covered_lines": 0, "conds": 0, "covered_conds": 0}
+                    for k in ("author", "committer")}
+          per_file = {}
+          unresolved = []
+          for package in ET.parse(report).getroot().iter("package"):
+              for source in package.iter("sourcefile"):
+                  rel = f"{package.get('name')}/{source.get('name')}"
+                  hits = [os.path.join(r, rel) for r in roots
+                          if os.path.isfile(os.path.join(r, rel))]
+                  if len(hits) != 1:
+                      unresolved.append(rel)
+                      continue
+                  path = hits[0]
+                  times = blame(path)
+                  stats = per_file.setdefault(path, {"lines": 0, "uncovered": [], "conds": 0,
+                                                     "uncovered_conds": 0})
+                  for line in source.iter("line"):
+                      nr = int(line.get("nr"))
+                      mi, ci = int(line.get("mi")), int(line.get("ci"))
+                      mb, cb = int(line.get("mb")), int(line.get("cb"))
+                      if mi + ci == 0:
+                          continue
+                      author, committer = times.get(nr, (0, 0))
+                      for key, when in (("author", author), ("committer", committer)):
+                          if when > start:
+                              t = totals[key]
+                              t["lines"] += 1
+                              t["covered_lines"] += 1 if ci > 0 else 0
+                              t["conds"] += mb + cb
+                              t["covered_conds"] += cb
+                      if committer > start:
+                          stats["lines"] += 1
+                          if ci == 0:
+                              stats["uncovered"].append(nr)
+                          stats["conds"] += mb + cb
+                          stats["uncovered_conds"] += mb
+
+          for key, t in totals.items():
+              units = t["lines"] + t["conds"]
+              covered = t["covered_lines"] + t["covered_conds"]
+              pct = 100.0 * covered / units if units else 0.0
+              print(f"::notice title=New-code coverage by {key} time::"
+                    f"lines {t['lines']} (uncovered {t['lines'] - t['covered_lines']}), "
+                    f"conditions {t['conds']} (uncovered {t['conds'] - t['covered_conds']}), "
+                    f"coverage {covered}/{units} = {pct:.2f}%")
+
+          t = totals["committer"]
+          same = (t["lines"] == sonar["lines"] and t["conds"] == sonar["conds"])
+          print(f"::notice title=Calibration against Sonar ff19ef7::"
+                f"Sonar lines {sonar['lines']}, conditions {sonar['conds']}; "
+                f"this report lines {t['lines']}, conditions {t['conds']}; "
+                f"denominators {'MATCH' if same else 'DIFFER'}")
+
+          okhttp = next((p for p in per_file if p.endswith("/OkHttpSessionTransport.kt")), None)
+          if okhttp:
+              s = per_file[okhttp]
+              covered_units = (s["lines"] - len(s["uncovered"])) + (s["conds"] - s["uncovered_conds"])
+              base = (sonar["lines"] - sonar["uncovered_lines"]) + \
+                  (sonar["conds"] - sonar["uncovered_conds"])
+              denom = sonar["lines"] + sonar["conds"]
+              print(f"::notice title=OkHttpSessionTransport.kt new code::"
+                    f"lines {s['lines']}, uncovered {len(s['uncovered'])} "
+                    f"{s['uncovered'][:40]}; conditions {s['conds']}, "
+                    f"uncovered {s['uncovered_conds']}; covered units {covered_units}; "
+                    f"projection if it was 0 on ff19ef7: ({base} + {covered_units})/{denom} = "
+                    f"{100.0 * (base + covered_units) / denom:.2f}%")
+
+          ranked = sorted(per_file.items(),
+                          key=lambda kv: -(len(kv[1]["uncovered"]) + kv[1]["uncovered_conds"]))
+          rows = []
+          for path, s in ranked[:14]:
+              if s["lines"] == 0:
+                  continue
+              rows.append(f"{path.split('/')[-1]} L{s['lines']}/u{len(s['uncovered'])} "
+                          f"C{s['conds']}/u{s['uncovered_conds']}")
+          print("::notice title=Largest new-code gaps (committer time)::" + "; ".join(rows))
+          if unresolved:
+              print(f"::warning title=Unresolved Kover source files::{unresolved[:20]}")
+          PY
+
+      - name: Verdict
+        if: always()
+        run: |
+          echo "spotless=${spotless_rc:-unset} samsung=${samsung_rc:-unset} kover=${kover_rc:-skipped}"
+          if [ "${spotless_rc:-1}" != "0" ] || [ "${samsung_rc:-1}" != "0" ] || [ "${kover_rc:-1}" != "0" ]; then
+            echo "::error title=S03 coverage diagnostic::spotless=${spotless_rc:-unset} samsung=${samsung_rc:-unset} kover=${kover_rc:-skipped}"
+            exit 1
+          fi
