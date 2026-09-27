@@ -41,11 +41,11 @@ Use when examining an implementation, change, evidence set, security concern, or
 
 Use when a bug, failing test, build/CI failure, regression, unexpected result, integration failure, performance anomaly, or blocked operation requires root-cause investigation.
 
-Diagnosis is a mandatory phase before editing when a practical reproducer exists. Load `../skills/debugging-recovery/SKILL.md` and establish the tightest reliable reproducer, evidence-backed root cause, minimal correction, regression protection where practical, and targeted green verification before returning to broader or terminal verification.
+Diagnosis is a mandatory phase before every correction. Load `../skills/debugging-recovery/SKILL.md`. Establish the tightest reliable reproducer when practical, an evidence-backed root cause, the minimal correction, regression protection where practical, and targeted green verification before returning to broader or terminal verification.
 
 For failures on an existing pull request, also use `../skills/pr-integration-correction/SKILL.md` so the correction stays on the same branch/PR and actionable CI/review items are classified before editing.
 
-If the failure cannot be reproduced locally or through another narrow route, record the exact capability/tooling blocker and escalate only the blocked operation. Do not substitute repeated terminal CI runs for diagnosis.
+If the failure cannot be reproduced locally, record the exact capability/tooling blocker and escalate only the blocked operation through the narrowest safe alternate route. If no safe route can provide equivalent targeted evidence, stop the correction and return control with the blocker; do not edit, produce a finished candidate, or run terminal verification. Do not substitute repeated terminal CI runs for diagnosis.
 
 ## Mandatory lifecycle skill routing
 
