@@ -32,12 +32,15 @@ CI or verification must not silently mutate the candidate being verified.
 
 If terminal repository verification fails:
 
-1. identify the smallest useful reproducer for the failure;
-2. leave the terminal-verification loop;
-3. diagnose and fix narrowly;
-4. regain targeted green evidence;
-5. produce a new finished candidate;
-6. run terminal repository verification again.
+1. leave the terminal-verification loop immediately;
+2. use `../skills/debugging-recovery/SKILL.md` to identify and confirm the smallest useful reproducer;
+3. establish an evidence-backed root cause before editing when reproduction is practical;
+4. correct the root cause minimally and add regression protection where practical;
+5. regain targeted green evidence for the reproducer and affected scope;
+6. produce a new finished candidate;
+7. run terminal repository verification again only after the targeted surface is green.
+
+If a practical reproducer cannot be run in the current environment, preserve the exact blocker and use `../routing/route.md` to try the narrowest safe alternate route. Repeated terminal CI runs are not an acceptable substitute for the diagnostic loop.
 
 ## Distinct operation classes
 
