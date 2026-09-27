@@ -168,11 +168,15 @@ def validate_routing_coverage(skill_names: set[str]) -> list[str]:
         ]
 
     text = ROUTING_OWNER.read_text(encoding="utf-8")
-    start = text.find(ROUTING_HEADING)
-    if start == -1:
+    heading = re.search(
+        rf"^{re.escape(ROUTING_HEADING)}$",
+        text,
+        re.MULTILINE,
+    )
+    if heading is None:
         return ["mandatory lifecycle skill routing heading is missing"]
 
-    section_start = text.find("\n", start) + 1
+    section_start = heading.end() + 1
     section_end = text.find("\n## ", section_start)
     section = text[section_start:] if section_end == -1 else text[section_start:section_end]
 
