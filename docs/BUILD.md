@@ -244,6 +244,12 @@ jobs, so each job re-establishes its own toolchain; the Gradle version is not
 duplicated in workflow configuration because the committed wrapper plus its
 `distributionSha256Sum` is the version authority.
 
+GitHub resolves a local action (`uses: ./.github/actions/...`) from the
+workspace on disk, so **every job that uses a composite action must run
+`actions/checkout` before it**. A checkout inside the composite would run too
+late to be found — this is why the composites own toolchain setup only and each
+job checks out explicitly first.
+
 Invoking diagnostics without clicking through the Actions UI:
 
 - an actor with Actions write permission dispatches `diagnose.yml` directly;

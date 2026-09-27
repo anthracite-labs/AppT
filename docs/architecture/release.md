@@ -164,7 +164,11 @@ without changing branch protection. No diagnostic run can satisfy or masquerade
 as that gate.
 
 The workflow runs these failure domains as independent parallel jobs, so one
-failing domain cannot hide the evidence of another:
+failing domain cannot hide the evidence of another. Each job re-establishes its
+own toolchain through the repository-local composite actions under
+`.github/actions/**` (`setup-node`, `setup-jvm`); because GitHub resolves a
+local action from the workspace on disk, every job that uses one runs
+`actions/checkout` before it, and the composites own toolchain setup only:
 
 1. **repo-policy** — diff/whitespace validation, repository security-policy
    self-tests, secret scanning, tooling-constraint checks, and the maintenance

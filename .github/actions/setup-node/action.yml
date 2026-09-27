@@ -1,17 +1,20 @@
 # Repository-local composite setup action: the Node.js toolchain.
 #
 # Issue #88: runner filesystem state is never shared between jobs, so each
-# verification job re-establishes its own toolchain. Centralising that here
-# keeps the pinned versions and the checkout posture in one reviewable place
-# instead of repeating them in every job of every workflow.
+# verification job re-establishes its own toolchain. Centralising the pinned
+# version here keeps one declaration per workflow file instead of repeating it
+# in every job.
 #
-# Checkout is always `persist-credentials: false`: no verification job needs to
-# push, and a job that cannot authenticate with the repository is a job that
-# cannot be used to move code.
+# NOTE — this action deliberately does NOT check out the repository. GitHub
+# resolves a local action (`uses: ./.github/actions/...`) from the workspace on
+# disk, so the caller must run `actions/checkout` *before* referencing this
+# action; a checkout inside the composite would run too late to be found. Every
+# job that uses this action therefore checks out explicitly first, which also
+# makes the dependency visible in the job's step list.
 name: Setup Node
 description: >-
-  Checks out the repository without persisted credentials and sets up the
-  pinned Node.js runtime.
+  Sets up the pinned Node.js runtime. Requires the repository to be checked out
+  by the calling job first.
 
 inputs:
   node-version:
@@ -25,12 +28,6 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Check out
-      # actions/checkout v7.0.1
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        persist-credentials: false
-
     - name: Set up Node
       # actions/setup-node v7.0.0
       uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
