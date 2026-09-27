@@ -16,6 +16,7 @@ It is maintenance guidance, not a runtime skill.
 - Keep `SKILL.md` as the runtime decision/workflow layer, not an encyclopedia.
 - Prefer one default path before alternatives.
 - Point to canonical project/control-plane owners instead of restating them.
+- Wire every runtime skill into at least one canonical control-plane routing owner, normally `../routing/capabilities.md`; `validate.py` rejects orphaned skills and broken routing references.
 - Put provenance and upstream adaptation notes in `../SOURCES.md`, not runtime files.
 - Add supporting files only when optional depth, deterministic automation, or reusable assets genuinely need them.
 - Keep runtime skills under 500 lines; target materially less.
