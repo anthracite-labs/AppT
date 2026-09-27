@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the structural contract for .project-ai lifecycle skills."""
+"""Validate lifecycle skill structure and control-plane routing coverage."""
 
 from __future__ import annotations
 
@@ -8,6 +8,15 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+PROJECT_AI_ROOT = ROOT.parent
+ROUTING_OWNER_PATHS = [
+    PROJECT_AI_ROOT / "hosts" / "chatgpt-project.md",
+    PROJECT_AI_ROOT / "routing" / "capabilities.md",
+    PROJECT_AI_ROOT / "routing" / "route.md",
+    PROJECT_AI_ROOT / "execution" / "arena-dispatch.md",
+    PROJECT_AI_ROOT / "execution" / "verification.md",
+    PROJECT_AI_ROOT / "bootstrap" / "project.md",
+]
 FRONTMATTER_OPEN = "---\n"
 FRONTMATTER_CLOSE = "\n---\n"
 IGNORED_SUPPORT_DIRS = {"__pycache__"}
@@ -155,6 +164,29 @@ def validate_skill(skill_dir: Path) -> list[str]:
     return errors
 
 
+def validate_routing_coverage(skill_names: set[str]) -> list[str]:
+    """Require every skill to be reachable from canonical control-plane owners."""
+    errors: list[str] = []
+    owner_texts: list[str] = []
+
+    for owner in ROUTING_OWNER_PATHS:
+        if not owner.exists():
+            errors.append(f"routing owner missing: {owner.relative_to(PROJECT_AI_ROOT)}")
+            continue
+        owner_texts.append(owner.read_text(encoding="utf-8"))
+
+    combined = "\n".join(owner_texts)
+    referenced = set(re.findall(r"skills/([a-z0-9-]+)/SKILL\\.md", combined))
+
+    for name in sorted(skill_names - referenced):
+        errors.append(f"{name}: skill has no canonical control-plane routing reference")
+
+    for name in sorted(referenced - skill_names):
+        errors.append(f"routing references unknown skill {name!r}")
+
+    return errors
+
+
 def main() -> int:
     """Validate every immediate skill directory and return a process status."""
     skill_dirs = sorted(
@@ -185,13 +217,15 @@ def main() -> int:
             errors.append(f"{skill_dir.name}: duplicate skill name {name!r}")
         names.add(name)
 
+    errors.extend(validate_routing_coverage(names))
+
     if errors:
         print("Skill validation failed:")
         for error in errors:
             print(f"- {error}")
         return 1
 
-    print(f"Skill validation passed: {len(skill_dirs)} skills")
+    print(f"Skill validation passed: {len(skill_dirs)} skills; routing coverage complete")
     return 0
 
 
