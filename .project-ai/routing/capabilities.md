@@ -47,6 +47,35 @@ For failures on an existing pull request, also use `../skills/pr-integration-cor
 
 If the failure cannot be reproduced locally or through another narrow route, record the exact capability/tooling blocker and escalate only the blocked operation. Do not substitute repeated terminal CI runs for diagnosis.
 
+## Lifecycle skill routing
+
+When a skill's trigger matches the work, load and follow that skill. This is mandatory routing, not an optional reference. More than one skill may apply to the same task; use only the skills whose triggers materially apply.
+
+| Trigger | Required skill |
+|---|---|
+| project/control-plane bootstrap, adoption, or foundation reconciliation | `../skills/project-bootstrap/SKILL.md` |
+| materially unclear problem, user, outcome, success signal, constraint, or need | `../skills/project-discovery/SKILL.md` |
+| decision depends on uncertain external facts, feasibility, alternatives, cost, or risky assumptions | `../skills/research-feasibility/SKILL.md` |
+| confirmed intent needs an approved behavioral contract | `../skills/requirements-specification/SKILL.md` |
+| durable architecture, ownership, dependency direction, state/data rule, or interface contract is required | `../skills/architecture-interface-design/SKILL.md` |
+| approved requirements/architecture need executable implementation units | `../skills/implementation-planning/SKILL.md` |
+| approved multi-step/multi-file implementation is being executed | `../skills/incremental-implementation/SKILL.md` |
+| behavior or a bug can be specified with an executable test before implementation | `../skills/test-driven-development/SKILL.md` |
+| bug, failing test/build/CI, regression, unexpected behavior, integration failure, performance anomaly, or blocked operation | `../skills/debugging-recovery/SKILL.md` |
+| an existing PR has actionable CI/review/correction work | `../skills/pr-integration-correction/SKILL.md` |
+| work is about to be called complete, fixed, passing, ready, or technically verified | `../skills/verification-before-completion/SKILL.md` |
+| a proposed implementation/PR needs contract-compliance and engineering-quality review | `../skills/code-review/SKILL.md` |
+| authentication, authorization, secrets, cryptography, untrusted input, network trust, privileged operations/CI, sensitive data, supply chain, or explicit security review is involved | `../skills/security-engineering/SKILL.md` |
+| CI/CD, automated build/test/quality/security/package/deploy behavior is created or changed | `../skills/ci-cd-automation/SKILL.md` |
+| accepted behavior/setup/interfaces/operations or durable technical rationale needs documentation | `../skills/documentation-adrs/SKILL.md` |
+| software/dependency/API/schema/service/feature/infrastructure/data is upgraded, migrated, deprecated, removed, or retired | `../skills/maintenance-migration-retirement/SKILL.md` |
+| production behavior needs logs, metrics, traces, health signals, alerts, SLIs/SLOs, or diagnostic evidence | `../skills/observability-operations-design/SKILL.md` |
+| active or credible production harm requires stabilization before ordinary debugging | `../skills/incident-response/SKILL.md` |
+| resolved incident, near-miss, repeated rework, difficult release/migration, or surprising outcome contains durable learning | `../skills/postmortem-learning/SKILL.md` |
+| an accepted candidate is moving to an environment, registry, or user population | `../skills/release-deployment/SKILL.md` |
+
+The skill trigger selects the method; it does not change capability, route, authority, or acceptance boundaries.
+
 ## Skills and cross-cutting concerns
 
 Lifecycle skills are methods, not additional top-level capabilities.
