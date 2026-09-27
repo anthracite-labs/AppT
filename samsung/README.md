@@ -17,7 +17,7 @@ seam in `dev.anthracite.appt.samsung` with exactly one operation so far,
 | Arrives in | What |
 |---|---|
 | S02 | `SamsungTvs.discover()`, discovery transport, device-info confirmation |
-| S03 | `open`, `command`, the session transport and protocol (incl. port 8002/TLS) |
+| S03 | `open`, `command`, the session transport and protocol (TLS 8002 on OkHttp; plaintext 8001 on a raw-socket WebSocket) |
 | S04 | Secret store, identity checking, `forget` |
 | S12 | Wake |
 

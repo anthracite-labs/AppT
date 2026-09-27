@@ -2,8 +2,9 @@
 // (docs/architecture/modules.md#samsung-control-samsung).
 //
 // S01 established the module and its dependency boundary. S02 adds discovery
-// (SamsungTvs.discover()); pairing, the session, the protocol, secret storage
-// and wake are S03+.
+// (SamsungTvs.discover()). S03 (Issue #79) adds the first live control session:
+// open(), the RemoteSession command path, and the Tizen remote channel. Durable
+// saved pairing (S04) and supervised reconnect (S06) follow.
 //
 // Forbidden here, now and later, enforced by `samsungDependencyBoundary`:
 // Firebase, Play services, Play Billing, Play Integrity, any telemetry SDK,
@@ -82,11 +83,13 @@ dependencies {
     //   * coroutines: the Flow-based SamsungTvs.discover() contract;
     //   * serialization-json: the bounded device-info parser, through the
     //     JsonElement tree API only (no serialization compiler plugin here).
-    // OkHttp is deliberately not added in S02: device-info over 8001 is one
-    // bounded socket read (see BoundedHttp.kt for why), and the WebSocket
-    // session that needs OkHttp is S03.
+    // S03 (Issue #79) adds OkHttp for the live remote-control WebSocket session
+    // and its TLS handshake. Nothing else: :samsung stays clear of Room,
+    // DataStore, WorkManager, Firebase, Play and telemetry
+    // (docs/architecture/modules.md#dependency-set-boundaries).
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.okhttp)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

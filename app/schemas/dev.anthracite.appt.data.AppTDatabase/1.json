@@ -1,0 +1,59 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "b91f48fc8c4a8334b394db741cd22770",
+    "entities": [
+      {
+        "tableName": "tv_profiles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`tvId` TEXT NOT NULL, `friendlyName` TEXT, `nameSource` TEXT NOT NULL, `stableIdentity` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `lastOpenedAt` INTEGER, PRIMARY KEY(`tvId`))",
+        "fields": [
+          {
+            "fieldPath": "tvId",
+            "columnName": "tvId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "friendlyName",
+            "columnName": "friendlyName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "nameSource",
+            "columnName": "nameSource",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stableIdentity",
+            "columnName": "stableIdentity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastOpenedAt",
+            "columnName": "lastOpenedAt",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "tvId"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b91f48fc8c4a8334b394db741cd22770')"
+    ]
+  }
+}
