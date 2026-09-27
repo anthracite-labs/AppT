@@ -38,9 +38,13 @@ A blocker report should identify:
 
 Project-owned commands and environment facts live in `../../docs/BUILD.md`, project configuration, and `../../.github/workflows/`.
 
-When Android/JVM verification is required and the current execution environment lacks the required toolchain or network path, use the project-owned hosted verification route documented there rather than treating the local limitation as an implementation defect.
+When Android/JVM verification is required, probe the live session first. Missing preinstalled JDK, Android SDK, or network is not automatically unavailable tooling; install disposable local tooling when that is safe. Escalate only a proven blocked operation.
 
-Dependency or generated-state regeneration remains a distinct operation. Use the narrowest safe route that can produce the required artifacts, then verify the resulting candidate with the repository's strict checks.
+The project-owned hosted fallback for that blocked Android/JVM feedback is documented in `../../docs/BUILD.md`: a Samsung-targeted `verify.yml` dispatch, not a full terminal suite and not a new workflow file.
+
+Temporary branch-scoped workflow YAML is last-resort infrastructure. Add it only after a live capability probe shows that local tooling and the existing `verify.yml` / `codeql.yml` modes cannot perform the required operation. Do not recreate retired one-shot regeneration workflows.
+
+Dependency or generated-state regeneration remains a distinct operation. Use the narrowest safe route that can produce the required artifacts, then verify the resulting candidate with the repository's strict checks. Ordinary source or formatting fixes are not regeneration triggers. Generated contracts are not dependency state.
 
 Repository-administration settings remain owner/provider operations. Do not weaken project workflows merely to work around missing administration permission.
 

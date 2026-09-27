@@ -71,7 +71,7 @@ Minimum fixture set before the matching slice can be called done:
 
 | Case | Proves |
 |---|---|
-| `tls-approval-then-volume` | Approval, token persisted, volume frame written, state `Ready` |
+| `tls-approval-then-volume` | Approval, the approval token received as transient live-session evidence, the volume frame written, state `Ready` |
 | `token-resume` | Second connection sends the token and does not require approval |
 | `identity-mismatch` | Different SPKI, token absent from the recorded URL, state `NeedsRepair` |
 | `unauthorized-with-token` | `TokenRejected`, no reconnect loop |

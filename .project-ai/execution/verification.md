@@ -18,7 +18,7 @@ Typical progression:
 4. broader repository checks only when evidence requires them;
 5. terminal repository verification on the finished candidate.
 
-Do not repeatedly run the entire repository suite or remote CI while diagnosing a narrow failure if a smaller reproducer can provide faster, clearer evidence.
+Do not repeatedly run the entire repository suite or remote CI while diagnosing a narrow failure if a smaller reproducer can provide faster, clearer evidence. Do not use terminal full `verify` as the implementation debugger.
 
 ## Terminal repository verification
 

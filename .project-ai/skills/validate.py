@@ -176,7 +176,49 @@ def validate_routing_coverage(skill_names: set[str]) -> list[str]:
     section_end = text.find("\n## ", section_start)
     section = text[section_start:] if section_end == -1 else text[section_start:section_end]
 
-    references = re.findall(r"skills/([a-z0-9-]+)/SKILL\.md", section)
+    lines = section.splitlines()
+    try:
+        header_index = next(
+            index
+            for index, line in enumerate(lines)
+            if line.strip() == "| Trigger | Required skill |"
+        )
+    except StopIteration:
+        return ["mandatory lifecycle skill routing table header is missing"]
+
+    if header_index + 1 >= len(lines) or not re.fullmatch(
+        r"\|\s*:?-+:?\s*\|\s*:?-+:?\s*\|",
+        lines[header_index + 1].strip(),
+    ):
+        return ["mandatory lifecycle skill routing table separator is invalid"]
+
+    references: list[str] = []
+    for line in lines[header_index + 2 :]:
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            break
+
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if len(cells) != 2 or not cells[0]:
+            errors.append(f"invalid mandatory lifecycle routing row: {stripped!r}")
+            continue
+
+        match = re.fullmatch(
+            r"`\.\./skills/([a-z0-9-]+)/SKILL\.md`",
+            cells[1],
+        )
+        if match is None:
+            errors.append(
+                "mandatory lifecycle routing row has invalid required skill cell "
+                f"{cells[1]!r}"
+            )
+            continue
+
+        references.append(match.group(1))
+
+    if not references:
+        errors.append("mandatory lifecycle skill routing table has no data rows")
+
     referenced = set(references)
 
     for name in sorted(skill_names - referenced):
