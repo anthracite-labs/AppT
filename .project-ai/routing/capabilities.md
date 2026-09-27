@@ -76,6 +76,35 @@ When a skill's trigger matches the work, load and follow that skill. This is man
 
 The skill trigger selects the method; it does not change capability, route, authority, or acceptance boundaries.
 
+## Mandatory lifecycle skill routing
+
+After choosing the top-level capability, evaluate the active work against this table. When a trigger materially applies, load and follow that skill. Routing is cumulative: one task may require several skills.
+
+| Trigger | Required skill |
+|---|---|
+| Project/repository bootstrap, adoption, or foundation reconciliation | `../skills/project-bootstrap/SKILL.md` |
+| Need, user, outcome, success signal, constraint, or non-goal is materially unclear | `../skills/project-discovery/SKILL.md` |
+| Decision depends on uncertain external facts, viability, alternatives, cost, or risky assumptions | `../skills/research-feasibility/SKILL.md` |
+| Confirmed intent needs an approved behavioral contract before design/implementation | `../skills/requirements-specification/SKILL.md` |
+| Durable boundaries, ownership, dependency direction, state/data rules, or interfaces must be decided | `../skills/architecture-interface-design/SKILL.md` |
+| Approved work needs executable units, dependency edges, sequencing, or Arena contract preparation | `../skills/implementation-planning/SKILL.md` |
+| Approved multi-step/multi-file implementation should progress in thin verifiable slices | `../skills/incremental-implementation/SKILL.md` |
+| New/changed behavior or a bug can be specified by an executable test | `../skills/test-driven-development/SKILL.md` |
+| Bug, failing test/build/CI, regression, integration failure, anomaly, or blocked operation | `../skills/debugging-recovery/SKILL.md` |
+| Existing PR has actionable CI/review/contract correction or bounded implementation defect | `../skills/pr-integration-correction/SKILL.md` |
+| Work touches auth, authorization, secrets, crypto, untrusted input, trust boundaries, sensitive data, privileged operations/CI, supply chain, or explicit security review | `../skills/security-engineering/SKILL.md` |
+| Automated build/test/quality/security/package/release workflow behavior is created or changed | `../skills/ci-cd-automation/SKILL.md` |
+| Software/dependency/API/schema/service/feature/infrastructure/data is upgraded, replaced, migrated, deprecated, removed, or retired | `../skills/maintenance-migration-retirement/SKILL.md` |
+| Production behavior needs logs, metrics, traces, SLIs/SLOs, health signals, or actionable alerts | `../skills/observability-operations-design/SKILL.md` |
+| Accepted behavior, setup, public interfaces, operations, migration guidance, or durable rationale needs documentation/ADR treatment | `../skills/documentation-adrs/SKILL.md` |
+| Active production outage, severe degradation, data-integrity failure, security compromise, material SLO breach, or uncontrolled rollout impact | `../skills/incident-response/SKILL.md` before ordinary debugging |
+| Resolved significant incident/near-miss, difficult release/migration, repeated rework, or surprising outcome has durable learning | `../skills/postmortem-learning/SKILL.md` |
+| Proposed code/PR change needs contract-compliance and engineering-quality review | `../skills/code-review/SKILL.md` |
+| Work is about to be called complete, fixed, passing, ready, or technically verified | `../skills/verification-before-completion/SKILL.md` |
+| Accepted candidate is actually being deployed, published, promoted, or exposed to users | `../skills/release-deployment/SKILL.md` |
+
+A skill trigger is not optional merely because another skill is already active. Use the lightest applicable mode inside each skill, and preserve authority boundaries from the execution documents.
+
 ## Skills and cross-cutting concerns
 
 Lifecycle skills are methods, not additional top-level capabilities.
