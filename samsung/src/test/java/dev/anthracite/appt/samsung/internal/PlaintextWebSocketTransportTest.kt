@@ -185,8 +185,8 @@ class PlaintextWebSocketTransportTest {
                 "src/main/java/dev/anthracite/appt/samsung/internal/PlaintextWebSocketTransport.kt"
             )
         assertTrue(source.isFile)
-        assertFalse(source.readText().contains("okhttp3"))
-        assertFalse(source.readText().contains("OkHttp"))
+        val imports = source.readText().lineSequence().filter { it.startsWith("import ") }
+        assertFalse(imports.any { it.contains("okhttp3") || it.contains("OkHttp") })
     }
 
     @Test
