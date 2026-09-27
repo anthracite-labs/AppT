@@ -15,17 +15,19 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 /**
  * The plaintext [SessionTransport] adapter: a bounded raw TCP WebSocket on port 8001
@@ -40,6 +42,7 @@ internal class PlaintextWebSocketTransport(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val connectTimeout: Duration = CONNECT_TIMEOUT,
     private val keepalive: Duration = KEEPALIVE_INTERVAL,
+    private val writeTimeout: Duration = COMMAND_WRITE_TIMEOUT,
 ) : SessionTransport {
 
     override suspend fun connect(television: ConfirmedTelevision): SessionConnection? =
@@ -70,23 +73,28 @@ internal class PlaintextWebSocketTransport(
 
     private fun handshake(socket: Socket, host: String, port: Int): PlaintextWebSocketConnection? {
         val address = InetAddress.getByName(unbracketed(host))
-        socket.connect(InetSocketAddress(address, port), connectTimeout.inWholeMilliseconds.toInt())
+        val boundMillis = connectTimeout.inWholeMilliseconds.toInt()
+        socket.connect(InetSocketAddress(address, port), boundMillis)
+        // TCP accept is not enough: a silent peer would stall forever on the upgrade read.
+        socket.soTimeout = boundMillis
         val key = websocketKey()
         val output = socket.getOutputStream()
         output.write(upgradeRequest(host, port, key).encodeToByteArray())
         output.flush()
-        return if (readUpgradeAccepted(socket.getInputStream(), key)) {
-            PlaintextWebSocketConnection(socket, dispatcher, keepalive)
-        } else {
+        if (!readUpgradeAccepted(socket.getInputStream(), key)) {
             socket.closeQuietly()
-            null
+            return null
         }
+        socket.soTimeout = 0
+        return PlaintextWebSocketConnection(socket, dispatcher, keepalive, writeTimeout, output)
     }
 
-    private class PlaintextWebSocketConnection(
+    internal class PlaintextWebSocketConnection(
         private val socket: Socket,
-        dispatcher: CoroutineDispatcher,
+        private val dispatcher: CoroutineDispatcher,
         private val keepalive: Duration,
+        private val writeTimeout: Duration,
+        private val output: OutputStream,
     ) : SessionConnection {
 
         private val inbound = Channel<String>(Channel.UNLIMITED)
@@ -111,11 +119,21 @@ internal class PlaintextWebSocketTransport(
         override suspend fun send(frame: String): Boolean {
             if (closed.get() || pending.get() >= UNSENT_FRAME_CAP) return false
             pending.incrementAndGet()
-            return try {
-                write(WebSocketFrames.encodeText(frame))
-            } finally {
-                pending.decrementAndGet()
-            }
+            val written =
+                try {
+                    withTimeout(writeTimeout) {
+                        blockingIo(dispatcher, onCancel = ::abortWrite) {
+                            write(WebSocketFrames.encodeText(frame))
+                        }
+                    }
+                } catch (_: TimeoutCancellationException) {
+                    false
+                } catch (_: IOException) {
+                    false
+                } finally {
+                    pending.decrementAndGet()
+                }
+            return written
         }
 
         override fun close() {
@@ -165,11 +183,19 @@ internal class PlaintextWebSocketTransport(
             }
         }
 
+        private fun abortWrite() {
+            try {
+                output.close()
+            } catch (_: IOException) {
+                // Closing is how a stalled write is unblocked.
+            }
+            socket.closeQuietly()
+        }
+
         private fun write(bytes: ByteArray): Boolean {
             if (closed.get()) return false
             return try {
                 synchronized(writeLock) {
-                    val output: OutputStream = socket.getOutputStream()
                     output.write(bytes)
                     output.flush()
                 }
@@ -186,6 +212,9 @@ internal class PlaintextWebSocketTransport(
 
         /** protocol.md: keepalive ping interval on the live socket. */
         val KEEPALIVE_INTERVAL: Duration = 20.seconds
+
+        /** connection.md: command write timeout. */
+        val COMMAND_WRITE_TIMEOUT: Duration = 2.seconds
 
         /** samsung-interface.md: unsent frames held before further commands are rejected. */
         const val UNSENT_FRAME_CAP: Int = 32

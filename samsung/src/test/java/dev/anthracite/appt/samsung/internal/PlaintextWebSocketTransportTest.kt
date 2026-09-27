@@ -1,16 +1,21 @@
 package dev.anthracite.appt.samsung.internal
 
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.security.MessageDigest
 import java.util.Base64
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
 import kotlin.concurrent.thread
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
@@ -137,6 +142,42 @@ class PlaintextWebSocketTransportTest {
     }
 
     @Test
+    fun upgradeStallPastTheConnectBoundFailsNormally() = runBlocking {
+        ServerSocket(0, 1, loopback).use { server ->
+            val accepted = CopyOnWriteArrayList<Socket>()
+            val peer = thread { accepted += server.accept() }
+            val started = System.nanoTime()
+            val connection =
+                PlaintextWebSocketTransport(connectTimeout = 300.milliseconds, keepalive = 1.hours)
+                    .open(loopback.hostAddress, server.localPort)
+            val elapsedMs = (System.nanoTime() - started) / 1_000_000
+            accepted.forEach { it.close() }
+            peer.join()
+            assertNull(connection)
+            assertTrue("upgrade stall must not hang the open", elapsedMs < 2_000)
+        }
+    }
+
+    @Test
+    fun aStalledCommandWriteIsContainedAsAFailedSend() = runBlocking {
+        val stall = StallStream()
+        val connection =
+            PlaintextWebSocketTransport.PlaintextWebSocketConnection(
+                Socket(),
+                Dispatchers.IO,
+                1.hours,
+                200.milliseconds,
+                stall,
+            )
+        val started = System.nanoTime()
+        val sent = connection.send("{\"method\":\"ms.remote.control\"}")
+        val elapsedMs = (System.nanoTime() - started) / 1_000_000
+        connection.close()
+        assertFalse(sent)
+        assertTrue("command write must honour the 2-second bound", elapsedMs < 2_000)
+    }
+
+    @Test
     fun productionPlaintextAdapterDoesNotImportOkHttp() {
         val source =
             File("src/main/java/dev/anthracite/appt/samsung/internal/PlaintextWebSocketTransport.kt")
@@ -218,6 +259,23 @@ class PlaintextWebSocketTransportTest {
                 (raw xor (mask[index % MASK_KEY_BYTES].toInt() and 0xFF)).toByte()
             }
         return payload.decodeToString()
+    }
+
+    private class StallStream : OutputStream() {
+        private val closed = CountDownLatch(1)
+
+        override fun write(b: Int) = stall()
+
+        override fun write(b: ByteArray, off: Int, len: Int) = stall()
+
+        override fun close() {
+            closed.countDown()
+        }
+
+        private fun stall() {
+            closed.await()
+            throw IOException("closed")
+        }
     }
 
     private companion object {
