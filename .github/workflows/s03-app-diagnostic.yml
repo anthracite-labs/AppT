@@ -75,6 +75,10 @@ jobs:
           echo "Diagnostic signal 1 (spotlessCheck) exit code: $rc"
           echo "spotless_rc=$rc" >> "$GITHUB_ENV"
 
+      # Per-test results are republished as check-run annotations because this
+      # environment cannot download job logs or artifacts, so the annotation
+      # stream is the only channel back. Read-only: it parses the JUnit XML that
+      # Gradle already wrote.
       - name: Diagnostic signal 2 - focused app test cluster
         run: |
           set +e
@@ -83,11 +87,56 @@ jobs:
             --tests '*PairingViewModelTest' \
             --tests '*RemoteViewModelTest' \
             --tests '*PairingToFirstControlFlowTest' \
-            --tests '*TestScopeSettleTest'
-          rc=$?
+            --tests '*TestScopeSettleTest' 2>&1 | tee /tmp/focused.log
+          rc="${PIPESTATUS[0]}"
           set -e
           echo "Diagnostic signal 2 (focused cluster) exit code: $rc"
           echo "focused_rc=$rc" >> "$GITHUB_ENV"
+          python3 - /tmp/focused.log <<'PY'
+          import glob
+          import re
+          import sys
+          import xml.etree.ElementTree as ET
+
+          log_path = sys.argv[1]
+          files = sorted(glob.glob('app/build/test-results/testDebugUnitTest/TEST-*.xml'))
+          failures = []
+          total = 0
+          for path in files:
+              root = ET.parse(path).getroot()
+              for case in root.iter('testcase'):
+                  total += 1
+                  cls = case.get('classname') or ''
+                  name = case.get('name') or ''
+                  for node in case:
+                      if node.tag not in ('failure', 'error'):
+                          continue
+                      detail = ' '.join((node.get('message') or node.text or '').split())
+                      failures.append((cls, name, node.tag, detail))
+
+          def flat(text):
+              return ' '.join(text.split())[:1200]
+
+          print('JUnit XML files: %d, tests executed: %d, failing: %d' % (len(files), total, len(failures)))
+          print('::notice title=Focused cluster totals::files=%d tests=%d failing=%d' % (len(files), total, len(failures)))
+          if failures:
+              names = ', '.join('%s.%s' % (c.split('.')[-1], n) for c, n, _, _ in failures)
+              print('::error title=Failing tests::%s' % flat(names))
+              for cls, name, kind, detail in failures[:10]:
+                  print('::error title=%s::%s [%s] %s' % (cls, name, kind, flat(detail)))
+              if len(failures) > 10:
+                  print('::error title=Remaining failures::%s' % flat(', '.join('%s.%s' % (c, n) for c, n, _, _ in failures[10:])))
+          else:
+              print('No JUnit XML was produced, so the tests never ran. Build-level output follows.')
+              try:
+                  with open(log_path, encoding='utf-8', errors='replace') as handle:
+                      lines = handle.read().splitlines()
+              except OSError:
+                  lines = []
+              interesting = [l for l in lines if re.search(r'^e: |FAILED$|Execution failed for task|What went wrong|^\s*>\s', l)]
+              for line in interesting[-12:]:
+                  print('::error title=Build output::%s' % flat(line))
+          PY
 
       # Widening to the full app unit-test scope happens only when the focused
       # reproducer is green, as the contract requires. A Kotlin compilation
