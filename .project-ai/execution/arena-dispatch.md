@@ -200,11 +200,41 @@ Review evidence shows the contract itself must change or requires a material pro
 
 Return to the control plane/human instead of expanding the correction loop.
 
-## 9. Correction cycle
+## 9. Mandatory diagnostic gate for failures and corrections
+
+Any bug, failing test, build/CI failure, regression, unexpected behavior, or bounded implementation defect encountered during Arena work must pass through diagnosis before another fix attempt or terminal verification run.
+
+Arena must:
+
+1. read the actual failure evidence;
+2. use `../skills/debugging-recovery/SKILL.md` to build the tightest reliable reproducer when practical;
+3. for an existing PR correction, also use `../skills/pr-integration-correction/SKILL.md`;
+4. confirm the reproducer fails for the reported symptom rather than setup noise;
+5. establish an evidence-backed root cause before editing;
+6. make the smallest correction that targets that root cause;
+7. add or retain regression protection where practical;
+8. regain targeted green evidence for the reproducer and affected scope;
+9. only then produce a new finished candidate for terminal repository verification.
+
+If the current environment cannot run the practical reproducer, Arena must report the exact failed capability/tooling probe and use `../routing/route.md` to try the narrowest safe alternate route. It must not use repeated full CI/workflow runs as the primary edit-run loop.
+
+A correction report must identify:
+
+- Symptom
+- Reproducer, or explicit inability to reproduce with blocker evidence
+- Root Cause
+- Minimal Fix
+- Regression Protection, when practical
+- Targeted Verification
+- Remaining Terminal / Provider Gates
+
+This gate applies to every Arena Issue and PR correction. It does not create a contract revision unless diagnosis proves the contract itself must materially change.
+
+## 10. Correction cycle
 
 Implementation miss:
 
-`same contract → bounded correction → targeted verification → new finished candidate → terminal repository verification → contract review`
+`same contract → reproduce → root cause → bounded correction → targeted green → new finished candidate → terminal repository verification → contract review`
 
 Contract flaw:
 
@@ -212,7 +242,7 @@ Contract flaw:
 
 Do not close and recreate Issues for ordinary implementation corrections.
 
-## 10. Acceptance and merge authority
+## 11. Acceptance and merge authority
 
 Keep these states distinct:
 
@@ -224,7 +254,7 @@ Keep these states distinct:
 - Arena never merges its own work.
 - After explicit human acceptance, the merge may be performed mechanically by an authorized GitHub actor.
 
-## 11. Issue closure and state reconciliation
+## 12. Issue closure and state reconciliation
 
 After an accepted PR merges:
 
