@@ -38,6 +38,7 @@ class PlaintextWebSocketTransportTest {
     @get:Rule val timeout: Timeout = Timeout.seconds(TEST_TIMEOUT_SECONDS)
 
     private val loopback: InetAddress = InetAddress.getLoopbackAddress()
+    private val loopbackHost: String = requireNotNull(loopback.hostAddress)
 
     @Test
     fun handshakeIsATokenFreeUpgradeOnARawSocket() = runBlocking {
@@ -51,7 +52,7 @@ class PlaintextWebSocketTransportTest {
             }
             val connection =
                 PlaintextWebSocketTransport(keepalive = 1.hours)
-                    .open(loopback.hostAddress, server.localPort)
+                    .open(loopbackHost, server.localPort)
             assertNotNull(connection)
             connection!!.close()
             peer.join()
@@ -83,7 +84,7 @@ class PlaintextWebSocketTransportTest {
             }
             val connection =
                 PlaintextWebSocketTransport(keepalive = 1.hours)
-                    .open(loopback.hostAddress, server.localPort)!!
+                    .open(loopbackHost, server.localPort)!!
             val inbound = withTimeout(5.seconds) { connection.frames.first() }
             assertTrue(connection.send("""{"method":"ms.remote.control"}"""))
             withTimeout(5.seconds) { while (written.isEmpty()) delay(POLL_MILLIS) }
@@ -98,7 +99,7 @@ class PlaintextWebSocketTransportTest {
     @Test
     fun connectFailureAndMalformedFramesDoNotThrow() = runBlocking {
         val closedPort = ServerSocket(0, 1, loopback).use { it.localPort }
-        assertNull(PlaintextWebSocketTransport().open(loopback.hostAddress, closedPort))
+        assertNull(PlaintextWebSocketTransport().open(loopbackHost, closedPort))
 
         ServerSocket(0, 1, loopback).use { server ->
             val peer = thread {
@@ -111,7 +112,7 @@ class PlaintextWebSocketTransportTest {
             }
             val connection =
                 PlaintextWebSocketTransport(keepalive = 1.hours)
-                    .open(loopback.hostAddress, server.localPort)!!
+                    .open(loopbackHost, server.localPort)!!
             val inbound = withTimeout(5.seconds) { connection.frames.firstOrNull() }
             connection.close()
             peer.join()
@@ -133,7 +134,7 @@ class PlaintextWebSocketTransportTest {
             }
             val connection =
                 PlaintextWebSocketTransport(keepalive = 1.hours)
-                    .open(loopback.hostAddress, server.localPort)!!
+                    .open(loopbackHost, server.localPort)!!
             val inbound = withTimeout(5.seconds) { connection.frames.firstOrNull() }
             connection.close()
             peer.join()
@@ -149,7 +150,7 @@ class PlaintextWebSocketTransportTest {
             val started = System.nanoTime()
             val connection =
                 PlaintextWebSocketTransport(connectTimeout = 300.milliseconds, keepalive = 1.hours)
-                    .open(loopback.hostAddress, server.localPort)
+                    .open(loopbackHost, server.localPort)
             val elapsedMs = (System.nanoTime() - started) / 1_000_000
             accepted.forEach { it.close() }
             peer.join()
