@@ -24,29 +24,30 @@ fun <T> TestScope.subscribeTo(state: StateFlow<T>) {
     backgroundScope.launch { state.collect {} }
 }
 
-/**
- * Runs everything the scheduler has pending at this moment, **including** the coroutines in
- * [TestScope.backgroundScope], and then whatever they made pending in turn.
- *
- * `advanceUntilIdle()` on its own does not drive those coroutines, and that is deliberate upstream
- * rather than a bug to work around. In kotlinx-coroutines 1.9.0 (`gradle/libs.versions.toml`),
- * `TestCoroutineScheduler.advanceUntilIdle()` is
- * `advanceUntilIdleOr { events.none(TestDispatchEvent<*>::isForeground) }`, and an event's
- * `isForeground` is `context[BackgroundWork] === null`. Everything `backgroundScope` launches
- * carries `BackgroundWork`, so `advanceUntilIdle` returns as soon as only background work is left —
- * which is exactly where these tests sit once they have published a session snapshot and are
- * waiting for the host's observer, or a route's `UiState` subscription, to consume it. The KDoc of
- * `TestScope.backgroundScope` states the same split: background coroutines "are run as usual when
- * using `advanceTimeBy` and `runCurrent`", while "`advanceUntilIdle` … will stop advancing the
- * virtual time once only the coroutines in this scope are left unprocessed".
- *
- * Hence the order: [runCurrent] executes the background hop, [advanceUntilIdle] then skips whatever
- * virtual time the remaining foreground work needs, and the second [runCurrent] picks up any
- * background work that foreground work scheduled on the way.
- *
- * [TestScopeSettleTest] pins this, so an upstream change to that contract fails a test here rather
- * than silently turning the session tests into assertions on stale snapshots.
- */
+// Runs every task the scheduler has pending at this virtual time, including the coroutines in
+// `TestScope.backgroundScope`, and then whatever they made pending in turn.
+//
+// `advanceUntilIdle()` on its own does not drive those coroutines, and that is deliberate upstream
+// rather than a bug to work around. In kotlinx-coroutines 1.9.0 (gradle/libs.versions.toml),
+// TestCoroutineScheduler.advanceUntilIdle() is
+//
+//     advanceUntilIdleOr { events.none(TestDispatchEvent<*>::isForeground) }
+//
+// and registerEvent marks an event foreground only when the dispatched context has no
+// BackgroundWork, while TestScopeImpl builds backgroundScope as
+// "coroutineContext + BackgroundWork + ReportingSupervisorJob". So advanceUntilIdle returns as
+// soon as only background work is left -- exactly where these tests sit after publish()/ready(),
+// because the host's session observation and subscribeTo's UiState subscription are both
+// background coroutines. The KDoc of TestScope.backgroundScope states the same split: background
+// coroutines "are run as usual when using advanceTimeBy and runCurrent", while advanceUntilIdle
+// "will stop advancing the virtual time once only the coroutines in this scope are left
+// unprocessed".
+//
+// Hence the order below: runCurrent executes the background hop, advanceUntilIdle then skips the
+// virtual time the remaining foreground work needs, and the second runCurrent picks up background
+// work that foreground work scheduled on the way. TestScopeSettleTest pins both halves, so an
+// upstream change to that contract fails there instead of quietly turning these tests into
+// assertions on stale snapshots.
 @OptIn(ExperimentalCoroutinesApi::class)
 fun TestScope.settle() {
     runCurrent()

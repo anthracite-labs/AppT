@@ -32,9 +32,8 @@ class ActiveRemoteHostTest {
 
     /**
      * The host runs on [TestScope.backgroundScope] rather than the test scope: its session
-     * observation and grace coroutines outlive the test body, and `runTest` cancels the background
-     * scope when the test finishes. Because of that the tests drive time with [settle], not with
-     * `advanceUntilIdle`, which upstream stops before background coroutines have run.
+     * observation and grace coroutines outlive the last `advanceUntilIdle`, and `runTest` cancels
+     * the background scope when the test finishes.
      */
     private fun TestScope.host() = ActiveRemoteHost(tvs, backgroundScope)
 

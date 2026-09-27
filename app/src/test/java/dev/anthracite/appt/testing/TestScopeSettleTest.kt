@@ -9,17 +9,15 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/**
- * The scheduling contract the session, Pairing, and Remote tests are built on.
- *
- * `ActiveRemoteHost` observes the session in the scope the test hands it, and those tests hand it
- * `TestScope.backgroundScope` because an observation never completes and `runTest` would otherwise
- * wait for it. What that costs is that `advanceUntilIdle()` stops before those observers run, so a
- * published snapshot would never reach `ActiveRemoteHost.current` and every assertion after it
- * would read a stale state. [settle] is what the tests call instead; this pins both halves of the
- * reason, so a coroutines upgrade that changes the upstream behaviour is caught here rather than
- * showing up as a cluster of quietly-stale assertions.
- */
+// The scheduling contract the session, Pairing, and Remote tests are built on.
+//
+// `ActiveRemoteHost` observes the session in whichever scope the test hands it, and those tests
+// hand it `TestScope.backgroundScope` because an observation never completes and `runTest` would
+// otherwise wait for it. What that costs is that advanceUntilIdle() stops before those observers
+// run, so a published snapshot never reaches ActiveRemoteHost.current and every assertion after it
+// reads a stale state. settle() is what the tests call instead; these two cases pin both halves of
+// that reason, so a coroutines upgrade that changes the upstream behaviour is caught here rather
+// than showing up as a cluster of quietly-stale assertions.
 @OptIn(ExperimentalCoroutinesApi::class)
 class TestScopeSettleTest {
     @Test
