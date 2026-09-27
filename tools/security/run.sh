@@ -17,7 +17,7 @@
 #   * It requires no secrets and reads no credential, token or keystore.
 #   * It does not self-heal or regenerate any supply-chain artifact. A missing or
 #     drifted lockfile or verification entry fails the run rather than being
-#     rewritten, exactly as ci.yml intends.
+#     rewritten, exactly as `.github/workflows/verify.yml` intends.
 #
 # Exit status: non-zero if any constituent check fails. The script fails closed
 # when a required tool is absent rather than silently skipping the check, so a

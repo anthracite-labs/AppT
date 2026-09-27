@@ -38,6 +38,8 @@ Prefer the project's equivalent of:
 
 Use terminal repository verification only for a finished candidate.
 
+AppT's live repository workflow inventory is `.github/workflows/verify.yml` and `.github/workflows/codeql.yml`. Do not add per-slice or one-shot workflow YAML unless a live capability probe proves no narrower route exists. Historical retired workflow names (`ci.yml`, `maintenance.yml`, slice regeneration workflows) are archival evidence, not templates to restore.
+
 ### 4. Keep execution reproducible
 
 Use project-owned versions, lockfiles, wrappers, and immutable/frozen installation where the ecosystem supports them.
