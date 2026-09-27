@@ -224,7 +224,9 @@ class PlaintextWebSocketTransportTest {
 
     private fun writeHandshake(socket: Socket, request: String) {
         val key =
-            request.lines().first { it.startsWith("Sec-WebSocket-Key:", ignoreCase = true) }
+            request
+                .lines()
+                .first { it.startsWith("Sec-WebSocket-Key:", ignoreCase = true) }
                 .substringAfter(':')
                 .trim()
         val accept =
