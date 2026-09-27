@@ -22,6 +22,8 @@ Do not repeatedly run the entire repository suite or remote CI while diagnosing 
 
 ## Terminal repository verification
 
+Before work is called complete, fixed, passing, ready, or technically verified, use `../skills/verification-before-completion/SKILL.md`.
+
 Run complete project-defined repository verification only on a finished candidate.
 
 Terminal repository verification must validate the candidate that is actually proposed for review. Any source or generated-state change after verification invalidates the previous terminal result and creates a new candidate.
