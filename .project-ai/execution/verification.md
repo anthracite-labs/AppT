@@ -42,7 +42,7 @@ If terminal repository verification fails:
 6. produce a new finished candidate;
 7. run terminal repository verification again only after the targeted surface is green.
 
-If a practical reproducer cannot be run in the current environment, preserve the exact blocker and use `../routing/route.md` to try the narrowest safe alternate route. Repeated terminal CI runs are not an acceptable substitute for the diagnostic loop.
+If a practical reproducer cannot be run in the current environment, preserve the exact blocker and use `../routing/route.md` to try the narrowest safe alternate route. Equivalent targeted evidence from that route may satisfy the focused-verification requirement. If no safe route can provide equivalent targeted evidence, stop and return the blocker; do not produce a new finished candidate or run terminal repository verification. Repeated terminal CI runs are not an acceptable substitute for the diagnostic loop.
 
 ## Distinct operation classes
 
