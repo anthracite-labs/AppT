@@ -519,10 +519,21 @@ jobs:
       contents: read
     steps:
       - name: Evaluate gate results
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MODE: ${{ github.event.inputs.mode }}
+          SAMSUNG_FEEDBACK_RESULT: ${{ needs.samsung-feedback.result }}
+          QUICK_RESULT: ${{ needs.quick.result }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          ANDROID_RESULT: ${{ needs.android.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          DEVICE_RESULT: ${{ needs.device.result }}
+          DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
+          QUALITY_PLATFORM_RESULT: ${{ needs.quality-platform.result }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.mode }}" = "samsung-targeted" ]; then
-            echo "samsung-feedback: ${{ needs.samsung-feedback.result }}"
-            if [ "${{ needs.samsung-feedback.result }}" != "success" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$MODE" = "samsung-targeted" ]; then
+            echo "samsung-feedback: $SAMSUNG_FEEDBACK_RESULT"
+            if [ "$SAMSUNG_FEEDBACK_RESULT" != "success" ]; then
               echo "::error::Samsung-targeted feedback failed. This is not terminal verification."
               exit 1
             fi
@@ -530,9 +541,9 @@ jobs:
             exit 0
           fi
 
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "quick: ${{ needs.quick.result }}"
-            if [ "${{ needs.quick.result }}" != "success" ]; then
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "quick: $QUICK_RESULT"
+            if [ "$QUICK_RESULT" != "success" ]; then
               echo "::error::Quick pull-request checks failed."
               exit 1
             fi
@@ -540,25 +551,24 @@ jobs:
             exit 0
           fi
 
-          echo "quality:           ${{ needs.quality.result }}"
-          echo "android:           ${{ needs.android.result }}"
-          echo "backend:           ${{ needs.backend.result }}"
-          echo "device:            ${{ needs.device.result }}"
-          echo "dependency-review: ${{ needs.dependency-review.result }}"
-          echo "quality-platform:  ${{ needs.quality-platform.result }}"
+          echo "quality:           $QUALITY_RESULT"
+          echo "android:           $ANDROID_RESULT"
+          echo "backend:           $BACKEND_RESULT"
+          echo "device:            $DEVICE_RESULT"
+          echo "dependency-review: $DEPENDENCY_REVIEW_RESULT"
+          echo "quality-platform:  $QUALITY_PLATFORM_RESULT"
 
-          if [ "${{ needs.quality.result }}" != "success" ] || \
-             [ "${{ needs.android.result }}" != "success" ] || \
-             [ "${{ needs.backend.result }}" != "success" ] || \
-             [ "${{ needs.device.result }}" != "success" ] || \
-             [ "${{ needs.quality-platform.result }}" != "success" ]; then
+          if [ "$QUALITY_RESULT" != "success" ] || \
+             [ "$ANDROID_RESULT" != "success" ] || \
+             [ "$BACKEND_RESULT" != "success" ] || \
+             [ "$DEVICE_RESULT" != "success" ] || \
+             [ "$QUALITY_PLATFORM_RESULT" != "success" ]; then
             echo "::error::One or more mandatory verification groups failed."
             exit 1
           fi
 
-          dep_res="${{ needs.dependency-review.result }}"
-          if [ "$dep_res" != "success" ] && [ "$dep_res" != "skipped" ]; then
-            echo "::error::Dependency review failed with status: $dep_res"
+          if [ "$DEPENDENCY_REVIEW_RESULT" != "success" ] && [ "$DEPENDENCY_REVIEW_RESULT" != "skipped" ]; then
+            echo "::error::Dependency review failed with status: $DEPENDENCY_REVIEW_RESULT"
             exit 1
           fi
 
