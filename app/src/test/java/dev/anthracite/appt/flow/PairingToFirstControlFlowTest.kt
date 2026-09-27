@@ -29,13 +29,13 @@ import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 import dev.anthracite.appt.tokens.AppTTheme
 import dev.anthracite.appt.welcome.WelcomeTestTags
 import java.io.File
-import kotlin.time.Duration.Companion.seconds
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -89,6 +89,14 @@ class PairingToFirstControlFlowTest {
         )
     private val livingRoom = TvId(FakeSamsungTvs.LIVING_ROOM_ID)
 
+    // `firstControlAchieved` is written by a suspending DataStore write that DataStore performs
+    // asynchronously and then resumes on this thread, so it is not readable the moment the command
+    // returns. Observing it from a collector on the main looper keeps the wait off the write's
+    // path: reading it from a `runBlocking` here would block the looper the write resumes on, and
+    // the read would wait for a write that can never finish.
+    private val observations = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val firstControlAchieved = AtomicBoolean(false)
+
     private fun setGraph() {
         composeRule.setContent {
             val navController = rememberNavController()
@@ -113,8 +121,16 @@ class PairingToFirstControlFlowTest {
         composeRule.waitForIdle()
     }
 
-    private fun firstControlAchieved(): Boolean = runBlocking {
-        withTimeout(10.seconds) { store.firstControlAchieved.first { it } }
+    @After
+    fun stopObservations() {
+        observations.cancel()
+    }
+
+    private fun awaitFirstControlAchieved() {
+        observations.launch { store.firstControlAchieved.collect { firstControlAchieved.set(it) } }
+        composeRule.waitUntil("the first accepted command is recorded", 10_000L) {
+            firstControlAchieved.get()
+        }
     }
 
     @Test
@@ -167,7 +183,7 @@ class PairingToFirstControlFlowTest {
         composeRule.waitForIdle()
 
         assertEquals(listOf(TvCommand.Tap(RemoteKey.VolumeUp)), session.commands)
-        assertTrue("the first accepted command is recorded", firstControlAchieved())
+        awaitFirstControlAchieved()
         assertEquals("still one session after the command", listOf(livingRoom), tvs.openedIds)
         assertFalse("the session was not closed by the handoff", session.closed)
     }
