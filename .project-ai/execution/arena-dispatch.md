@@ -87,9 +87,7 @@ Do not say Arena was launched or dispatched unless a real launch mechanism was i
 
 ## 3. Arena autonomy
 
-Arena implementation work uses `../skills/incremental-implementation/SKILL.md`. When another lifecycle trigger from `../routing/capabilities.md` applies, Arena also loads that skill rather than improvising an alternate method.
-
-For non-trivial multi-step or multi-file implementation, Arena uses `../skills/incremental-implementation/SKILL.md`. When executable tests can define new/changed behavior or a bug, also use `../skills/test-driven-development/SKILL.md`.
+For non-trivial multi-step or multi-file implementation, Arena uses `../skills/incremental-implementation/SKILL.md`. When another lifecycle trigger from `../routing/capabilities.md` applies—including test-driven development—Arena also loads that skill rather than improvising an alternate method.
 
 Within the approved contract Arena may:
 
