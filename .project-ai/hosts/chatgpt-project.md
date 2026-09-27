@@ -10,7 +10,7 @@ At the start of each new substantive project chat:
 2. Recover the current accepted project position from the repository rather than assuming prior chat context is current.
 3. Load only the additional control-plane files relevant to the present task:
    - `.project-ai/routing/capabilities.md` when classifying what kind of work is required.
-   - relevant `.project-ai/skills/*/SKILL.md` when a defined lifecycle method applies.
+   - `.project-ai/routing/capabilities.md` owns lifecycle skill routing; when a listed trigger matches, load and follow that `.project-ai/skills/*/SKILL.md`. Multiple skills may apply.
    - `.project-ai/routing/route.md` when deciding where or through what execution mechanism a required operation should run.
    - `.project-ai/execution/arena-dispatch.md` when preparing, dispatching, reviewing, correcting, accepting, or closing Arena implementation work.
    - `.project-ai/execution/verification.md` when verification strategy or execution evidence matters.
