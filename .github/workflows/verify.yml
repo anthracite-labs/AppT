@@ -503,7 +503,7 @@ jobs:
   # 7. Gate — required status interface for default branch protection (verify / gate)
   # ---------------------------------------------------------------------------
   gate:
-    name: gate
+    name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'samsung-targeted' && 'Samsung-targeted is not terminal verification' || 'gate' }}
     needs:
       - quick
       - quality
@@ -512,13 +512,24 @@ jobs:
       - device
       - dependency-review
       - quality-platform
-    if: always() && (github.event_name != 'workflow_dispatch' || github.event.inputs.mode != 'samsung-targeted')
+      - samsung-feedback
+    if: always()
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
       - name: Evaluate gate results
         run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.mode }}" = "samsung-targeted" ]; then
+            echo "samsung-feedback: ${{ needs.samsung-feedback.result }}"
+            if [ "${{ needs.samsung-feedback.result }}" != "success" ]; then
+              echo "::error::Samsung-targeted feedback failed. This is not terminal verification."
+              exit 1
+            fi
+            echo "Samsung-targeted feedback succeeded. This is not terminal repository verification and does not satisfy verify/gate."
+            exit 0
+          fi
+
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "quick: ${{ needs.quick.result }}"
             if [ "${{ needs.quick.result }}" != "success" ]; then

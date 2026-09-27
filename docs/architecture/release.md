@@ -307,9 +307,11 @@ it.
 
 A separate `deep.yml` is created only if long-running or hardware-backed checks
 eventually need a cadence/trust domain that cannot sensibly live in pull-request
-verification. The target repository therefore owns one workflow now and at most
-three ordinary workflows when those later responsibilities become real:
-`verify.yml`, optional `deep.yml`, and `release.yml`.
+verification. The target repository therefore owns one verification workflow now
+(`verify.yml`) and at most three ordinary verification/release workflows when
+those later responsibilities become real: `verify.yml`, optional `deep.yml`, and
+`release.yml`. `.github/workflows/codeql.yml` is the separate security-analysis
+workflow and is not counted in that ordinary-verification inventory.
 
 Routine GitHub retention/cache settings own Actions housekeeping. No permanent
 maintenance workflow exists merely to delete old runs or caches.
