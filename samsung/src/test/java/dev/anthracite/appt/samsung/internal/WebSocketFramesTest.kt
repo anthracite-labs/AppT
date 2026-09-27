@@ -26,6 +26,21 @@ class WebSocketFramesTest {
     }
 
     @Test
+    fun encodeMaskedWritesTheTwoByteExtendedLengthInNetworkOrder() {
+        val payload = ByteArray(300)
+        val mask = byteArrayOf(0, 0, 0, 0)
+
+        val encoded = WebSocketFrames.encodeMasked(WebSocketFrames.OPCODE_TEXT, payload, mask)
+
+        assertEquals(0x81.toByte(), encoded[0])
+        assertEquals((0x80 or 126).toByte(), encoded[1])
+        assertEquals(0x01.toByte(), encoded[2])
+        assertEquals(0x2C.toByte(), encoded[3])
+        // 2 header bytes + 2 extended-length bytes + 4 mask bytes + the payload.
+        assertEquals(2 + 2 + 4 + payload.size, encoded.size)
+    }
+
+    @Test
     fun readAcceptsAnUnmaskedServerTextFrame() {
         val inbound =
             WebSocketFrames.read(ByteArrayInputStream(byteArrayOf(0x81.toByte(), 0x02, 0x68, 0x69)))

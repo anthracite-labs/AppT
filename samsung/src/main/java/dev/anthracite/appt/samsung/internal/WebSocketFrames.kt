@@ -108,8 +108,8 @@ internal object WebSocketFrames {
             0 -> out[1] = (MASK_BIT or length).toByte()
             LENGTH_16_BYTES -> {
                 out[1] = (MASK_BIT or LENGTH_16_MARKER).toByte()
-                out[2] = (length ushr BITS_PER_BYTE).toByte()
-                out[3] = length.toByte()
+                out[HEADER_BYTES] = (length ushr BITS_PER_BYTE).toByte()
+                out[HEADER_BYTES + LENGTH_16_BYTES - 1] = length.toByte()
             }
             else -> {
                 out[1] = (MASK_BIT or LENGTH_64_MARKER).toByte()
