@@ -176,7 +176,7 @@ def validate_routing_coverage(skill_names: set[str]) -> list[str]:
         owner_texts.append(owner.read_text(encoding="utf-8"))
 
     combined = "\n".join(owner_texts)
-    referenced = set(re.findall(r"skills/([a-z0-9-]+)/SKILL\\.md", combined))
+    referenced = set(re.findall(r"skills/([a-z0-9-]+)/SKILL\.md", combined))
 
     for name in sorted(skill_names - referenced):
         errors.append(f"{name}: skill has no canonical control-plane routing reference")
