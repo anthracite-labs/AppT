@@ -1,5 +1,5 @@
 # Repository-local composite action: prove the dispatch target is the exact
-# commit the command was issued against.
+# commit the command was issued against, and publish that commit for checkout.
 #
 # Why this exists (Issue #88, human revision)
 # -------------------------------------------
@@ -14,20 +14,30 @@
 # passed as inputs. `target_ref` is the pull-request head branch the command was
 # issued against; `expected_sha` is the exact commit it resolved to.
 #
-# So the check has two shapes:
+# The check has two shapes:
 #
 #   * `target_ref` set (a bridge dispatch). The run's own commit is the default
 #     branch and is NOT the target, so comparing `github.sha` to `expected_sha`
 #     would be meaningless. Instead the ref is resolved through the API and
-#     required still to point at `expected_sha`. A branch that moved between the
-#     command and the run therefore fails here, before any target-controlled
-#     work — before Gradle, before npm, before the managed device.
+#     required still to point at `expected_sha`, and `expected_sha` is required
+#     to be the head of an **open** pull request whose head ref is `target_ref`.
+#     That last part matters: `workflow_dispatch` inputs are settable by any
+#     actor who can dispatch, so without it an arbitrary commit SHA could be
+#     supplied and would be checked out and built. With it, the only commit that
+#     can pass is one a real open pull request actually points at.
 #
 #   * `target_ref` empty (an ordinary manual dispatch). There is no separate
-#     anchor, so the run's own commit is the target and is compared directly.
+#     anchor and no pull request to bind to, so the run's own commit is the
+#     target and is compared directly.
 #
 # `expected_sha` empty means "not a dispatch at all" (`pull_request`, `push`),
 # and the assertion is a no-op there so the cheap PR cadence is unaffected.
+#
+# The action publishes the validated commit as its `sha` output, and callers
+# check **that** out rather than the raw input. The distinction is deliberate: a
+# `workflow_dispatch` input is attacker-reachable, whereas the output is a value
+# trusted logic has just proven, so the checkout is of a proven commit rather
+# than of whatever was supplied.
 #
 # Trust note: this action is resolved from the workspace on disk, which is why
 # every calling job checks out the dispatch anchor *before* referencing it and
@@ -36,8 +46,8 @@
 # calling workflow's own read-only permissions.
 name: Assert dispatch target
 description: >-
-  Hard-fails unless the requested dispatch target still resolves to the expected
-  commit SHA. Requires the repository to be checked out by the calling job first.
+  Proves the requested dispatch target still resolves to the expected commit and
+  publishes that commit. Requires the repository to be checked out first.
 
 inputs:
   expected-sha:
@@ -58,10 +68,17 @@ inputs:
     required: false
     default: ${{ github.token }}
 
+outputs:
+  sha:
+    description: >-
+      The validated commit SHA to check out. Empty when the assertion is skipped.
+    value: ${{ steps.assert.outputs.sha }}
+
 runs:
   using: composite
   steps:
     - name: Prove the dispatch target still resolves to the expected SHA
+      id: assert
       shell: bash
       env:
         EXPECTED_SHA: ${{ inputs.expected-sha }}
@@ -69,12 +86,13 @@ runs:
         ACTUAL_SHA: ${{ github.sha }}
         EVENT_NAME: ${{ github.event_name }}
         REPOSITORY: ${{ github.repository }}
+        REPOSITORY_OWNER: ${{ github.repository_owner }}
         GH_TOKEN: ${{ inputs.token }}
       run: |
         set -euo pipefail
 
         if [ -z "$EXPECTED_SHA" ]; then
-          # Not a dispatch: nothing to assert.
+          # Not a dispatch: nothing to assert, and nothing to check out.
           echo "No expected SHA supplied (${EVENT_NAME}); skipping the dispatch-target assertion."
           exit 0
         fi
@@ -83,6 +101,7 @@ runs:
           # An ordinary manual dispatch: this run's own commit is the target.
           if [ "$ACTUAL_SHA" = "$EXPECTED_SHA" ]; then
             echo "Dispatch target confirmed: ${ACTUAL_SHA}."
+            echo "sha=${EXPECTED_SHA}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           {
@@ -92,8 +111,7 @@ runs:
         fi
 
         # A bridge dispatch: this run executes trusted default-branch content, so
-        # its own commit is the anchor rather than the target. Resolve the
-        # requested ref and require it still to point at the expected commit.
+        # its own commit is the anchor rather than the target.
         resolved="$(gh api "repos/${REPOSITORY}/commits/${TARGET_REF}" --jq '.sha' 2>/dev/null || true)"
         if [ -z "$resolved" ]; then
           {
@@ -109,4 +127,19 @@ runs:
           exit 1
         fi
 
-        echo "Dispatch target confirmed: ${TARGET_REF} still resolves to ${EXPECTED_SHA}."
+        # Bind the commit to a real open pull request. A `workflow_dispatch`
+        # input is settable by anyone who can dispatch, so without this an
+        # arbitrary SHA could be supplied, pass the check above, and then be
+        # built. Requiring it to be the head of an open pull request whose head
+        # ref is the requested one means only a commit a real pull request
+        # actually points at can be verified.
+        open_heads="$(gh api "repos/${REPOSITORY}/pulls?head=${REPOSITORY_OWNER}:${TARGET_REF}&state=open" --jq '.[].head.sha' 2>/dev/null || true)"
+        if ! printf '%s\n' "$open_heads" | grep -Fxq "$EXPECTED_SHA"; then
+          {
+            echo "::error title=Dispatch target is not an open pull-request head::Commit ${EXPECTED_SHA} is not the head of any open pull request from ${TARGET_REF} in ${REPOSITORY}. A dispatch target must be the head of a real open pull request, so nothing was run."
+          } >&2
+          exit 1
+        fi
+
+        echo "Dispatch target confirmed: ${TARGET_REF} is an open pull-request head resolving to ${EXPECTED_SHA}."
+        echo "sha=${EXPECTED_SHA}" >> "$GITHUB_OUTPUT"

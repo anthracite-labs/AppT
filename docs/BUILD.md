@@ -283,11 +283,14 @@ exact commit it resolved to. Every job in `verify` and `diagnose` then, in order
 1. checks out the dispatch anchor, which for a bridge dispatch is the default
    branch and therefore trusted;
 2. asserts the dispatch target with `.github/actions/assert-dispatch-target`,
-   which resolves `target_ref` through the API and requires it still to point at
-   `expected_sha` — hard-failing with both SHAs named if the branch moved;
+   which resolves `target_ref` through the API, requires it still to point at
+   `expected_sha`, and requires that commit to be the head of an **open** pull
+   request — hard-failing with both SHAs named if the branch moved, and refusing
+   an arbitrary commit that no open pull request points at;
 3. sets up its toolchain and resolves any diagnostic `focus`, still from the
    trusted anchor;
-4. checks out the exact `expected_sha` for Gradle, npm and managed-device work.
+4. checks out the commit the assertion proved, published as its `sha` output,
+   rather than the raw input.
 
 From step 4 the code under verification is pull-request-controlled, executed by a
 trusted workflow under its own read-only permissions — the same trust level as an
@@ -295,7 +298,10 @@ ordinary `pull_request` run. Fork pull requests cannot be dispatched at all and
 fail closed. The logic lives in `tools/ci/dispatch-workflow.mjs`, proven by
 `tools/ci/test/dispatch-workflow.test.mjs`; the tests reject a commit SHA used
 directly as `workflow_dispatch.ref` and reject the earlier mutable-ref shape
-outright, because `targetRef` is required and `ref` may never equal it.
+outright, because `targetRef` is required and `ref` may never equal it. The
+assertion's own decision logic is proven by
+`tools/ci/test/assert-dispatch-target.test.mjs`, which extracts it from the
+action and runs it against a fake `gh`.
 
 ### Focusing a diagnostic
 

@@ -495,16 +495,25 @@ The dispatched workflow then does the rest, in this order, in every job:
    actions it uses — is trusted repository content.
 2. **Assert the dispatch target.** With `target_ref` set, the run's own commit is
    the anchor and not the target, so the ref is resolved through the API and
-   required still to point at `expected_sha`. A branch that moved between the
+   required still to point at `expected_sha` — and `expected_sha` is required to
+   be the head of an **open** pull request whose head ref is `target_ref`. That
+   second part matters: a `workflow_dispatch` input is settable by any actor who
+   can dispatch, so without it an arbitrary commit SHA could be supplied, pass the
+   ref check, and then be built. With it, the only commit that can pass is one a
+   real open pull request actually points at. A branch that moved between the
    command and the run hard-fails with a message naming both SHAs and telling the
    issuer to re-issue the label. With `target_ref` empty — an ordinary manual
-   dispatch — the run's own commit is the target and is compared directly.
+   dispatch — there is no pull request to bind to, so the run's own commit is the
+   target and is compared directly.
 3. **Set up the toolchain and resolve any diagnostic focus**, still from the
    trusted anchor, so the code that decides *what* to run is trusted.
-4. **Check out the exact expected SHA** for Gradle, npm and device work. From
-   here on the code under verification is pull-request-controlled, executed by a
-   trusted workflow under that workflow's own read-only permissions — the same
-   trust level as an ordinary `pull_request` run.
+4. **Check out the commit the assertion proved**, published as its `sha` output,
+   rather than the raw `expected_sha` input. The distinction is deliberate: an
+   input is attacker-reachable, whereas the output is a value trusted logic has
+   just verified. From here on the code under verification is
+   pull-request-controlled, executed by a trusted workflow under that workflow's
+   own read-only permissions — the same trust level as an ordinary `pull_request`
+   run.
 
 `expected_sha` is empty for `pull_request` and `push` events, so the assertion is
 a no-op there and the cheap PR cadence is unaffected.
@@ -521,7 +530,14 @@ rejects a commit SHA used directly as `workflow_dispatch.ref`, which is the
 defect the first Issue #88 contract review found, and it rejects the earlier
 mutable-ref shape outright: `targetRef` is required and `ref` may never equal it,
 so the design that loaded the assertion from the branch being verified cannot be
-expressed.
+expressed. The same tests assert that no checkout in either workflow names a
+`workflow_dispatch` input as its ref.
+
+The assertion's own decision logic is extracted from the action and executed for
+real against a fake `gh` by `tools/ci/test/assert-dispatch-target.test.mjs`, so
+every branch is proven: the no-op for non-dispatch events, the manual-dispatch
+comparison, the moved-ref failure, and — the case that matters most — the refusal
+of a commit that is not the head of an open pull request.
 
 Owner follow-ups that cannot be represented in repository code:
 

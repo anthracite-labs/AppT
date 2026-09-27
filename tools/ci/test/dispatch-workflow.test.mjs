@@ -482,19 +482,38 @@ describe('the earlier mutable-ref design cannot satisfy the contract', () => {
         `${name}: every dispatch-target assertion must receive the target ref`
       );
 
-      // Matched as a whole line, so the `target-ref:` assertion input is not
+      // Matched as whole lines, so the `target-ref:` assertion input is not
       // mistaken for a checkout ref.
       const checkoutRefs = workflow
         .split('\n')
         .map((line) => line.trim())
         .filter((line) => line.startsWith('ref: '));
+
+      // Never the mutable branch, and never a raw dispatch input: a
+      // `workflow_dispatch` input is attacker-reachable, so the commit that gets
+      // built has to be one trusted logic has proven.
       assert.ok(
         !checkoutRefs.includes('ref: ${{ inputs.target_ref }}'),
-        `${name} must never check out the mutable target branch; only the validated SHA`
+        `${name} must never check out the mutable target branch`
       );
       assert.ok(
-        checkoutRefs.includes('ref: ${{ inputs.expected_sha }}'),
-        `${name} must check out the exact expected SHA once it is validated`
+        !checkoutRefs.some((ref) => ref.startsWith('ref: ${{ inputs.')),
+        `${name} must not check out a raw workflow_dispatch input: ${checkoutRefs.join(', ')}`
+      );
+      assert.ok(
+        checkoutRefs.includes('ref: ${{ steps.assert-target.outputs.sha }}'),
+        `${name} must check out the commit the assertion proved`
+      );
+
+      // Every checkout of the target is guarded by the assertion having run, and
+      // the assertion itself only runs for a dispatch.
+      const assertionSteps = workflow
+        .split('\n')
+        .filter((line) => line.includes('id: assert-target'));
+      assert.equal(
+        assertionSteps.length,
+        checkoutRefs.filter((ref) => ref.includes('assert-target')).length,
+        `${name}: every validated checkout has an assertion to produce it`
       );
     }
   });

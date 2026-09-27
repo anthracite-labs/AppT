@@ -94,6 +94,7 @@ jobs:
           persist-credentials: false
 
       - name: Assert the dispatch target
+        id: assert-target
         if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
@@ -109,11 +110,12 @@ jobs:
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          # The validated dispatch target. Everything from here on is the code
-          # under verification, executed by this trusted workflow under its own
-          # read-only permissions -- the same trust level as an ordinary
-          # pull-request run.
-          ref: ${{ inputs.expected_sha }}
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
       - name: Fast repository checks
@@ -126,6 +128,7 @@ jobs:
           node --test "tools/ci/test/purge-actions.test.mjs"
           node --test "tools/ci/test/dispatch-workflow.test.mjs"
           node --test "tools/ci/test/diagnose-focus.test.mjs"
+          node --test "tools/ci/test/assert-dispatch-target.test.mjs"
           node tools/secret-scan/secret-scan.mjs
           node tools/security/enforce-gradle-tooling-constraints.mjs
 
@@ -150,6 +153,7 @@ jobs:
           persist-credentials: false
 
       - name: Assert the dispatch target
+        id: assert-target
         if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
@@ -165,11 +169,12 @@ jobs:
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          # The validated dispatch target. Everything from here on is the code
-          # under verification, executed by this trusted workflow under its own
-          # read-only permissions -- the same trust level as an ordinary
-          # pull-request run.
-          ref: ${{ inputs.expected_sha }}
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
       - name: Run yamllint
@@ -255,6 +260,7 @@ jobs:
           persist-credentials: false
 
       - name: Assert the dispatch target
+        id: assert-target
         if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
@@ -270,11 +276,12 @@ jobs:
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          # The validated dispatch target. Everything from here on is the code
-          # under verification, executed by this trusted workflow under its own
-          # read-only permissions -- the same trust level as an ordinary
-          # pull-request run.
-          ref: ${{ inputs.expected_sha }}
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
       - name: Run Android formatting check
@@ -308,6 +315,7 @@ jobs:
           persist-credentials: false
 
       - name: Assert the dispatch target
+        id: assert-target
         if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
@@ -323,11 +331,12 @@ jobs:
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          # The validated dispatch target. Everything from here on is the code
-          # under verification, executed by this trusted workflow under its own
-          # read-only permissions -- the same trust level as an ordinary
-          # pull-request run.
-          ref: ${{ inputs.expected_sha }}
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
       - name: Run Android static and policy verification
@@ -385,6 +394,7 @@ jobs:
           persist-credentials: false
 
       - name: Assert the dispatch target
+        id: assert-target
         if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
@@ -400,11 +410,12 @@ jobs:
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          # The validated dispatch target. Everything from here on is the code
-          # under verification, executed by this trusted workflow under its own
-          # read-only permissions -- the same trust level as an ordinary
-          # pull-request run.
-          ref: ${{ inputs.expected_sha }}
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
       - name: Run Android build
@@ -439,6 +450,7 @@ jobs:
           persist-credentials: false
 
       - name: Assert the dispatch target
+        id: assert-target
         if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
@@ -454,11 +466,12 @@ jobs:
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          # The validated dispatch target. Everything from here on is the code
-          # under verification, executed by this trusted workflow under its own
-          # read-only permissions -- the same trust level as an ordinary
-          # pull-request run.
-          ref: ${{ inputs.expected_sha }}
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
       - name: Run Android unit tests and Kover coverage verification
@@ -503,6 +516,7 @@ jobs:
           persist-credentials: false
 
       - name: Assert the dispatch target
+        id: assert-target
         if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
@@ -518,11 +532,12 @@ jobs:
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          # The validated dispatch target. Everything from here on is the code
-          # under verification, executed by this trusted workflow under its own
-          # read-only permissions -- the same trust level as an ordinary
-          # pull-request run.
-          ref: ${{ inputs.expected_sha }}
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
       - name: Install from committed lockfile
@@ -553,6 +568,7 @@ jobs:
           persist-credentials: false
 
       - name: Assert the dispatch target
+        id: assert-target
         if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
@@ -568,11 +584,12 @@ jobs:
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          # The validated dispatch target. Everything from here on is the code
-          # under verification, executed by this trusted workflow under its own
-          # read-only permissions -- the same trust level as an ordinary
-          # pull-request run.
-          ref: ${{ inputs.expected_sha }}
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
       - name: Install from committed lockfile
@@ -613,6 +630,7 @@ jobs:
           persist-credentials: false
 
       - name: Assert the dispatch target
+        id: assert-target
         if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
@@ -628,11 +646,12 @@ jobs:
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          # The validated dispatch target. Everything from here on is the code
-          # under verification, executed by this trusted workflow under its own
-          # read-only permissions -- the same trust level as an ordinary
-          # pull-request run.
-          ref: ${{ inputs.expected_sha }}
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
       - name: Enable KVM
@@ -772,6 +791,7 @@ jobs:
           persist-credentials: false
 
       - name: Assert the dispatch target
+        id: assert-target
         if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
@@ -783,11 +803,11 @@ jobs:
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          # The validated dispatch target, with full history so both ends of the
-          # comparison are present. `git clean` resets the worktree but leaves
-          # the remote refs the anchor checkout fetched, so the comparison base
-          # is still resolvable.
-          ref: ${{ inputs.expected_sha }}
+          # The commit the assertion just proved, with full history so both ends
+          # of the comparison are present. `git clean` resets the worktree but
+          # leaves the remote refs the anchor checkout fetched, so the
+          # comparison base is still resolvable.
+          ref: ${{ steps.assert-target.outputs.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -858,6 +878,7 @@ jobs:
           persist-credentials: false
 
       - name: Assert the dispatch target
+        id: assert-target
         if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
@@ -869,8 +890,8 @@ jobs:
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          # The validated dispatch target: this job analyses that code.
-          ref: ${{ inputs.expected_sha }}
+          # The commit the assertion just proved: this job analyses that code.
+          ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
       - name: Download Kover coverage report
