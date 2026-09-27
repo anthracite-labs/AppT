@@ -84,6 +84,11 @@ on:
         required: false
         default: ''
 
+# Cache authorization is separate from GITHUB_TOKEN permissions. These
+# trusted-default-branch dispatches execute validated PR code; provider-scoped
+# cache tokens must never let that code save into the default branch cache.
+cache-mode: read
+
 permissions:
   contents: read
 

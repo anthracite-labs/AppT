@@ -158,6 +158,68 @@ function runAssertionExpectingFailure(sandbox, inputs) {
   throw new Error('the assertion unexpectedly succeeded');
 }
 
+/** Verify URL transport, not one encoder's choice for optional escapes. */
+function assertRequestTransport(calls, targetRef) {
+  assert.equal(calls.length, 2);
+  const endpoints = calls.map((call, index) => {
+    const projection = index === 0 ? '.object.sha' : '.[].head.sha';
+    const suffix = ` --jq ${projection}`;
+    assert.ok(call.startsWith('api '));
+    assert.ok(call.endsWith(suffix));
+    return call.slice(4, -suffix.length);
+  });
+  const [refUrl, pullsUrl] = endpoints.map((endpoint) => new URL(`https://api.github.com/${endpoint}`));
+  const prefix = `/repos/${REPO}/git/ref/heads/`;
+  assert.ok(refUrl.pathname.startsWith(prefix));
+  assert.equal(refUrl.search, '', 'branch characters cannot introduce a query');
+  assert.equal(refUrl.hash, '', 'branch characters cannot introduce a fragment');
+  assert.deepEqual(
+    refUrl.pathname.slice(prefix.length).split('/').map(decodeURIComponent),
+    targetRef.split('/'),
+    'each branch path segment round-trips exactly, preserving slash separators'
+  );
+  assert.equal(pullsUrl.pathname, `/repos/${REPO}/pulls`);
+  assert.equal(pullsUrl.hash, '');
+  assert.deepEqual([...pullsUrl.searchParams], [
+    ['head', `${OWNER}:${targetRef}`],
+    ['state', 'open'],
+  ]);
+  // Explicit regression guarantees for the original path/query delimiters.
+  for (const [character, escaped] of [['#', '%23'], ['&', '%26']]) {
+    if (!targetRef.includes(character)) continue;
+    assert.ok(refUrl.pathname.includes(escaped));
+    assert.ok(!refUrl.pathname.includes(character));
+    assert.ok(pullsUrl.search.includes(escaped));
+  }
+}
+
+describe('transport assertions are independent of optional URI escaping', () => {
+  const targetRef = "feature/#frag&state=closed!$({IFS})'";
+  const callsWith = (encode) => [
+    `api repos/${REPO}/git/ref/heads/${targetRef.split('/').map(encode).join('/')} --jq .object.sha`,
+    `api repos/${REPO}/pulls?head=${encode(`${OWNER}:${targetRef}`)}&state=open --jq .[].head.sha`,
+  ];
+
+  it('accepts both literal and escaped parentheses/quotes while preserving the same data', () => {
+    assertRequestTransport(callsWith(encodeURIComponent), targetRef);
+    const strictEncode = (value) => encodeURIComponent(value).replace(
+      /[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`
+    );
+    assertRequestTransport(callsWith(strictEncode), targetRef);
+  });
+
+  it('rejects raw delimiters that change the path or query', () => {
+    const calls = callsWith(encodeURIComponent);
+    for (const index of [0, 1]) {
+      for (const [escaped, raw] of [['%23', '#'], ['%26', '&']]) {
+        const broken = [...calls];
+        broken[index] = broken[index].replaceAll(escaped, raw);
+        assert.throws(() => assertRequestTransport(broken, targetRef));
+      }
+    }
+  });
+});
+
 describe('the assertion is a no-op when there is nothing to assert', () => {
   it('skips for a non-dispatch event and publishes nothing', () => {
     const sandbox = createSandbox();
@@ -322,19 +384,7 @@ describe('a bridge dispatch', () => {
       const result = runAssertion(sandbox, { expectedSha: HEAD_SHA, targetRef });
       assert.equal(result.output.trim(), `sha=${HEAD_SHA}`, targetRef);
       const calls = readFileSync(sandbox.log, 'utf8').trim().split('\n');
-      // Compute expectations independently using the standard URL encoder.
-      const pathRef = targetRef.split('/').map(encodeURIComponent).join('/');
-      const queryHead = encodeURIComponent(`${OWNER}:${targetRef}`);
-      assert.deepEqual(calls, [
-        `api repos/${REPO}/git/ref/heads/${pathRef} --jq .object.sha`,
-        `api repos/${REPO}/pulls?head=${queryHead}&state=open --jq .[].head.sha`,
-      ]);
-      const url = new URL(`https://api.github.com/${calls[1].split(' ')[1]}`);
-      assert.equal(url.hash, '');
-      assert.deepEqual([...url.searchParams], [
-        ['head', `${OWNER}:${targetRef}`],
-        ['state', 'open'],
-      ]);
+      assertRequestTransport(calls, targetRef);
     }
   });
 

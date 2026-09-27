@@ -512,8 +512,24 @@ The dispatched workflow then does the rest, in this order, in every job:
    input is attacker-reachable, whereas the output is a value trusted logic has
    just verified. From here on the code under verification is
    pull-request-controlled, executed by a trusted workflow under that workflow's
-   own read-only permissions — the same trust level as an ordinary `pull_request`
-   run.
+   own read-only repository-token permissions and provider-enforced read-only
+   cache access.
+
+Both `verify.yml` and `diagnose.yml` declare workflow-level **`cache-mode: read`**.
+GitHub enforces this with scoped cache tokens, independently of `GITHUB_TOKEN`
+permissions. The default-branch dispatch can restore caches but cannot write
+PR-controlled data into the default branch's cache scope. No target job may
+override this with `write` or `write-only`. The same read-only restriction applies
+to trusted-only runs; performance does not take precedence over isolation.
+See GitHub's cache access reference [1](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching).
+
+`tools/ci/test/workflow-cache-contract.test.py` parses the actual YAML and checks
+workflow defaults plus every job override, including reusable-workflow callers.
+It runs in mandatory repository-quality verification and mutation-tests missing
+boundaries, write-capable overrides, aliases, flow mappings, and invalid values.
+This also covers the one provider key the pinned actionlint parser does not yet
+recognize; only that exact unknown top-level-key diagnostic is excluded from
+actionlint, not other syntax, security, or workflow checks.
 
 `expected_sha` is empty for `pull_request` and `push` events, so the assertion is
 a no-op there and the cheap PR cadence is unaffected.

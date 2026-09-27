@@ -60,6 +60,11 @@ on:
         required: false
         default: ''
 
+# Cache authorization is separate from GITHUB_TOKEN permissions. These
+# trusted-default-branch dispatches execute validated PR code; provider-scoped
+# cache tokens must never let that code save into the default branch cache.
+cache-mode: read
+
 permissions:
   contents: read
 
@@ -182,6 +187,10 @@ jobs:
           pip install --break-system-packages yamllint==1.35.1
           yamllint -c .yamllint.yml .
 
+      - name: Prove provider cache isolation
+        # PyYAML is supplied by the pinned yamllint install immediately above.
+        run: python3 tools/ci/test/workflow-cache-contract.test.py
+
       - name: Run markdownlint
         # DavidAnson/markdownlint-cli2-action v24.2.0
         uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff
@@ -227,7 +236,11 @@ jobs:
           tar -xzf "${archive}" actionlint
           sudo install -m 0755 actionlint /usr/local/bin/actionlint
           set -o pipefail
-          actionlint 2>&1 | tee /tmp/actionlint.log || {
+          # The pinned parser predates provider cache-mode syntax. Only this
+          # exact unknown top-level key is delegated to the parsed-YAML cache
+          # contract above; every other actionlint diagnostic still fails CI.
+          actionlint -ignore '^unexpected key "cache-mode" for "workflow" section\.' \
+            2>&1 | tee /tmp/actionlint.log || {
             echo "::error title=actionlint Failure::$(head -n 20 /tmp/actionlint.log | tr '\n' ' ')"
             exit 1
           }

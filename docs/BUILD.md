@@ -293,8 +293,12 @@ exact commit it resolved to. Every job in `verify` and `diagnose` then, in order
    rather than the raw input.
 
 From step 4 the code under verification is pull-request-controlled, executed by a
-trusted workflow under its own read-only permissions — the same trust level as an
-ordinary `pull_request` run. Fork pull requests cannot be dispatched at all and
+trusted workflow under read-only repository-token permissions. Both `verify.yml`
+and `diagnose.yml` additionally declare workflow-level `cache-mode: read`: GitHub
+scopes the cache token so target code can restore, but cannot save caches into
+the default branch's scope. Repository-token permissions alone do not enforce
+this boundary. This applies to every job and event in those two workflows;
+cache writes are intentionally sacrificed even for trusted-only runs. Fork pull requests cannot be dispatched at all and
 fail closed. The logic lives in `tools/ci/dispatch-workflow.mjs`, proven by
 `tools/ci/test/dispatch-workflow.test.mjs`; the tests reject a commit SHA used
 directly as `workflow_dispatch.ref` and reject the earlier mutable-ref shape
@@ -302,6 +306,20 @@ outright, because `targetRef` is required and `ref` may never equal it. The
 assertion's own decision logic is proven by
 `tools/ci/test/assert-dispatch-target.test.mjs`, which extracts it from the
 action and runs it against a fake `gh`.
+
+The parsed-YAML cache contract runs in repository-quality CI after yamllint:
+
+```sh
+python3 tools/ci/test/workflow-cache-contract.test.py
+```
+
+It checks effective workflow/job modes and rejects missing boundaries or
+write-capable job overrides, including flow mappings and aliases. PyYAML comes
+from the pinned yamllint install. The pinned actionlint parser does not yet
+recognize `cache-mode`; only its exact unknown top-level-key diagnostic is
+excluded, with syntax and effective access validated by this mandatory contract.
+All other actionlint findings remain failures. Remove that narrow compatibility
+exception when the pinned parser supports the provider key.
 
 ### Focusing a diagnostic
 
