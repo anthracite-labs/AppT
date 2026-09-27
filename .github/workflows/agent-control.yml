@@ -14,13 +14,22 @@
 #   * `pull_request_target` is a privileged trigger: it runs the workflow
 #     definition from the base branch and is given a token. It is accepted here
 #     only because of what this job does NOT do:
-#       - it never checks the pull request out, so no pull-request-controlled
-#         file, script or composite action is ever executed in this job;
+#       - it never checks the pull-request head out, so no
+#         pull-request-controlled file, script or composite action is ever
+#         executed in this job. The one checkout it performs is of the base
+#         branch, which is what `github.sha` is here;
 #       - it never runs `./gradlew`, `npm`, or any repository build step;
-#       - the only code it executes is the inline shell below;
-#       - it resolves the exact pull-request head SHA from the API and hands
-#         that SHA to an ordinary workflow, which then runs under that
-#         workflow's own read-only permissions.
+#       - the only code it executes is the reviewed repository module
+#         `tools/ci/dispatch-workflow.mjs`, plus `gh api` calls;
+#       - the workflow it dispatches then runs under that workflow's own
+#         read-only permissions.
+#   * The dispatch ref is a **branch name**, not a commit SHA. GitHub's Create
+#     Workflow Dispatch endpoint requires `ref` to be a branch or tag name and
+#     rejects a SHA. Because a branch is mutable, the bridge also passes the
+#     head SHA it resolved as the `expected_sha` input, and every job in the
+#     dispatched workflow asserts `github.sha` still equals it before doing any
+#     target-controlled work (`.github/actions/assert-dispatch-target`). That is
+#     what preserves the exact-PR-head guarantee the command was issued against.
 #   * The token permissions are the narrowest set that can do the job:
 #     `contents: read` to resolve the pull request, `actions: write` to
 #     dispatch a workflow, and `issues: write` plus `pull-requests: write` to
@@ -29,6 +38,9 @@
 #   * Only the labels in the allowlist below do anything. An unrecognised label
 #     produces no run at all, and the command marker is removed only after a
 #     successful dispatch, so a failed command can be retried.
+#   * A pull request whose head lives in another repository (a fork) cannot be
+#     dispatched at all: the provider dispatches a ref that must exist in this
+#     repository. The bridge fails closed with an explicit error.
 #
 # Provider follow-up (owner action, not a repository change): direct
 # `workflow_dispatch` by the control-plane integration requires that actor to
@@ -80,8 +92,20 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - name: Resolve the exact pull-request head SHA
-        id: head
+      - name: Check out the base branch
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # `pull_request_target` runs this workflow definition from the base
+          # branch, and `github.sha` here is the base branch's last commit, so
+          # this checkout is trusted repository code. It is deliberately NOT
+          # the pull-request head: no pull-request-controlled file is placed on
+          # disk in this job, and none is executed. The dispatch module below
+          # is repository code, reviewed through the ordinary pull-request path.
+          persist-credentials: false
+
+      - name: Resolve the head and dispatch the requested workflow
+        id: dispatch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
@@ -90,99 +114,19 @@ jobs:
         run: |
           set -euo pipefail
 
-          head_sha="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
-
-          case "$head_sha" in
-            *[!0-9a-f]* | '')
-              echo "::error::could not resolve a pull-request head SHA for #${PR_NUMBER}"
-              exit 1
-              ;;
-          esac
-
-          echo "sha=${head_sha}" >> "$GITHUB_OUTPUT"
-          echo "Requested command ${LABEL} on pull request #${PR_NUMBER} at ${head_sha}."
-
-      - name: Dispatch the requested workflow against that SHA
-        id: dispatch
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPOSITORY: ${{ github.repository }}
-          LABEL: ${{ github.event.label.name }}
-          SHA: ${{ steps.head.outputs.sha }}
-        run: |
-          set -euo pipefail
-
-          # The command label is the only untrusted value in this step, and it
-          # is matched against a fixed allowlist rather than being interpolated
-          # into a command line.
-          case "$LABEL" in
-            ci:full)
-              workflow='verify.yml'
-              mode=''
-              ;;
-            ci:app-unit)
-              workflow='diagnose.yml'
-              mode='app-unit'
-              ;;
-            ci:samsung-unit)
-              workflow='diagnose.yml'
-              mode='samsung-unit'
-              ;;
-            ci:android-static)
-              workflow='diagnose.yml'
-              mode='android-static'
-              ;;
-            ci:android-build)
-              workflow='diagnose.yml'
-              mode='android-build'
-              ;;
-            ci:backend)
-              workflow='diagnose.yml'
-              mode='backend'
-              ;;
-            ci:backend-static)
-              workflow='diagnose.yml'
-              mode='backend-static'
-              ;;
-            ci:backend-test)
-              workflow='diagnose.yml'
-              mode='backend-test'
-              ;;
-            ci:device)
-              workflow='diagnose.yml'
-              mode='device'
-              ;;
-            *)
-              echo "::error::unsupported command label ${LABEL}"
-              exit 1
-              ;;
-          esac
-
-          if [ -n "$mode" ]; then
-            body="$(printf '{"ref":"%s","inputs":{"mode":"%s"}}' "$SHA" "$mode")"
-          else
-            body="$(printf '{"ref":"%s"}' "$SHA")"
-          fi
-
-          printf '%s' "$body" |
-            gh api --method POST "repos/${REPOSITORY}/actions/workflows/${workflow}/dispatches" --input -
-
-          echo "Dispatched ${workflow} against ${SHA}$([ -n "$mode" ] && echo " with mode=${mode}")."
-
-          # Best-effort link for the audit trail. A dispatch that is accepted
-          # but not yet visible here is still a successful dispatch.
-          run_url=''
-          for _ in 1 2 3 4 5; do
-            run_url="$(
-              gh api "repos/${REPOSITORY}/actions/workflows/${workflow}/runs?per_page=20" \
-                --jq ".workflow_runs[] | select(.head_sha == \"${SHA}\") | .html_url" 2>/dev/null |
-                head -n 1 || true
-            )"
-            [ -n "$run_url" ] && break
-            sleep 5
-          done
-          echo "url=${run_url}" >> "$GITHUB_OUTPUT"
-          echo "Dispatched run: ${run_url:-<not yet listed>}"
+          # The label is the only untrusted value here, and it is matched
+          # against a fixed allowlist inside the module rather than being
+          # interpolated into a command line.
+          #
+          # The module resolves the pull-request head, dispatches the requested
+          # workflow against the provider-valid branch ref, and carries the
+          # resolved head SHA as the `expected_sha` input so the dispatched run
+          # can prove it is still verifying that exact commit. Its logic and its
+          # request shape are proven by tools/ci/test/dispatch-workflow.test.mjs.
+          node tools/ci/dispatch-workflow.mjs \
+            --repo "$REPOSITORY" \
+            --pr "$PR_NUMBER" \
+            --label "$LABEL"
 
       - name: Consume the command marker
         env:
@@ -201,8 +145,9 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           LABEL: ${{ github.event.label.name }}
-          SHA: ${{ steps.head.outputs.sha }}
-          RUN_URL: ${{ steps.dispatch.outputs.url }}
+          SHA: ${{ steps.dispatch.outputs.sha }}
+          REF: ${{ steps.dispatch.outputs.ref }}
+          RUN_URL: ${{ steps.dispatch.outputs.run-url }}
           ACTOR: ${{ github.actor }}
         run: |
           set -euo pipefail
@@ -218,10 +163,10 @@ jobs:
 
           # No backticks or expansions inside the single-quoted format string:
           # they are literal in single quotes, which ShellCheck reports as
-          # SC2016. The label, SHA and URL arrive as arguments instead.
+          # SC2016. The values arrive as arguments instead.
           body="$(
-            printf 'Requested by @%s via the %s command label.\n\nDispatched against %s.%s\n\nThis is implementation feedback only; terminal verification of a finished candidate is a full verify run (verify / gate).' \
-              "$ACTOR" "$LABEL" "$SHA" "$run_link"
+            printf 'Requested by @%s via the %s command label.\n\nDispatched against branch %s, expected commit %s.%s\n\nThe dispatched run asserts that the branch still resolves to that commit before doing any work, so this is evidence about exactly the head the command was issued against.\n\nThis is implementation feedback only; terminal verification of a finished candidate is a full verify run (verify / gate).' \
+              "$ACTOR" "$LABEL" "$REF" "$SHA" "$run_link"
           )"
 
           gh api --method POST "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" \

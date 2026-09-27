@@ -29,6 +29,13 @@ function run(id, status, name = 'verify') {
 /**
  * A fake `gh api` implementation with mutable repository state, so the purge
  * code under test sees the consequences of its own calls.
+ *
+ * The fake is deliberately strict about *shape*, not just about outcome. GitHub
+ * has no "delete every cache" endpoint: `DELETE .../actions/caches` is
+ * delete-by-key and requires a `key`, and the only exact purge is
+ * `DELETE .../actions/caches/{cache_id}` per cache. A bare
+ * `DELETE .../actions/caches` therefore throws here, so a regression to that
+ * invalid request cannot pass by silently succeeding.
  */
 function createFakeApi({ runs = [], caches = [], cancelStopsRuns = true, lateRun = null } = {}) {
   const state = {
@@ -36,6 +43,8 @@ function createFakeApi({ runs = [], caches = [], cancelStopsRuns = true, lateRun
     caches: caches.map((entry) => ({ ...entry })),
   };
   const calls = [];
+  let lateRunPushed = false;
+  let runListings = 0;
 
   const gh = async (args) => {
     calls.push(args.join(' '));
@@ -53,11 +62,22 @@ function createFakeApi({ runs = [], caches = [], cancelStopsRuns = true, lateRun
         return null;
       }
 
-      if (method === 'DELETE' && /\/actions\/caches$/.test(path)) {
-        // Optionally models a run that was queued while the purge was waiting.
-        state.caches = [];
-        if (lateRun) state.runs.push({ ...lateRun });
+      // The provider-valid cache deletion is by cache ID.
+      const cacheDeletion = path.match(/\/actions\/caches\/(\d+)$/);
+      if (method === 'DELETE' && cacheDeletion) {
+        const id = Number(cacheDeletion[1]);
+        state.caches = state.caches.filter((entry) => entry.id !== id);
         return null;
+      }
+
+      // A bare `DELETE .../actions/caches` is not a provider-valid request:
+      // that endpoint is delete-by-key and requires `key`. Refuse it so the
+      // tests cannot be satisfied by an invalid endpoint shape.
+      if (method === 'DELETE' && /\/actions\/caches$/.test(path)) {
+        throw new Error(
+          'invalid request: DELETE .../actions/caches requires a key; ' +
+            'an exact purge must delete each cache by cache ID'
+        );
       }
 
       const deletion = path.match(/\/actions\/runs\/(\d+)$/);
@@ -71,6 +91,16 @@ function createFakeApi({ runs = [], caches = [], cancelStopsRuns = true, lateRun
     }
 
     if (/\/actions\/runs\?/.test(args[0])) {
+      // `lateRun` models a run that appeared after the purge's initial
+      // snapshot — queued while the purge was waiting for others to settle, or
+      // started by some other trigger entirely. It is injected on any listing
+      // after the first, and at most once: a run either appeared during the
+      // purge or it did not.
+      if (lateRun && !lateRunPushed && runListings >= 1) {
+        lateRunPushed = true;
+        state.runs.push({ ...lateRun });
+      }
+      runListings += 1;
       return { total_count: state.runs.length, workflow_runs: state.runs };
     }
     if (/\/actions\/caches\?/.test(args[0])) {
@@ -178,17 +208,29 @@ describe('purgeActions', () => {
     });
 
     assert.equal(result.state.ok, true, result.state.problems.join('; '));
+    assert.equal(result.settled, true);
     assert.deepEqual(result.cancelled, ['1', '2']);
     // Every other run is deleted, including the two this purge just cancelled.
     assert.deepEqual(result.deleted, ['1', '2', '3', '999']);
+    // Every cache is deleted, by cache ID.
+    assert.deepEqual(result.deletedCaches, ['10', '11']);
 
     // Ordering: cancel first, then delete caches, then delete runs.
     const mutations = api.calls.filter((call) => call.startsWith('--method'));
     const firstCancel = mutations.findIndex((call) => call.includes('/cancel'));
-    const cacheDelete = mutations.findIndex((call) => call.endsWith('/actions/caches'));
+    const firstCacheDelete = mutations.findIndex((call) => /\/actions\/caches\/\d+$/.test(call));
     const firstRunDelete = mutations.findIndex((call) => /\/actions\/runs\/\d+$/.test(call));
-    assert.ok(firstCancel >= 0 && cacheDelete > firstCancel, 'caches deleted after cancelling');
-    assert.ok(firstRunDelete > cacheDelete, 'runs deleted after caches');
+    assert.ok(firstCancel >= 0 && firstCacheDelete > firstCancel, 'caches deleted after cancelling');
+    assert.ok(firstRunDelete > firstCacheDelete, 'runs deleted after caches');
+
+    // Caches are deleted by cache ID, and never with the invalid bare
+    // `DELETE .../actions/caches` request shape.
+    for (const call of mutations) {
+      assert.ok(
+        !/--method DELETE repos\/\S+\/actions\/caches$/.test(call),
+        `invalid bare cache deletion: ${call}`
+      );
+    }
 
     // The purge never acts on its own run.
     for (const call of mutations) {
@@ -197,6 +239,42 @@ describe('purgeActions', () => {
         `the purge touched its own run: ${call}`
       );
     }
+  });
+
+  it('deletes every cache by cache ID, not with a bare cache-deletion request', async () => {
+    const api = createFakeApi({
+      runs: [run(CURRENT_RUN_ID, 'in_progress', 'maintenance')],
+      caches: [
+        { id: 10, key: 'gradle-a' },
+        { id: 11, key: 'gradle-b' },
+        { id: 12, key: 'gradle-c' },
+      ],
+    });
+
+    const result = await purgeActions({
+      repo: 'owner/name',
+      runId: CURRENT_RUN_ID,
+      gh: api.gh,
+      wait: async () => {},
+      log: () => {},
+    });
+
+    assert.equal(result.state.ok, true, result.state.problems.join('; '));
+    assert.deepEqual(result.deletedCaches, ['10', '11', '12']);
+
+    const cacheDeletes = api.calls.filter((call) =>
+      /--method DELETE repos\/\S+\/actions\/caches\/\d+$/.test(call)
+    );
+    assert.equal(cacheDeletes.length, 3, `expected one delete per cache: ${cacheDeletes}`);
+    for (const id of ['10', '11', '12']) {
+      assert.ok(
+        cacheDeletes.some((call) => call.endsWith(`/actions/caches/${id}`)),
+        `cache ${id} was not deleted by ID`
+      );
+    }
+
+    // The end-state verification re-lists caches, so it must still see none.
+    assert.deepEqual(api.state.caches, []);
   });
 
   it('deletes a run that appeared while the purge was waiting', async () => {

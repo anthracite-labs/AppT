@@ -410,15 +410,53 @@ without a human clicking through the Actions UI. Two routes exist:
    workflows. Adding one of the command labels (`ci:full`, `ci:app-unit`,
    `ci:samsung-unit`, `ci:android-static`, `ci:android-build`, `ci:backend`,
    `ci:backend-static`, `ci:backend-test`, `ci:device`) to a pull request makes
-   the bridge resolve that pull request's exact head SHA, dispatch the matching
-   workflow against that SHA, consume the label, and record what it dispatched.
+   the bridge resolve that pull request's exact head SHA and branch, dispatch
+   the matching workflow against the **branch**, consume the label, and record
+   what it dispatched.
 
 The bridge is the only privileged control path in the repository. It never
-checks out or executes pull-request-controlled code: it runs inline shell
-against the GitHub API only, and the workflow it dispatches then runs under that
-workflow's own read-only permissions. Its token permissions are limited to
+checks out or executes pull-request-controlled code: the one checkout it
+performs is of the **base branch** — which is what `pull_request_target` runs
+the workflow definition from and what `github.sha` points at — and the only code
+it executes is the reviewed repository module
+`tools/ci/dispatch-workflow.mjs`. The workflow it dispatches then runs under
+that workflow's own read-only permissions. Its token permissions are limited to
 `contents: read`, `actions: write`, `issues: write` and `pull-requests: write`,
 and only the labels in its allowlist do anything.
+
+#### Why the bridge dispatches a branch, and how the head guarantee survives
+
+GitHub's Create Workflow Dispatch endpoint takes `ref` as the git reference for
+the workflow — a **branch or tag name**. It is not a commit SHA, and passing one
+is rejected. A branch is mutable, so dispatching a branch alone would not
+guarantee that the run verifies the head the command was issued against.
+
+The bridge therefore does both:
+
+- it dispatches against the pull request's head **branch name**, which is the
+  provider-valid shape; and
+- it passes the head SHA it resolved as the `expected_sha` input, which every
+  job in `verify` and `diagnose` asserts **before doing any target-controlled
+  work** — before Gradle, before npm, before the managed device — through
+  `.github/actions/assert-dispatch-target`. If the branch moved, the job
+  hard-fails with a message naming both SHAs and telling the issuer to re-issue
+  the label.
+
+So the exact-PR-head guarantee is preserved without asking the provider to
+accept a request shape it does not support. `expected_sha` is empty for
+`pull_request` and `push` events, so the assertion is a no-op there and the
+cheap PR cadence is unaffected.
+
+A **fork** pull request cannot be dispatched this way at all: the provider
+dispatches a ref that must exist in this repository, and a fork's head branch
+does not. The bridge fails closed with an explicit error rather than dispatching
+something else.
+
+The translation, the allowlist and the request shape live in
+`tools/ci/dispatch-workflow.mjs` and are proven by
+`tools/ci/test/dispatch-workflow.test.mjs` against a fake API. The test contract
+rejects a commit SHA used directly as `workflow_dispatch.ref`, which is the
+defect the Issue #88 contract review found.
 
 Owner follow-ups that cannot be represented in repository code:
 
@@ -437,6 +475,19 @@ every workflow run except the run executing now, and then verifies that no cache
 and no other run remains. The destructive sequence lives in
 `tools/ci/purge-actions.mjs` and is proven by `tools/ci/test/purge-actions.test.mjs`
 against a fake API, so it can be validated without deleting real history.
+
+#### Cache deletion is by cache ID
+
+GitHub has no "delete every cache" endpoint. `DELETE .../actions/caches` is
+delete-by-key and *requires* a `key` query parameter; the only way to express an
+exact purge is to list the caches and delete each one by its cache ID with
+`DELETE .../actions/caches/{cache_id}`. `purge-actions.mjs` does exactly that,
+paginating the listing so a repository with more than one page of caches is
+covered, and it still performs the final zero-cache verification.
+
+The fake API in the test suite refuses a bare `DELETE .../actions/caches`
+outright, so a regression to that invalid request shape cannot pass by silently
+succeeding — reverting the fix fails five of the tests.
 
 There is no scheduled or automatic cleanup, and no verification workflow
 contains history deletion. `actions: write` is granted to the maintenance job

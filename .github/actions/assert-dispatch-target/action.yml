@@ -1,0 +1,60 @@
+# Repository-local composite action: assert the dispatched ref still points at
+# the pull-request head the command was issued against.
+#
+# Why this exists (Issue #88 contract review)
+# -------------------------------------------
+# `agent-control.yml` dispatches an ordinary workflow against a **branch name**,
+# because GitHub's Create Workflow Dispatch endpoint requires `ref` to be a
+# branch or tag name and rejects a commit SHA. A branch is mutable, so between
+# the bridge resolving the pull-request head and the dispatched run starting,
+# that branch could move — and the run would then verify different code than the
+# command asked for.
+#
+# The bridge therefore passes the head SHA it resolved as the `expected_sha`
+# input, and this action is the enforcement point: it hard-fails the job before
+# any target-controlled work (Gradle, npm, the managed device) if
+# `github.sha` no longer equals it.
+#
+# `expected_sha` is empty for every event that is not a bridge dispatch
+# (`pull_request`, `push`), so the assertion is a no-op there and the cheap PR
+# cadence is unaffected.
+name: Assert dispatch target
+description: >-
+  Hard-fails if a dispatched run no longer resolves to the expected commit SHA.
+  Requires the repository to be checked out by the calling job first.
+
+inputs:
+  expected-sha:
+    description: >-
+      The commit SHA the dispatched ref was expected to resolve to. Empty for
+      non-dispatch events, which skips the assertion.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Assert the dispatched ref still resolves to the expected SHA
+      shell: bash
+      env:
+        EXPECTED_SHA: ${{ inputs.expected-sha }}
+        ACTUAL_SHA: ${{ github.sha }}
+        EVENT_NAME: ${{ github.event_name }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "$EXPECTED_SHA" ]; then
+          # Not a bridge dispatch: nothing to assert.
+          echo "No expected SHA supplied (${EVENT_NAME}); skipping the dispatch-target assertion."
+          exit 0
+        fi
+
+        if [ "$ACTUAL_SHA" = "$EXPECTED_SHA" ]; then
+          echo "Dispatch target confirmed: ${ACTUAL_SHA}."
+          exit 0
+        fi
+
+        {
+          echo "::error title=Dispatch target moved::This run was dispatched for commit ${EXPECTED_SHA}, but the ref now resolves to ${ACTUAL_SHA}. The branch moved after the command was issued, so verifying it would verify different code than requested. Re-issue the command label to dispatch the current head."
+        } >&2
+        exit 1

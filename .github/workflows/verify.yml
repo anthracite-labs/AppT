@@ -45,6 +45,14 @@ on:
         description: 'Base ref for dependency review on a manual run'
         required: false
         default: 'main'
+      expected_sha:
+        description: >-
+          Commit SHA the dispatched ref was expected to resolve to. Set by the
+          agent-control bridge; every job hard-fails before doing any work if
+          the ref no longer resolves to it. Leave empty for an ordinary manual
+          dispatch.
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -75,6 +83,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Assert the dispatch target
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
+
       - name: Set up Node
         uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
@@ -88,6 +101,7 @@ jobs:
           node --test "tools/security/test/enforce-dependency-policy.test.mjs"
           node --test "tools/security/test/enforce-gradle-tooling-constraints.test.mjs"
           node --test "tools/ci/test/purge-actions.test.mjs"
+          node --test "tools/ci/test/dispatch-workflow.test.mjs"
           node tools/secret-scan/secret-scan.mjs
           node tools/security/enforce-gradle-tooling-constraints.mjs
 
@@ -106,6 +120,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+
+      - name: Assert the dispatch target
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
 
       - name: Set up Node
         uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
@@ -190,6 +209,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Assert the dispatch target
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
+
       - name: Set up the Android/JVM toolchain
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
@@ -220,6 +244,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+
+      - name: Assert the dispatch target
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
 
       - name: Set up the Android/JVM toolchain
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
@@ -276,6 +305,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Assert the dispatch target
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
+
       - name: Set up the Android/JVM toolchain
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
@@ -307,6 +341,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+
+      - name: Assert the dispatch target
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
 
       - name: Set up the Android/JVM toolchain
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
@@ -350,6 +389,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Assert the dispatch target
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
+
       - name: Set up Node
         uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
@@ -377,6 +421,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+
+      - name: Assert the dispatch target
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
 
       - name: Set up Node
         uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
@@ -415,6 +464,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+
+      - name: Assert the dispatch target
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
 
       - name: Set up the Android/JVM toolchain
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
@@ -549,6 +603,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Assert the dispatch target
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
+
       - name: Resolve the comparison base
         id: base
         env:
@@ -611,6 +670,11 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Assert the dispatch target
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
 
       - name: Download Kover coverage report
         # actions/download-artifact v7.0.0

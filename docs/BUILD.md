@@ -201,6 +201,7 @@ run locally when those tools are present:
 - `npm run verify --prefix backend`
 - `node --test "tools/secret-scan/test/secret-scan.test.mjs" && node tools/secret-scan/secret-scan.mjs`
 - `node --test "tools/ci/test/purge-actions.test.mjs"`
+- `node --test "tools/ci/test/dispatch-workflow.test.mjs"`
 - `yamllint -c .yamllint.yml .`
 - `tools/security/run.sh`
 
@@ -257,13 +258,25 @@ Invoking diagnostics without clicking through the Actions UI:
   command labels (`ci:app-unit`, `ci:samsung-unit`, `ci:android-static`,
   `ci:android-build`, `ci:backend`, `ci:backend-static`, `ci:backend-test`,
   `ci:device`, `ci:full`) to the pull request, and `agent-control.yml` resolves
-  that pull request's head SHA, dispatches the matching workflow against it,
-  removes the label, and records what it dispatched.
+  that pull request's head SHA and branch, dispatches the matching workflow
+  against the branch, removes the label, and records what it dispatched.
+
+The bridge dispatches a **branch**, not a commit SHA, because GitHub's Create
+Workflow Dispatch endpoint requires `ref` to be a branch or tag name. To keep the
+exact-PR-head guarantee despite the mutable branch, the bridge passes the head
+SHA it resolved as the `expected_sha` input, and every job in `verify` and
+`diagnose` asserts `github.sha` still equals it — before any Gradle, npm or
+managed-device work — through `.github/actions/assert-dispatch-target`. If the
+branch moved, the job hard-fails naming both SHAs. Fork pull requests cannot be
+dispatched this way and fail closed. The logic lives in
+`tools/ci/dispatch-workflow.mjs`, proven by `tools/ci/test/dispatch-workflow.test.mjs`.
 
 The maintenance purge deletes every Actions cache and every workflow run except
-its own. Its logic is `tools/ci/purge-actions.mjs`, which is proven by
-`tools/ci/test/purge-actions.test.mjs` against a fake API; preview what it would
-touch with:
+its own. GitHub has no "delete every cache" endpoint — `DELETE .../actions/caches`
+requires a `key` — so the purge lists the caches and deletes each one by cache
+ID. Its logic is `tools/ci/purge-actions.mjs`, proven by
+`tools/ci/test/purge-actions.test.mjs` against a fake API that refuses the
+invalid bare deletion; preview what it would touch with:
 
 ```bash
 node tools/ci/purge-actions.mjs --dry-run

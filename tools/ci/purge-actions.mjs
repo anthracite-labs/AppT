@@ -121,7 +121,7 @@ export async function listCaches(gh, repo) {
 /**
  * Run the purge. Every GitHub call is `gh` so the sequence is testable.
  *
- * @returns {Promise<{cancelled: string[], deleted: string[], settled: boolean, state: object}>}
+ * @returns {Promise<{cancelled: string[], deleted: string[], deletedCaches: string[], settled: boolean, state: object}>}
  */
 export async function purgeActions({
   repo,
@@ -184,8 +184,24 @@ export async function purgeActions({
   }
 
   // 3. Delete every cache in the repository.
+  //
+  //    GitHub has no "delete every cache" endpoint. `DELETE .../actions/caches`
+  //    is delete-by-key and *requires* a `key` query parameter; the only way to
+  //    express an exact purge is to list the caches and delete each one by its
+  //    cache ID. `listCaches` already paginates, so a repository with more than
+  //    one page of caches is covered.
   note('Deleting every GitHub Actions cache in the repository.');
-  await gh(['--method', 'DELETE', `repos/${repo}/actions/caches`]);
+  const cachesBefore = await listCaches(gh, repo);
+  note(`Found ${cachesBefore.total_count} Actions cache(s) to delete.`);
+  const deletedCaches = [];
+  for (const cache of cachesBefore.actions_caches) {
+    note(`Deleting Actions cache ${cache.id} (${cache.key ?? 'no key'}).`);
+    await gh(['--method', 'DELETE', `repos/${repo}/actions/caches/${cache.id}`]);
+    deletedCaches.push(String(cache.id));
+  }
+  if (deletedCaches.length === 0) {
+    note('No Actions cache needed deleting.');
+  }
 
   // 4. Delete every other workflow run, re-reading the list so runs created
   //    during the wait are covered too.
@@ -206,7 +222,10 @@ export async function purgeActions({
   runs = await listRuns(gh, repo);
   const state = evaluatePurgeState({ caches, runs, currentRunId: runId });
 
-  note(`Cancelled ${cancelled.length} run(s), deleted ${deleted.length} run(s).`);
+  note(
+    `Cancelled ${cancelled.length} run(s), deleted ${deletedCaches.length} cache(s), ` +
+      `deleted ${deleted.length} run(s).`
+  );
   if (state.ok) {
     note('Verified: no Actions cache and no other workflow run remains.');
   } else {
@@ -222,7 +241,7 @@ export async function purgeActions({
     );
   }
 
-  return { cancelled, deleted, settled, state };
+  return { cancelled, deleted, deletedCaches, settled, state };
 }
 
 function parseArgs(argv) {
