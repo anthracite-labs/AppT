@@ -47,6 +47,9 @@ function createFakeApi({
   cancelStopsRuns = true,
   lateRun = null,
   lateActiveRun = null,
+  // Number of run listings after which a `lateRun` stops on its own, without
+  // being cancelled. Used to land a settle exactly on the deadline.
+  lateRunStopsAfter = null,
 } = {}) {
   const state = {
     runs: runs.map((entry) => ({ ...entry })),
@@ -110,6 +113,13 @@ function createFakeApi({
       if (lateRun && !lateRunPushed && runListings >= 1) {
         lateRunPushed = true;
         state.runs.push({ ...lateRun });
+      }
+      // A late run that stops on its own rather than on cancel, so the settle
+      // can be made to land on the final poll rather than after it.
+      if (lateRunStopsAfter !== null && runListings >= lateRunStopsAfter) {
+        for (const entry of state.runs) {
+          if (entry.id === lateRun.id) entry.status = 'completed';
+        }
       }
       runListings += 1;
       return { total_count: state.runs.length, workflow_runs: state.runs };
@@ -358,6 +368,52 @@ describe('purgeActions', () => {
     assert.ok(lastCacheDelete >= 0, 'the caches were deleted');
     assert.ok(lateCancel > lastCacheDelete, 'the late run was cancelled after the cache phase');
     assert.ok(lateDelete > lateCancel, 'the late run was deleted after it was cancelled');
+  });
+
+  it('exits cleanly when a late run settles on the very last poll', async () => {
+    // The late-run loop re-lists before it checks the deadline, so a run that
+    // stops on the final poll is a success rather than a timeout. Checking the
+    // deadline first turns a settled end state into a spurious failure: the
+    // settle wait returns success at exactly the deadline, and re-checking the
+    // deadline before the next listing then throws.
+    const api = createFakeApi({
+      runs: [run(CURRENT_RUN_ID, 'in_progress', 'maintenance'), run(3, 'completed')],
+      caches: [{ id: 10, key: 'gradle-a' }],
+      lateRun: run(999, 'in_progress', 'stops-on-its-own'),
+      // Cancel does not stop it, so only the passage of time does.
+      cancelStopsRuns: false,
+      // 60s / 15s = 4 polls, and the run stops on the fifth listing -- the one
+      // that reports it settled at clock 60000, the deadline itself.
+      lateRunStopsAfter: 5,
+    });
+
+    let clock = 0;
+    const result = await purgeActions({
+      repo: 'owner/name',
+      runId: CURRENT_RUN_ID,
+      gh: api.gh,
+      wait: async () => {
+        clock += 15 * 1000;
+      },
+      log: () => {},
+      now: () => clock,
+      settleTimeoutMs: 60 * 1000,
+      pollIntervalMs: 15 * 1000,
+    });
+
+    // The settle window was used to the last poll, and that is still a success.
+    assert.equal(result.state.ok, true, result.state.problems.join('; '));
+    assert.equal(result.settled, true);
+    assert.equal(clock, 60 * 1000, 'the settle ran to its deadline and still succeeded');
+    // It was cancelled while active, waited out, and only then deleted -- never
+    // deleted while active, and never left behind.
+    assert.deepEqual(result.lateCancelled, ['999']);
+    assert.deepEqual(result.deleted, ['3', '999']);
+    const mutations = api.calls.filter((call) => call.startsWith('--method'));
+    const cancelAt = mutations.findIndex((call) => call.includes('/actions/runs/999/cancel'));
+    const deleteAt = mutations.findIndex((call) => /\/actions\/runs\/999$/.test(call));
+    assert.ok(cancelAt !== -1, 'the late run was cancelled');
+    assert.ok(deleteAt > cancelAt, 'the late run was deleted only after it was cancelled');
   });
 
   it('deletes a late active run only after it has settled', async () => {

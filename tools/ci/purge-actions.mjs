@@ -271,13 +271,15 @@ export async function purgeActions({
     );
 
   for (;;) {
-    // Checked before the listing work as well as inside the settle wait, so a
-    // deadline that has already passed cannot cost another full poll interval.
-    if (now() >= finalDeadline) throw timeoutError();
-
     runs = await listRuns(gh, repo);
     const { active: lateActive } = partitionRuns(runs, runId);
     if (lateActive.length === 0) break;
+
+    // Only reached when something is still active, so an expired deadline is a
+    // timeout here rather than a successful exit: re-listing first means a run
+    // that settled on the last poll still breaks out cleanly above, while a run
+    // that is genuinely still active cannot cost another full poll interval.
+    if (now() >= finalDeadline) throw timeoutError();
 
     for (const run of lateActive) {
       // A run already cancelled in an earlier pass is not cancelled again: the
