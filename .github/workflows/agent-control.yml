@@ -206,9 +206,23 @@ jobs:
           ACTOR: ${{ github.actor }}
         run: |
           set -euo pipefail
+
+          # The run URL is best effort: a dispatch that is accepted but not yet
+          # listed is still a successful dispatch. Written as an explicit `if`
+          # so the empty case is obvious at a glance rather than depending on
+          # how `set -e` interacts with a nested command substitution.
+          run_link=''
+          if [ -n "$RUN_URL" ]; then
+            run_link="$(printf '\n\nRun: %s' "$RUN_URL")"
+          fi
+
+          # No backticks or expansions inside the single-quoted format string:
+          # they are literal in single quotes, which ShellCheck reports as
+          # SC2016. The label, SHA and URL arrive as arguments instead.
           body="$(
-            printf 'Requested by @%s via the `%s` command label.\n\nDispatched against `%s`.%s\n\nThis is implementation feedback only; terminal verification of a finished candidate is a full `verify` run (`verify / gate`).' \
-              "$ACTOR" "$LABEL" "$SHA" "$([ -n "$RUN_URL" ] && printf '\n\nRun: %s' "$RUN_URL")"
+            printf 'Requested by @%s via the %s command label.\n\nDispatched against %s.%s\n\nThis is implementation feedback only; terminal verification of a finished candidate is a full verify run (verify / gate).' \
+              "$ACTOR" "$LABEL" "$SHA" "$run_link"
           )"
+
           gh api --method POST "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" \
             --field "body=${body}"
