@@ -214,10 +214,15 @@ Pull-request synchronization is intentionally cheap. `.github/workflows/verify.y
 runs only the two cheap repository domains on ordinary PR updates — repository
 policy (whitespace/diff validation, repository security-policy self-tests, secret
 scanning, tooling constraint checks) and repository quality (yamllint,
-markdownlint, ShellCheck, shfmt, actionlint, zizmor) — plus dependency review
-when the candidate changed dependency inputs. It does not build Android, run
-backend verification, start a managed device, run SonarQube, regenerate
-dependency state, or execute `ciCheck` or any of its narrower domains.
+markdownlint, ShellCheck, shfmt, actionlint, zizmor) — plus change detection and
+dependency review when the candidate changed dependency inputs. It does not build
+Android, run backend verification, start a managed device, run SonarQube,
+regenerate dependency state, or execute `ciCheck` or any of its narrower domains.
+
+The gate requires change detection to have succeeded in its own right, because
+`dependency-review` declares `needs: changes`: if change detection fails, GitHub
+skips dependency review, and a gate that accepted that skip would let the failure
+pass silently.
 
 The full verification domains run on pushes to `main` and on an explicit
 **Run workflow** dispatch of `verify` on the branch that needs the complete
@@ -276,11 +281,20 @@ its own. GitHub has no "delete every cache" endpoint — `DELETE .../actions/cac
 requires a `key` — so the purge lists the caches and deletes each one by cache
 ID. Its logic is `tools/ci/purge-actions.mjs`, proven by
 `tools/ci/test/purge-actions.test.mjs` against a fake API that refuses the
-invalid bare deletion; preview what it would touch with:
+invalid bare deletion.
+
+The purge is serialized repository-wide (not per ref), because a manual dispatch
+can target any ref and two concurrent purges would cancel each other. Its dry
+run reads the repository's real state and suppresses only mutations, so the
+preview reports the actual number of runs and caches:
 
 ```bash
 node tools/ci/purge-actions.mjs --dry-run
 ```
+
+`--settle-timeout-minutes` and `--poll-interval-seconds` are forwarded into the
+purge loop, so the workflow genuinely controls the timing it declares. Invalid
+or non-positive values are rejected rather than silently becoming `NaN`.
 
 ## CodeQL static analysis
 

@@ -221,7 +221,12 @@ local action from the workspace on disk, every job that uses one runs
     SAST. The CI job waits for the Sonar quality-gate result before succeeding.
 13. **gate** — depends on every domain above and succeeds only when all required
     domains succeeded. This is the sole stable repository-owned status intended
-    for default-branch protection.
+    for default-branch protection. It requires `changes` to have succeeded in its
+    own right: `dependency-review` declares `needs: changes`, so a failed
+    change-detection job makes GitHub skip `dependency-review`, and a gate that
+    merely accepted a skipped dependency review would let that failure fail
+    open. `skipped` is accepted for `dependency-review` only once `changes` has
+    succeeded.
 
 `ciCheck` remains the local umbrella over the four Android domains
 (`androidFormat`, `androidStatic`, `androidBuild`, `androidUnit`) so a developer
@@ -494,6 +499,18 @@ contains history deletion. `actions: write` is granted to the maintenance job
 alone; `verify`, `diagnose`, `codeql` and `agent-control` never receive deletion
 privileges. This supersedes the earlier position that no permanent maintenance
 workflow exists.
+
+Its concurrency group is **repository-wide** (`maintenance-${{ github.workflow }}`,
+not scoped to `github.ref`) with `cancel-in-progress: false`. Manual dispatch can
+target any ref, so a ref-scoped group would let two purges run concurrently and
+each cancel or delete the other; a repository-wide group makes a second purge
+wait for the first instead of interrupting it.
+
+The purge's dry run reads the repository's real state through read-only API calls
+and suppresses only mutations, so the pre-destructive preview reports the actual
+number of runs and caches rather than a misleading zero. The `--settle-timeout-minutes`
+and `--poll-interval-seconds` flags are forwarded into the purge loop, so the
+workflow genuinely controls the timing it declares.
 
 ### Migration sequencing
 

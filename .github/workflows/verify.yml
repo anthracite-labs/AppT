@@ -796,16 +796,27 @@ jobs:
             echo "| --- | --- |"
           } >> "$GITHUB_STEP_SUMMARY"
 
+          # `dependency-review` declares `needs: changes`. When `changes` fails, GitHub
+          # skips `dependency-review` entirely, so its result is `skipped` -- and a gate
+          # that merely accepts a skipped dependency review would let a failed
+          # change-detection job fail open. Change detection is therefore required in its
+          # own right before any dependency-review result is accepted.
+          require_dependency_review() {
+            require changes "$CHANGES_RESULT"
+            allow_skipped dependency-review "$DEPENDENCY_REVIEW_RESULT"
+          }
+
           if [ "$EVENT_NAME" = "pull_request" ]; then
-            echo "Pull-request verification: repository policy, repository quality and"
-            echo "dependency review only. The Android, backend, managed-device and"
-            echo "quality-platform domains are produced by a full verification run"
-            echo "(push to main, workflow_dispatch, or the agent-control bridge)."
+            echo "Pull-request verification: repository policy, repository quality, change"
+            echo "detection and dependency review only. The Android, backend,"
+            echo "managed-device and quality-platform domains are produced by a full"
+            echo "verification run (push to main, workflow_dispatch, or the"
+            echo "agent-control bridge)."
             echo
 
             require repo-policy "$REPO_POLICY_RESULT"
             require repo-quality "$REPO_QUALITY_RESULT"
-            allow_skipped dependency-review "$DEPENDENCY_REVIEW_RESULT"
+            require_dependency_review
 
             not_run android-format
             not_run android-static
@@ -829,12 +840,13 @@ jobs:
             require backend-test "$BACKEND_TEST_RESULT"
             require device "$DEVICE_RESULT"
             require quality-platform "$QUALITY_PLATFORM_RESULT"
-            allow_skipped dependency-review "$DEPENDENCY_REVIEW_RESULT"
+            require_dependency_review
           fi
 
           {
             printf '| %s | %s |\n' "repo-policy" "$REPO_POLICY_RESULT"
             printf '| %s | %s |\n' "repo-quality" "$REPO_QUALITY_RESULT"
+            printf '| %s | %s |\n' "changes" "$CHANGES_RESULT"
             printf '| %s | %s |\n' "android-format" "$ANDROID_FORMAT_RESULT"
             printf '| %s | %s |\n' "android-static" "$ANDROID_STATIC_RESULT"
             printf '| %s | %s |\n' "android-build" "$ANDROID_BUILD_RESULT"

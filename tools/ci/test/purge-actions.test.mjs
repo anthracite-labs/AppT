@@ -13,11 +13,15 @@ import { describe, it } from 'node:test';
 
 import {
   ACTIVE_RUN_STATUSES,
+  DEFAULT_POLL_INTERVAL_SECONDS,
+  DEFAULT_SETTLE_TIMEOUT_MINUTES,
+  createDryRunGh,
   evaluatePurgeState,
   listCaches,
   listRuns,
   partitionRuns,
   purgeActions,
+  resolveTiming,
 } from '../purge-actions.mjs';
 
 const CURRENT_RUN_ID = 900;
@@ -397,5 +401,184 @@ describe('purgeActions', () => {
     const caches = await listCaches(gh, 'owner/name');
     assert.equal(runs.length, 101);
     assert.equal(caches.total_count, 100);
+  });
+});
+
+describe('resolveTiming', () => {
+  it('uses the documented defaults when no flags are supplied', () => {
+    const timing = resolveTiming({});
+    assert.equal(timing.settleTimeoutMs, DEFAULT_SETTLE_TIMEOUT_MINUTES * 60 * 1000);
+    assert.equal(timing.pollIntervalMs, DEFAULT_POLL_INTERVAL_SECONDS * 1000);
+  });
+
+  it('treats an absent flag as the default rather than as an error', () => {
+    // `null` and `undefined` both mean "not supplied": the nullish coalescing in
+    // resolveTiming must pick the default, and only a *present but invalid*
+    // value is an error.
+    assert.deepEqual(resolveTiming({ settleTimeoutMinutes: null }), resolveTiming({}));
+    assert.deepEqual(resolveTiming({ pollIntervalSeconds: undefined }), resolveTiming({}));
+    assert.deepEqual(resolveTiming(), resolveTiming({}));
+  });
+
+  it('converts the CLI units into the units the purge loop uses', () => {
+    const timing = resolveTiming({ settleTimeoutMinutes: 3, pollIntervalSeconds: 7 });
+    assert.equal(timing.settleTimeoutMs, 3 * 60 * 1000);
+    assert.equal(timing.pollIntervalMs, 7 * 1000);
+  });
+
+  it('rejects invalid, non-finite and non-positive values instead of forwarding NaN', () => {
+    for (const settleTimeoutMinutes of [0, -1, 1.5, NaN, Infinity, '20']) {
+      assert.throws(
+        () => resolveTiming({ settleTimeoutMinutes }),
+        /--settle-timeout-minutes must be a positive integer/,
+        String(settleTimeoutMinutes)
+      );
+    }
+    for (const pollIntervalSeconds of [0, -5, 2.5, NaN, Infinity, '15']) {
+      assert.throws(
+        () => resolveTiming({ pollIntervalSeconds }),
+        /--poll-interval-seconds must be a positive integer/,
+        String(pollIntervalSeconds)
+      );
+    }
+  });
+});
+
+describe('purge timing reaches the purge loop', () => {
+  it('polls at the supplied interval and gives up at the supplied timeout', async () => {
+    const api = createFakeApi({
+      runs: [run(CURRENT_RUN_ID, 'in_progress', 'maintenance'), run(1, 'in_progress', 'stuck')],
+      caches: [],
+      cancelStopsRuns: false,
+    });
+
+    const { settleTimeoutMs, pollIntervalMs } = resolveTiming({
+      settleTimeoutMinutes: 2,
+      pollIntervalSeconds: 20,
+    });
+
+    const waited = [];
+    let clock = 0;
+    await assert.rejects(
+      purgeActions({
+        repo: 'owner/name',
+        runId: CURRENT_RUN_ID,
+        gh: api.gh,
+        wait: async () => {
+          waited.push(pollIntervalMs);
+          clock += pollIntervalMs;
+        },
+        log: () => {},
+        now: () => clock,
+        settleTimeoutMs,
+        pollIntervalMs,
+      }),
+      /Timed out after 2 minute/
+    );
+
+    // The loop really used the supplied interval, and really stopped at the
+    // supplied timeout rather than the module default.
+    assert.ok(waited.length > 0, 'the loop must poll at least once');
+    for (const interval of waited) assert.equal(interval, pollIntervalMs);
+    assert.equal(waited.length, Math.floor(settleTimeoutMs / pollIntervalMs));
+  });
+
+  it('accepts different supplied values and drives the loop differently', async () => {
+    const api = createFakeApi({
+      runs: [run(CURRENT_RUN_ID, 'in_progress', 'maintenance'), run(1, 'in_progress', 'stuck')],
+      caches: [],
+      cancelStopsRuns: false,
+    });
+
+    const { settleTimeoutMs, pollIntervalMs } = resolveTiming({
+      settleTimeoutMinutes: 1,
+      pollIntervalSeconds: 10,
+    });
+
+    const waited = [];
+    let clock = 0;
+    await assert.rejects(
+      purgeActions({
+        repo: 'owner/name',
+        runId: CURRENT_RUN_ID,
+        gh: api.gh,
+        wait: async () => {
+          waited.push(pollIntervalMs);
+          clock += pollIntervalMs;
+        },
+        log: () => {},
+        now: () => clock,
+        settleTimeoutMs,
+        pollIntervalMs,
+      }),
+      /Timed out after 1 minute/
+    );
+
+    assert.equal(pollIntervalMs, 10 * 1000);
+    assert.equal(waited.length, 6);
+  });
+});
+
+describe('createDryRunGh', () => {
+  it('passes read-only calls through to the real API so the preview is real', async () => {
+    const reads = [];
+    const mutations = [];
+    const fakeGh = async (args) => {
+      reads.push(args.join(' '));
+      return { total_count: 0, workflow_runs: [], actions_caches: [] };
+    };
+    const gh = createDryRunGh({ gh: fakeGh, log: () => {} });
+
+    const listed = await gh(['repos/owner/name/actions/runs?per_page=100&page=1']);
+    assert.equal(reads.length, 1, 'the read reached the real API');
+    assert.ok(listed, 'the real response is returned, not null');
+    assert.equal(mutations.length, 0);
+  });
+
+  it('suppresses and logs mutations instead of performing them', async () => {
+    const calls = [];
+    const logged = [];
+    const fakeGh = async (args) => {
+      calls.push(args.join(' '));
+      return null;
+    };
+    const gh = createDryRunGh({ gh: fakeGh, log: (m) => logged.push(m) });
+
+    const cancel = await gh(['--method', 'POST', 'repos/owner/name/actions/runs/1/cancel']);
+    const del = await gh(['--method', 'DELETE', 'repos/owner/name/actions/caches/10']);
+
+    assert.equal(cancel, null);
+    assert.equal(del, null);
+    assert.equal(calls.length, 0, 'no mutation reached the real API');
+    assert.equal(logged.length, 2);
+    assert.match(logged.join('\n'), /would run: gh api --method POST/);
+    assert.match(logged.join('\n'), /would run: gh api --method DELETE/);
+  });
+
+  it('reports nonzero repository state while performing zero mutations', async () => {
+    const api = createFakeApi({
+      runs: [
+        run(CURRENT_RUN_ID, 'in_progress', 'maintenance'),
+        run(1, 'in_progress'),
+        run(2, 'completed'),
+      ],
+      caches: [{ id: 10, key: 'gradle-a' }, { id: 11, key: 'gradle-b' }],
+    });
+    const gh = createDryRunGh({ gh: api.gh, log: () => {} });
+
+    const runs = await listRuns(gh, 'owner/name');
+    const caches = await listCaches(gh, 'owner/name');
+    const { other, active } = partitionRuns(runs, CURRENT_RUN_ID);
+
+    // The preview reports the real, nonzero state...
+    assert.equal(other.length, 2);
+    assert.equal(active.length, 1);
+    assert.equal(caches.total_count, 2);
+
+    // ...and nothing was mutated.
+    const mutations = api.calls.filter((call) => call.startsWith('--method'));
+    assert.deepEqual(mutations, []);
+    assert.equal(api.state.runs.length, 3, 'no run was cancelled or deleted');
+    assert.equal(api.state.caches.length, 2, 'no cache was deleted');
   });
 });

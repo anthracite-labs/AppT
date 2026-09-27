@@ -41,6 +41,12 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
+/** How long to wait for cancelled runs to settle before giving up. */
+export const DEFAULT_SETTLE_TIMEOUT_MINUTES = 20;
+
+/** How often to re-read the run list while waiting. */
+export const DEFAULT_POLL_INTERVAL_SECONDS = 15;
+
 /** Run statuses that still occupy a worker and therefore cannot be deleted. */
 export const ACTIVE_RUN_STATUSES = new Set([
   'queued',
@@ -129,8 +135,8 @@ export async function purgeActions({
   gh = defaultGh,
   wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   log = (message) => console.log(message),
-  settleTimeoutMs = 20 * 60 * 1000,
-  pollIntervalMs = 15 * 1000,
+  settleTimeoutMs = DEFAULT_SETTLE_TIMEOUT_MINUTES * 60 * 1000,
+  pollIntervalMs = DEFAULT_POLL_INTERVAL_SECONDS * 1000,
   now = () => Date.now(),
 } = {}) {
   if (!repo) throw new Error('purgeActions: repo is required');
@@ -244,6 +250,57 @@ export async function purgeActions({
   return { cancelled, deleted, deletedCaches, settled, state };
 }
 
+/**
+ * Resolve the CLI timing flags into the values the purge loop actually uses.
+ *
+ * The flags exist so the workflow can control the settle wait, so they have to
+ * reach `purgeActions`: an earlier revision parsed them and then called
+ * `purgeActions({ repo, runId })`, which silently used the defaults and made the
+ * declared timing a lie.
+ *
+ * Invalid values are rejected here rather than being forwarded, because a
+ * non-finite or non-positive value would otherwise become `NaN` and the loop
+ * would either give up immediately or spin.
+ */
+export function resolveTiming({ settleTimeoutMinutes, pollIntervalSeconds } = {}) {
+  const minutes = settleTimeoutMinutes ?? DEFAULT_SETTLE_TIMEOUT_MINUTES;
+  const seconds = pollIntervalSeconds ?? DEFAULT_POLL_INTERVAL_SECONDS;
+
+  for (const [flag, value] of [
+    ['--settle-timeout-minutes', minutes],
+    ['--poll-interval-seconds', seconds],
+  ]) {
+    if (!Number.isInteger(value) || value <= 0) {
+      throw new Error(`${flag} must be a positive integer, got: ${value}`);
+    }
+  }
+
+  return {
+    settleTimeoutMs: minutes * 60 * 1000,
+    pollIntervalMs: seconds * 1000,
+  };
+}
+
+/**
+ * Build the read-only `gh` runner a dry run uses.
+ *
+ * A dry run has to report the repository's real state to be worth anything as a
+ * pre-destructive preview, so read-only calls reach the real API and only
+ * mutations are logged and suppressed. Returning `null` for every call — as an
+ * earlier revision did — made the preview always report zero runs and zero
+ * caches, which is worse than no preview.
+ */
+export function createDryRunGh({ gh = defaultGh, log = (message) => console.log(message) } = {}) {
+  return async (args, stdin = '') => {
+    if (args[0] === '--method') {
+      log(`[dry-run] would run: gh api ${args.join(' ')}`);
+      return null;
+    }
+    log(`[dry-run] gh api ${args.join(' ')}`);
+    return gh(args, stdin);
+  };
+}
+
 function parseArgs(argv) {
   const options = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -261,10 +318,10 @@ function parseArgs(argv) {
         options.runId = Number.parseInt(next(), 10);
         break;
       case '--settle-timeout-minutes':
-        options.settleTimeoutMs = Number.parseInt(next(), 10) * 60 * 1000;
+        options.settleTimeoutMinutes = Number.parseInt(next(), 10);
         break;
       case '--poll-interval-seconds':
-        options.pollIntervalMs = Number.parseInt(next(), 10) * 1000;
+        options.pollIntervalSeconds = Number.parseInt(next(), 10);
         break;
       case '--dry-run':
         options.dryRun = true;
@@ -298,23 +355,32 @@ async function main() {
     return;
   }
 
+  // The timing flags are forwarded, not merely parsed: the workflow declares
+  // them, so the purge loop has to actually use them.
+  const { settleTimeoutMs, pollIntervalMs } = resolveTiming(options);
+
   if (options.dryRun) {
-    const gh = async (args) => {
-      console.log(`[dry-run] gh api ${args.join(' ')}`);
-      return null;
-    };
-    const runs = await listRuns(gh, repo);
+    const gh = createDryRunGh();
+    let runs;
+    let caches;
+    try {
+      runs = await listRuns(gh, repo);
+      caches = await listCaches(gh, repo);
+    } catch (error) {
+      console.error(`purge-actions: dry run could not read the repository state: ${error.message}`);
+      process.exitCode = 1;
+      return;
+    }
     const { other, active } = partitionRuns(runs, runId);
     console.log(`[dry-run] repository: ${repo}`);
     console.log(`[dry-run] current run: ${runId}`);
     console.log(`[dry-run] other runs: ${other.length} (active: ${active.length})`);
-    const caches = await listCaches(gh, repo);
     console.log(`[dry-run] caches: ${caches.total_count}`);
     console.log('[dry-run] nothing was cancelled, deleted, or modified.');
     return;
   }
 
-  const result = await purgeActions({ repo, runId });
+  const result = await purgeActions({ repo, runId, settleTimeoutMs, pollIntervalMs });
   if (!result.state.ok) {
     console.error('purge-actions: the purge did not reach a clean end state.');
     process.exitCode = 1;

@@ -39,8 +39,13 @@ on:
 permissions:
   contents: read
 
+# One repository-wide concurrency group, deliberately NOT scoped to
+# `github.ref`: `workflow_dispatch` can target any ref, so a ref-scoped group
+# would let two maintenance purges run at once and each cancel or delete the
+# other. `cancel-in-progress: false` means a second purge waits for the first to
+# finish rather than interrupting it.
 concurrency:
-  group: maintenance-${{ github.workflow }}-${{ github.ref }}
+  group: maintenance-${{ github.workflow }}
   cancel-in-progress: false
 
 jobs:
