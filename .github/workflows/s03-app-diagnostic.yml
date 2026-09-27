@@ -102,30 +102,39 @@ jobs:
           files = sorted(glob.glob('app/build/test-results/testDebugUnitTest/TEST-*.xml'))
           failures = []
           total = 0
+          per_file = []
           for path in files:
               root = ET.parse(path).getroot()
+              count = 0
               for case in root.iter('testcase'):
                   total += 1
+                  count += 1
                   cls = case.get('classname') or ''
                   name = case.get('name') or ''
                   for node in case:
                       if node.tag not in ('failure', 'error'):
                           continue
-                      detail = ' '.join((node.get('message') or node.text or '').split())
-                      failures.append((cls, name, node.tag, detail))
+                      message = ' '.join((node.get('message') or '').split())
+                      body = (node.text or '').splitlines()
+                      frames = [' '.join(line.split()) for line in body if ' at ' in line or 'at ' == line.strip()[:3]]
+                      failures.append((cls, name, node.tag, message, frames))
+              per_file.append('%s=%d' % (path.rsplit('TEST-', 1)[-1].replace('.xml', ''), count))
 
-          def flat(text):
-              return ' '.join(text.split())[:1200]
+          def flat(text, limit=1000):
+              return ' '.join(text.split())[:limit]
 
           print('JUnit XML files: %d, tests executed: %d, failing: %d' % (len(files), total, len(failures)))
-          print('::notice title=Focused cluster totals::files=%d tests=%d failing=%d' % (len(files), total, len(failures)))
+          print('::notice title=Tests executed per class::%s' % flat(', '.join(per_file), 900))
           if failures:
-              names = ', '.join('%s.%s' % (c.split('.')[-1], n) for c, n, _, _ in failures)
+              names = ', '.join('%s.%s' % (c.split('.')[-1], n) for c, n, _, _, _ in failures)
               print('::error title=Failing tests::%s' % flat(names))
-              for cls, name, kind, detail in failures[:10]:
-                  print('::error title=%s::%s [%s] %s' % (cls, name, kind, flat(detail)))
+              for cls, name, kind, message, frames in failures[:10]:
+                  print('::error title=%s::%s [%s] %s' % (cls, name, kind, flat(message)))
+                  own = [f for f in frames if 'dev.anthracite' in f][:3]
+                  top = frames[:8]
+                  print('::notice title=Frames %s::%s' % (name, flat(' || '.join(own + top), 1200)))
               if len(failures) > 10:
-                  print('::error title=Remaining failures::%s' % flat(', '.join('%s.%s' % (c, n) for c, n, _, _ in failures[10:])))
+                  print('::error title=Remaining failures::%s' % flat(', '.join('%s.%s' % (c, n) for c, n, _, _, _ in failures[10:])))
           else:
               print('No JUnit XML was produced, so the tests never ran. Build-level output follows.')
               try:
