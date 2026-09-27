@@ -47,10 +47,16 @@ on:
         default: 'main'
       expected_sha:
         description: >-
-          Commit SHA the dispatched ref was expected to resolve to. Set by the
-          agent-control bridge; every job hard-fails before doing any work if
-          the ref no longer resolves to it. Leave empty for an ordinary manual
-          dispatch.
+          Commit SHA the dispatch was issued against. Set by the agent-control
+          bridge; every job hard-fails before doing any work if the target no
+          longer resolves to it. Leave empty for an ordinary manual dispatch.
+        required: false
+        default: ''
+      target_ref:
+        description: >-
+          Branch the agent-control bridge resolved the head from. Validated
+          against expected_sha by trusted logic before any work runs. Leave
+          empty for an ordinary manual dispatch.
         required: false
         default: ''
 
@@ -77,21 +83,38 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
       - name: Set up Node
         uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           node-version: ${{ env.NODE_VERSION }}
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target. Everything from here on is the code
+          # under verification, executed by this trusted workflow under its own
+          # read-only permissions -- the same trust level as an ordinary
+          # pull-request run.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Fast repository checks
         run: |
@@ -102,6 +125,7 @@ jobs:
           node --test "tools/security/test/enforce-gradle-tooling-constraints.test.mjs"
           node --test "tools/ci/test/purge-actions.test.mjs"
           node --test "tools/ci/test/dispatch-workflow.test.mjs"
+          node --test "tools/ci/test/diagnose-focus.test.mjs"
           node tools/secret-scan/secret-scan.mjs
           node tools/security/enforce-gradle-tooling-constraints.mjs
 
@@ -115,21 +139,38 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
       - name: Set up Node
         uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           node-version: ${{ env.NODE_VERSION }}
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target. Everything from here on is the code
+          # under verification, executed by this trusted workflow under its own
+          # read-only permissions -- the same trust level as an ordinary
+          # pull-request run.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Run yamllint
         run: |
@@ -203,21 +244,38 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
       - name: Set up the Android/JVM toolchain
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           java-version: ${{ env.JAVA_VERSION }}
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target. Everything from here on is the code
+          # under verification, executed by this trusted workflow under its own
+          # read-only permissions -- the same trust level as an ordinary
+          # pull-request run.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Run Android formatting check
         run: |
@@ -239,21 +297,38 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
       - name: Set up the Android/JVM toolchain
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           java-version: ${{ env.JAVA_VERSION }}
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target. Everything from here on is the code
+          # under verification, executed by this trusted workflow under its own
+          # read-only permissions -- the same trust level as an ordinary
+          # pull-request run.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Run Android static and policy verification
         run: |
@@ -299,21 +374,38 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
       - name: Set up the Android/JVM toolchain
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           java-version: ${{ env.JAVA_VERSION }}
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target. Everything from here on is the code
+          # under verification, executed by this trusted workflow under its own
+          # read-only permissions -- the same trust level as an ordinary
+          # pull-request run.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Run Android build
         run: |
@@ -336,21 +428,38 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
       - name: Set up the Android/JVM toolchain
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           java-version: ${{ env.JAVA_VERSION }}
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target. Everything from here on is the code
+          # under verification, executed by this trusted workflow under its own
+          # read-only permissions -- the same trust level as an ordinary
+          # pull-request run.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Run Android unit tests and Kover coverage verification
         run: |
@@ -383,21 +492,38 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
       - name: Set up Node
         uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           node-version: ${{ env.NODE_VERSION }}
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target. Everything from here on is the code
+          # under verification, executed by this trusted workflow under its own
+          # read-only permissions -- the same trust level as an ordinary
+          # pull-request run.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Install from committed lockfile
         run: npm ci --prefix backend
@@ -416,21 +542,38 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
       - name: Set up Node
         uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           node-version: ${{ env.NODE_VERSION }}
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target. Everything from here on is the code
+          # under verification, executed by this trusted workflow under its own
+          # read-only permissions -- the same trust level as an ordinary
+          # pull-request run.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Install from committed lockfile
         run: npm ci --prefix backend
@@ -459,21 +602,38 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
       - name: Set up the Android/JVM toolchain
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           java-version: ${{ env.JAVA_VERSION }}
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target. Everything from here on is the code
+          # under verification, executed by this trusted workflow under its own
+          # read-only permissions -- the same trust level as an ordinary
+          # pull-request run.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Enable KVM
         run: |
@@ -536,9 +696,13 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
           HEAD_SHA: ${{ github.sha }}
+          TARGET_SHA: ${{ inputs.expected_sha || github.sha }}
         run: |
           set -euo pipefail
 
+          # A bridge dispatch runs this workflow from the default branch, so
+          # `github.sha` is the anchor rather than the candidate. The candidate
+          # is the validated dispatch target.
           case "$EVENT_NAME" in
             pull_request)
               base="$PR_BASE_SHA"
@@ -550,7 +714,7 @@ jobs:
               ;;
             *)
               base="${INPUT_BASE_REF:-main}"
-              head="$HEAD_SHA"
+              head="$TARGET_SHA"
               ;;
           esac
 
@@ -596,17 +760,36 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out the base and head of the change
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # Full history of the default branch the workflow ran from, so the
+          # comparison base is present as a remote ref. For a bridge dispatch
+          # this is trusted repository content; the dispatch target is checked
+          # out afterwards, once it has been validated.
           fetch-depth: 0
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
+
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target, with full history so both ends of the
+          # comparison are present. `git clean` resets the worktree but leaves
+          # the remote refs the anchor checkout fetched, so the comparison base
+          # is still resolvable.
+          ref: ${{ inputs.expected_sha }}
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Resolve the comparison base
         id: base
@@ -640,7 +823,7 @@ jobs:
           retry-on-snapshot-warnings: true
           retry-on-snapshot-warnings-timeout: 600
           base-ref: ${{ steps.base.outputs.ref }}
-          head-ref: ${{ github.sha }}
+          head-ref: ${{ inputs.expected_sha || github.sha }}
 
       - name: Enforce strict dependency security policy
         shell: bash
@@ -664,17 +847,31 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          fetch-depth: 0
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
+
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target: this job analyses that code.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Download Kover coverage report
         # actions/download-artifact v7.0.0
@@ -757,6 +954,7 @@ jobs:
           CHANGES_RESULT: ${{ needs.changes.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           QUALITY_PLATFORM_RESULT: ${{ needs.quality-platform.result }}
+          TARGET_SHA: ${{ inputs.expected_sha || github.sha }}
         run: |
           set -uo pipefail
 
@@ -791,6 +989,8 @@ jobs:
 
           {
             echo "### verify / gate"
+            echo
+            echo "Verified commit: \`${TARGET_SHA:-unset}\`"
             echo
             echo "| domain | result |"
             echo "| --- | --- |"

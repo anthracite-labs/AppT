@@ -403,6 +403,44 @@ that status. It replaced the retired `samsung-targeted` dispatch mode of
 Do not add per-slice or one-shot diagnostic workflow files. When a new focused
 feedback need appears, add a mode to this workflow.
 
+#### Focus within a mode
+
+Every mode accepts an optional `focus` input that narrows that mode without
+widening it. `tools/ci/diagnose-focus.mjs` owns what "narrow" means per mode and
+returns the exact argv vector to run, so the value is data rather than command
+text. The contract:
+
+- an empty `focus` reproduces the mode's existing, unfocused command exactly — a
+  focus can only narrow, never replace, the mode;
+- a non-empty `focus` narrows only within the mode, through the underlying
+  tool's native selector or a finite allowlist of sub-responsibilities the mode
+  already owns;
+- a value that starts with `-`, contains a control character, has the wrong shape
+  for the mode, or names a sub-responsibility belonging to a different mode fails
+  closed before anything runs;
+- the run summary records the mode and the effective focus.
+
+| Mode | Focus form | Narrows to |
+|---|---|---|
+| `app-unit`, `samsung-unit` | Gradle test class/method pattern | `--tests <pattern>` on that module's own test task |
+| `android-static` | `lint` \| `detekt` \| `guards` \| `dependency-lock` | the owned tasks `androidStatic` already depends on |
+| `android-build` | `app` \| `macrobenchmark` | the owned tasks `androidBuild` already depends on |
+| `backend-static` | `typecheck` \| `lint` \| `format` \| `knip` | the npm scripts `verify:static` already runs |
+| `backend-test` | `file:<pattern>` \| `name:<pattern>` | a Jest positional pattern, or `--testNamePattern` |
+| `backend` | `static` \| `test` \| `static:<sub>` \| `test:<pattern>` | its own static or test responsibility, and that responsibility's own selector |
+| `device` | `class:<fqcn>` \| `package:<pkg>` \| `method:<fqcn>#<method>` | `android.testInstrumentationRunnerArguments` on the pinned managed device |
+
+The selectors were verified against the pinned toolchain before being committed:
+the Gradle task paths are the ones `build.gradle.kts` declares for each failure
+domain, the npm script names are the ones `backend/package.json` declares, and
+the device task is the `pixel2api29` managed device configured in
+`app/build.gradle.kts`. A focused diagnostic is still implementation feedback
+only; full `verify` is unchanged by any of this.
+
+The label bridge continues to dispatch with an empty focus, because it has no
+safe channel for a value; manual dispatch exposes `focus` directly. No new
+metadata-command parser was added to transport it.
+
 ### Agent invocation (`agent-control.yml`)
 
 Arena and the ChatGPT control plane must be able to run focused diagnostics
@@ -416,8 +454,8 @@ without a human clicking through the Actions UI. Two routes exist:
    `ci:samsung-unit`, `ci:android-static`, `ci:android-build`, `ci:backend`,
    `ci:backend-static`, `ci:backend-test`, `ci:device`) to a pull request makes
    the bridge resolve that pull request's exact head SHA and branch, dispatch
-   the matching workflow against the **branch**, consume the label, and record
-   what it dispatched.
+   the matching workflow **from the repository's default branch** carrying the
+   target as inputs, consume the label, and record what it dispatched.
 
 The bridge is the only privileged control path in the repository. It never
 checks out or executes pull-request-controlled code: the one checkout it
@@ -429,28 +467,47 @@ that workflow's own read-only permissions. Its token permissions are limited to
 `contents: read`, `actions: write`, `issues: write` and `pull-requests: write`,
 and only the labels in its allowlist do anything.
 
-#### Why the bridge dispatches a branch, and how the head guarantee survives
+#### Why the bridge dispatches the default branch, and how the head guarantee survives
 
 GitHub's Create Workflow Dispatch endpoint takes `ref` as the git reference for
 the workflow — a **branch or tag name**. It is not a commit SHA, and passing one
-is rejected. A branch is mutable, so dispatching a branch alone would not
+is rejected. A branch is also mutable, so dispatching a branch alone would not
 guarantee that the run verifies the head the command was issued against.
 
-The bridge therefore does both:
+That is only half the problem, and the other half is the reason the dispatch ref
+is the default branch rather than the pull request's head branch. GitHub runs the
+workflow **as the dispatch ref defines it**. Dispatching the head branch would
+therefore let the pull request supply the workflow YAML and every local composite
+action it uses — including `.github/actions/assert-dispatch-target`, the very
+assertion that is supposed to check the target. A pull request could rewrite its
+own assertion and pass it.
 
-- it dispatches against the pull request's head **branch name**, which is the
-  provider-valid shape; and
-- it passes the head SHA it resolved as the `expected_sha` input, which every
-  job in `verify` and `diagnose` asserts **before doing any target-controlled
-  work** — before Gradle, before npm, before the managed device — through
-  `.github/actions/assert-dispatch-target`. If the branch moved, the job
-  hard-fails with a message naming both SHAs and telling the issuer to re-issue
-  the label.
+So the dispatch ref is the repository's **default branch**, resolved from the
+provider rather than assumed, and the requested target travels as inputs:
 
-So the exact-PR-head guarantee is preserved without asking the provider to
-accept a request shape it does not support. `expected_sha` is empty for
-`pull_request` and `push` events, so the assertion is a no-op there and the
-cheap PR cadence is unaffected.
+- `target_ref` is the pull request's head branch name;
+- `expected_sha` is the exact commit it resolved to.
+
+The dispatched workflow then does the rest, in this order, in every job:
+
+1. **Check out the dispatch anchor.** For a bridge dispatch `github.sha` is the
+   default branch, so this checkout — and the assertion and the local composite
+   actions it uses — is trusted repository content.
+2. **Assert the dispatch target.** With `target_ref` set, the run's own commit is
+   the anchor and not the target, so the ref is resolved through the API and
+   required still to point at `expected_sha`. A branch that moved between the
+   command and the run hard-fails with a message naming both SHAs and telling the
+   issuer to re-issue the label. With `target_ref` empty — an ordinary manual
+   dispatch — the run's own commit is the target and is compared directly.
+3. **Set up the toolchain and resolve any diagnostic focus**, still from the
+   trusted anchor, so the code that decides *what* to run is trusted.
+4. **Check out the exact expected SHA** for Gradle, npm and device work. From
+   here on the code under verification is pull-request-controlled, executed by a
+   trusted workflow under that workflow's own read-only permissions — the same
+   trust level as an ordinary `pull_request` run.
+
+`expected_sha` is empty for `pull_request` and `push` events, so the assertion is
+a no-op there and the cheap PR cadence is unaffected.
 
 A **fork** pull request cannot be dispatched this way at all: the provider
 dispatches a ref that must exist in this repository, and a fork's head branch
@@ -461,7 +518,10 @@ The translation, the allowlist and the request shape live in
 `tools/ci/dispatch-workflow.mjs` and are proven by
 `tools/ci/test/dispatch-workflow.test.mjs` against a fake API. The test contract
 rejects a commit SHA used directly as `workflow_dispatch.ref`, which is the
-defect the Issue #88 contract review found.
+defect the first Issue #88 contract review found, and it rejects the earlier
+mutable-ref shape outright: `targetRef` is required and `ref` may never equal it,
+so the design that loaded the assertion from the branch being verified cannot be
+expressed.
 
 Owner follow-ups that cannot be represented in repository code:
 
@@ -475,9 +535,10 @@ Owner follow-ups that cannot be represented in repository code:
 `.github/workflows/maintenance.yml` is manual-only and destructive. Its sole
 trigger is `workflow_dispatch`, and it acts only after the confirmation input is
 exactly `PURGE`. On purge it cancels every other active workflow run, waits for
-those runs to settle, deletes every Actions cache in the repository, deletes
-every workflow run except the run executing now, and then verifies that no cache
-and no other run remains. The destructive sequence lives in
+those runs to settle, deletes every Actions cache in the repository, cancels and
+settles any run that appeared during the cache phase, deletes every workflow run
+except the run executing now, and then verifies that no cache and no other run
+remains. The destructive sequence lives in
 `tools/ci/purge-actions.mjs` and is proven by `tools/ci/test/purge-actions.test.mjs`
 against a fake API, so it can be validated without deleting real history.
 
@@ -505,6 +566,15 @@ not scoped to `github.ref`) with `cancel-in-progress: false`. Manual dispatch ca
 target any ref, so a ref-scoped group would let two purges run concurrently and
 each cancel or delete the other; a repository-wide group makes a second purge
 wait for the first instead of interrupting it.
+
+The final pre-deletion run listing is treated exactly like the first. The cache
+phase takes real time, and a run queued during it is still active when that
+listing is taken — and GitHub refuses to delete a run that has not finished. So
+the final listing is re-read, any newly active non-current run is cancelled, and
+the same bounded settle rules are applied before anything is deleted. Deleting it
+blind would leave it behind and make a purge that did not do its job look like a
+failure. A run that never settles fails the purge closed rather than being
+reported as a clean end state.
 
 The purge's dry run reads the repository's real state through read-only API calls
 and suppresses only mutations, so the pre-destructive preview reports the actual

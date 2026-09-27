@@ -41,13 +41,20 @@ function run(id, status, name = 'verify') {
  * `DELETE .../actions/caches` therefore throws here, so a regression to that
  * invalid request cannot pass by silently succeeding.
  */
-function createFakeApi({ runs = [], caches = [], cancelStopsRuns = true, lateRun = null } = {}) {
+function createFakeApi({
+  runs = [],
+  caches = [],
+  cancelStopsRuns = true,
+  lateRun = null,
+  lateActiveRun = null,
+} = {}) {
   const state = {
     runs: runs.map((entry) => ({ ...entry })),
     caches: caches.map((entry) => ({ ...entry })),
   };
   const calls = [];
   let lateRunPushed = false;
+  let lateActiveRunPushed = false;
   let runListings = 0;
 
   const gh = async (args) => {
@@ -108,6 +115,15 @@ function createFakeApi({ runs = [], caches = [], cancelStopsRuns = true, lateRun
       return { total_count: state.runs.length, workflow_runs: state.runs };
     }
     if (/\/actions\/caches\?/.test(args[0])) {
+      // `lateActiveRun` models a run that is *queued while the purge is
+      // deleting caches* -- after the first settlement phase has finished and
+      // before the final pre-deletion run listing. That is the exact window the
+      // final-listing phase has to handle, so it is injected on the first cache
+      // listing and at most once.
+      if (lateActiveRun && !lateActiveRunPushed) {
+        lateActiveRunPushed = true;
+        state.runs.push({ ...lateActiveRun });
+      }
       return { total_count: state.caches.length, actions_caches: state.caches };
     }
 
@@ -298,6 +314,99 @@ describe('purgeActions', () => {
 
     assert.equal(result.state.ok, true);
     assert.deepEqual(result.deleted, ['3', '999']);
+  });
+
+  it('cancels and settles a run that appeared during the cache phase, then deletes it', async () => {
+    // The race the review found: the cache phase takes real time, and a run
+    // queued during it is still *active* when the final pre-deletion listing is
+    // taken. GitHub refuses to delete an unfinished run, so deleting it blind
+    // would leave it behind and make a purge that did not do its job look like
+    // a failure. The final listing must therefore cancel it, settle it, and
+    // only then delete it.
+    const api = createFakeApi({
+      runs: [run(CURRENT_RUN_ID, 'in_progress', 'maintenance'), run(3, 'completed')],
+      caches: [{ id: 10, key: 'gradle-a' }, { id: 11, key: 'gradle-b' }],
+      lateActiveRun: run(777, 'queued', 'queued-during-cache-phase'),
+    });
+
+    const result = await purgeActions({
+      repo: 'owner/name',
+      runId: CURRENT_RUN_ID,
+      gh: api.gh,
+      wait: async () => {},
+      log: () => {},
+    });
+
+    assert.equal(result.state.ok, true, result.state.problems.join('; '));
+    // The initial snapshot had nothing active, so nothing was cancelled there.
+    // The late run is cancelled -- and recorded -- by the final phase.
+    assert.deepEqual(result.cancelled, []);
+    assert.deepEqual(result.lateCancelled, ['777']);
+    assert.deepEqual(result.deleted, ['3', '777']);
+    assert.deepEqual(result.deletedCaches, ['10', '11']);
+
+    // Ordering: the caches are deleted first, the late run is cancelled after
+    // that, and it is deleted only once it has settled. Cancellation before
+    // deletion is the whole point -- a run cannot be deleted while active.
+    const mutations = api.calls.filter((call) => call.startsWith('--method'));
+    const lastCacheDelete = mutations.map(
+      (call, index) => (/\/actions\/caches\/\d+$/.test(call) ? index : -1)
+    ).reduce((a, b) => Math.max(a, b), -1);
+    const lateCancel = mutations.findIndex((call) => call.includes('/actions/runs/777/cancel'));
+    const lateDelete = mutations.findIndex((call) => /\/actions\/runs\/777$/.test(call));
+
+    assert.ok(lastCacheDelete >= 0, 'the caches were deleted');
+    assert.ok(lateCancel > lastCacheDelete, 'the late run was cancelled after the cache phase');
+    assert.ok(lateDelete > lateCancel, 'the late run was deleted after it was cancelled');
+  });
+
+  it('deletes a late active run only after it has settled', async () => {
+    // A late run that does not stop on the first cancel must still be waited
+    // out under the same bounded rules, and nothing may be deleted until it
+    // has settled.
+    const api = createFakeApi({
+      runs: [run(CURRENT_RUN_ID, 'in_progress', 'maintenance'), run(3, 'completed')],
+      caches: [{ id: 10, key: 'gradle-a' }],
+      lateActiveRun: run(777, 'in_progress', 'stuck-late-run'),
+      cancelStopsRuns: false,
+    });
+
+    // The run never stops on cancel, so the settle loop must run to its
+    // deadline. A real clock would make this test slow, so the injected clock
+    // advances exactly as far as the injected wait does.
+    let clock = 0;
+    const pushClock = async () => {
+      clock += 15 * 1000;
+    };
+    await assert.rejects(
+      purgeActions({
+        repo: 'owner/name',
+        runId: CURRENT_RUN_ID,
+        gh: api.gh,
+        wait: pushClock,
+        log: () => {},
+        now: () => clock,
+        settleTimeoutMs: 60 * 1000,
+        pollIntervalMs: 15 * 1000,
+      }),
+      /Timed out after 1 minute\(s\) waiting for a run that appeared during the purge/
+    );
+
+    // The late run was cancelled, but it never settled -- so the purge fails
+    // closed instead of deleting an active run and calling the end state clean.
+    const mutations = api.calls.filter((call) => call.startsWith('--method'));
+    assert.ok(
+      mutations.some((call) => call.includes('/actions/runs/777/cancel')),
+      'the late run was cancelled'
+    );
+    assert.ok(
+      !mutations.some((call) => /\/actions\/runs\/777$/.test(call)),
+      'an unsettled run was never deleted'
+    );
+    assert.ok(
+      !mutations.some((call) => /\/actions\/runs\/3$/.test(call)),
+      'a failed purge deletes no run at all'
+    );
   });
 
   it('needs no cancellation and no deletion when the repository is already clean', async () => {

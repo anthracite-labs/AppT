@@ -13,7 +13,9 @@
  *   1. cancel every other active workflow run in the repository;
  *   2. wait for those runs to settle far enough to be deletable;
  *   3. delete every GitHub Actions cache in the repository;
- *   4. delete every workflow run except the maintenance run executing now;
+ *   4. delete every workflow run except the maintenance run executing now,
+ *      cancelling and settling any run that appeared during the cache phase
+ *      first, because GitHub refuses to delete a run that is not finished;
  *   5. verify and report that no cache and no other run remains.
  *
  * The order is deliberate: caches are deleted only after the runs that could
@@ -21,6 +23,13 @@
  * settled, because GitHub refuses to delete a run that is not finished. Doing
  * it the other way round would let an in-flight run repopulate a cache between
  * deletion and verification and make a successful purge look like a failure.
+ *
+ * Step 4 re-reads the run list for a second reason. The cache phase takes real
+ * time, and a run queued during it is still active when the final listing is
+ * taken — so the final listing is treated exactly like the first: any newly
+ * active non-current run is cancelled and settled under the same bounded
+ * deadline before anything is deleted. Deleting it blind would leave it behind
+ * and make a purge that did not do its job look like a failure.
  *
  * Nothing here is scheduled or automatic. It runs only when a human dispatches
  * `maintenance.yml` and types the confirmation input, and no other workflow in
@@ -125,9 +134,48 @@ export async function listCaches(gh, repo) {
 }
 
 /**
+ * Wait, under one shared deadline, until no other active run remains.
+ *
+ * The list is re-read after every poll, so a run that appears while waiting is
+ * picked up rather than missed. Returns false when the deadline expires first;
+ * the caller treats that as a hard failure, because an unsettled run cannot be
+ * deleted and continuing would silently skip it.
+ *
+ * Shared by the initial settlement phase and the final pre-deletion phase, so
+ * "wait for it to settle" means exactly the same bounded thing in both.
+ */
+async function waitForSettlement({
+  gh,
+  repo,
+  runId,
+  deadline,
+  pollIntervalMs,
+  now,
+  wait,
+  note,
+}) {
+  for (;;) {
+    await wait(pollIntervalMs);
+    const { active } = partitionRuns(await listRuns(gh, repo), runId);
+    if (active.length === 0) {
+      note('All other active workflow runs have settled.');
+      return true;
+    }
+    if (now() >= deadline) {
+      note(
+        `Timed out waiting for ${active.length} run(s) to settle: ` +
+          active.map((entry) => entry.id).join(', ')
+      );
+      return false;
+    }
+    note(`Waiting for ${active.length} run(s) to settle: ${active.map((r) => r.id).join(', ')}`);
+  }
+}
+
+/**
  * Run the purge. Every GitHub call is `gh` so the sequence is testable.
  *
- * @returns {Promise<{cancelled: string[], deleted: string[], deletedCaches: string[], settled: boolean, state: object}>}
+ * @returns {Promise<{cancelled: string[], lateCancelled: string[], deleted: string[], deletedCaches: string[], settled: boolean, state: object}>}
  */
 export async function purgeActions({
   repo,
@@ -167,21 +215,16 @@ export async function purgeActions({
   //    cannot be deleted, so this is a real precondition, not a courtesy.
   let settled = active.length === 0;
   if (!settled) {
-    const deadline = now() + settleTimeoutMs;
-    for (;;) {
-      await wait(pollIntervalMs);
-      runs = await listRuns(gh, repo);
-      ({ active } = partitionRuns(runs, runId));
-      if (active.length === 0) {
-        settled = true;
-        note('All other active workflow runs have settled.');
-        break;
-      }
-      if (now() >= deadline) {
-        break;
-      }
-      note(`Waiting for ${active.length} run(s) to settle: ${active.map((r) => r.id).join(', ')}`);
-    }
+    settled = await waitForSettlement({
+      gh,
+      repo,
+      runId,
+      deadline: now() + settleTimeoutMs,
+      pollIntervalMs,
+      now,
+      wait,
+      note,
+    });
     if (!settled) {
       throw new Error(
         `Timed out after ${Math.round(settleTimeoutMs / 60000)} minute(s) waiting for other runs to settle.`
@@ -211,6 +254,45 @@ export async function purgeActions({
 
   // 4. Delete every other workflow run, re-reading the list so runs created
   //    during the wait are covered too.
+  //
+  //    The cache phase above takes real time, and a run queued during it is
+  //    still active here. GitHub refuses to delete a run that has not finished,
+  //    so the final listing gets the same treatment as the first: any newly
+  //    active non-current run is cancelled and settled under one shared bounded
+  //    deadline before anything is deleted. The loop re-lists after settling, so
+  //    a run that appears during *this* wait is caught too rather than being
+  //    reported as a leftover by the end-state check.
+  const finalDeadline = now() + settleTimeoutMs;
+  const lateCancelled = [];
+  for (;;) {
+    runs = await listRuns(gh, repo);
+    const { active: lateActive } = partitionRuns(runs, runId);
+    if (lateActive.length === 0) break;
+
+    for (const run of lateActive) {
+      note(`Cancelling run ${run.id} (${run.status}) that appeared during the purge.`);
+      await gh(['--method', 'POST', `repos/${repo}/actions/runs/${run.id}/cancel`]);
+      lateCancelled.push(String(run.id));
+    }
+    if (
+      !(await waitForSettlement({
+        gh,
+        repo,
+        runId,
+        deadline: finalDeadline,
+        pollIntervalMs,
+        now,
+        wait,
+        note,
+      }))
+    ) {
+      throw new Error(
+        `Timed out after ${Math.round(settleTimeoutMs / 60000)} minute(s) waiting for a run ` +
+          'that appeared during the purge to settle.'
+      );
+    }
+  }
+
   runs = await listRuns(gh, repo);
   ({ other } = partitionRuns(runs, runId));
   const deleted = [];
@@ -229,8 +311,8 @@ export async function purgeActions({
   const state = evaluatePurgeState({ caches, runs, currentRunId: runId });
 
   note(
-    `Cancelled ${cancelled.length} run(s), deleted ${deletedCaches.length} cache(s), ` +
-      `deleted ${deleted.length} run(s).`
+    `Cancelled ${cancelled.length} run(s) (${lateCancelled.length} of them after the cache ` +
+      `phase), deleted ${deletedCaches.length} cache(s), deleted ${deleted.length} run(s).`
   );
   if (state.ok) {
     note('Verified: no Actions cache and no other workflow run remains.');
@@ -247,7 +329,7 @@ export async function purgeActions({
     );
   }
 
-  return { cancelled, deleted, deletedCaches, settled, state };
+  return { cancelled, lateCancelled, deleted, deletedCaches, settled, state };
 }
 
 /**

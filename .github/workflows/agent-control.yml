@@ -23,13 +23,23 @@
 #         `tools/ci/dispatch-workflow.mjs`, plus `gh api` calls;
 #       - the workflow it dispatches then runs under that workflow's own
 #         read-only permissions.
-#   * The dispatch ref is a **branch name**, not a commit SHA. GitHub's Create
-#     Workflow Dispatch endpoint requires `ref` to be a branch or tag name and
-#     rejects a SHA. Because a branch is mutable, the bridge also passes the
-#     head SHA it resolved as the `expected_sha` input, and every job in the
-#     dispatched workflow asserts `github.sha` still equals it before doing any
-#     target-controlled work (`.github/actions/assert-dispatch-target`). That is
-#     what preserves the exact-PR-head guarantee the command was issued against.
+#   * The dispatch ref is the repository's **default branch**, never the pull
+#     request's head branch. This is the load-bearing half of the trust model.
+#     GitHub runs the workflow *as the dispatch ref defines it*, so dispatching
+#     the head branch would let the pull request supply the workflow YAML and
+#     every local composite action it uses — including the assertion that is
+#     supposed to check the dispatch target. A pull request could rewrite its
+#     own assertion and pass it. Dispatching the default branch means the
+#     workflow and its validation logic are trusted content the pull request
+#     cannot rewrite.
+#   * GitHub's Create Workflow Dispatch endpoint requires `ref` to be a branch
+#     or tag name and rejects a commit SHA, so the requested target travels as
+#     **inputs** instead: `target_ref` is the pull request's head branch and
+#     `expected_sha` is the exact commit it resolved to. The dispatched workflow
+#     resolves `target_ref` with trusted logic, requires it still to point at
+#     `expected_sha`, and only then checks that SHA out for Gradle, npm and
+#     device work (`.github/actions/assert-dispatch-target`). That is what
+#     preserves the exact-PR-head guarantee the command was issued against.
 #   * The token permissions are the narrowest set that can do the job:
 #     `contents: read` to resolve the pull request, `actions: write` to
 #     dispatch a workflow, and `issues: write` plus `pull-requests: write` to
@@ -118,11 +128,14 @@ jobs:
           # against a fixed allowlist inside the module rather than being
           # interpolated into a command line.
           #
-          # The module resolves the pull-request head, dispatches the requested
-          # workflow against the provider-valid branch ref, and carries the
-          # resolved head SHA as the `expected_sha` input so the dispatched run
-          # can prove it is still verifying that exact commit. Its logic and its
-          # request shape are proven by tools/ci/test/dispatch-workflow.test.mjs.
+          # The module resolves the pull-request head and the repository's
+          # default branch, then dispatches the requested workflow **from the
+          # default branch** — trusted content — carrying the head branch as
+          # `target_ref` and the resolved head SHA as `expected_sha`. The
+          # dispatched run validates that pair with trusted logic before it
+          # checks the SHA out, so it verifies exactly the commit the command
+          # was issued against. Its logic and its request shape are proven by
+          # tools/ci/test/dispatch-workflow.test.mjs.
           node tools/ci/dispatch-workflow.mjs \
             --repo "$REPOSITORY" \
             --pr "$PR_NUMBER" \
@@ -147,6 +160,7 @@ jobs:
           LABEL: ${{ github.event.label.name }}
           SHA: ${{ steps.dispatch.outputs.sha }}
           REF: ${{ steps.dispatch.outputs.ref }}
+          TARGET_REF: ${{ steps.dispatch.outputs.target-ref }}
           RUN_URL: ${{ steps.dispatch.outputs.run-url }}
           ACTOR: ${{ github.actor }}
         run: |
@@ -165,8 +179,8 @@ jobs:
           # they are literal in single quotes, which ShellCheck reports as
           # SC2016. The values arrive as arguments instead.
           body="$(
-            printf 'Requested by @%s via the %s command label.\n\nDispatched against branch %s, expected commit %s.%s\n\nThe dispatched run asserts that the branch still resolves to that commit before doing any work, so this is evidence about exactly the head the command was issued against.\n\nThis is implementation feedback only; terminal verification of a finished candidate is a full verify run (verify / gate).' \
-              "$ACTOR" "$LABEL" "$REF" "$SHA" "$run_link"
+            printf 'Requested by @%s via the %s command label.\n\nDispatched from the trusted default branch %s for target branch %s, expected commit %s.%s\n\nThe dispatched run resolves the target branch with trusted logic, requires it still to resolve to that commit, and only then checks it out — so this is evidence about exactly the head the command was issued against.\n\nThis is implementation feedback only; terminal verification of a finished candidate is a full verify run (verify / gate).' \
+              "$ACTOR" "$LABEL" "$REF" "$TARGET_REF" "$SHA" "$run_link"
           )"
 
           gh api --method POST "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" \

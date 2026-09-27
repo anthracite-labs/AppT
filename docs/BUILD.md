@@ -244,8 +244,8 @@ Five active workflows, each with one responsibility:
 | `maintenance.yml` | `workflow_dispatch` only, confirmed with `PURGE` | Manual destructive Actions maintenance |
 | `agent-control.yml` | `pull_request_target` (label added) | Trusted dispatch bridge for agents |
 
-Repository-local composite setup actions live under `.github/actions/**`
-(`setup-node`, `setup-jvm`). Runner filesystem state is never shared between
+Repository-local composite actions live under `.github/actions/**`
+(`setup-node`, `setup-jvm`, `assert-dispatch-target`). Runner filesystem state is never shared between
 jobs, so each job re-establishes its own toolchain; the Gradle version is not
 duplicated in workflow configuration because the committed wrapper plus its
 `distributionSha256Sum` is the version authority.
@@ -263,18 +263,67 @@ Invoking diagnostics without clicking through the Actions UI:
   command labels (`ci:app-unit`, `ci:samsung-unit`, `ci:android-static`,
   `ci:android-build`, `ci:backend`, `ci:backend-static`, `ci:backend-test`,
   `ci:device`, `ci:full`) to the pull request, and `agent-control.yml` resolves
-  that pull request's head SHA and branch, dispatches the matching workflow
-  against the branch, removes the label, and records what it dispatched.
+  that pull request's head SHA and branch, dispatches the matching workflow from
+  the repository's default branch, removes the label, and records what it
+  dispatched.
 
-The bridge dispatches a **branch**, not a commit SHA, because GitHub's Create
-Workflow Dispatch endpoint requires `ref` to be a branch or tag name. To keep the
-exact-PR-head guarantee despite the mutable branch, the bridge passes the head
-SHA it resolved as the `expected_sha` input, and every job in `verify` and
-`diagnose` asserts `github.sha` still equals it — before any Gradle, npm or
-managed-device work — through `.github/actions/assert-dispatch-target`. If the
-branch moved, the job hard-fails naming both SHAs. Fork pull requests cannot be
-dispatched this way and fail closed. The logic lives in
-`tools/ci/dispatch-workflow.mjs`, proven by `tools/ci/test/dispatch-workflow.test.mjs`.
+The bridge dispatches the **default branch**, not the pull request's head branch,
+and that is the load-bearing part of the trust model. GitHub runs a workflow as
+its dispatch ref defines it, so dispatching the head branch would let the pull
+request supply the workflow YAML and the local composite action that asserts the
+dispatch target — a pull request could rewrite its own assertion and pass it.
+Dispatching the default branch keeps the workflow and its validation logic
+trusted.
+
+GitHub's Create Workflow Dispatch endpoint also requires `ref` to be a branch or
+tag name and rejects a commit SHA, so the requested target travels as inputs
+instead: `target_ref` is the pull request's head branch and `expected_sha` is the
+exact commit it resolved to. Every job in `verify` and `diagnose` then, in order:
+
+1. checks out the dispatch anchor, which for a bridge dispatch is the default
+   branch and therefore trusted;
+2. asserts the dispatch target with `.github/actions/assert-dispatch-target`,
+   which resolves `target_ref` through the API and requires it still to point at
+   `expected_sha` — hard-failing with both SHAs named if the branch moved;
+3. sets up its toolchain and resolves any diagnostic `focus`, still from the
+   trusted anchor;
+4. checks out the exact `expected_sha` for Gradle, npm and managed-device work.
+
+From step 4 the code under verification is pull-request-controlled, executed by a
+trusted workflow under its own read-only permissions — the same trust level as an
+ordinary `pull_request` run. Fork pull requests cannot be dispatched at all and
+fail closed. The logic lives in `tools/ci/dispatch-workflow.mjs`, proven by
+`tools/ci/test/dispatch-workflow.test.mjs`; the tests reject a commit SHA used
+directly as `workflow_dispatch.ref` and reject the earlier mutable-ref shape
+outright, because `targetRef` is required and `ref` may never equal it.
+
+### Focusing a diagnostic
+
+Every `diagnose.yml` mode accepts an optional `focus` input that narrows that
+mode without widening it:
+
+```bash
+# the whole mode, unchanged
+gh workflow run diagnose.yml -f mode=app-unit
+
+# narrowed inside the mode
+gh workflow run diagnose.yml -f mode=app-unit -f focus=com.example.FooTest
+gh workflow run diagnose.yml -f mode=android-static -f focus=lint
+gh workflow run diagnose.yml -f mode=backend-test -f focus=name:handles a retry
+gh workflow run diagnose.yml -f mode=device -f focus=class:dev.anthracite.appt.SmokeTest
+```
+
+`tools/ci/diagnose-focus.mjs` owns the per-mode grammar and returns the exact
+argv vector to run, so the value is data rather than command text. An empty
+`focus` reproduces the mode's existing command exactly; a non-empty one narrows
+only within the mode, through the underlying tool's native selector or a finite
+allowlist of sub-responsibilities the mode already owns. Anything else — a wrong
+shape, a foreign prefix, a sub-responsibility belonging to another mode, a
+leading `-`, a control character — fails closed before anything runs, and the run
+summary records the mode and the effective focus. The grammar and its selectors
+are proven by `tools/ci/test/diagnose-focus.test.mjs` against the pinned
+toolchain. A focused diagnostic is still non-terminal; full `verify` is
+unchanged.
 
 The maintenance purge deletes every Actions cache and every workflow run except
 its own. GitHub has no "delete every cache" endpoint — `DELETE .../actions/caches`
@@ -295,6 +344,13 @@ node tools/ci/purge-actions.mjs --dry-run
 `--settle-timeout-minutes` and `--poll-interval-seconds` are forwarded into the
 purge loop, so the workflow genuinely controls the timing it declares. Invalid
 or non-positive values are rejected rather than silently becoming `NaN`.
+
+The final pre-deletion run listing is re-read and treated exactly like the first:
+the cache phase takes real time, and a run queued during it is still active when
+that listing is taken. GitHub refuses to delete a run that has not finished, so
+any newly active non-current run is cancelled and settled under the same bounded
+rules before anything is deleted. A run that never settles fails the purge closed
+instead of being reported as a clean end state.
 
 ## CodeQL static analysis
 

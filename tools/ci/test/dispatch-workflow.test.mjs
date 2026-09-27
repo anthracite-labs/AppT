@@ -6,21 +6,36 @@
  * dispatch request shape and the fork refusal are all exercised without
  * dispatching a single real workflow run.
  *
- * The centrepiece is the dispatch-ref contract. GitHub's Create Workflow
- * Dispatch endpoint takes `ref` as a **branch or tag name**, not a commit SHA.
- * The Issue #88 contract review found a candidate that passed a SHA, which the
- * provider rejects. These tests make that shape a test failure, so it cannot
- * come back.
+ * The centrepiece is the dispatch-ref contract, which has two halves.
+ *
+ * GitHub's Create Workflow Dispatch endpoint takes `ref` as *the git reference
+ * for the workflow* — a **branch or tag name**, never a commit SHA. The first
+ * review round found a candidate that passed a SHA, which the provider rejects.
+ *
+ * The second round found the deeper defect: the bridge dispatched the pull
+ * request's own mutable head branch, so the provider ran the workflow *as that
+ * branch defined it* — including the local composite action that asserts the
+ * dispatch target. A pull request could therefore rewrite its own assertion and
+ * pass it. The fix is that the dispatch ref is the repository's default branch
+ * (trusted content) and the requested target travels as the `target_ref` and
+ * `expected_sha` inputs.
+ *
+ * The tests below make the earlier shape a test failure, so it cannot come back:
+ * `targetRef` is required, `ref` may never equal it, and no dispatch body this
+ * bridge can produce names the pull-request branch as its ref.
  */
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
   COMMAND_LABELS,
   COMMAND_LABEL_NAMES,
   buildDispatchBody,
   dispatchCommand,
+  resolveDefaultBranch,
   resolveDispatch,
   resolvePullRequestHead,
 } from '../dispatch-workflow.mjs';
@@ -29,10 +44,20 @@ const REPO = 'anthracite-labs/AppT';
 const PR_NUMBER = 89;
 const HEAD_SHA = '10525a115869dcf3e9d49cf2053c03d284200249';
 const HEAD_REF = 'arena/01a0e487-appt';
+/** The trusted anchor a dispatch actually runs from. */
+const DEFAULT_BRANCH = 'main';
+
+const WORKFLOW_DIR = fileURLToPath(new URL('../../../.github/workflows', import.meta.url));
+
+/** Read a workflow file as text, for repository-level contract assertions. */
+function readWorkflow(name) {
+  return readFileSync(`${WORKFLOW_DIR}/${name}`, 'utf8');
+}
 
 /** A fake `gh api` implementation that records every call, including stdin. */
 function createFakeApi({
   pr = { head: { sha: HEAD_SHA, ref: HEAD_REF, repo: { full_name: REPO } } },
+  defaultBranch = DEFAULT_BRANCH,
   dispatchResponse = `https://github.com/${REPO}/actions/runs/1`,
 } = {}) {
   const calls = [];
@@ -56,6 +81,11 @@ function createFakeApi({
         throw new Error(`unexpected pull request: ${args[0]}`);
       }
       return pr;
+    }
+
+    // The repository record, which is where the trusted anchor comes from.
+    if (/^repos\/[^/]+\/[^/]+$/.test(args[0])) {
+      return { full_name: REPO, default_branch: defaultBranch };
     }
 
     throw new Error(`unexpected call: ${args.join(' ')}`);
@@ -97,27 +127,46 @@ describe('resolveDispatch', () => {
 });
 
 describe('buildDispatchBody', () => {
-  it('uses the branch name as ref and always carries expected_sha', () => {
-    const body = buildDispatchBody({ ref: HEAD_REF, mode: 'app-unit', expectedSha: HEAD_SHA });
-    assert.equal(body.ref, HEAD_REF);
+  it('dispatches from the trusted anchor and carries the target as inputs', () => {
+    const body = buildDispatchBody({
+      ref: DEFAULT_BRANCH,
+      targetRef: HEAD_REF,
+      mode: 'app-unit',
+      expectedSha: HEAD_SHA,
+    });
+    assert.equal(body.ref, DEFAULT_BRANCH);
+    assert.equal(body.inputs.target_ref, HEAD_REF);
     assert.equal(body.inputs.expected_sha, HEAD_SHA);
     assert.equal(body.inputs.mode, 'app-unit');
     assert.equal(body.return_run_details, true);
   });
 
-  it('omits mode for a verify dispatch but keeps expected_sha', () => {
-    const body = buildDispatchBody({ ref: HEAD_REF, mode: '', expectedSha: HEAD_SHA });
-    assert.equal(body.ref, HEAD_REF);
+  it('omits mode for a verify dispatch but keeps the target inputs', () => {
+    const body = buildDispatchBody({
+      ref: DEFAULT_BRANCH,
+      targetRef: HEAD_REF,
+      mode: '',
+      expectedSha: HEAD_SHA,
+    });
+    assert.equal(body.ref, DEFAULT_BRANCH);
+    assert.equal(body.inputs.target_ref, HEAD_REF);
     assert.equal(body.inputs.expected_sha, HEAD_SHA);
     assert.equal('mode' in body.inputs, false);
   });
 
-  // The contract the review corrected: `ref` is a branch or tag name, never a
-  // commit SHA. A SHA used directly as `workflow_dispatch.ref` must fail here.
+  // The contract the first review round corrected: `ref` is a branch or tag
+  // name, never a commit SHA. A SHA used directly as `workflow_dispatch.ref`
+  // must fail here.
   it('refuses a commit SHA as the dispatch ref', () => {
     for (const sha of [HEAD_SHA, HEAD_SHA.toLowerCase(), 'a'.repeat(40)]) {
       assert.throws(
-        () => buildDispatchBody({ ref: sha, mode: 'app-unit', expectedSha: HEAD_SHA }),
+        () =>
+          buildDispatchBody({
+            ref: sha,
+            targetRef: HEAD_REF,
+            mode: 'app-unit',
+            expectedSha: HEAD_SHA,
+          }),
         /must be a branch or tag name, not a commit SHA/,
         sha
       );
@@ -127,7 +176,13 @@ describe('buildDispatchBody', () => {
   it('refuses an empty or non-SHA expected_sha', () => {
     for (const expectedSha of ['', undefined, null, 'not-a-sha', HEAD_SHA.slice(0, 39)]) {
       assert.throws(
-        () => buildDispatchBody({ ref: HEAD_REF, mode: 'app-unit', expectedSha }),
+        () =>
+          buildDispatchBody({
+            ref: DEFAULT_BRANCH,
+            targetRef: HEAD_REF,
+            mode: 'app-unit',
+            expectedSha,
+          }),
         /expectedSha/,
         String(expectedSha)
       );
@@ -136,7 +191,7 @@ describe('buildDispatchBody', () => {
 
   it('refuses an empty ref', () => {
     assert.throws(
-      () => buildDispatchBody({ ref: '', mode: 'app-unit', expectedSha: HEAD_SHA }),
+      () => buildDispatchBody({ ref: '', targetRef: HEAD_REF, mode: 'app-unit', expectedSha: HEAD_SHA }),
       /ref is required/
     );
   });
@@ -144,11 +199,41 @@ describe('buildDispatchBody', () => {
   it('produces a JSON-serialisable body for every allowlisted label', () => {
     for (const label of COMMAND_LABEL_NAMES) {
       const { mode } = resolveDispatch(label);
-      const body = buildDispatchBody({ ref: HEAD_REF, mode, expectedSha: HEAD_SHA });
+      const body = buildDispatchBody({
+        ref: DEFAULT_BRANCH,
+        targetRef: HEAD_REF,
+        mode,
+        expectedSha: HEAD_SHA,
+      });
       const round = JSON.parse(JSON.stringify(body));
-      assert.equal(round.ref, HEAD_REF, label);
+      assert.equal(round.ref, DEFAULT_BRANCH, label);
+      assert.equal(round.inputs.target_ref, HEAD_REF, label);
       assert.equal(round.inputs.expected_sha, HEAD_SHA, label);
     }
+  });
+});
+
+describe('resolveDefaultBranch', () => {
+  it('reads the trusted anchor from the provider', async () => {
+    const api = createFakeApi();
+    assert.equal(await resolveDefaultBranch({ gh: api.gh, repo: REPO }), DEFAULT_BRANCH);
+  });
+
+  it('refuses a repository record with no usable default branch', async () => {
+    for (const defaultBranch of ['', null, 42, {}]) {
+      const api = createFakeApi({ defaultBranch });
+      await assert.rejects(
+        resolveDefaultBranch({ gh: api.gh, repo: REPO }),
+        /could not resolve the default branch/,
+        String(defaultBranch)
+      );
+    }
+    // An absent key is the same failure, and is not silently defaulted.
+    await assert.rejects(
+      resolveDefaultBranch({ gh: async () => ({ full_name: REPO }), repo: REPO }),
+      /could not resolve the default branch/,
+      'absent'
+    );
   });
 });
 
@@ -163,7 +248,9 @@ describe('resolvePullRequestHead', () => {
 
   it('refuses an unusable head SHA', async () => {
     for (const sha of ['', undefined, 'short', HEAD_SHA.toUpperCase()]) {
-      const api = createFakeApi({ pr: { head: { sha, ref: HEAD_REF, repo: { full_name: REPO } } } });
+      const api = createFakeApi({
+        pr: { head: { sha, ref: HEAD_REF, repo: { full_name: REPO } } },
+      });
       await assert.rejects(
         resolvePullRequestHead({ gh: api.gh, repo: REPO, prNumber: PR_NUMBER }),
         /could not resolve a pull-request head SHA/,
@@ -173,7 +260,9 @@ describe('resolvePullRequestHead', () => {
   });
 
   it('refuses a missing head branch', async () => {
-    const api = createFakeApi({ pr: { head: { sha: HEAD_SHA, ref: '', repo: { full_name: REPO } } } });
+    const api = createFakeApi({
+      pr: { head: { sha: HEAD_SHA, ref: '', repo: { full_name: REPO } } },
+    });
     await assert.rejects(
       resolvePullRequestHead({ gh: api.gh, repo: REPO, prNumber: PR_NUMBER }),
       /could not resolve a pull-request head branch/
@@ -182,7 +271,7 @@ describe('resolvePullRequestHead', () => {
 });
 
 describe('dispatchCommand', () => {
-  it('dispatches every allowlisted label against the branch ref and expected SHA', async () => {
+  it('dispatches every allowlisted label from the trusted anchor', async () => {
     for (const label of COMMAND_LABEL_NAMES) {
       const api = createFakeApi();
       const result = await dispatchCommand({
@@ -193,7 +282,9 @@ describe('dispatchCommand', () => {
         log: () => {},
       });
 
-      assert.equal(result.ref, HEAD_REF, `${label} ref`);
+      // The trusted anchor is the dispatch ref; the target travels as inputs.
+      assert.equal(result.ref, DEFAULT_BRANCH, `${label} ref`);
+      assert.equal(result.targetRef, HEAD_REF, `${label} targetRef`);
       assert.equal(result.expectedSha, HEAD_SHA, `${label} expectedSha`);
       assert.equal(result.workflow, resolveDispatch(label).workflow, `${label} workflow`);
       assert.equal(result.runUrl, `https://github.com/${REPO}/actions/runs/1`, `${label} url`);
@@ -206,14 +297,10 @@ describe('dispatchCommand', () => {
       const body = JSON.parse(api.bodies[0]);
       assert.equal(
         body.ref,
-        HEAD_REF,
-        `${label}: workflow_dispatch.ref must be the branch name, not a commit SHA`
+        DEFAULT_BRANCH,
+        `${label}: workflow_dispatch.ref must be the trusted default branch`
       );
-      assert.notEqual(
-        body.ref,
-        HEAD_SHA,
-        `${label}: workflow_dispatch.ref must never be the resolved commit SHA`
-      );
+      assert.equal(body.inputs.target_ref, HEAD_REF, `${label}: target_ref is the head branch`);
       assert.equal(body.inputs.expected_sha, HEAD_SHA, `${label}: expected_sha is the head SHA`);
       assert.equal(body.return_run_details, true, `${label}: return_run_details`);
 
@@ -239,13 +326,7 @@ describe('dispatchCommand', () => {
 
   it('refuses a fork pull request instead of dispatching it', async () => {
     const api = createFakeApi({
-      pr: {
-        head: {
-          sha: HEAD_SHA,
-          ref: HEAD_REF,
-          repo: { full_name: 'some-fork/AppT' },
-        },
-      },
+      pr: { head: { sha: HEAD_SHA, ref: HEAD_REF, repo: { full_name: 'some-fork/AppT' } } },
     });
 
     await assert.rejects(
@@ -264,6 +345,26 @@ describe('dispatchCommand', () => {
     assert.deepEqual(api.bodies, []);
   });
 
+  it('refuses a pull request that heads from the default branch itself', async () => {
+    // There would be no trusted anchor distinct from the target, so the bridge
+    // fails closed rather than dispatching the branch it is meant to verify.
+    const api = createFakeApi({
+      pr: { head: { sha: HEAD_SHA, ref: DEFAULT_BRANCH, repo: { full_name: REPO } } },
+    });
+
+    await assert.rejects(
+      dispatchCommand({
+        label: 'ci:app-unit',
+        gh: api.gh,
+        repo: REPO,
+        prNumber: PR_NUMBER,
+        log: () => {},
+      }),
+      /no trusted anchor distinct from the target/
+    );
+    assert.ok(!api.calls.some((call) => call.includes('/dispatches')));
+  });
+
   it('keeps working when the provider reports no run details', async () => {
     const api = createFakeApi({ dispatchResponse: '' });
     const result = await dispatchCommand({
@@ -276,6 +377,7 @@ describe('dispatchCommand', () => {
     // A dispatch that is accepted but not yet listed is still a success.
     assert.equal(result.runUrl, '');
     assert.equal(result.expectedSha, HEAD_SHA);
+    assert.equal(result.ref, DEFAULT_BRANCH);
   });
 
   it('exposes an allowlist that matches the documented command labels', () => {
@@ -292,6 +394,108 @@ describe('dispatchCommand', () => {
     ]);
     for (const label of COMMAND_LABEL_NAMES) {
       assert.equal(label.startsWith('ci:'), true, label);
+    }
+  });
+});
+
+/**
+ * The earlier design cannot satisfy the contract. These tests exist so that a
+ * regression to "dispatch the pull request's mutable head branch and load the
+ * assertion from that same branch" is a test failure rather than a silent
+ * reintroduction of the defect the review found.
+ */
+describe('the earlier mutable-ref design cannot satisfy the contract', () => {
+  it('refuses a body with no target ref — the old shape', () => {
+    // The old design had no `targetRef` at all: `ref` was the pull request's
+    // branch and `expected_sha` was the only thing carried alongside it.
+    for (const targetRef of [undefined, null, '']) {
+      assert.throws(
+        () => buildDispatchBody({ ref: HEAD_REF, mode: 'app-unit', expectedSha: HEAD_SHA, targetRef }),
+        /targetRef is required/,
+        String(targetRef)
+      );
+    }
+  });
+
+  it('refuses a dispatch ref that is the target being verified', () => {
+    assert.throws(
+      () =>
+        buildDispatchBody({
+          ref: HEAD_REF,
+          targetRef: HEAD_REF,
+          mode: 'app-unit',
+          expectedSha: HEAD_SHA,
+        }),
+        /must be\s+the trusted default branch, never the pull-request branch/s,
+      'dispatching the pull-request branch'
+    );
+  });
+
+  it('refuses a commit SHA as the target ref too', () => {
+    assert.throws(
+      () =>
+        buildDispatchBody({
+          ref: DEFAULT_BRANCH,
+          targetRef: HEAD_SHA,
+          mode: 'app-unit',
+          expectedSha: HEAD_SHA,
+        }),
+      /targetRef must be a branch or tag name/
+    );
+  });
+
+  it('no dispatch this bridge can produce names the pull-request branch as ref', async () => {
+    // The end-to-end statement of the rule: whatever the label, whatever the
+    // provider says, the dispatch ref is the trusted anchor and never the
+    // mutable branch the command was issued against.
+    for (const label of COMMAND_LABEL_NAMES) {
+      for (const defaultBranch of [DEFAULT_BRANCH, 'develop', 'trunk']) {
+        const api = createFakeApi({ defaultBranch });
+        const result = await dispatchCommand({
+          label,
+          gh: api.gh,
+          repo: REPO,
+          prNumber: PR_NUMBER,
+          log: () => {},
+        });
+        const body = JSON.parse(api.bodies[0]);
+        assert.equal(body.ref, defaultBranch, `${label} / ${defaultBranch}`);
+        assert.notEqual(body.ref, HEAD_REF, `${label} / ${defaultBranch}`);
+        assert.equal(result.ref, defaultBranch);
+        assert.equal(result.targetRef, HEAD_REF);
+      }
+    }
+  });
+
+  it('the repository workflows validate the target from trusted content', () => {
+    // The dispatch-side half of the contract is enforced in the workflow files:
+    // every use of the assertion action passes the target ref, and no checkout
+    // ever checks out the mutable branch — only the validated exact SHA.
+    for (const name of ['verify.yml', 'diagnose.yml']) {
+      const workflow = readWorkflow(name);
+
+      const assertions = workflow.match(/uses: \.\/\.github\/actions\/assert-dispatch-target/g) ?? [];
+      assert.ok(assertions.length > 0, `${name} must use the assertion action`);
+      assert.equal(
+        (workflow.match(/uses: \.\/\.github\/actions\/assert-dispatch-target/g) ?? []).length,
+        (workflow.match(/target-ref: \$\{\{ inputs\.target_ref \}\}/g) ?? []).length,
+        `${name}: every dispatch-target assertion must receive the target ref`
+      );
+
+      // Matched as a whole line, so the `target-ref:` assertion input is not
+      // mistaken for a checkout ref.
+      const checkoutRefs = workflow
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith('ref: '));
+      assert.ok(
+        !checkoutRefs.includes('ref: ${{ inputs.target_ref }}'),
+        `${name} must never check out the mutable target branch; only the validated SHA`
+      );
+      assert.ok(
+        checkoutRefs.includes('ref: ${{ inputs.expected_sha }}'),
+        `${name} must check out the exact expected SHA once it is validated`
+      );
     }
   });
 });

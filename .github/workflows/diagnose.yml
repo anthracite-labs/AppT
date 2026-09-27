@@ -16,6 +16,26 @@
 #     feedback and does not satisfy terminal repository verification.
 #
 # A finished candidate is verified by `verify` (full run), never by this file.
+#
+# Focus (Issue #88, human revision)
+# ---------------------------------
+# Every mode accepts an optional `focus` input that narrows that mode without
+# widening it. `tools/ci/diagnose-focus.mjs` owns what "narrow" means per mode
+# and returns the exact argv vector to run, so the focus value is data rather
+# than command text: it can become a selector, never a command, a flag, or a
+# task the mode does not own.
+#
+#   * an empty `focus` reproduces the mode's existing, unfocused command exactly;
+#   * a non-empty `focus` narrows only within the mode, through the underlying
+#     tool's native selector or a finite allowlist of sub-responsibilities the
+#     mode already owns;
+#   * anything else — a wrong shape, a foreign prefix, a sub-responsibility the
+#     mode does not own, a leading dash, a control character — fails closed
+#     before anything runs;
+#   * the run summary records the mode and the effective focus.
+#
+# A focused diagnostic is still implementation feedback only. Full `verify` is
+# unchanged by anything here.
 
 name: diagnose
 
@@ -46,12 +66,32 @@ on:
           manual dispatch.
         required: false
         default: ''
+      target_ref:
+        description: >-
+          Branch the agent-control bridge resolved the head from. Validated
+          against expected_sha by trusted logic before any work runs. Leave
+          empty for an ordinary manual dispatch.
+        required: false
+        default: ''
+      focus:
+        description: >-
+          Optional narrowing within the selected mode. Leave empty to run the
+          whole mode. The accepted form depends on the mode: a Gradle test
+          class or method pattern for the unit modes, a named sub-check for the
+          static and build modes, file:/name: for the backend modes, and
+          class:/package:/method: for the device mode. Anything else fails
+          closed before any work runs.
+        required: false
+        default: ''
 
 permissions:
   contents: read
 
+# The focus is part of a run's identity, so two different foci on the same ref
+# and mode do not cancel each other.
 concurrency:
-  group: diagnose-${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode }}
+  group: >-
+    diagnose-${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode }}-${{ inputs.focus }}
   cancel-in-progress: true
 
 env:
@@ -70,31 +110,69 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
       - name: Set up the Android/JVM toolchain
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           java-version: ${{ env.JAVA_VERSION }}
+      - name: Resolve the diagnostic focus
+        env:
+          MODE: ${{ inputs.mode }}
+          FOCUS: ${{ inputs.focus }}
+        run: |
+          set -euo pipefail
+
+          # The focus is resolved by the reviewed module and written as an argv
+          # vector, one argument per line. The value is therefore data: it cannot
+          # become a command, a flag, or a task this mode does not own. An
+          # invalid, cross-mode or malformed focus fails here, before anything
+          # runs.
+          node tools/ci/diagnose-focus.mjs --mode "$MODE" --focus "$FOCUS" \
+            > "${RUNNER_TEMP}/diagnose-args"
+
+          if [ -n "$FOCUS" ]; then
+            echo "::notice title=${MODE} focused::${MODE} narrowed to: ${FOCUS}"
+          else
+            echo "::notice::${MODE} runs its full mode; no focus was supplied."
+          fi
+
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target. Everything from here on is the code
+          # under verification, executed by this trusted workflow under its own
+          # read-only permissions -- the same trust level as an ordinary
+          # pull-request run.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Run :app unit and Robolectric tests
         run: |
           set -o pipefail
-          ./gradlew --no-daemon --dependency-verification=strict --continue \
-            :app:testDebugUnitTest 2>&1 | tee /tmp/app-unit.log || {
+          mapfile -t DIAGNOSE_ARGS < "${RUNNER_TEMP}/diagnose-args"
+          "${DIAGNOSE_ARGS[@]}" 2>&1 | tee /tmp/app-unit.log || {
               echo "::error title=app-unit Failure::$(grep -A 10 "\* What went wrong:" /tmp/app-unit.log | head -n 10 | tr '\n' ' ')"
               grep -A 30 "FAILURE: Build failed" /tmp/app-unit.log || true
               exit 1
-            }
+          }
 
       - name: Upload app unit-test reports
         if: always()
@@ -119,31 +197,69 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
       - name: Set up the Android/JVM toolchain
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           java-version: ${{ env.JAVA_VERSION }}
+      - name: Resolve the diagnostic focus
+        env:
+          MODE: ${{ inputs.mode }}
+          FOCUS: ${{ inputs.focus }}
+        run: |
+          set -euo pipefail
+
+          # The focus is resolved by the reviewed module and written as an argv
+          # vector, one argument per line. The value is therefore data: it cannot
+          # become a command, a flag, or a task this mode does not own. An
+          # invalid, cross-mode or malformed focus fails here, before anything
+          # runs.
+          node tools/ci/diagnose-focus.mjs --mode "$MODE" --focus "$FOCUS" \
+            > "${RUNNER_TEMP}/diagnose-args"
+
+          if [ -n "$FOCUS" ]; then
+            echo "::notice title=${MODE} focused::${MODE} narrowed to: ${FOCUS}"
+          else
+            echo "::notice::${MODE} runs its full mode; no focus was supplied."
+          fi
+
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target. Everything from here on is the code
+          # under verification, executed by this trusted workflow under its own
+          # read-only permissions -- the same trust level as an ordinary
+          # pull-request run.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Run :samsung unit tests
         run: |
           set -o pipefail
-          ./gradlew --no-daemon --dependency-verification=strict --continue \
-            :samsung:test 2>&1 | tee /tmp/samsung-unit.log || {
+          mapfile -t DIAGNOSE_ARGS < "${RUNNER_TEMP}/diagnose-args"
+          "${DIAGNOSE_ARGS[@]}" 2>&1 | tee /tmp/samsung-unit.log || {
               echo "::error title=samsung-unit Failure::$(grep -A 10 "\* What went wrong:" /tmp/samsung-unit.log | head -n 10 | tr '\n' ' ')"
               grep -A 30 "FAILURE: Build failed" /tmp/samsung-unit.log || true
               exit 1
-            }
+          }
 
       - name: Upload Samsung unit-test reports
         if: always()
@@ -168,31 +284,69 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
       - name: Set up the Android/JVM toolchain
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           java-version: ${{ env.JAVA_VERSION }}
+      - name: Resolve the diagnostic focus
+        env:
+          MODE: ${{ inputs.mode }}
+          FOCUS: ${{ inputs.focus }}
+        run: |
+          set -euo pipefail
+
+          # The focus is resolved by the reviewed module and written as an argv
+          # vector, one argument per line. The value is therefore data: it cannot
+          # become a command, a flag, or a task this mode does not own. An
+          # invalid, cross-mode or malformed focus fails here, before anything
+          # runs.
+          node tools/ci/diagnose-focus.mjs --mode "$MODE" --focus "$FOCUS" \
+            > "${RUNNER_TEMP}/diagnose-args"
+
+          if [ -n "$FOCUS" ]; then
+            echo "::notice title=${MODE} focused::${MODE} narrowed to: ${FOCUS}"
+          else
+            echo "::notice::${MODE} runs its full mode; no focus was supplied."
+          fi
+
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target. Everything from here on is the code
+          # under verification, executed by this trusted workflow under its own
+          # read-only permissions -- the same trust level as an ordinary
+          # pull-request run.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Run Android static and policy verification
         run: |
           set -o pipefail
-          ./gradlew --no-daemon --dependency-verification=strict --continue \
-            androidStatic 2>&1 | tee /tmp/android-static.log || {
+          mapfile -t DIAGNOSE_ARGS < "${RUNNER_TEMP}/diagnose-args"
+          "${DIAGNOSE_ARGS[@]}" 2>&1 | tee /tmp/android-static.log || {
               echo "::error title=android-static Failure::$(grep -A 10 "\* What went wrong:" /tmp/android-static.log | head -n 10 | tr '\n' ' ')"
               grep -A 30 "FAILURE: Build failed" /tmp/android-static.log || true
               exit 1
-            }
+          }
 
       - name: Upload Lint and detekt reports
         if: always()
@@ -219,31 +373,69 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
       - name: Set up the Android/JVM toolchain
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           java-version: ${{ env.JAVA_VERSION }}
+      - name: Resolve the diagnostic focus
+        env:
+          MODE: ${{ inputs.mode }}
+          FOCUS: ${{ inputs.focus }}
+        run: |
+          set -euo pipefail
+
+          # The focus is resolved by the reviewed module and written as an argv
+          # vector, one argument per line. The value is therefore data: it cannot
+          # become a command, a flag, or a task this mode does not own. An
+          # invalid, cross-mode or malformed focus fails here, before anything
+          # runs.
+          node tools/ci/diagnose-focus.mjs --mode "$MODE" --focus "$FOCUS" \
+            > "${RUNNER_TEMP}/diagnose-args"
+
+          if [ -n "$FOCUS" ]; then
+            echo "::notice title=${MODE} focused::${MODE} narrowed to: ${FOCUS}"
+          else
+            echo "::notice::${MODE} runs its full mode; no focus was supplied."
+          fi
+
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target. Everything from here on is the code
+          # under verification, executed by this trusted workflow under its own
+          # read-only permissions -- the same trust level as an ordinary
+          # pull-request run.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Run Android build
         run: |
           set -o pipefail
-          ./gradlew --no-daemon --dependency-verification=strict --continue \
-            androidBuild 2>&1 | tee /tmp/android-build.log || {
+          mapfile -t DIAGNOSE_ARGS < "${RUNNER_TEMP}/diagnose-args"
+          "${DIAGNOSE_ARGS[@]}" 2>&1 | tee /tmp/android-build.log || {
               echo "::error title=android-build Failure::$(grep -A 10 "\* What went wrong:" /tmp/android-build.log | head -n 10 | tr '\n' ' ')"
               grep -A 30 "FAILURE: Build failed" /tmp/android-build.log || true
               exit 1
-            }
+          }
 
   # ---------------------------------------------------------------------------
   # backend-static — TypeScript typecheck, ESLint, Prettier, Knip.
@@ -256,27 +448,68 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
       - name: Set up Node
         uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           node-version: ${{ env.NODE_VERSION }}
+      - name: Resolve the diagnostic focus
+        env:
+          MODE: ${{ inputs.mode }}
+          FOCUS: ${{ inputs.focus }}
+        run: |
+          set -euo pipefail
+
+          # The focus is resolved by the reviewed module and written as an argv
+          # vector, one argument per line. The value is therefore data: it cannot
+          # become a command, a flag, or a task this mode does not own. An
+          # invalid, cross-mode or malformed focus fails here, before anything
+          # runs.
+          node tools/ci/diagnose-focus.mjs --mode "$MODE" --focus "$FOCUS" \
+            > "${RUNNER_TEMP}/diagnose-args"
+
+          if [ -n "$FOCUS" ]; then
+            echo "::notice title=${MODE} focused::${MODE} narrowed to: ${FOCUS}"
+          else
+            echo "::notice::${MODE} runs its full mode; no focus was supplied."
+          fi
+
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target. Everything from here on is the code
+          # under verification, executed by this trusted workflow under its own
+          # read-only permissions -- the same trust level as an ordinary
+          # pull-request run.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Install from committed lockfile
         run: npm ci --prefix backend
 
       - name: Run backend static verification interface
-        run: npm run verify:static --prefix backend
+        run: |
+          set -euo pipefail
+          mapfile -t DIAGNOSE_ARGS < "${RUNNER_TEMP}/diagnose-args"
+          "${DIAGNOSE_ARGS[@]}"
 
   # ---------------------------------------------------------------------------
   # backend-test — Jest with LCOV coverage.
@@ -289,27 +522,68 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
       - name: Set up Node
         uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           node-version: ${{ env.NODE_VERSION }}
+      - name: Resolve the diagnostic focus
+        env:
+          MODE: ${{ inputs.mode }}
+          FOCUS: ${{ inputs.focus }}
+        run: |
+          set -euo pipefail
+
+          # The focus is resolved by the reviewed module and written as an argv
+          # vector, one argument per line. The value is therefore data: it cannot
+          # become a command, a flag, or a task this mode does not own. An
+          # invalid, cross-mode or malformed focus fails here, before anything
+          # runs.
+          node tools/ci/diagnose-focus.mjs --mode "$MODE" --focus "$FOCUS" \
+            > "${RUNNER_TEMP}/diagnose-args"
+
+          if [ -n "$FOCUS" ]; then
+            echo "::notice title=${MODE} focused::${MODE} narrowed to: ${FOCUS}"
+          else
+            echo "::notice::${MODE} runs its full mode; no focus was supplied."
+          fi
+
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target. Everything from here on is the code
+          # under verification, executed by this trusted workflow under its own
+          # read-only permissions -- the same trust level as an ordinary
+          # pull-request run.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Install from committed lockfile
         run: npm ci --prefix backend
 
       - name: Run backend tests with LCOV coverage
-        run: npm run verify:test --prefix backend
+        run: |
+          set -euo pipefail
+          mapfile -t DIAGNOSE_ARGS < "${RUNNER_TEMP}/diagnose-args"
+          "${DIAGNOSE_ARGS[@]}"
 
       - name: Upload backend coverage
         if: always()
@@ -332,27 +606,68 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
       - name: Set up Node
         uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           node-version: ${{ env.NODE_VERSION }}
+      - name: Resolve the diagnostic focus
+        env:
+          MODE: ${{ inputs.mode }}
+          FOCUS: ${{ inputs.focus }}
+        run: |
+          set -euo pipefail
+
+          # The focus is resolved by the reviewed module and written as an argv
+          # vector, one argument per line. The value is therefore data: it cannot
+          # become a command, a flag, or a task this mode does not own. An
+          # invalid, cross-mode or malformed focus fails here, before anything
+          # runs.
+          node tools/ci/diagnose-focus.mjs --mode "$MODE" --focus "$FOCUS" \
+            > "${RUNNER_TEMP}/diagnose-args"
+
+          if [ -n "$FOCUS" ]; then
+            echo "::notice title=${MODE} focused::${MODE} narrowed to: ${FOCUS}"
+          else
+            echo "::notice::${MODE} runs its full mode; no focus was supplied."
+          fi
+
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target. Everything from here on is the code
+          # under verification, executed by this trusted workflow under its own
+          # read-only permissions -- the same trust level as an ordinary
+          # pull-request run.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Install from committed lockfile
         run: npm ci --prefix backend
 
       - name: Run backend verification interface
-        run: npm run verify --prefix backend
+        run: |
+          set -euo pipefail
+          mapfile -t DIAGNOSE_ARGS < "${RUNNER_TEMP}/diagnose-args"
+          "${DIAGNOSE_ARGS[@]}"
 
       - name: Upload backend coverage
         if: always()
@@ -375,21 +690,59 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
       - name: Assert the dispatch target
+        if: inputs.expected_sha != ''
         uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
       - name: Set up the Android/JVM toolchain
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           java-version: ${{ env.JAVA_VERSION }}
+      - name: Resolve the diagnostic focus
+        env:
+          MODE: ${{ inputs.mode }}
+          FOCUS: ${{ inputs.focus }}
+        run: |
+          set -euo pipefail
+
+          # The focus is resolved by the reviewed module and written as an argv
+          # vector, one argument per line. The value is therefore data: it cannot
+          # become a command, a flag, or a task this mode does not own. An
+          # invalid, cross-mode or malformed focus fails here, before anything
+          # runs.
+          node tools/ci/diagnose-focus.mjs --mode "$MODE" --focus "$FOCUS" \
+            > "${RUNNER_TEMP}/diagnose-args"
+
+          if [ -n "$FOCUS" ]; then
+            echo "::notice title=${MODE} focused::${MODE} narrowed to: ${FOCUS}"
+          else
+            echo "::notice::${MODE} runs its full mode; no focus was supplied."
+          fi
+
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The validated dispatch target. Everything from here on is the code
+          # under verification, executed by this trusted workflow under its own
+          # read-only permissions -- the same trust level as an ordinary
+          # pull-request run.
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
 
       - name: Enable KVM
         run: |
@@ -402,19 +755,18 @@ jobs:
       - name: Run Gradle Managed Device Acceptance Test (API 29)
         run: |
           set -o pipefail
-          ./gradlew --no-daemon --dependency-verification=strict \
-            -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
-            :app:pixel2api29DebugAndroidTest 2>&1 | tee /tmp/gmd.log || {
-              echo "::error title=device Failure::$(grep -A 10 "\* What went wrong:" /tmp/gmd.log | head -n 10 | tr '\n' ' ')"
-              grep -A 30 "FAILURE: Build failed" /tmp/gmd.log || true
-              {
-                echo "### GMD Failure Log"
-                echo '```'
-                tail -n 60 /tmp/gmd.log
-                echo '```'
-              } >> "$GITHUB_STEP_SUMMARY"
-              exit 1
-            }
+          mapfile -t DIAGNOSE_ARGS < "${RUNNER_TEMP}/diagnose-args"
+          "${DIAGNOSE_ARGS[@]}" 2>&1 | tee /tmp/gmd.log || {
+            echo "::error title=device Failure::$(grep -A 10 "\* What went wrong:" /tmp/gmd.log | head -n 10 | tr '\n' ' ')"
+            grep -A 30 "FAILURE: Build failed" /tmp/gmd.log || true
+            {
+              echo "### GMD Failure Log"
+              echo '```'
+              tail -n 60 /tmp/gmd.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
 
       - name: Upload managed device reports
         if: always()
@@ -451,15 +803,28 @@ jobs:
       - name: Record that this run is not terminal verification
         env:
           MODE: ${{ inputs.mode }}
+          FOCUS: ${{ inputs.focus }}
           REPOSITORY: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           SHA: ${{ github.sha }}
           REF: ${{ github.ref }}
         run: |
           set -euo pipefail
+
+          # The effective focus is what the mode jobs actually ran with. An empty
+          # focus means the whole mode, and is recorded as such rather than being
+          # left blank, so the summary always states what this run covered.
+          if [ -n "$FOCUS" ]; then
+            effective_focus="$FOCUS"
+          else
+            effective_focus="<none: full mode>"
+          fi
+
           {
             echo "### diagnose: ${MODE}"
             echo
+            echo "- mode: \`${MODE}\`"
+            echo "- focus: \`${effective_focus}\`"
             echo "- commit: \`${SHA}\` (\`${REF}\`)"
             echo "- run: https://github.com/${REPOSITORY}/actions/runs/${RUN_ID}"
             echo
@@ -468,4 +833,4 @@ jobs:
             echo "Terminal verification of a finished candidate is a full run of"
             echo "\`verify\` (workflow \`verify\`, job \`gate\`)."
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "diagnose/${MODE}: implementation feedback only; not terminal verification."
+          echo "diagnose/${MODE} (focus: ${effective_focus}): implementation feedback only; not terminal verification."

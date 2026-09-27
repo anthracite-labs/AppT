@@ -20,13 +20,31 @@
  * mutable: the branch can move between resolving the head and the dispatched
  * run starting.
  *
- * The resolution is to dispatch against the provider-valid branch name and to
- * carry the resolved head SHA alongside it as an input, `expected_sha`. The
- * dispatched workflows (`verify.yml`, `diagnose.yml`) assert that
- * `github.sha` still equals `expected_sha` **before doing any target-controlled
- * work** — before Gradle, before npm, before the managed device — and hard-fail
- * otherwise. So the exact-PR-head guarantee is preserved without asking the
- * provider to accept a request shape it does not support.
+ * The resolution has two halves, and both are load-bearing.
+ *
+ *   1. The dispatch ref is the repository's **default branch**, not the pull
+ *      request's head branch. GitHub runs the workflow *as that ref defines
+ *      it*, so dispatching the head branch would let the pull request supply
+ *      the workflow YAML and every local composite action it uses — including
+ *      the assertion that is supposed to check the target. Dispatching the
+ *      default branch means the workflow and its validation logic are trusted
+ *      repository content that the pull request cannot rewrite.
+ *
+ *   2. The requested target travels as **inputs**: `target_ref` is the pull
+ *      request's head branch name and `expected_sha` is the exact commit the
+ *      command was issued against. The dispatched workflow resolves `target_ref`
+ *      with trusted logic, requires it still to point at `expected_sha`, and only
+ *      then checks that SHA out for Gradle, npm and device work.
+ *
+ * So the exact-PR-head guarantee survives, the validation logic is trusted, and
+ * the pull-request-controlled code is executed only by a trusted workflow under
+ * that workflow's own read-only permissions — exactly the trust level of an
+ * ordinary `pull_request` run.
+ *
+ * `targetRef` is therefore **required**, and `ref` may never equal it. That is
+ * deliberate: it makes the earlier design — dispatch the mutable branch and
+ * load the assertion from that same branch — unrepresentable here rather than
+ * merely discouraged.
  *
  * The privileged boundary is unchanged: this module never checks out or
  * executes pull-request-controlled code. It talks to the GitHub API and nothing
@@ -92,15 +110,17 @@ export function resolveDispatch(label) {
 /**
  * Build the provider-valid dispatch request body.
  *
- * `ref` is the pull request's head *branch name*. It is asserted not to be a
- * commit SHA, because the provider would reject that: this is the defect the
- * Issue #88 contract review found, and the assertion is what keeps it from
- * coming back.
+ * `ref` is the **trusted anchor**: the repository's default branch, whose
+ * workflow content the dispatched run will execute. It is asserted not to be a
+ * commit SHA (the provider would reject that) and not to be the target ref
+ * (which is the defect this shape exists to prevent).
  *
- * `expected_sha` is always present. It is how the exact-PR-head guarantee
- * survives dispatching a mutable branch ref.
+ * `targetRef` is the pull request's head branch name and `expectedSha` the
+ * exact commit the command was issued against. Both travel as inputs, because
+ * `ref` cannot carry them: it names the workflow to run, not the code to
+ * verify.
  */
-export function buildDispatchBody({ ref, mode = '', expectedSha }) {
+export function buildDispatchBody({ ref, targetRef, mode = '', expectedSha }) {
   if (typeof ref !== 'string' || ref.length === 0) {
     throw new Error('buildDispatchBody: ref is required');
   }
@@ -110,20 +130,52 @@ export function buildDispatchBody({ ref, mode = '', expectedSha }) {
         'Pass the resolved head SHA as expectedSha instead.'
     );
   }
+  // The trusted anchor must not be the target. Dispatching the pull request's
+  // own branch would let that branch supply the workflow and the assertion that
+  // is supposed to check it.
+  if (typeof targetRef !== 'string' || targetRef.length === 0) {
+    throw new Error(
+      'buildDispatchBody: targetRef is required. The dispatch ref is the trusted ' +
+        'anchor and the requested branch travels as the target_ref input.'
+    );
+  }
+  if (COMMIT_SHA.test(targetRef)) {
+    throw new Error(
+      'buildDispatchBody: targetRef must be a branch or tag name, not a commit SHA. ' +
+        'Pass the resolved head SHA as expectedSha instead.'
+    );
+  }
+  if (ref === targetRef) {
+    throw new Error(
+      `buildDispatchBody: ref and targetRef are both '${ref}'. The dispatch ref must be ` +
+        'the trusted default branch, never the pull-request branch being verified.'
+    );
+  }
   if (typeof expectedSha !== 'string' || !COMMIT_SHA.test(expectedSha)) {
     throw new Error('buildDispatchBody: expectedSha must be a 40-character commit SHA');
   }
 
-  const inputs = { expected_sha: expectedSha };
-  if (mode) inputs.mode = mode;
-
   return {
     ref,
-    inputs,
+    inputs: { target_ref: targetRef, expected_sha: expectedSha, ...(mode ? { mode } : {}) },
     // Ask the provider for the run details so the audit-trail comment can link
     // the dispatched run without polling for it.
     return_run_details: true,
   };
+}
+
+/**
+ * Resolve the repository's default branch — the trusted anchor a dispatch runs
+ * from. Read from the provider rather than assumed, so a renamed default branch
+ * cannot silently turn a trusted dispatch into an untrusted one.
+ */
+export async function resolveDefaultBranch({ gh, repo }) {
+  const body = await gh([`repos/${repo}`]);
+  const branch = body?.default_branch;
+  if (typeof branch !== 'string' || branch.length === 0) {
+    throw new Error(`could not resolve the default branch for ${repo}`);
+  }
+  return branch;
 }
 
 /**
@@ -176,11 +228,26 @@ export async function dispatchCommand({
     );
   }
 
-  const body = buildDispatchBody({ ref: head.ref, mode, expectedSha: head.sha });
+  // The dispatch ref is the trusted anchor, never the branch being verified.
+  const anchor = await resolveDefaultBranch({ gh, repo });
+  if (anchor === head.ref) {
+    throw new Error(
+      `pull request #${prNumber} heads from ${anchor}, which is the default branch. ` +
+        'A dispatch runs the workflow from the default branch, so there is no trusted ' +
+        'anchor distinct from the target; verify it with an ordinary run instead.'
+    );
+  }
+
+  const body = buildDispatchBody({
+    ref: anchor,
+    targetRef: head.ref,
+    mode,
+    expectedSha: head.sha,
+  });
 
   log(
-    `Dispatching ${workflow} against ref ${head.ref} (expected ${head.sha})` +
-      `${mode ? ` with mode=${mode}` : ''}.`
+    `Dispatching ${workflow} from the trusted default branch ${anchor} for target ` +
+      `ref ${head.ref} (expected ${head.sha})${mode ? ` with mode=${mode}` : ''}.`
   );
 
   const response = await gh(
@@ -199,7 +266,10 @@ export async function dispatchCommand({
   return {
     workflow,
     mode,
-    ref: head.ref,
+    // The trusted anchor the workflow ran from...
+    ref: anchor,
+    // ...and the target that workflow was asked to verify.
+    targetRef: head.ref,
     expectedSha: head.sha,
     runUrl: typeof response === 'string' ? response : '',
   };
@@ -311,6 +381,7 @@ async function main() {
         [
           `sha=${result.expectedSha}`,
           `ref=${result.ref}`,
+          `target-ref=${result.targetRef}`,
           `workflow=${result.workflow}`,
           `run-url=${result.runUrl}`,
           '',

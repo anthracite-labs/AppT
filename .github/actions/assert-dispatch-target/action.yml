@@ -1,60 +1,112 @@
-# Repository-local composite action: assert the dispatched ref still points at
-# the pull-request head the command was issued against.
+# Repository-local composite action: prove the dispatch target is the exact
+# commit the command was issued against.
 #
-# Why this exists (Issue #88 contract review)
+# Why this exists (Issue #88, human revision)
 # -------------------------------------------
-# `agent-control.yml` dispatches an ordinary workflow against a **branch name**,
-# because GitHub's Create Workflow Dispatch endpoint requires `ref` to be a
-# branch or tag name and rejects a commit SHA. A branch is mutable, so between
-# the bridge resolving the pull-request head and the dispatched run starting,
-# that branch could move — and the run would then verify different code than the
-# command asked for.
+# `agent-control.yml` dispatches a workflow against the repository's **default
+# branch**, because GitHub's Create Workflow Dispatch endpoint requires `ref` to
+# be a branch or tag name and rejects a commit SHA — and because running the
+# workflow from the pull request's own branch would let that branch supply both
+# the workflow YAML and this very assertion.
 #
-# The bridge therefore passes the head SHA it resolved as the `expected_sha`
-# input, and this action is the enforcement point: it hard-fails the job before
-# any target-controlled work (Gradle, npm, the managed device) if
-# `github.sha` no longer equals it.
+# That leaves the question this action answers: a run executing trusted
+# default-branch content still has to verify *something*, and what it verifies is
+# passed as inputs. `target_ref` is the pull-request head branch the command was
+# issued against; `expected_sha` is the exact commit it resolved to.
 #
-# `expected_sha` is empty for every event that is not a bridge dispatch
-# (`pull_request`, `push`), so the assertion is a no-op there and the cheap PR
-# cadence is unaffected.
+# So the check has two shapes:
+#
+#   * `target_ref` set (a bridge dispatch). The run's own commit is the default
+#     branch and is NOT the target, so comparing `github.sha` to `expected_sha`
+#     would be meaningless. Instead the ref is resolved through the API and
+#     required still to point at `expected_sha`. A branch that moved between the
+#     command and the run therefore fails here, before any target-controlled
+#     work — before Gradle, before npm, before the managed device.
+#
+#   * `target_ref` empty (an ordinary manual dispatch). There is no separate
+#     anchor, so the run's own commit is the target and is compared directly.
+#
+# `expected_sha` empty means "not a dispatch at all" (`pull_request`, `push`),
+# and the assertion is a no-op there so the cheap PR cadence is unaffected.
+#
+# Trust note: this action is resolved from the workspace on disk, which is why
+# every calling job checks out the dispatch anchor *before* referencing it and
+# checks the validated target out only afterwards. The logic that decides
+# whether to run is trusted; the code it then verifies is not, and runs under the
+# calling workflow's own read-only permissions.
 name: Assert dispatch target
 description: >-
-  Hard-fails if a dispatched run no longer resolves to the expected commit SHA.
-  Requires the repository to be checked out by the calling job first.
+  Hard-fails unless the requested dispatch target still resolves to the expected
+  commit SHA. Requires the repository to be checked out by the calling job first.
 
 inputs:
   expected-sha:
     description: >-
-      The commit SHA the dispatched ref was expected to resolve to. Empty for
-      non-dispatch events, which skips the assertion.
+      The commit SHA the dispatch was issued against. Empty for non-dispatch
+      events, which skips the assertion.
     required: false
     default: ''
+  target-ref:
+    description: >-
+      The branch the bridge resolved the head from, for a bridge dispatch. Empty
+      for an ordinary manual dispatch, where the run's own commit is the target.
+    required: false
+    default: ''
+  token:
+    description: >-
+      Token used to resolve the target ref. Read-only contents access is enough.
+    required: false
+    default: ${{ github.token }}
 
 runs:
   using: composite
   steps:
-    - name: Assert the dispatched ref still resolves to the expected SHA
+    - name: Prove the dispatch target still resolves to the expected SHA
       shell: bash
       env:
         EXPECTED_SHA: ${{ inputs.expected-sha }}
+        TARGET_REF: ${{ inputs.target-ref }}
         ACTUAL_SHA: ${{ github.sha }}
         EVENT_NAME: ${{ github.event_name }}
+        REPOSITORY: ${{ github.repository }}
+        GH_TOKEN: ${{ inputs.token }}
       run: |
         set -euo pipefail
 
         if [ -z "$EXPECTED_SHA" ]; then
-          # Not a bridge dispatch: nothing to assert.
+          # Not a dispatch: nothing to assert.
           echo "No expected SHA supplied (${EVENT_NAME}); skipping the dispatch-target assertion."
           exit 0
         fi
 
-        if [ "$ACTUAL_SHA" = "$EXPECTED_SHA" ]; then
-          echo "Dispatch target confirmed: ${ACTUAL_SHA}."
-          exit 0
+        if [ -z "$TARGET_REF" ]; then
+          # An ordinary manual dispatch: this run's own commit is the target.
+          if [ "$ACTUAL_SHA" = "$EXPECTED_SHA" ]; then
+            echo "Dispatch target confirmed: ${ACTUAL_SHA}."
+            exit 0
+          fi
+          {
+            echo "::error title=Dispatch target moved::This run was dispatched for commit ${EXPECTED_SHA}, but the ref now resolves to ${ACTUAL_SHA}. The branch moved after the command was issued, so verifying it would verify different code than requested. Re-issue the command to dispatch the current head."
+          } >&2
+          exit 1
         fi
 
-        {
-          echo "::error title=Dispatch target moved::This run was dispatched for commit ${EXPECTED_SHA}, but the ref now resolves to ${ACTUAL_SHA}. The branch moved after the command was issued, so verifying it would verify different code than requested. Re-issue the command label to dispatch the current head."
-        } >&2
-        exit 1
+        # A bridge dispatch: this run executes trusted default-branch content, so
+        # its own commit is the anchor rather than the target. Resolve the
+        # requested ref and require it still to point at the expected commit.
+        resolved="$(gh api "repos/${REPOSITORY}/commits/${TARGET_REF}" --jq '.sha' 2>/dev/null || true)"
+        if [ -z "$resolved" ]; then
+          {
+            echo "::error title=Dispatch target unresolvable::Could not resolve ${TARGET_REF} in ${REPOSITORY} to a commit. The requested target cannot be verified, so nothing was run."
+          } >&2
+          exit 1
+        fi
+
+        if [ "$resolved" != "$EXPECTED_SHA" ]; then
+          {
+            echo "::error title=Dispatch target moved::This run was dispatched for commit ${EXPECTED_SHA}, but ${TARGET_REF} now resolves to ${resolved}. The branch moved after the command was issued, so verifying it would verify different code than requested. Re-issue the command label to dispatch the current head."
+          } >&2
+          exit 1
+        fi
+
+        echo "Dispatch target confirmed: ${TARGET_REF} still resolves to ${EXPECTED_SHA}."

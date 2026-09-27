@@ -13,9 +13,10 @@
 #     automatically;
 #   * destructive only after an explicit confirmation input equal to `PURGE`;
 #   * it cancels every other active workflow run, waits for those runs to
-#     settle, deletes every Actions cache in the repository, deletes every
-#     workflow run except the run executing now, and then verifies that no
-#     cache and no other run remains;
+#     settle, deletes every Actions cache in the repository, cancels and settles
+#     any run that appeared during the cache phase, deletes every workflow run
+#     except the run executing now, and then verifies that no cache and no other
+#     run remains;
 #   * `actions: write` is granted to this job alone. `verify`, `diagnose`,
 #     `codeql` and `agent-control` never receive deletion privileges, and no
 #     verification workflow contains automatic history deletion.
@@ -81,8 +82,10 @@ jobs:
             echo "1. cancel every other active workflow run;"
             echo "2. wait for those runs to settle;"
             echo "3. delete every Actions cache in the repository;"
-            echo "4. delete every workflow run except this one;"
-            echo "5. verify that no cache and no other run remains."
+            echo "4. cancel and settle any run that appeared during the cache phase,"
+            echo "   because GitHub refuses to delete a run that has not finished;"
+            echo "5. delete every workflow run except this one;"
+            echo "6. verify that no cache and no other run remains."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Report what the purge would touch
