@@ -264,12 +264,27 @@ export async function purgeActions({
   //    reported as a leftover by the end-state check.
   const finalDeadline = now() + settleTimeoutMs;
   const lateCancelled = [];
+  const timeoutError = () =>
+    new Error(
+      `Timed out after ${Math.round(settleTimeoutMs / 60000)} minute(s) waiting for a run ` +
+        'that appeared during the purge to settle.'
+    );
+
   for (;;) {
+    // Checked before the listing work as well as inside the settle wait, so a
+    // deadline that has already passed cannot cost another full poll interval.
+    if (now() >= finalDeadline) throw timeoutError();
+
     runs = await listRuns(gh, repo);
     const { active: lateActive } = partitionRuns(runs, runId);
     if (lateActive.length === 0) break;
 
     for (const run of lateActive) {
+      // A run already cancelled in an earlier pass is not cancelled again: the
+      // settle wait only returns once nothing is active, so reaching here means
+      // this is a run that appeared since, but the guard keeps that true if the
+      // loop's shape ever changes.
+      if (lateCancelled.includes(String(run.id))) continue;
       note(`Cancelling run ${run.id} (${run.status}) that appeared during the purge.`);
       await gh(['--method', 'POST', `repos/${repo}/actions/runs/${run.id}/cancel`]);
       lateCancelled.push(String(run.id));
@@ -286,10 +301,7 @@ export async function purgeActions({
         note,
       }))
     ) {
-      throw new Error(
-        `Timed out after ${Math.round(settleTimeoutMs / 60000)} minute(s) waiting for a run ` +
-          'that appeared during the purge to settle.'
-      );
+      throw timeoutError();
     }
   }
 

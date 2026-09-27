@@ -268,6 +268,40 @@ describe('a bridge dispatch', () => {
     assert.equal(result.output.trim(), `sha=${HEAD_SHA}`);
   });
 
+  // `TARGET_REF` reaches two API URLs, so its shape is validated before either
+  // is built. A branch name cannot contain the characters that would alter a
+  // path or a query string, and anything else is refused rather than encoded.
+  it('refuses a target ref that is not a valid branch name', () => {
+    const hostile = [
+      'feature?x=1',
+      'feature#frag',
+      'feature&state=all',
+      'feature space',
+      'feature\ttab',
+      'fea..ture',
+      '/leading',
+      'trailing/',
+      'feature$({IFS})',
+      'feature;rm',
+    ];
+    for (const targetRef of hostile) {
+      const sandbox = createSandbox();
+      const { stderr } = runAssertionExpectingFailure(sandbox, {
+        expectedSha: HEAD_SHA,
+        targetRef,
+      });
+      assert.match(stderr, /Invalid dispatch target ref/, targetRef);
+    }
+  });
+
+  it('accepts the branch-name characters that are legal', () => {
+    for (const targetRef of ['main', 'arena/01a0e487-appt', 'feature_x.y-1', 'release/1.2']) {
+      const sandbox = createSandbox();
+      const result = runAssertion(sandbox, { expectedSha: HEAD_SHA, targetRef });
+      assert.equal(result.output.trim(), `sha=${HEAD_SHA}`, targetRef);
+    }
+  });
+
   it('publishes the proven commit, so callers check that out rather than the input', () => {
     const sandbox = createSandbox();
     const result = runAssertion(sandbox, {

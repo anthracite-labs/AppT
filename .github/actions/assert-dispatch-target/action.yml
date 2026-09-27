@@ -112,6 +112,21 @@ runs:
 
         # A bridge dispatch: this run executes trusted default-branch content, so
         # its own commit is the anchor rather than the target.
+        #
+        # `TARGET_REF` reaches two API URLs below, so its shape is validated
+        # first. A branch name cannot contain the characters that would alter a
+        # path or a query string -- `?`, `#`, `&`, a space, a control character
+        # -- so anything outside this grammar is refused rather than encoded and
+        # hoped for. `/` stays allowed because it is legal in a branch name.
+        case "$TARGET_REF" in
+          *..* | /* | */ | *[!A-Za-z0-9._/-]*)
+            {
+              echo "::error title=Invalid dispatch target ref::'${TARGET_REF}' is not a valid branch name. A dispatch target ref must be a plain branch name, so nothing was run."
+            } >&2
+            exit 1
+            ;;
+        esac
+
         resolved="$(gh api "repos/${REPOSITORY}/commits/${TARGET_REF}" --jq '.sha' 2>/dev/null || true)"
         if [ -z "$resolved" ]; then
           {

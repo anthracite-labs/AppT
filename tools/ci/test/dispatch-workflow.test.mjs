@@ -474,10 +474,13 @@ describe('the earlier mutable-ref design cannot satisfy the contract', () => {
     for (const name of ['verify.yml', 'diagnose.yml']) {
       const workflow = readWorkflow(name);
 
-      const assertions = workflow.match(/uses: \.\/\.github\/actions\/assert-dispatch-target/g) ?? [];
+      // Both the `./` and the `$/` spellings of a repository-local action are
+      // accepted, so the count does not depend on which one the file uses.
+      const assertions =
+        workflow.match(/uses: [.$]\/\.github\/actions\/assert-dispatch-target/g) ?? [];
       assert.ok(assertions.length > 0, `${name} must use the assertion action`);
       assert.equal(
-        (workflow.match(/uses: \.\/\.github\/actions\/assert-dispatch-target/g) ?? []).length,
+        assertions.length,
         (workflow.match(/target-ref: \$\{\{ inputs\.target_ref \}\}/g) ?? []).length,
         `${name}: every dispatch-target assertion must receive the target ref`
       );
