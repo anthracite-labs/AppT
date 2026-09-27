@@ -215,7 +215,7 @@ internal class SpkiTrustManager : X509TrustManager {
             MessageDigest.getInstance("SHA-256").digest(certificate.publicKey.encoded).joinToString(
                 ""
             ) { byte ->
-                byte.toUInt().toString(HEX_RADIX).padStart(2, '0')
+                byte.toUByte().toString(HEX_RADIX).padStart(2, '0')
             }
     }
 }
