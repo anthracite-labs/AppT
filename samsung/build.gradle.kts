@@ -57,19 +57,19 @@ kotlin {
         extraWarnings.set(true)
         // TEMP DIAGNOSTIC (S04): bisect which warning category fails -Werror. REMOVE BEFORE FINISH.
         freeCompilerArgs.addAll(
-            "-Xsuppress-warning=UNUSED_PARAMETER",
-            "-Xsuppress-warning=UNUSED_VARIABLE",
-            "-Xsuppress-warning=UNUSED_EXPRESSION",
-            "-Xsuppress-warning=UNUSED_IMPORT",
-            "-Xsuppress-warning=NAME_SHADOWING",
-            "-Xsuppress-warning=DEPRECATION",
-            "-Xsuppress-warning=UNCHECKED_CAST",
-            "-Xsuppress-warning=USELESS_ELVIS",
-            "-Xsuppress-warning=CONSTANT_CONDITION",
-            "-Xsuppress-warning=UNNECESSARY_SAFE_CALL",
-            "-Xsuppress-warning=ASSIGNED_VALUE_IS_NEVER_READ",
-            "-Xsuppress-warning=UNNECESSARY_NOT_NULL_ASSERTION",
-            "-Xsuppress-warning=REDUNDANT_VISIBILITY",
+            "-Xwarning-level=UNUSED_PARAMETER:disabled",
+            "-Xwarning-level=UNUSED_VARIABLE:disabled",
+            "-Xwarning-level=UNUSED_EXPRESSION:disabled",
+            "-Xwarning-level=UNUSED_IMPORT:disabled",
+            "-Xwarning-level=NAME_SHADOWING:disabled",
+            "-Xwarning-level=DEPRECATION:disabled",
+            "-Xwarning-level=UNCHECKED_CAST:disabled",
+            "-Xwarning-level=USELESS_ELVIS:disabled",
+            "-Xwarning-level=CONSTANT_CONDITION:disabled",
+            "-Xwarning-level=UNNECESSARY_SAFE_CALL:disabled",
+            "-Xwarning-level=ASSIGNED_VALUE_IS_NEVER_READ:disabled",
+            "-Xwarning-level=UNNECESSARY_NOT_NULL_ASSERTION:disabled",
+            "-Xwarning-level=REDUNDANT_VISIBILITY:disabled",
         )
     }
 }
