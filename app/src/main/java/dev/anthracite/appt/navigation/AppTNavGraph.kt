@@ -239,7 +239,12 @@ private fun PairingDestination(
     LaunchedEffect(current?.snapshot?.state) {
         if (current?.snapshot?.state == SessionState.Ready) currentOnApproved()
     }
-    PairingScreen(state = state, onCancel = onCancel, onRetryApproval = viewModel::onRetryApproval)
+    PairingScreen(
+        state = state,
+        onCancel = onCancel,
+        onRetryApproval = viewModel::onRetryApproval,
+        onPairAgain = viewModel::onPairAgain,
+    )
 }
 
 /** Remote for the same television, on the session Pairing opened. */
@@ -261,7 +266,12 @@ private fun RemoteDestination(
         activeRemoteHost.retain(REMOTE)
         onDispose { activeRemoteHost.release(REMOTE) }
     }
-    RemoteScreen(state = state, onCommand = viewModel::onCommand, onRetry = viewModel::onRetry)
+    RemoteScreen(
+        state = state,
+        onCommand = viewModel::onCommand,
+        onRetry = viewModel::onRetry,
+        onConfirmRepair = viewModel::onConfirmRepair,
+    )
 }
 
 /** The owner key Pairing holds, so its interest is one owner rather than one composition. */

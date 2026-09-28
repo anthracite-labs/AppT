@@ -36,13 +36,22 @@ class SamsungTvsDiscoveryTest {
 
     private var minted = 0
 
-    private fun tvs(transport: FixtureTransport): SamsungTvs {
+    private fun tvs(
+        transport: FixtureTransport,
+        secrets: SamsungSecretStore = InMemorySamsungStore(),
+    ): SamsungTvs {
         val confirmed = ConfirmedTelevisions()
         return SamsungTvsImpl(
             newScan = {
-                DiscoveryScan(transport, confirmed, mintId = { "local-test-" + ++minted })
+                DiscoveryScan(
+                    transport,
+                    confirmed,
+                    secrets,
+                    mintId = { "local-test-" + ++minted },
+                )
             },
             confirmed = confirmed,
+            secrets = secrets,
         )
     }
 

@@ -33,7 +33,7 @@ data class PairingUiState(
                     SessionState.Connecting -> PairingPhase.Connecting
                     SessionState.AwaitingTvApproval -> PairingPhase.WaitingForApproval
                     SessionState.Ready -> PairingPhase.Succeeded
-                    else -> PairingPhase.Failed(state.failure())
+                    else -> PairingPhase.Failed(state.failure(session?.repairReason))
                 }
             return PairingUiState(
                 tvName = tvName,
@@ -42,9 +42,22 @@ data class PairingUiState(
             )
         }
 
-        private fun SessionState.failure(): TvFailure =
+        /**
+         * Splits `NeedsRepair` by its reason, because the presentation owes the user different
+         * actions (presentation.md): a denied or timed-out approval is retryable, saved material
+         * that cannot be read is a fresh pairing, and a television that no longer matches is the
+         * confirmed re-pair — which this focused surface offers, never a silent retry.
+         */
+        private fun SessionState.failure(repairReason: RepairReason?): TvFailure =
             when (this) {
-                SessionState.NeedsRepair -> TvFailure.NeedsRepair
+                SessionState.NeedsRepair ->
+                    when (repairReason) {
+                        null -> TvFailure.SecretsUnavailable
+                        RepairReason.ApprovalDenied -> TvFailure.NeedsRepair
+                        RepairReason.ApprovalTimedOut -> TvFailure.TimedOut
+                        RepairReason.TokenRejected, RepairReason.IdentityChanged ->
+                            TvFailure.IdentityChanged
+                    }
                 SessionState.Unreachable -> TvFailure.Unreachable
                 SessionState.Unsupported -> TvFailure.Unsupported
                 // Closed is not a pairing outcome the user can act on; the route has already left.

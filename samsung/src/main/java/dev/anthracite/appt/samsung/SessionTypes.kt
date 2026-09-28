@@ -58,6 +58,30 @@ enum class RepairReason {
 
     /** The approval prompt was not answered within the approval wait. */
     ApprovalTimedOut,
+
+    /**
+     * The television refused the saved token after it was legitimately sent to a matching
+     * security identity. `retryApproval` never fixes this; only the confirmed re-pair does.
+     */
+    TokenRejected,
+
+    /**
+     * The television's persistent security identity changed since this phone saved it. The saved
+     * token was withheld, so it never reached whatever answered. Only the confirmed re-pair
+     * replaces the saved identity (docs/architecture/connection.md#security-identity).
+     */
+    IdentityChanged,
+}
+
+/**
+ * The outcome of the idempotent forget primitive (docs/architecture/samsung-interface.md#forget).
+ */
+sealed interface ForgetResult {
+    /** No Samsung secret or private record remains for this id, or none ever did. */
+    data object Forgotten : ForgetResult
+
+    /** Deletion failed; the caller must retry before treating the television as forgotten. */
+    data object Failed : ForgetResult
 }
 
 /**

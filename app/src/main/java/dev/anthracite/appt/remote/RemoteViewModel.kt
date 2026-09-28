@@ -67,6 +67,18 @@ class RemoteViewModel(
         activeRemoteHost.enter(tvId)
     }
 
+    /**
+     * The confirmed re-pair, offered only from the explicit confirmation dialog. The session
+     * discards the saved pairing and contacts the television as new; the session ignores this call
+     * from any state that is not one of the saved-connection failures.
+     */
+    fun onConfirmRepair() {
+        viewModelScope.launch {
+            val held = activeRemoteHost.current.value?.takeIf { it.tvId == tvId } ?: return@launch
+            held.session.confirmRepair()
+        }
+    }
+
     private companion object {
         /** presentation.md: one `StateFlow<UiState>` per route, shared for five seconds. */
         const val SUBSCRIPTION_TIMEOUT = 5_000L

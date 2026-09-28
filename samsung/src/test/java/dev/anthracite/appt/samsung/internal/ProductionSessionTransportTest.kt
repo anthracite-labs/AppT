@@ -18,11 +18,22 @@ class ProductionSessionTransportTest {
         val tlsTv = television(tls = true)
         val plainTv = television(tls = false)
 
-        transport.connect(tlsTv)
-        transport.connect(plainTv)
+        transport.connect(tlsTv, saved = null)
+        transport.connect(plainTv, saved = null)
 
         assertEquals(listOf(tlsTv), tls.connected)
         assertEquals(listOf(plainTv), plaintext.connected)
+    }
+
+    @Test
+    fun theSavedPairingTravelsWithTheAttemptSoTheTlsAdapterCanEnforceThePin() = runBlocking {
+        val saved = PairingSecret(token = "the-saved-token", pin = "the-saved-pin")
+        val tls = RecordingTransport()
+
+        ProductionSessionTransport(tls, RecordingTransport())
+            .connect(television(tls = true), saved = saved)
+
+        assertEquals(listOf(saved), tls.savedPairings.single())
     }
 
     @Test
@@ -38,9 +49,10 @@ class ProductionSessionTransportTest {
             }
         val tls = RecordingTransport(connection)
         val returned =
-            ProductionSessionTransport(tls, RecordingTransport()).connect(television(tls = true))
+            ProductionSessionTransport(tls, RecordingTransport())
+                .connect(television(tls = true), saved = null)
 
-        assertSame(connection, returned)
+        assertEquals(ConnectionAttempt.Opened(connection), returned)
     }
 
     private fun television(tls: Boolean) =
@@ -49,10 +61,15 @@ class ProductionSessionTransportTest {
     private class RecordingTransport(private val connection: SessionConnection? = null) :
         SessionTransport {
         val connected = mutableListOf<ConfirmedTelevision>()
+        val savedPairings = mutableListOf<PairingSecret?>()
 
-        override suspend fun connect(television: ConfirmedTelevision): SessionConnection? {
+        override suspend fun connect(
+            television: ConfirmedTelevision,
+            saved: PairingSecret?,
+        ): ConnectionAttempt {
             connected += television
-            return connection
+            savedPairings += saved
+            return connection?.let(ConnectionAttempt::Opened) ?: ConnectionAttempt.Unreachable
         }
     }
 }

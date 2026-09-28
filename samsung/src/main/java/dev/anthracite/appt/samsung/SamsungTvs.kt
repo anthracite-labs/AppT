@@ -34,18 +34,46 @@ interface SamsungTvs {
     /**
      * Opens one live control session for [id] and returns it immediately with a `Connecting`
      * snapshot; the snapshot is never null and never absent.
-     * * Pass a `TvId` from `discover()`. The most recent confirmed control evidence for that
-     *   television is private to this module, so the caller never supplies an address, a port, a
-     *   MAC, or a protocol generation.
+     * * Pass a `TvId` from `discover()` or `rememberedIds()`. The most recent confirmed control
+     *   evidence for that television is private to this module, so the caller never supplies an
+     *   address, a port, a MAC, or a protocol generation.
      * * Pass the caller's scope. Cancelling that scope, or calling [RemoteSession.close], releases
-     *   the socket and stops the session. S03 keeps no durable pairing material, so closing is not
-     *   forgetting and nothing is deleted.
+     *   the socket and stops the session. Closing is not forgetting and nothing is deleted.
      * * An `Unsupported` television yields a session that reports `Unsupported` and sends no
      *   functional command. An unknown id yields `Unreachable`. Neither opens a socket.
+     * * A remembered television resumes: its saved security identity (the TLS pin, or the protocol
+     *   UUID on the plaintext channel) is checked first, and only a match presents the saved
+     *   token, so the session reaches `Ready` without another approval prompt. A changed identity
+     *   is `NeedsRepair` with `RepairReason.IdentityChanged`, and the saved token never reaches
+     *   that connection (docs/architecture/connection.md#security-identity).
+     * * Saved material that cannot be decrypted surfaces as `NeedsRepair` without a repair reason
+     *   (`TvFailure.SecretsUnavailable`): no fallback, no token, and the user can pair again.
      * * First contact sends no saved token: the television is asked to allow AppT, and the session
-     *   moves to [SessionState.AwaitingTvApproval] until the user approves.
+     *   moves to [SessionState.AwaitingTvApproval] until the user approves. Approval success
+     *   persists the token and the security identity atomically for the next open.
      * * While [SessionState.Ready], [RemoteSession.command] writes on this already open session. It
      *   does not open a second socket.
      */
     fun open(id: TvId, scope: CoroutineScope): RemoteSession
+
+    /**
+     * Removes this phone's saved Samsung relationship for [id]: the pairing secret and the
+     * samsung-private device record. Idempotent and safe to retry. It deletes nothing else — Room
+     * rows, favourites, and the user-facing management transaction are not this module's.
+     * * Returns [ForgetResult.Forgotten] when no Samsung material remains, including when there
+     *   was none.
+     * * Returns [ForgetResult.Failed] when deletion genuinely failed; the caller must retry before
+     *   treating the television as forgotten.
+     * * A session that is already open for this id is not closed by `forget` — releasing a session
+     *   remains the holder's job — but a late approval from it can no longer publish `Ready` or
+     *   persist pairing evidence (docs/architecture/connection.md#evidence-and-race-handling-harvest).
+     */
+    suspend fun forget(id: TvId): ForgetResult
+
+    /**
+     * The ids for which samsung-private records exist on this phone. `app` uses this at startup to
+     * retry `forget` for ids it still tracks as pending removal; it is not a UI list and not an
+     * account or cloud concept (docs/architecture/data.md).
+     */
+    fun rememberedIds(): Set<TvId>
 }

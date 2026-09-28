@@ -49,6 +49,7 @@ fun PairingScreen(
     onCancel: () -> Unit,
     onRetryApproval: () -> Unit,
     modifier: Modifier = Modifier,
+    onPairAgain: () -> Unit = {},
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = ColorTokens.surface) {
         Column(
@@ -69,14 +70,19 @@ fun PairingScreen(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 contentAlignment = Alignment.Center,
             ) {
-                PairingBody(state, onCancel, onRetryApproval)
+                PairingBody(state, onCancel, onRetryApproval, onPairAgain)
             }
         }
     }
 }
 
 @Composable
-private fun PairingBody(state: PairingUiState, onCancel: () -> Unit, onRetryApproval: () -> Unit) {
+private fun PairingBody(
+    state: PairingUiState,
+    onCancel: () -> Unit,
+    onRetryApproval: () -> Unit,
+    onPairAgain: () -> Unit,
+) {
     val television = state.tvName.ifBlank { stringResource(R.string.pairing_tv_unnamed) }
     Column(
         modifier = Modifier.fillMaxWidth().testTag(PairingTestTags.BODY),
@@ -88,7 +94,7 @@ private fun PairingBody(state: PairingUiState, onCancel: () -> Unit, onRetryAppr
             PairingPhase.WaitingForApproval ->
                 PairingWaiting(television = television, recallHintVisible = state.recallHintVisible)
             PairingPhase.Succeeded -> PairingSucceeded(television)
-            is PairingPhase.Failed -> PairingFailed(phase.failure, onRetryApproval)
+            is PairingPhase.Failed -> PairingFailed(phase.failure, onRetryApproval, onPairAgain)
         }
         // Cancel is always available: leaving a pairing attempt must never be a trap.
         OutlinedButton(
@@ -161,12 +167,18 @@ private fun PairingSucceeded(television: String) {
 }
 
 @Composable
-private fun PairingFailed(failure: TvFailure, onRetryApproval: () -> Unit) {
+private fun PairingFailed(
+    failure: TvFailure,
+    onRetryApproval: () -> Unit,
+    onPairAgain: () -> Unit,
+) {
     val message =
         when (failure) {
             TvFailure.NeedsRepair -> R.string.pairing_failed_needs_repair
             TvFailure.Unreachable -> R.string.pairing_failed_unreachable
             TvFailure.Unsupported -> R.string.pairing_failed_unsupported
+            TvFailure.SecretsUnavailable -> R.string.pairing_failed_secrets_unavailable
+            TvFailure.IdentityChanged -> R.string.pairing_failed_identity_changed
             else -> R.string.pairing_failed_unavailable
         }
     Column(
@@ -183,7 +195,7 @@ private fun PairingFailed(failure: TvFailure, onRetryApproval: () -> Unit) {
                     .testTag(PairingTestTags.FAILURE_MESSAGE),
         )
         // Only a denied or timed-out approval can be retried; the reason is already in the copy.
-        if (failure == TvFailure.NeedsRepair) {
+        if (failure == TvFailure.NeedsRepair || failure == TvFailure.TimedOut) {
             Button(
                 onClick = onRetryApproval,
                 modifier =
@@ -192,6 +204,19 @@ private fun PairingFailed(failure: TvFailure, onRetryApproval: () -> Unit) {
                         .testTag(PairingTestTags.RETRY),
             ) {
                 Text(text = stringResource(R.string.pairing_retry), style = TypeTokens.label)
+            }
+        }
+        // Saved material that cannot be read is never silently reset: pairing again is the user's
+        // explicit act, and it is the only repair this surface offers.
+        if (failure == TvFailure.SecretsUnavailable || failure == TvFailure.IdentityChanged) {
+            Button(
+                onClick = onPairAgain,
+                modifier =
+                    Modifier.fillMaxWidth()
+                        .defaultMinSize(minHeight = SizeTokens.primaryControl)
+                        .testTag(PairingTestTags.PAIR_AGAIN),
+            ) {
+                Text(text = stringResource(R.string.pairing_pair_again), style = TypeTokens.label)
             }
         }
     }

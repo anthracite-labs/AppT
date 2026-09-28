@@ -1,0 +1,9 @@
+{
+  "caseId": "unauthorized-with-token",
+  "captured": "2026-09-28",
+  "generation": "tizen-websocket-tls",
+  "sourceRole": "synthetic",
+  "source": "Authored for S04 (Issue #91) from the token-handling rules in docs/architecture/connection.md#approval-and-token: unauthorized after a saved token was sent is TokenRejected, stop, no loop. Not captured from a physical television.",
+  "redaction": "Contains no address, MAC, Wi-Fi name, certificate, serial, account or personal identifier. The saved token is never written into the fixture; the test injects the value it pre-staged.",
+  "notes": "Second connection on the adopted TLS remote channel. The saved security identity matched, so the saved token was presented, but the television answers with ms.channel.unauthorized. The session reports NeedsRepair with TokenRejected, ends the attempt, and starts no further connection: no reconnect and no re-prompt loop. Only the explicit confirmed re-pair may continue."
+}

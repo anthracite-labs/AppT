@@ -10,10 +10,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -49,6 +55,7 @@ fun RemoteScreen(
     onCommand: (TvCommand) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    onConfirmRepair: () -> Unit = {},
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = ColorTokens.surface) {
         Column(
@@ -69,7 +76,16 @@ fun RemoteScreen(
                     ConnectionUi.Connecting,
                     ConnectionUi.WaitingForApproval -> RemoteStatus(connection.statusText())
                     is ConnectionUi.NeedsRepair ->
-                        RemoteRecovery(connection.statusText(), onRetry = onRetry)
+                        if (connection.failure == TvFailure.IdentityChanged) {
+                            // presentation.md: a television that no longer matches the saved
+                            // connection is repaired only by an explicit, confirmed re-pair.
+                            RemoteRepair(
+                                statusText = connection.statusText(),
+                                onConfirmRepair = onConfirmRepair,
+                            )
+                        } else {
+                            RemoteRecovery(connection.statusText(), onRetry = onRetry)
+                        }
                     is ConnectionUi.Unavailable ->
                         RemoteRecovery(connection.statusText(), onRetry = onRetry)
                     ConnectionUi.Unsupported -> RemoteStatus(connection.statusText())
@@ -134,6 +150,80 @@ private fun RemoteRecovery(message: String, onRetry: () -> Unit) {
         ) {
             Text(text = stringResource(R.string.remote_retry), style = TypeTokens.label)
         }
+    }
+}
+
+/**
+ * The saved connection no longer matches this television. The message says so in place, and the
+ * only action is a re-pair that must survive an explicit confirmation: nothing here silently
+ * replaces a saved security relationship (presentation.md#remote).
+ */
+@Composable
+private fun RemoteRepair(
+    statusText: String,
+    onConfirmRepair: () -> Unit,
+) {
+    var confirming by rememberSaveable { mutableStateOf(false) }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(SpaceTokens.md),
+        modifier = Modifier.fillMaxWidth().testTag(RemoteTestTags.RECOVERY),
+    ) {
+        Text(
+            text = statusText,
+            style = TypeTokens.body,
+            color = ColorTokens.feedbackWarning,
+            modifier =
+                Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                    .testTag(RemoteTestTags.STATUS),
+        )
+        Button(
+            onClick = { confirming = true },
+            modifier =
+                Modifier.fillMaxWidth()
+                    .defaultMinSize(minHeight = SizeTokens.primaryControl)
+                    .testTag(RemoteTestTags.REPAIR),
+        ) {
+            Text(text = stringResource(R.string.remote_repair), style = TypeTokens.label)
+        }
+    }
+    if (confirming) {
+        AlertDialog(
+            onDismissRequest = { confirming = false },
+            title = {
+                Text(
+                    text = stringResource(R.string.remote_repair_confirm_title),
+                    style = TypeTokens.title,
+                    color = ColorTokens.contentPrimary,
+                )
+            },
+            text = {
+                Text(
+                    text = stringResource(R.string.remote_repair_confirm_body),
+                    style = TypeTokens.body,
+                    color = ColorTokens.contentSecondary,
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        confirming = false
+                        onConfirmRepair()
+                    },
+                    modifier = Modifier.testTag(RemoteTestTags.REPAIR_CONFIRM),
+                ) {
+                    Text(text = stringResource(R.string.remote_repair_confirm), style = TypeTokens.label)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { confirming = false },
+                    modifier = Modifier.testTag(RemoteTestTags.REPAIR_CANCEL),
+                ) {
+                    Text(text = stringResource(R.string.remote_repair_cancel), style = TypeTokens.label)
+                }
+            },
+        )
     }
 }
 
@@ -242,6 +332,8 @@ private fun TvFailure.message(): Int =
         TvFailure.Unreachable -> R.string.remote_unreachable
         TvFailure.Unsupported -> R.string.remote_unsupported
         TvFailure.TimedOut -> R.string.remote_needs_repair
+        TvFailure.SecretsUnavailable -> R.string.remote_needs_repair
+        TvFailure.IdentityChanged -> R.string.remote_identity_changed
         else -> R.string.remote_unavailable
     }
 

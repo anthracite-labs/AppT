@@ -53,6 +53,18 @@ class PairingViewModel(
         }
     }
 
+    /**
+     * The confirmed re-pair, from the saved-connection failures only. The session discards its
+     * saved pairing and contacts the television as new; the screen owes the explicit confirmation
+     * (presentation.md), so this is reachable only from the "Pair again" control.
+     */
+    fun onPairAgain() {
+        viewModelScope.launch {
+            val held = activeRemoteHost.current.value?.takeIf { it.tvId == tvId } ?: return@launch
+            held.session.confirmRepair()
+        }
+    }
+
     private companion object {
         /** presentation.md: one `StateFlow<UiState>` per route, shared for five seconds. */
         const val SUBSCRIPTION_TIMEOUT = 5_000L

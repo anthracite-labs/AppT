@@ -2,6 +2,7 @@ package dev.anthracite.appt.testing
 
 import dev.anthracite.appt.samsung.CommandResult
 import dev.anthracite.appt.samsung.ControlAvailability
+import dev.anthracite.appt.samsung.ForgetResult
 import dev.anthracite.appt.samsung.DiscoveredTv
 import dev.anthracite.appt.samsung.DiscoveryEvent
 import dev.anthracite.appt.samsung.RemoteKey
@@ -58,6 +59,10 @@ class FakeSamsungTvs : SamsungTvs {
         var retryApprovals = 0
             private set
 
+        /** How many times the confirmed re-pair was requested on this session. */
+        var confirmRepairs = 0
+            private set
+
         var closed = false
             private set
 
@@ -90,6 +95,10 @@ class FakeSamsungTvs : SamsungTvs {
             retryApprovals++
         }
 
+        override suspend fun confirmRepair() {
+            confirmRepairs++
+        }
+
         override fun close() {
             closed = true
         }
@@ -98,6 +107,15 @@ class FakeSamsungTvs : SamsungTvs {
     val scans = mutableListOf<Scan>()
 
     private val sessions = mutableListOf<Session>()
+
+    /** The ids the seam reports as remembered; tests prime it as the durable store would. */
+    private val remembered = mutableSetOf<TvId>()
+
+    /** The result the next [forget] returns; resets to [ForgetResult.Forgotten] after each call. */
+    var nextForgetResult: ForgetResult = ForgetResult.Forgotten
+
+    /** Every television [forget] was asked for, in order, including repeats. */
+    val forgottenIds = mutableListOf<TvId>()
 
     /** Every television [open] was asked for, in order. */
     val openedIds = mutableListOf<TvId>()
@@ -137,6 +155,24 @@ class FakeSamsungTvs : SamsungTvs {
         val session = Session()
         sessions += session
         return session
+    }
+
+    override suspend fun forget(id: TvId): ForgetResult {
+        forgottenIds += id
+        val result = nextForgetResult
+        if (result == ForgetResult.Forgotten) {
+            // Idempotent success clears the relationship; a failure leaves it in place.
+            remembered.remove(id)
+        }
+        nextForgetResult = ForgetResult.Forgotten
+        return result
+    }
+
+    override fun rememberedIds(): Set<TvId> = remembered.toSet()
+
+    /** Primes the remembered set, as the durable store would report it after a pairing. */
+    fun remember(vararg ids: TvId) {
+        remembered += ids
     }
 
     companion object {

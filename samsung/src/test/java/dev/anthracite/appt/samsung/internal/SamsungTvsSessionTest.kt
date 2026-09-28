@@ -38,6 +38,8 @@ import org.junit.Test
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SamsungTvsSessionTest {
+    private val secrets = InMemorySamsungStore()
+
     private val television =
         ConfirmedTelevision(
             TvId("3f2d1c0b-8a7e-4b5c-9d6e-1f2a3b4c5d6e"),
@@ -68,7 +70,8 @@ class SamsungTvsSessionTest {
         approvalWait: Duration = 45.seconds,
     ): Pair<LiveSession, ScriptedSessionTransport> {
         val transport = ScriptedSessionTransport(fixture, refusesConnection = refusesConnection)
-        return LiveSession(television, transport, this, approvalWait) to transport
+        return LiveSession(television, transport, this, secrets, approvalWait = approvalWait) to
+            transport
     }
 
     private fun productionSources(): List<File> {
@@ -81,12 +84,13 @@ class SamsungTvsSessionTest {
     /** A `SamsungTvs` whose scan reads [caseId] and whose sessions use [newSession]. */
     private fun samsungTvs(
         caseId: String,
-        newSession: (ConfirmedTelevision, CoroutineScope) -> RemoteSession,
+        newSession: (ConfirmedTelevision, CoroutineScope, SessionGeneration) -> RemoteSession,
     ): SamsungTvs {
         val confirmed = ConfirmedTelevisions()
         return SamsungTvsImpl(
-            newScan = { DiscoveryScan(FixtureTransport(Fixture.load(caseId)), confirmed) },
+            newScan = { DiscoveryScan(FixtureTransport(Fixture.load(caseId)), confirmed, secrets) },
             confirmed = confirmed,
+            secrets = secrets,
             newSession = newSession,
         )
     }
@@ -236,7 +240,7 @@ class SamsungTvsSessionTest {
         // each attempt replays its own script from the moment its socket opens.
         val transport =
             ScriptedSessionTransport(script(prompt()), script(prompt(), approved(10_000)))
-        val session = LiveSession(television, transport, this)
+        val session = LiveSession(television, transport, this, secrets)
         advanceTimeBy(46_000)
         advanceUntilIdle()
         assertEquals(SessionState.NeedsRepair, session.snapshot.value.state)
@@ -284,7 +288,7 @@ class SamsungTvsSessionTest {
         val cleanupBarrier = CompletableDeferred<Unit>()
         val transport =
             ScriptedSessionTransport(script(prompt()), cancellationBarrier = cleanupBarrier)
-        val session = LiveSession(television, transport, this, approvalWait = 1.seconds)
+        val session = LiveSession(television, transport, this, secrets, approvalWait = 1.seconds)
 
         runCurrent()
         assertEquals(SessionState.AwaitingTvApproval, session.snapshot.value.state)
@@ -444,10 +448,15 @@ class SamsungTvsSessionTest {
         // The caller-visible snapshot carries no credential of any kind.
         assertFalse(session.snapshot.value.toString().lowercase().contains("token"))
 
-        // S03 has no durable store to write one to.
-        val stores =
-            Regex("""\b(RoomDatabase|DataStore|SharedPreferences|FileOutputStream|Keystore)\b""")
-        val offenders = productionSources().flatMap { linesMatching(it, stores) }
+        // First contact never persists anything: no approval, no secret write, no device record.
+        assertTrue(secrets.savedSecrets.isEmpty())
+        assertTrue(secrets.savedDevices.isEmpty())
+
+        // The only path that ever persists a token or a pin is the typed secret store; no
+        // production source may smuggle one through Room, DataStore or shared preferences.
+        val forbiddenStores =
+            Regex("""\b(RoomDatabase|DataStore|SharedPreferences)\b""")
+        val offenders = productionSources().flatMap { linesMatching(it, forbiddenStores) }
         assertEquals(emptyList<String>(), offenders)
 
         session.close()
@@ -463,7 +472,7 @@ class SamsungTvsSessionTest {
         val tvs =
             samsungTvs("ssdp-tizen-tv") { tv, scope ->
                 opened += tv
-                LiveSession(tv, transport, scope)
+                LiveSession(tv, transport, scope, secrets)
             }
         val events = mutableListOf<DiscoveryEvent>()
         launch { tvs.discover().toList(events) }
@@ -490,7 +499,8 @@ class SamsungTvsSessionTest {
 
     @Test
     fun openOnAnUnknownIdIsUnreachableAndOpensNoSocket() = runTest {
-        val tvs = SamsungTvsImpl(newScan = { error("an unknown id must not start a scan") })
+        val tvs =
+            SamsungTvsImpl(newScan = { error("an unknown id must not start a scan") }, secrets = secrets)
         val session = tvs.open(TvId("never-discovered"), this)
         advanceUntilIdle()
 
@@ -506,7 +516,7 @@ class SamsungTvsSessionTest {
         val tvs =
             samsungTvs("unsupported-no-keys") { tv, scope ->
                 opened += tv
-                LiveSession(tv, ScriptedSessionTransport(script(prompt())), scope)
+                LiveSession(tv, ScriptedSessionTransport(script(prompt())), scope, secrets)
             }
         val events = mutableListOf<DiscoveryEvent>()
         launch { tvs.discover().toList(events) }

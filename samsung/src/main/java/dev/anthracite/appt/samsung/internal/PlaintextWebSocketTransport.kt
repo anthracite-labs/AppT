@@ -45,8 +45,19 @@ internal class PlaintextWebSocketTransport(
     private val writeTimeout: Duration = COMMAND_WRITE_TIMEOUT,
 ) : SessionTransport {
 
-    override suspend fun connect(television: ConfirmedTelevision): SessionConnection? =
-        open(television.host, television.remotePort)
+    /**
+     * Opens the plaintext channel. The saved pairing never changes what is written here
+     * (protocol.md#endpoints): the plaintext remote-channel URL carries the encoded client name and
+     * never a token, so a saved token is structurally absent from this channel — including for a
+     * television that previously completed TLS pairing (connection.md#security-identity). The
+     * saved protocol-UUID identity is compared by the session machine before this is called.
+     */
+    override suspend fun connect(
+        television: ConfirmedTelevision,
+        saved: PairingSecret?,
+    ): ConnectionAttempt =
+        open(television.host, television.remotePort)?.let(ConnectionAttempt::Opened)
+            ?: ConnectionAttempt.Unreachable
 
     /**
      * Opens the plaintext channel at [host]:[port]. Production always uses port 8001; tests may

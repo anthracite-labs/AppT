@@ -1,6 +1,7 @@
 package dev.anthracite.appt.pairing
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -26,6 +27,7 @@ class PairingScreenTest {
 
     private var cancels = 0
     private var retries = 0
+    private var pairAgains = 0
 
     private fun setPairing(state: PairingUiState) {
         composeRule.setContent {
@@ -34,6 +36,7 @@ class PairingScreenTest {
                     state = state,
                     onCancel = { cancels++ },
                     onRetryApproval = { retries++ },
+                    onPairAgain = { pairAgains++ },
                 )
             }
         }
@@ -122,6 +125,34 @@ class PairingScreenTest {
         composeRule
             .onNodeWithTag(PairingTestTags.FAILURE_MESSAGE)
             .assertTextEquals("AppT can't control this television yet.")
+    }
+
+    @Test
+    fun unreadableSavedMaterialOffersPairAgainAndNeverARetry() {
+        setPairing(
+            PairingUiState("Living Room TV", PairingPhase.Failed(TvFailure.SecretsUnavailable), false)
+        )
+        composeRule
+            .onNodeWithTag(PairingTestTags.FAILURE_MESSAGE)
+            .assertTextEquals(
+                "AppT can't read the saved connection for this television. Pair again to continue."
+            )
+        composeRule.onNodeWithTag(PairingTestTags.PAIR_AGAIN).performClick()
+        assertEquals(1, pairAgains)
+        composeRule.onNodeWithTag(PairingTestTags.RETRY).assertDoesNotExist()
+    }
+
+    @Test
+    fun aTelevisionThatNoLongerMatchesIsNotRetried() {
+        setPairing(
+            PairingUiState("Living Room TV", PairingPhase.Failed(TvFailure.IdentityChanged), false)
+        )
+        composeRule
+            .onNodeWithTag(PairingTestTags.FAILURE_MESSAGE)
+            .assertTextEquals(
+                "This television no longer matches your saved connection. Pair again to continue."
+            )
+        composeRule.onNodeWithText("Try again").assertDoesNotExist()
     }
 
     @Test

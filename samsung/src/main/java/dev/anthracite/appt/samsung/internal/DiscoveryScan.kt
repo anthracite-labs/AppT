@@ -28,6 +28,10 @@ import kotlinx.coroutines.withTimeoutOrNull
  * evidence `open` needs later. Nothing in that record is caller-visible, and the raw device-info
  * document is discarded as soon as the card is emitted.
  *
+ * The durable [SamsungSecretStore] is read-only here: a saved pairing makes the card `remembered`
+ * and moves its availability to `ReadyToOpen` (samsung-interface.md#discover), and this is the only
+ * place discovery consults it. The scan never writes secrets and never writes device records.
+ *
  * The scan deliberately runs on its caller's dispatcher and never switches dispatchers itself: the
  * transport moves blocking socket work off-thread. That keeps the bound on the caller's clock,
  * which is what lets tests run the full 10 seconds in virtual time.
@@ -35,6 +39,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 internal class DiscoveryScan(
     private val transport: DiscoveryTransport,
     private val confirmed: ConfirmedTelevisions,
+    private val secrets: SamsungSecretStore,
     private val mintId: () -> String = TvIdentity::mint,
     private val bound: Duration = SCAN_BOUND,
 ) {
@@ -93,24 +98,37 @@ internal class DiscoveryScan(
         val id = TvId(info.uuid ?: mintId())
         if (!claims.claimTv(id)) return
         // Private control evidence for `open`: the address the television answered on, and which
-        // adopted channel its own flags select. Never caller-visible, never durable in S03.
+        // adopted channel its own flags select. Never caller-visible; the durable part is owned by
+        // the pairing write, not by discovery.
         confirmed.record(
             ConfirmedTelevision(
                 id = id,
                 host = host,
                 tls = info.tokenAuthSupport,
                 adoptedChannel = info.availability != ControlAvailability.Unsupported,
+                uuid = info.uuid,
+                displayName = info.name.takeIf { it.isNotBlank() },
             )
         )
+        // samsung-interface.md#discover: `remembered` means a secret or saved identity exists for
+        // this id, and `ReadyToOpen` means `open` should resume a saved pairing. Both read the
+        // durable store; neither is inferred from a year, a model, or a name.
+        val savedSecret = secrets.loadSecret(id)
+        val remembered = secrets.loadDevice(id) != null || savedSecret != StoredSecret.Absent
+        val availability =
+            when {
+                info.availability == ControlAvailability.Unsupported -> ControlAvailability.Unsupported
+                savedSecret is StoredSecret.Available -> ControlAvailability.ReadyToOpen
+                else -> ControlAvailability.NeedsPairing
+            }
         emit(
             DiscoveryEvent.Found(
                 DiscoveredTv(
                     id = id,
                     name = info.name,
-                    // No samsung-private record exists before S04's store.
-                    remembered = false,
+                    remembered = remembered,
                     stableIdentity = info.uuid != null,
-                    availability = info.availability,
+                    availability = availability,
                 )
             )
         )
