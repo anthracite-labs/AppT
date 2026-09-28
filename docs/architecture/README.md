@@ -19,7 +19,7 @@ Load the file for the branch in front of you. Do not load the whole directory by
 | Typed commands, capability evidence, phone input | [commands.md](commands.md) |
 | Wire and generation knowledge inside `samsung` | [protocol.md](protocol.md) |
 | Room, DataStore, Keystore, migration, corruption recovery | [data.md](data.md) |
-| Customer account, seven-day trial, lifetime entitlement, backend topology | [sync.md](sync.md) |
+| Customer account, seven-day trial, lifetime entitlement, backend topology | [account-entitlement.md](account-entitlement.md) |
 | Routes, screen state, restoration, responsive rules, tokens, accessibility | [presentation.md](presentation.md) |
 | Android lifecycle, network transitions, background limits | [lifecycle.md](lifecycle.md) |
 | Reliability and performance targets with verification | [reliability.md](reliability.md) |
@@ -33,7 +33,7 @@ Load the file for the branch in front of you. Do not load the whole directory by
 
 `protocol.md` is for `samsung` implementers. `app` code uses only the types in `samsung-interface.md`. `ui-ux.md` owns product-surface decisions; `presentation.md` owns how they are built.
 
-`sync.md` keeps its historical file name for link stability. It owns account and licensing only; it does not describe any television-data synchronization, because none exists.
+`account-entitlement.md` keeps its historical file name for link stability. It owns account and licensing only; it does not describe any television-data synchronization, because none exists.
 
 ## Diagrams
 
@@ -43,8 +43,8 @@ Load the file for the branch in front of you. Do not load the whole directory by
 | First-run permission → discovery → pairing → first control | [flows.md](flows.md) |
 | Reconnect and control lifecycle | [connection.md](connection.md) |
 | Local storage classes and secret lifecycle | [data.md](data.md) |
-| Account, trial, and entitlement lifecycle | [sync.md](sync.md) |
-| Backend topology | [sync.md](sync.md) |
+| Account, trial, and entitlement lifecycle | [account-entitlement.md](account-entitlement.md) |
+| Backend topology | [account-entitlement.md](account-entitlement.md) |
 | Route graph and launch routing | [presentation.md](presentation.md) |
 | Active Remote lifecycle | [lifecycle.md](lifecycle.md) |
 | Trust boundaries | [security.md](security.md) |
@@ -56,7 +56,7 @@ The binding text is the numbered list in `docs/ARCHITECTURE.md`. This table is o
 
 | Invariant | Where the map keeps it |
 |---|---|
-| 1. Local control independent of cloud | `samsung` has no Firebase, Play, or licensing dependency. The command path never touches the backend. The gate reads cached proofs only. See [modules.md](modules.md), [sync.md](sync.md), [lifecycle.md](lifecycle.md). |
+| 1. Local control independent of cloud | `samsung` has no Firebase, Play, or licensing dependency. The command path never touches the backend. The gate reads cached proofs only. See [modules.md](modules.md), [account-entitlement.md](account-entitlement.md), [lifecycle.md](lifecycle.md). |
 | 2. Samsung protocol complexity inside `samsung` | One external seam, `SamsungTvs`. Wire names stay in [protocol.md](protocol.md). |
 | 3. Pairing secrets device-local and Keystore-backed | [data.md](data.md). Secrets are a distinct type in a distinct directory, never in Room, DataStore, or the entitlement cache. |
 | 4. Capability-driven UI | Evidence rules in [commands.md](commands.md). Unsupported cards and rejected keys expose no controls. |
@@ -64,7 +64,7 @@ The binding text is the numbered list in `docs/ARCHITECTURE.md`. This table is o
 | 6. No unnecessary listening server | Client probes and outbound sockets only. See [discovery.md](discovery.md) and [protocol.md](protocol.md). |
 | 7. Android optimized for Android | Native Kotlin/Compose/ViewModel stack. iOS is out of scope. |
 | 8. No universal TV abstraction | The type is `SamsungTvs`, not a cross-brand adapter. Ecosystem #2 is the trigger for a new seam. |
-| 9. TV and remote personalization are device-local; cloud account data is licensing-only | [data.md](data.md) stores no account ownership; [sync.md](sync.md) stores no television, personalization, or behavioral field and lists the forbidden names. |
+| 9. TV and remote personalization are device-local; cloud account data is licensing-only | [data.md](data.md) stores no account ownership; [account-entitlement.md](account-entitlement.md) stores no television, personalization, or behavioral field and lists the forbidden names. |
 | 10. No behavioral analytics and no cloud reporting | [diagnostics.md](diagnostics.md): no telemetry dependency at all, bounded redacted local record, explicit user-confirmed export, no upload path. |
 
 ## Settled decision ownership
@@ -82,8 +82,8 @@ Every settled decision projected into `.project-ai/PROJECT_STATE.md` has an owni
 | Device-local personalization, favourites, preferences, last-used television | [data.md](data.md), [presentation.md](presentation.md) |
 | Remote-first behavior, failure UX, thumb-first reach, customization rules | [ui-ux.md](ui-ux.md), [presentation.md](presentation.md) |
 | Screen/state contracts, routes, restoration, responsive behavior, accessibility contracts | [presentation.md](presentation.md) |
-| Account purpose, sign-in paths, Username, trial, purchase, restore, refund, provisional entitlement, paid offline, sign-out, deletion | [sync.md](sync.md) |
-| Remote-entry licensing gate and first-session exemption | [sync.md](sync.md), [lifecycle.md](lifecycle.md), [presentation.md](presentation.md) |
+| Account purpose, sign-in paths, Username, trial, purchase, restore, refund, provisional entitlement, paid offline, sign-out, deletion | [account-entitlement.md](account-entitlement.md) |
+| Remote-entry licensing gate and first-session exemption | [account-entitlement.md](account-entitlement.md), [lifecycle.md](lifecycle.md), [presentation.md](presentation.md) |
 | Environment separation, deployment, rollback, release checks | [release.md](release.md) |
 | Threat model, guarantees versus best-effort, needs-validation register | [security.md](security.md) |
 | Local-only redacted diagnostics and user-confirmed export | [diagnostics.md](diagnostics.md) |
@@ -113,7 +113,7 @@ No REJECT row is reintroduced. Diagnostic share is not file-sync, and V1 adopts 
 
 ## Settled privacy, account, and licensing semantics
 
-The owning product decisions are in `docs/PRODUCT.md`, with canonical language in `CONTEXT.md`. [sync.md](sync.md) records the technical architecture.
+The owning product decisions are in `docs/PRODUCT.md`, with canonical language in `CONTEXT.md`. [account-entitlement.md](account-entitlement.md) records the technical architecture.
 
 - the Customer Account exists only for authentication, Username, seven-day trial state, anti-abuse eligibility, and lifetime license entitlement;
 - television identity, local pairing, TV names, favourites, remote arrangement, preferences, last-used television, diagnostics, and usage history are not account or backend data;
@@ -133,7 +133,7 @@ Only provider facts that still require live/provider evidence remain here. Docum
 
 | Fact | Where it matters |
 |---|---|
-| Exact `ProductPurchaseV2` representation of promo or rewarded one-time-product acquisitions, **if** either acquisition mode is deliberately enabled for AppT | [sync.md](sync.md), [security.md](security.md), [release.md](release.md) |
+| Exact `ProductPurchaseV2` representation of promo or rewarded one-time-product acquisitions, **if** either acquisition mode is deliberately enabled for AppT | [account-entitlement.md](account-entitlement.md), [security.md](security.md), [release.md](release.md) |
 | First production Play app-signing key upgrade continuity drill: the new Play signing certificate is registered with App Check before rollout and the Play-delivered build continues to satisfy App Check and Play Integrity after the upgrade | [release.md](release.md), [security.md](security.md) |
 
 ## Open items that are not architecture
