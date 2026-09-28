@@ -1,5 +1,6 @@
 package dev.anthracite.appt.pairing
 
+import dev.anthracite.appt.samsung.RepairReason
 import dev.anthracite.appt.samsung.SessionSnapshot
 import dev.anthracite.appt.samsung.SessionState
 import dev.anthracite.appt.samsung.TvFailure
