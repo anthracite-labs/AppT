@@ -1,6 +1,5 @@
 package dev.anthracite.appt.samsung
 
-import android.security.keystore.AndroidKeyStoreSecretKey
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -76,14 +75,12 @@ class SamsungKeystoreContractTest {
                 // The documented fallback: StrongBox where the device has it, plain TEE otherwise.
                 generateKey(strongBox = false)
             }
+            // SecretKey exposes no provider and the AndroidKeyStore key marker classes are not
+            // public SDK API. AndroidKeyStore backing is established by construction here — the
+            // key was loaded from the "AndroidKeyStore" KeyStore instance — and non-exportability
+            // is proven separately by theKeyIsNotExportable().
             val stored = key()
             assertEquals("AES", stored.algorithm)
-            // SecretKey exposes no provider; the platform's marker type is the documented way to
-            // assert that the key is AndroidKeyStore-backed rather than a software key.
-            assertTrue(
-                "the key must be AndroidKeyStore-backed",
-                stored is AndroidKeyStoreSecretKey,
-            )
 
             val plaintext = context.packageName.toByteArray() + "round-trip".toByteArray()
             val encrypt = Cipher.getInstance("AES/GCM/NoPadding")
