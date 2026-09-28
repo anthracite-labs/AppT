@@ -84,7 +84,11 @@ class SamsungKeystoreContractTest {
             encrypt.init(Cipher.ENCRYPT_MODE, stored)
             val sealed = encrypt.doFinal(plaintext)
             val iv = encrypt.iv
-            assertEquals("GCM gives a 12-byte IV here, as the envelope format requires", 12, iv.size)
+            assertEquals(
+                "GCM gives a 12-byte IV here, as the envelope format requires",
+                12,
+                iv.size,
+            )
             assertFalse(
                 "sealed output is not the plaintext",
                 String(sealed).contains(String(plaintext)),
