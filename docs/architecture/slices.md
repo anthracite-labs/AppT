@@ -354,7 +354,6 @@ Cross-cutting invariants are not a single slice's work; each is introduced where
 
 Seventeen slices. Control spine: S01 → S02 → S03 → S04 → S05 → S06. Foundations: S07 (environments, signing, backend deployment, Play) from S01, available in parallel but activated only when authorized. Product/account spine: S08 (account, trial, gate) after S06 and S07 → S09 (remembered televisions, remote-first launch, switching, Forget) → S10 (purchase, restore, revocation, purchase-binding deletion durability). Feature branches: S11 (apps, text, favourites) and S12 (wake) after S10. Diagnostics recording begins in S05 and the complete customer-facing diagnostics transaction lands in S13. Closure: S14 accessibility/responsive after S10–S13; S15 reliability/performance/lifecycle-E2E after S11 and S13; S16 upgrade/release hardening after S14 and S15; S17 final physical/external gates after S10 and S12.
 
-
 ### What this route answers
 
 - **Settings ownership.** S05 owns the Settings route/shell, Interaction/About sections, and the early local diagnostic recorder. Account & License becomes functional in S08 and deepens in S10 with purchase/provisional state; TVs becomes functional in S09; Privacy & Diagnostics becomes functional in S13. No dead destination row renders before its owner exists.
