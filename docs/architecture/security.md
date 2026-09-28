@@ -170,7 +170,7 @@ Only provider behavior that still requires live or non-standard-flow evidence re
 
 | Fact | Why it matters | Where it is used |
 |---|---|---|
-| Exact `ProductPurchaseV2` representation of promo or rewarded one-time-product acquisitions, if either is deliberately enabled | Preventing an unclassified non-standard acquisition from granting a production Lifetime Entitlement | [sync.md](sync.md), [release.md](release.md) |
+| Exact `ProductPurchaseV2` representation of promo or rewarded one-time-product acquisitions, if either is deliberately enabled | Preventing an unclassified non-standard acquisition from granting a production Lifetime Entitlement | [account-entitlement.md](account-entitlement.md), [release.md](release.md) |
 | First production Play app-signing key upgrade continuity drill across App Check certificate registration and real Play Integrity/App Check verdicts | Keeping production backend authentication valid through a signing-identity transition | [release.md](release.md#signing-identity-and-distribution-channel) |
 
 ## Review hooks
