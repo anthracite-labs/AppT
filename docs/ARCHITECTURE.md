@@ -186,7 +186,6 @@ These are binding unless deliberately changed by a later architecture decision:
 9. **TV and remote personalization remain device-local; the cloud account is limited to identity, username, trial/anti-abuse state, and license entitlement.**
 10. **No behavioral analytics and no cloud crash reporting.**
 
-
 ## Evidence and provenance
 
 Architecture claims that depend on the outside world use three explicit evidence classes:
