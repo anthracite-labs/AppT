@@ -289,14 +289,16 @@ internal class SpkiTrustManager : X509TrustManager {
 
     /** Starts a candidate-mode handshake: no saved pin, one in-memory candidate accepted. */
     fun beginHandshake() {
-        candidatePin.set(null)
-        requiredPin.set(null)
+        beginHandshake(savedPin = null)
     }
 
-    /** Starts a required-mode handshake: only [pin] is an acceptable television identity. */
-    fun beginHandshake(pin: String) {
+    /**
+     * Starts a required-mode handshake when [savedPin] is present: only that pin is an acceptable
+     * television identity. Null — first contact, or the plaintext channel — is candidate mode.
+     */
+    fun beginHandshake(savedPin: String?) {
         candidatePin.set(null)
-        requiredPin.set(pin)
+        requiredPin.set(savedPin)
     }
 
     fun candidate(): String? = candidatePin.get()
