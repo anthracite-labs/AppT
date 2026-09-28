@@ -76,6 +76,37 @@ detekt {
     source.setFrom("src/main/java", "src/main/kotlin")
 }
 
+// TEMP DIAGNOSTIC (S04): surface detekt findings through the annotation channel, because the
+// runner log is not reachable from the implementation sandbox. REMOVE BEFORE TERMINAL VERIFY.
+tasks.matching { it.name == "detekt" }.configureEach {
+    reports {
+        xml.required.set(true)
+    }
+    finalizedBy("surfaceDetektFindings")
+}
+
+tasks.register("surfaceDetektFindings") {
+    doLast {
+        val report = project.file("build/reports/detekt/detekt.xml")
+        if (!report.exists()) {
+            println("::error title=detekt-findings::no detekt xml report at " + report.path)
+        } else {
+            val text = report.readText()
+            val files = Regex("<file name=\"([^\"]+)\"[^>]*>([\\s\\S]*?)</file>")
+            val errors = Regex("<error[^>]*source=\"([^\"]+)\"[^>]*message=\"([^\"]*)\"")
+            files.findAll(text).take(12).forEach { fileMatch ->
+                errors.findAll(fileMatch.groupValues[2]).take(12).forEach { errorMatch ->
+                    val path = fileMatch.groupValues[1].substringAfterLast("/")
+                    println(
+                        "::error title=detekt::" + path + " :: " + errorMatch.groupValues[1] +
+                            " :: " + errorMatch.groupValues[2].take(160),
+                    )
+                }
+            }
+        }
+    }
+}
+
 dependencies {
     // S02 discovery (Issue #73). Both are already on :app's resolved graph at
     // these exact versions; see the license/provenance notes in
