@@ -1,5 +1,6 @@
 package dev.anthracite.appt.samsung.internal
 
+import dev.anthracite.appt.samsung.TvId
 
 /**
  * The samsung-private device record for one television
