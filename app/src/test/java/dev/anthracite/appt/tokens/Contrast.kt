@@ -9,11 +9,9 @@ import org.junit.Assert.assertTrue
 /**
  * WCAG 2.x contrast ratio, computed locally.
  *
- * Provider-fact note: whether an automated contrast checker covers Compose surfaces is an open item
- * in docs/architecture/README.md#needs-validation. S01 therefore does not depend on such a tool.
  * This implements the published WCAG relative-luminance and contrast-ratio definitions directly
- * over the token values, so the contrast floors are still asserted without assuming tooling
- * coverage that has not been validated.
+ * over the token values, so the token floor remains deterministic without device instrumentation.
+ * Rendered Compose surfaces receive additional platform accessibility and contrast checks in S14.
  *
  * It checks the *token pairs*, not rendered pixels. Rendered-surface contrast verification belongs
  * to the accessibility slice (S14).
