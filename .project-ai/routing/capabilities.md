@@ -41,7 +41,7 @@ Use when examining an implementation, change, evidence set, security concern, or
 
 Use when a bug, failing test, build/CI failure, regression, unexpected result, integration failure, performance anomaly, or blocked operation requires root-cause investigation.
 
-Diagnosis is a mandatory phase before every correction. Load `../skills/debugging-recovery/SKILL.md`. Establish the tightest reliable reproducer when practical, an evidence-backed root cause, the minimal correction, regression protection where practical, and targeted green verification before returning to broader or terminal verification.
+Diagnosis is a mandatory phase before every correction. Load `../skills/debugging-recovery/SKILL.md`. Establish the tightest reliable reproducer when practical, then map the bounded failure surface before editing: within that narrow scope, use the toolchain's safe non-fail-fast, continue-on-independent-failure, multi-error, reporting, or equivalent diagnostic capabilities to expose all practical independent failures. Group those failures by evidence-backed root cause, make the minimal coherent correction, add regression protection where practical, and regain targeted green verification before returning to broader or terminal verification.
 
 For failures on an existing pull request, also use `../skills/pr-integration-correction/SKILL.md` so the correction stays on the same branch/PR and actionable CI/review items are classified before editing.
 
