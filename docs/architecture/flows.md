@@ -4,6 +4,35 @@ State machines, field lists, and rules stay in their owning files. This file is 
 
 Owning files: reconnect in [connection.md](connection.md), secrets and local data in [data.md](data.md), account/trial/entitlement in [account-entitlement.md](account-entitlement.md), modules and seams in [modules.md](modules.md), lifecycle transitions in [lifecycle.md](lifecycle.md), screens in [presentation.md](presentation.md).
 
+## Full application lifecycle index
+
+This is the canonical cross-module lifecycle spine. It does not duplicate state-machine detail; each stage links to its owner and the slice where it first becomes real.
+
+| Lifecycle stage | Cross-module outcome | Owning architecture | Slice |
+|---|---|---|---|
+| Install / first launch | No fabricated restored state; route to Welcome/LocalNetwork | [lifecycle.md](lifecycle.md), [presentation.md](presentation.md) | S01–S02 |
+| Local-network gate | Explain need before any required runtime prompt or scan | [discovery.md](discovery.md) | S02 |
+| Discovery | Bounded foreground discovery, dedup, identity confirmation, honest unsupported state | [discovery.md](discovery.md), [samsung-interface.md](samsung-interface.md) | S02 |
+| First pairing | Open without saved token, TV-side Allow/Deny, candidate security identity | [connection.md](connection.md), [protocol.md](protocol.md) | S03 |
+| First control | Command writes on the already-open session; first `Accepted` records the free-session milestone | [commands.md](commands.md), [account-entitlement.md](account-entitlement.md#remote-entry-gate) | S03 |
+| Saved pairing | Token/security identity persisted locally; restart resumes without silent trust weakening | [data.md](data.md), [connection.md](connection.md) | S04 |
+| Core daily Remote | Capability-driven controls, settings, local redacted diagnostic recorder | [commands.md](commands.md), [presentation.md](presentation.md), [diagnostics.md](diagnostics.md) | S05 |
+| Connection degradation / recovery | Supervised reconnect, address repair, lifecycle grace, stale-attempt suppression | [connection.md](connection.md), [lifecycle.md](lifecycle.md) | S06 |
+| Environment/provider foundation | Isolated Firebase/Play/App Check/signing/deployment identities | [release.md](release.md) | S07 |
+| Account and Trial | First session remains exempt; later entries pass the account/trial gate | [account-entitlement.md](account-entitlement.md) | S08 |
+| Remembered-TV daily lifecycle | Remote-first reopen, rename, switch, Add TV, Forget transaction | [data.md](data.md), [presentation.md](presentation.md) | S09 |
+| Purchase / restore / revocation | Play purchase converges through backend verification; resume/query recovers interrupted transactions | [account-entitlement.md](account-entitlement.md), [lifecycle.md](lifecycle.md) | S10 |
+| Apps / text / favourites | Secondary controls become television-local personalization | [commands.md](commands.md), [data.md](data.md), [presentation.md](presentation.md) | S11 |
+| Wake / power honesty | Attempt only with evidence; failure remains a capability result | [connection.md](connection.md), [commands.md](commands.md) | S12 |
+| Diagnostics transaction | Review/clear/export/Request Support; explicit preview before anything leaves | [diagnostics.md](diagnostics.md), [presentation.md](presentation.md) | S13 |
+| Accessibility / adaptive closure | Entire shipped route works with TalkBack, scale, contrast, alternative actions, window changes | [presentation.md](presentation.md), [ui-ux.md](ui-ux.md) | S14 |
+| Reliability / lifecycle E2E | Whole customer journeys plus performance/reliability evidence | [testing.md](testing.md), [reliability.md](reliability.md) | S15 |
+| Upgrade / release candidate | Install-over-install migration, artifact identity, promotion machinery and halt criteria | [data.md](data.md), [lifecycle.md](lifecycle.md), [release.md](release.md) | S16 |
+| Final physical / external gates | Release candidate repeats critical hardware path and closes human source-license/vendor gates | [testing.md](testing.md), [release.md](release.md) | S17 |
+| Process death / crash / corruption | Reconstruct from durable state; local crash evidence may be reviewed; corrupt stores enter explicit recovery | [lifecycle.md](lifecycle.md), [diagnostics.md](diagnostics.md), [data.md](data.md) | introduced at the owning slices and exercised again in S15/S16 |
+
+A new architecture document or future slice must map to at least one lifecycle stage above, or justify why it is genuinely cross-cutting. A lifecycle stage with no owner/slice is an architecture gap.
+
 ## First run to first control
 
 No Firebase component is a participant in this path. First success is observed as `Accepted`, which means the command was written to the open session, not that the television visibly acted.
@@ -167,6 +196,34 @@ sequenceDiagram
 
 If the validator is unavailable while Play reports `PURCHASED`, the client writes a 24-hour non-renewable provisional record and shows it as temporary. A later authoritative answer replaces it.
 
+## Purchase completes while AppT is inactive
+
+The Play Billing UI may background AppT, and the process may be killed before `PurchasesUpdatedListener` delivers a final state. No in-flight UI flag is treated as durable purchase truth.
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant App as AppT
+  participant Play as PlayBilling
+  participant Lic as Licensing
+  participant Fn as Entitlement Backend
+  User->>App: Buy once
+  App->>Play: launch billing flow
+  Play-->>App: PENDING or app backgrounds
+  Note over App: process may die; no grant stored
+  Play->>Play: transaction becomes PURCHASED
+  User->>App: Reopen / return to foreground
+  App->>Play: reconnect BillingClient
+  App->>Play: queryPurchasesAsync(lifetime product)
+  Play-->>App: current PURCHASED transaction
+  App->>Lic: same normalized purchase observation
+  Lic->>Fn: idempotent purchase verification
+  Fn-->>Lic: existing or new authoritative grant
+  Lic-->>App: cache proof and render current state
+```
+
+Listener callbacks, explicit Restore, foreground queries, and RTDN/backend state converge on the same idempotent purchase/binding rules in [account-entitlement.md](account-entitlement.md#provider-evidence-and-purchase-resume-lifecycle). Duplicate observations cannot create duplicate grants.
+
 ## Restore purchase, including after account deletion
 
 ```mermaid
@@ -315,6 +372,54 @@ sequenceDiagram
 
 There is no horizontal swipe between televisions; the switch is always an explicit selection.
 
+## Forget this TV
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant App as AppT
+  participant Db as Room
+  participant Sam as SamsungTvs
+  User->>App: Forget this TV
+  App-->>User: Confirm removal from this phone
+  User->>App: Confirm
+  App->>Db: one transaction: delete TvProfile + favourites; add PendingForget
+  App-->>User: television disappears immediately
+  App->>Sam: forget(tvId)
+  alt Forgotten
+    Sam-->>App: Forgotten
+    App->>Db: delete PendingForget
+  else temporarily unavailable
+    Sam-->>App: Failed
+    Note over App,Db: PendingForget remains for startup retry
+  end
+```
+
+A later re-pair reaching `Ready` for the same `tvId` clears a stale `PendingForget` before it can delete the new pairing. The low-level idempotent secret deletion exists in S04; this user transaction becomes real in S09.
+
+## Wake and honest power
+
+Wake is attempted only when the Samsung-private record contains a validated MAC for the interface that identified the television and the command capability is `Attemptable`.
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant App as AppT
+  participant Sam as SamsungTvs
+  User->>App: Power on
+  App->>Sam: wake(tvId)
+  alt wake evidence available
+    Sam->>Sam: send bounded WoL attempts
+    Sam-->>App: Attempted
+    App->>Sam: open(tvId) with wake patience window
+  else evidence unavailable
+    Sam-->>App: Unavailable
+    App-->>User: honest limitation; no dead power control
+  end
+```
+
+No SmartThings/cloud wake fallback is added. A physical wake attempt is recorded in S12 and consolidated in S17.
+
 ## Sign-out
 
 ```mermaid
@@ -368,6 +473,34 @@ sequenceDiagram
 Freezing before deleting the Auth user is what makes the sequence safe: while the old identity can still authenticate, the purchase is bound to nobody and usable by nobody. The deletion-scoped `deletionId` written at freeze is what lets the daily reconciliation find the frozen bindings again, and it releases them only after an Auth read confirms the user is gone, recording `authRemovalConfirmedAt` as the proof; while the user still exists it leaves the binding frozen and raises an alert instead of releasing.
 
 The account backend retains only pseudonymous trial markers and the released purchase binding. Television data was never there to delete.
+
+## Upgrade in place
+
+```mermaid
+sequenceDiagram
+  participant Old as Installed AppT N
+  participant Store as Room/DataStore/Samsung secret + device/entitlement cache
+  participant New as Candidate AppT N+1
+  participant Route as StartDestinationResolver
+  Old->>Store: representative valid local state exists
+  New->>Store: install over existing app; run supported migrations
+  alt migrations/recovery succeed
+    Store-->>New: migrated readable state
+    New->>Route: resolve launch from migrated state
+    Route-->>New: normal remembered-TV/account route
+  else one store corrupt/unreadable
+    Store-->>New: documented store-specific recovery state
+    Note over New: never silently reinterpret as fresh install
+  end
+```
+
+The candidate proof follows [release.md](release.md#upgrade-in-place-release-proof). From the second public release onward, the source artifact is the immediately previous production release.
+
+## Unexpected crash and next launch
+
+The recorder foundation is local and already redacted. An uncaught crash may leave a local marker plus the events written before failure. On the next launch AppT may offer a non-blocking **Review diagnostics** affordance.
+
+A force-stop, reboot, OS process kill, or low-memory death without a captured uncaught exception is **not** labelled a crash. No report is transmitted automatically; review/share still uses the explicit diagnostics transaction below.
 
 ## Diagnostics: local record and user-confirmed export
 
