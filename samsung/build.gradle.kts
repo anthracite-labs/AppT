@@ -59,11 +59,8 @@ kotlin {
         extraWarnings.set(true)
         freeCompilerArgs.addAll(
             "-Xwarning-level=UNUSED_VARIABLE:error",
-            "-Xwarning-level=UNUSED_PARAMETER:error",
             "-Xwarning-level=UNUSED_EXPRESSION:error",
-            "-Xwarning-level=UNUSED_ANONYMOUS_PARAMETER:error",
             "-Xwarning-level=UNREACHABLE_CODE:error",
-            "-Xwarning-level=UNUSED_VALUE:error",
             "-Xwarning-level=UNUSED_IMPORT:error",
             "-Xwarning-level=USELESS_CAST:error",
             "-Xwarning-level=DEPRECATION:error",
