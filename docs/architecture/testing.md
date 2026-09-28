@@ -119,6 +119,7 @@ These names are the contract. Implementation may split them; it may not drop the
 | `firstSessionGateEndsWithActiveRemote` | The first `Accepted` does not interrupt the exempt session; after that holder closes, the next entry does not call `SamsungTvs.open` without a user |
 | `gateRunsOnlyOnEntry` | Rotation, resume, reconnect, and sheet dismissal never re-evaluate the gate |
 | `entitlementRequiresVerifiedEmail` | An unverified email/password account cannot activate a trial |
+| `integrityRequestHashBindsDecision` | A Standard Integrity token for different canonical request fields is rejected before trial or purchase state changes |
 | `trialStartsServerSideAndSevenDays` | Activation writes `expiresAt` from the server timestamp and grants exactly seven days |
 | `trialFollowsAccountAcrossPhones` | A second device receives the original expiry and creates no new window |
 | `deviceMarkerDeniesSecondTrial` | A second account on the same device signal is not trial-eligible |
