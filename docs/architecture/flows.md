@@ -383,6 +383,61 @@ sequenceDiagram
 
 There is no horizontal swipe between televisions; the switch is always an explicit selection.
 
+## Forget this TV
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant App as AppT
+  participant Db as Room
+  participant Sam as SamsungTvs
+  User->>App: Forget this TV
+  App-->>User: Confirm removal from this phone
+  User->>App: Confirm
+  App->>Db: delete TvProfile + favourites; add PendingForget atomically
+  App-->>User: television disappears immediately
+  App->>Sam: forget(tvId)
+  alt Forgotten
+    Sam-->>App: Forgotten
+    App->>Db: delete PendingForget
+  else temporarily unavailable
+    Sam-->>App: Failed
+    Note over App,Db: PendingForget remains for startup retry
+  end
+```
+
+A later re-pair reaching `Ready` for the same `tvId` clears a stale
+`PendingForget` before it can delete the new pairing. The low-level idempotent
+secret deletion exists in S04; this user transaction becomes real in S09.
+[data.md](data.md) owns the transaction and retry invariant.
+
+## Wake and honest power
+
+Wake is attempted only when the Samsung-private record contains a validated MAC
+for the interface that identified the television and the capability is
+`Attemptable`.
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant App as AppT
+  participant Sam as SamsungTvs
+  User->>App: Power on
+  App->>Sam: wake(tvId)
+  alt wake evidence available
+    Sam->>Sam: send bounded WoL attempts
+    Sam-->>App: Sent
+    App->>Sam: open(tvId) within wake patience window
+  else evidence unavailable
+    Sam-->>App: Unavailable
+    App-->>User: honest limitation; no dead power control
+  end
+```
+
+No SmartThings/cloud wake fallback is added. [connection.md](connection.md) owns
+wake mechanics; [commands.md](commands.md) owns capability honesty. A physical
+wake attempt is recorded in S12 and consolidated in S17.
+
 ## Sign-out
 
 ```mermaid
@@ -460,6 +515,19 @@ sequenceDiagram
 ```
 
 From the second public release onward, the source artifact is the immediately previous production artifact. [release.md](release.md#upgrade-in-place-release-proof) owns candidate/source identity and [testing.md](testing.md#whole-application-lifecycle-e2e) owns the journey evidence.
+
+## Unexpected crash and next launch
+
+The diagnostic recorder is local and already redacted before an uncaught crash.
+A captured uncaught crash may leave a local marker plus events that were written
+before failure. On the next launch AppT may offer one non-blocking **Review
+diagnostics** affordance.
+
+A force-stop, reboot, low-memory process kill, or OS termination without a
+captured uncaught exception is **not** labelled as a crash. No report is sent
+automatically; review and sharing still use the explicit diagnostics transaction
+below. [diagnostics.md](diagnostics.md) owns the record/redaction contract and
+[lifecycle.md](lifecycle.md) owns launch restoration.
 
 ## Diagnostics: local record and user-confirmed export
 
