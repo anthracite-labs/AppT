@@ -53,65 +53,8 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-        allWarningsAsErrors.set(false) // TEMP DIAGNOSTIC: warnings captured below instead of failing
+        allWarningsAsErrors.set(true)
         extraWarnings.set(true)
-        // TEMP DIAGNOSTIC (S04): bisect which warning category fails -Werror. REMOVE BEFORE FINISH.
-        freeCompilerArgs.addAll(
-            "-Xwarning-level=UNUSED_VARIABLE:disabled",
-            "-Xwarning-level=UNUSED_EXPRESSION:disabled",
-            "-Xwarning-level=UNUSED_ANONYMOUS_PARAMETER:disabled",
-            "-Xwarning-level=UNUSED_LAMBDA_EXPRESSION:disabled",
-            "-Xwarning-level=ASSIGNED_VALUE_IS_NEVER_READ:disabled",
-            "-Xwarning-level=USELESS_ELVIS:disabled",
-            "-Xwarning-level=USELESS_CAST:disabled",
-            "-Xwarning-level=USELESS_IS_CHECK:disabled",
-            "-Xwarning-level=USELESS_CALL_ON_NOT_NULL:disabled",
-            "-Xwarning-level=UNNECESSARY_SAFE_CALL:disabled",
-            "-Xwarning-level=UNNECESSARY_NOT_NULL_ASSERTION:disabled",
-            "-Xwarning-level=REDUNDANT_VISIBILITY_MODIFIER:disabled",
-            "-Xwarning-level=REDUNDANT_SINGLE_EXPRESSION_STRING_TEMPLATE:disabled",
-            "-Xwarning-level=DEPRECATION:disabled",
-            "-Xwarning-level=UNCHECKED_CAST:disabled",
-            "-Xwarning-level=CAST_NEVER_SUCCEEDS:disabled",
-            "-Xwarning-level=EXTENSION_SHADOWED_BY_MEMBER:disabled",
-            "-Xwarning-level=IMPLICIT_BOXING_IN_IDENTITY_EQUALS:disabled",
-            "-Xwarning-level=INTEGER_LITERAL_CAST_INSTEAD_OF_TO_CALL:disabled",
-            "-Xwarning-level=DEPRECATED_SMARTCAST_ON_DELEGATED_PROPERTY:disabled",
-            "-Xwarning-level=OPT_IN_USAGE:disabled",
-            "-Xwarning-level=OPT_IN_OVERRIDE:disabled",
-            "-Xwarning-level=OPT_IN_TO_INHERITANCE:disabled",
-            "-Xwarning-level=OPT_IN_WITHOUT_ARGUMENTS:disabled",
-            "-Xwarning-level=REDUNDANT_ELSE_IN_WHEN:disabled",
-            "-Xwarning-level=VARIABLE_INITIALIZER_IS_REDUNDANT:disabled",
-            "-Xwarning-level=REDUNDANT_NULLABLE:disabled",
-            "-Xwarning-level=REDUNDANT_RETURN:disabled",
-            "-Xwarning-level=REDUNDANT_MODALITY_MODIFIER:disabled",
-            "-Xwarning-level=DEPRECATED_IDENTITY_EQUALS:disabled",
-            "-Xwarning-level=REDUNDANT_MODIFIER:disabled",
-            "-Xwarning-level=REDUNDANT_MODIFIER_FOR_TARGET:disabled",
-            "-Xwarning-level=UNNECESSARY_LATEINIT:disabled",
-            "-Xwarning-level=REDUNDANT_LABEL_WARNING:disabled",
-            "-Xwarning-level=REDUNDANT_PROJECTION:disabled",
-            "-Xwarning-level=INFERRED_INVISIBLE_RETURN_TYPE_WARNING:disabled",
-            "-Xwarning-level=INFERRED_INVISIBLE_WHEN_TYPE_WARNING:disabled",
-            "-Xwarning-level=IMPLICIT_PROPERTY_TYPE_MAKES_BEHAVIOR_ORDER_DEPENDANT:disabled",
-            "-Xwarning-level=RETURN_IN_FUNCTION_WITH_EXPRESSION_BODY_WARNING:disabled",
-            "-Xwarning-level=REDUNDANT_CALL_OF_CONVERSION_METHOD:disabled",
-            "-Xwarning-level=INVISIBLE_REFERENCE_WARNING:disabled",
-            "-Xwarning-level=REDUNDANT_INTERPOLATION_PREFIX:disabled",
-            "-Xwarning-level=USELESS_VARARG_ON_PARAMETER:disabled",
-            "-Xwarning-level=REDUNDANT_SPREAD_OPERATOR_IN_NAMED_FORM_IN_FUNCTION:disabled",
-            "-Xwarning-level=CONTEXTUAL_OVERLOAD_SHADOWED:disabled",
-            "-Xwarning-level=EXTENSION_FUNCTION_SHADOWED_BY_MEMBER_PROPERTY_WITH_INVOKE:disabled",
-            "-Xwarning-level=ANNOTATIONS_ON_BLOCK_LEVEL_EXPRESSION_ON_THE_SAME_LINE:disabled",
-            "-Xwarning-level=NOT_NULL_ASSERTION_ON_LAMBDA_EXPRESSION:disabled",
-            "-Xwarning-level=UNSAFE_CAST_RELYING_ON_NULL:disabled",
-            "-Xwarning-level=SAFE_CAST_RELYING_ON_NULL:disabled",
-            "-Xwarning-level=NUMERIC_CAST_NEVER_SUCCEEDS_BUT_CAN_BE_REPLACED_WITH_TO_CALL:disabled",
-            "-Xwarning-level=DEPRECATED_MODIFIER_FOR_TARGET:disabled",
-            "-Xwarning-level=DEPRECATED_MODIFIER_PAIR:disabled",
-            "-Xwarning-level=DEPRECATED_MODIFIER_CONTAINING_DECLARATION:disabled",
-        )
     }
 }
 
@@ -131,27 +74,6 @@ detekt {
     buildUponDefaultConfig = true
     autoCorrect = false
     source.setFrom("src/main/java", "src/main/kotlin")
-}
-
-// TEMP DIAGNOSTIC (S04): surface Kotlin compile warnings through the task failure message, so
-// they reach the CI annotation channel. REMOVE BEFORE FINISH.
-val capturedWarnings = mutableListOf<String>()
-tasks.matching { it.name == "compileDebugKotlin" }.configureEach {
-    doFirst {
-        logging.addStandardOutputListener { line ->
-            if (line.contains("w: ")) capturedWarnings.add(line.trim())
-        }
-        logging.addStandardErrorListener { line ->
-            if (line.contains("w: ")) capturedWarnings.add(line.trim())
-        }
-    }
-    doLast {
-        if (capturedWarnings.isNotEmpty()) {
-            throw GradleException(
-                "CAPTURED COMPILE WARNINGS: " + capturedWarnings.joinToString(" || ")
-            )
-        }
-    }
 }
 
 dependencies {

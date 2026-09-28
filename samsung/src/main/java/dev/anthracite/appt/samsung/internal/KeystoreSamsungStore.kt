@@ -355,9 +355,13 @@ internal class KeystoreSamsungStore private constructor(
      * either the previous file or the new one, never a hybrid.
      */
     private fun atomicWrite(target: File, bytes: ByteArray) {
-        ensureDirectory(target.parentFile)
-        val temporary =
-            File.createTempFile(target.nameWithoutExtension, TEMP_SUFFIX, target.parentFile)
+        // The parent is fixed once: `File.parentFile` is nullable, and a store path this class
+        // builds always has one. Without it, fail closed rather than write anywhere else.
+        val parent =
+            target.parentFile
+                ?: throw SecretStoreException("no parent directory for ${target.name}")
+        ensureDirectory(parent)
+        val temporary = File.createTempFile(target.nameWithoutExtension, TEMP_SUFFIX, parent)
         try {
             FileOutputStream(temporary).use { output ->
                 output.write(bytes)
