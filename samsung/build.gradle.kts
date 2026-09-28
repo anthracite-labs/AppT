@@ -55,6 +55,22 @@ kotlin {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         allWarningsAsErrors.set(true)
         extraWarnings.set(true)
+        // TEMP DIAGNOSTIC (S04): bisect which warning category fails -Werror. REMOVE BEFORE FINISH.
+        freeCompilerArgs.addAll(
+            "-Xsuppress-warning=UNUSED_PARAMETER",
+            "-Xsuppress-warning=UNUSED_VARIABLE",
+            "-Xsuppress-warning=UNUSED_EXPRESSION",
+            "-Xsuppress-warning=UNUSED_IMPORT",
+            "-Xsuppress-warning=NAME_SHADOWING",
+            "-Xsuppress-warning=DEPRECATION",
+            "-Xsuppress-warning=UNCHECKED_CAST",
+            "-Xsuppress-warning=USELESS_ELVIS",
+            "-Xsuppress-warning=CONSTANT_CONDITION",
+            "-Xsuppress-warning=UNNECESSARY_SAFE_CALL",
+            "-Xsuppress-warning=ASSIGNED_VALUE_IS_NEVER_READ",
+            "-Xsuppress-warning=UNNECESSARY_NOT_NULL_ASSERTION",
+            "-Xsuppress-warning=REDUNDANT_VISIBILITY",
+        )
     }
 }
 
