@@ -4,7 +4,9 @@ import dev.anthracite.appt.samsung.TvId
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
+import java.security.GeneralSecurityException
 import java.security.Key
+import java.security.ProviderException
 import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -13,6 +15,7 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -108,6 +111,45 @@ class KeystoreSamsungStoreTest {
 
         assertEquals("no backup or temp litter", 1, secretFiles().size)
         assertEquals(StoredSecret.Available(rotated), newStore().loadSecret(tvId))
+    }
+
+    // --- unknown ids and keystore faults: fail closed, never a crash ------------------------
+
+    @Test
+    fun anUnknownIdReadsFailClosedInsteadOfThrowing() {
+        val store = newStore()
+        val unknown = TvId("not-a-stored-id")
+        // samsung-interface.md#open: an unknown id moves to Unreachable, which needs these reads
+        // to answer, not to throw. Writes keep the loud guard.
+        assertEquals(StoredSecret.Absent, store.loadSecret(unknown))
+        assertNull(store.loadDevice(unknown))
+        store.forget(unknown)
+        assertThrows(IllegalArgumentException::class.java) { store.saveSecret(unknown, secret) }
+        assertThrows(IllegalArgumentException::class.java) { store.saveDevice(unknown, record) }
+    }
+
+    @Test
+    fun aKeystoreEncryptionFailureSurfacesAsTheStoreFailureType() {
+        val store =
+            newStore(FailingKeystoreCipher(GeneralSecurityException("key invalidated")))
+        val thrown =
+            assertThrows(SecretStoreException::class.java) { store.saveSecret(tvId, secret) }
+        assertTrue(thrown.cause is GeneralSecurityException)
+    }
+
+    @Test
+    fun aKeystoreRuntimeFailureSurfacesAsTheStoreFailureType() {
+        // AndroidKeyStore signals keystore-side faults at runtime with ProviderException.
+        val store = newStore(FailingKeystoreCipher(ProviderException("keystore fault")))
+        assertThrows(SecretStoreException::class.java) { store.saveSecret(tvId, secret) }
+    }
+
+    @Test
+    fun aKeystoreDecryptRuntimeFailureSurfacesUnavailable() {
+        val good = newStore()
+        good.saveSecret(tvId, secret)
+        val failing = newStore(FailingKeystoreCipher(ProviderException("keystore fault")))
+        assertEquals(StoredSecret.Unavailable, failing.loadSecret(tvId))
     }
 
     // --- fail-closed decryption ------------------------------------------------------------
@@ -282,6 +324,13 @@ class KeystoreSamsungStoreTest {
      * Like the real Keystore, the key outlives any store instance, so a reopened store decrypts
      * what a previous one sealed; a different [keyId] models an invalidated or replaced key.
      */
+    /** Stands in for a Keystore that refuses its side of the cipher contract. */
+    private class FailingKeystoreCipher(private val thrown: Exception) : SecretCipher {
+        override fun encrypt(plaintext: ByteArray): ByteArray = throw thrown
+
+        override fun decrypt(blob: ByteArray): ByteArray = throw thrown
+    }
+
     private class LocalAesGcmCipher(private val keyId: String = DEVICE_KEYSTORE) : SecretCipher {
         override fun encrypt(plaintext: ByteArray): ByteArray {
             val iv = ByteArray(12).also(SecureRandom()::nextBytes)

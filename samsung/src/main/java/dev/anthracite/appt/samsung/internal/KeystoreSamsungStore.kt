@@ -6,6 +6,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.security.GeneralSecurityException
+import java.security.ProviderException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -106,7 +107,10 @@ internal class KeystoreSamsungStore private constructor(
 
     override fun loadSecret(tvId: TvId): StoredSecret =
         synchronized(lock) {
-            val file = secretFile(tvId)
+            // An id this store could never have written has no file: absent, not a crash
+            // (samsung-interface.md#open: an unknown id moves to Unreachable and sends no token).
+            val name = existingStoredName(tvId) ?: return@synchronized StoredSecret.Absent
+            val file = File(ensureDirectory(secretsDir), name)
             if (!file.exists()) return@synchronized StoredSecret.Absent
             val blob =
                 try {
@@ -121,6 +125,11 @@ internal class KeystoreSamsungStore private constructor(
                 } catch (ignored: GeneralSecurityException) {
                     // Keystore key invalidated, device lock change, corrupt body: fail closed.
                     null
+                } catch (ignored: ProviderException) {
+                    // AndroidKeyStore signals keystore-side faults at runtime with
+                    // ProviderException (StrongBoxUnavailableException is one). Fail closed the
+                    // same as any other cipher failure: unavailable, never a fallback.
+                    null
                 } catch (ignored: IOException) {
                     // The cipher could not reach its backing Keystore: fail closed.
                     null
@@ -130,18 +139,32 @@ internal class KeystoreSamsungStore private constructor(
 
     override fun saveSecret(tvId: TvId, secret: PairingSecret) {
         synchronized(lock) {
-            val blob = ENVELOPE_MAGIC + byteArrayOf(ENVELOPE_VERSION) + cipher.encode(secret)
+            val blob =
+                try {
+                    ENVELOPE_MAGIC + byteArrayOf(ENVELOPE_VERSION) + cipher.encode(secret)
+                } catch (e: GeneralSecurityException) {
+                    // A keystore-side encryption failure reaches the session as the store's own
+                    // failure type (an IOException), so the approval or token replacement fails
+                    // closed as SecretsUnavailable instead of crashing the session.
+                    throw SecretStoreException("keystore encryption failed", e)
+                } catch (e: ProviderException) {
+                    throw SecretStoreException("keystore encryption failed", e)
+                }
             atomicWrite(secretFile(tvId), blob)
         }
     }
 
     override fun discardSecret(tvId: TvId) {
-        synchronized(lock) { deleteExisting(secretFile(tvId)) }
+        synchronized(lock) {
+            val name = existingStoredName(tvId) ?: return@synchronized
+            deleteExisting(File(ensureDirectory(secretsDir), name))
+        }
     }
 
     override fun loadDevice(tvId: TvId): SamsungDeviceRecord? =
         synchronized(lock) {
-            val file = deviceFile(tvId)
+            val name = existingStoredName(tvId) ?: return@synchronized null
+            val file = File(ensureDirectory(devicesDir), name)
             if (!file.exists()) return@synchronized null
             try {
                 DeviceRecordJson.parse(file.readBytes().decodeToString())
@@ -160,8 +183,9 @@ internal class KeystoreSamsungStore private constructor(
 
     override fun forget(tvId: TvId) {
         synchronized(lock) {
-            deleteExisting(secretFile(tvId))
-            deleteExisting(deviceFile(tvId))
+            val name = existingStoredName(tvId) ?: return@synchronized
+            deleteExisting(File(ensureDirectory(secretsDir), name))
+            deleteExisting(File(ensureDirectory(devicesDir), name + DEVICE_SUFFIX))
         }
     }
 
@@ -258,6 +282,14 @@ internal class KeystoreSamsungStore private constructor(
             require(TvIdentity.isValidStoredId(tvId.value)) { "unusable television id" }
             return tvId.value
         }
+
+        /**
+         * The file name for reads and deletes: an id this store could never have written names no
+         * file, so those fail closed (absent/null/no-op) instead of throwing from a read path.
+         * Writes keep the loud [storedFileName] require.
+         */
+        private fun existingStoredName(tvId: TvId): String? =
+            tvId.value.takeIf { TvIdentity.isValidStoredId(it) }
 
         /**
          * The secret file envelope: magic `APS1`, one format-version byte, then the cipher output
