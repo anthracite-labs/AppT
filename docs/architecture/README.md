@@ -4,7 +4,7 @@ Detailed elaboration of the accepted baseline in `docs/ARCHITECTURE.md`. **This 
 
 `docs/ARCHITECTURE.md` owns decisions and invariants. This directory owns concrete modules, state, data, presentation, environments, and slices. If a document here conflicts with the baseline, the baseline wins until a later architecture decision changes it.
 
-Product intent stays in `docs/PRODUCT.md`. Canonical domain language is in `CONTEXT.md`. Harvest dispositions stay in `docs/HARVEST.md`. This map does not reopen them.
+Product intent stays in `docs/PRODUCT.md`. Canonical domain language is in `CONTEXT.md`. External/provider evidence and open-source implementation harvests live in the architecture document that owns the behavior they support; this map defines the evidence format and does not act as a separate harvest register.
 
 ## Read by branch
 
@@ -33,7 +33,7 @@ Load the file for the branch in front of you. Do not load the whole directory by
 
 `protocol.md` is for `samsung` implementers. `app` code uses only the types in `samsung-interface.md`. `ui-ux.md` owns product-surface decisions; `presentation.md` owns how they are built.
 
-`account-entitlement.md` keeps its historical file name for link stability. It owns account and licensing only; it does not describe any television-data synchronization, because none exists.
+`account-entitlement.md` owns account, trial, Play purchase, entitlement, and the remote-entry licensing gate. Television state is never synchronized through that architecture.
 
 ## Diagrams
 
@@ -76,7 +76,7 @@ Every settled decision projected into `.project-ai/PROJECT_STATE.md` has an owni
 | Product intent, privacy model, licensing promises, discovery/setup expectations | `docs/PRODUCT.md` |
 | Canonical domain terms (Television, Local Pairing, Television Personalization, Interaction Preferences, Active Remote, Customer Account, Username, Trial, Lifetime Entitlement, Forget this TV, and the licensing terms added this round) | `CONTEXT.md` |
 | Accepted technical baseline, invariants, platform baseline | `docs/ARCHITECTURE.md` |
-| Harvest ADOPT / HARVEST / REJECT dispositions | `docs/HARVEST.md` |
+| External evidence and implementation-harvest provenance | The owning architecture document, using the evidence standard below |
 | Android-native stack, module shape, seams, dependency rules, background limits | [modules.md](modules.md), [lifecycle.md](lifecycle.md) |
 | Samsung control depth: discovery, pairing, session, commands, protocol | [discovery.md](discovery.md), [connection.md](connection.md), [commands.md](commands.md), [protocol.md](protocol.md), [samsung-interface.md](samsung-interface.md) |
 | Device-local personalization, favourites, preferences, last-used television | [data.md](data.md), [presentation.md](presentation.md) |
@@ -103,13 +103,38 @@ These apply the baseline. They are not new product decisions. Review can reject 
 - Play carries exactly one artifact: the production-flavoured release candidate is uploaded to the internal testing track and promoted from there, while internal-environment builds are tester builds distributed outside Play. See [release.md](release.md#release-path-and-artifact-identity).
 - AppT backup is disabled for application data, so a new phone starts remote state clean; signing in restores identity and entitlement only.
 
-## Harvest application
+## Evidence and implementation harvest
 
-`docs/HARVEST.md` remains the disposition register. This map does not change ADOPT, HARVEST, or REJECT intent.
+Evidence is stored with the architecture decision it supports. There is no cross-cutting harvest register.
 
-Clean-room reimplementation is the one HARVEST practice used while building V1 protocol behavior. It is justified because the adopted WebSocket path must live inside `samsung`, and the usual reference library is LGPL-3.0. The screener already says not to copy incompatible reference code. Using that practice does not decide AppT's license.
+Use these labels consistently:
 
-No REJECT row is reintroduced. Diagnostic share is not file-sync, and V1 adopts neither ACRA nor any cloud crash reporter: cloud crash reporting was removed from V1 this round, so diagnostics are local-only. There is no `TvAdapter`, no per-brand module, no iOS runtime, no credential sync, no ads, no listening mirror, and no F-Droid commitment.
+- **AUTHORITATIVE** — first-party platform/provider/specification evidence.
+- **IMPLEMENTATION EVIDENCE** — OSS or physical behavior that demonstrates an implementation or edge case but does not become a provider guarantee.
+- **APPT DECISION** — the accepted AppT contract after reconciling the evidence with product/security/privacy constraints.
+
+For every material external/protocol claim whose implementation depends on research, the owning document records:
+
+| Field | Required content |
+|---|---|
+| Decision / behavior | The exact AppT contract |
+| Authority | First-party owner, when one exists |
+| Authoritative link | Direct URL to the relevant page/spec |
+| Authority limitation | What that source does not establish |
+| OSS implementation evidence | Repository links for implementations actually inspected |
+| Pinned provenance | Commit/tag plus relevant file/class/function paths |
+| License | License of the material inspected |
+| Harvest method | `ADAPT`, `PORT`, `CLEAN-ROOM REIMPLEMENT`, `BEHAVIORAL REFERENCE`, or `TEST-VECTOR/DATA` |
+| Harvested material | The exact algorithm, state behavior, message shape, test vector, race rule, or operational pattern used |
+| Rejected material | Upstream behavior AppT deliberately does not carry across |
+| AppT owner | Module/document/interface that owns the resulting behavior |
+| Verification | Fixture/test/physical/provider evidence that proves AppT's result |
+| Validated | Date/revision of the research pass |
+
+The current complete-codebase comparison set is intentionally distributed to its relevant owners rather than copied here: Smart-TV-Remote-Control informs Samsung discovery/connection/protocol; KDE Connect Android informs local-network and pairing-race hardening; Home Assistant Android informs Android lifecycle/discovery/E2E test practice; IR Blaster Remote informs local-only post-crash diagnostics UX. Protocol-only libraries remain in [protocol.md](protocol.md) where they are needed.
+
+A vendor document and an OSS repository are not interchangeable. When Samsung does not document a de-facto remote-control wire detail, [protocol.md](protocol.md) says so explicitly and relies on pinned implementation evidence plus AppT fixtures/physical evidence rather than presenting the behavior as a Samsung guarantee.
+
 
 ## Settled privacy, account, and licensing semantics
 
