@@ -131,6 +131,20 @@ internal sealed interface StoredSecret {
  * @property displayName the candidate display name from device-info, scrubbed, or null.
  * @property stableIdentity true when the television exposed a protocol UUID.
  */
+internal data class SamsungDeviceRecord(
+    val uuid: String?,
+    val lastAddress: String,
+    val tls: Boolean,
+    val adoptedChannel: Boolean,
+    val displayName: String?,
+    val stableIdentity: Boolean,
+    val version: Int = DEVICE_RECORD_VERSION,
+) {
+    companion object {
+        /** data.md#samsung-private-file-migration: the file format this writer owns. */
+        const val DEVICE_RECORD_VERSION = 1
+    }
+}
 
 /**
  * The durable Samsung pairing store seam (docs/architecture/data.md#storage-classes).
