@@ -35,8 +35,7 @@ import org.junit.runner.RunWith
 class SamsungKeystoreContractTest {
     private val alias = "appt.samsung.v1.instrumented-test"
 
-    private fun keystore(): KeyStore =
-        KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+    private fun keystore(): KeyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
 
     private fun generateKey(strongBox: Boolean) {
         val keystore = keystore()
