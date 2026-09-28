@@ -67,7 +67,9 @@ class SamsungTvsSavedPairingTest {
             )
         val observedStates = mutableListOf<SessionState>()
         val session = LiveSession(television, transport, this, secrets)
-        launch { session.snapshot.collect { observedStates.add(it.state) } }
+        // backgroundScope: the collector runs for the whole test and is cancelled with it, so the
+        // runTest end is not blocked by a live session subscription.
+        backgroundScope.launch { session.snapshot.collect { observedStates.add(it.state) } }
 
         advanceUntilIdle()
 
@@ -549,9 +551,12 @@ class SamsungTvsSavedPairingTest {
     @Test
     fun aPlantedTokenNeverReachesTheDeviceRecordOrTheCallerSurface() = runTest {
         stageSavedPairing()
+        // A successful trusted resume: the saved identity matched and the saved token was accepted.
+        // (Driving the approval fixture here would be TokenRejected under the S04 contract, which
+        // unauthorizedWithTokenYieldsTokenRejectedAndNoLoop already proves.)
         val transport =
             ScriptedSessionTransport(
-                SessionFixture.load("tls-approval-then-volume"),
+                SessionFixture.load("token-resume"),
                 certificateIdentity = savedPin,
             )
         val session = LiveSession(television, transport, this, secrets)

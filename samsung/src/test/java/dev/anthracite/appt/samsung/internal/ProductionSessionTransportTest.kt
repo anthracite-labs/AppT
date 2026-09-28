@@ -32,7 +32,7 @@ class ProductionSessionTransportTest {
         ProductionSessionTransport(tls, RecordingTransport())
             .connect(television(tls = true), saved = saved)
 
-        assertEquals(listOf(saved), tls.savedPairings.single())
+        assertEquals(saved, tls.savedPairings.single())
     }
 
     @Test

@@ -435,10 +435,15 @@ class SamsungTvsSessionTest {
     }
 
     @Test
-    fun transientApprovalTokenIsNotPersisted() = runTest {
+    fun approvalPersistsOnceAndTheTokenNeverLeaks() = runTest {
         val (session, transport) = session(SessionFixture.load("tls-approval-then-volume"))
         advanceUntilIdle()
         assertEquals(SessionState.Ready, session.snapshot.value.state)
+
+        // S04: a successful approval persists the pairing exactly once — the token and pin as one
+        // atomic secret write, beside the samsung-private device record.
+        assertEquals(1, secrets.savedSecrets.size)
+        assertEquals(1, secrets.savedDevices.size)
 
         // The channel carried the encoded client name and no token on first contact.
         val url = RemoteChannel.remoteUrl(transport.connects.single())
@@ -447,10 +452,6 @@ class SamsungTvsSessionTest {
         assertFalse(transport.sent.any { it.contains("fixture-token") })
         // The caller-visible snapshot carries no credential of any kind.
         assertFalse(session.snapshot.value.toString().lowercase().contains("token"))
-
-        // First contact never persists anything: no approval, no secret write, no device record.
-        assertTrue(secrets.savedSecrets.isEmpty())
-        assertTrue(secrets.savedDevices.isEmpty())
 
         // The only path that ever persists a token or a pin is the typed secret store; no
         // production source may smuggle one through Room, DataStore or shared preferences.

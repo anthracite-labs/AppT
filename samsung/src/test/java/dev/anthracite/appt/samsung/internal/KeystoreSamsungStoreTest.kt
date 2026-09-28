@@ -220,9 +220,11 @@ class KeystoreSamsungStoreTest {
     fun forgetNeverTouchesAnotherTelevision() {
         val other = TvId("aaaa1111-2222-4333-8444-555555555555")
         val store = newStore()
+        // Both televisions are completely remembered: secret and samsung-private device record.
         store.saveSecret(tvId, secret)
-        store.saveSecret(other, secret)
         store.saveDevice(tvId, record)
+        store.saveSecret(other, secret)
+        store.saveDevice(other, record.copy(uuid = other.value))
 
         store.forget(tvId)
         assertEquals(StoredSecret.Available(secret), store.loadSecret(other))
