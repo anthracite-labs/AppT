@@ -19,6 +19,10 @@ For each required operation:
 
 Do not move an entire development loop to hosted infrastructure merely because one operation is unavailable locally.
 
+For diagnosis, route the smallest affected surface to the mechanism that can return the richest safe evidence from that surface. Prefer tool-native continuation/non-bail/reporting and existing structured artifacts before inventing new infrastructure. The goal is to expose practical independent failures together, not to widen execution into unrelated domains.
+
+When ordinary output is insufficient, targeted temporary diagnostic instrumentation in the implementation branch — for example a test listener, extra assertion, trace, or report hook — is preferred over a new workflow when it can close the evidence gap safely. Mark temporary instrumentation clearly and remove it before terminal verification unless it earns a permanent role.
+
 ## Valid blocker evidence
 
 A blocker report should identify:
@@ -41,6 +45,8 @@ Project-owned commands and environment facts live in `../../docs/BUILD.md`, proj
 When Android/JVM verification is required, probe the live session first. Missing preinstalled JDK, Android SDK, or network is not automatically unavailable tooling; install disposable local tooling when that is safe. Escalate only a proven blocked operation.
 
 The project-owned hosted fallback for that blocked Android/JVM feedback is documented in `../../docs/BUILD.md`: a `workflow_dispatch` of `.github/workflows/diagnose.yml` in the narrowest mode that answers the question (`app-unit`, `samsung-unit`, `android-static`, `android-build`, `device`), not a full terminal suite and not a new workflow file. A diagnostic run is implementation feedback only and never satisfies `verify / gate`.
+
+Within that chosen mode, follow the diagnostic-breadth behavior owned by `../../docs/BUILD.md` and the reviewed resolver/reporting path. Narrow scope and rich evidence are complementary: choose the smallest relevant domain, then harvest its practical failure set before correction.
 
 Temporary branch-scoped workflow YAML is last-resort infrastructure. Add it only after a live capability probe shows that local tooling and the existing `diagnose.yml` modes cannot perform the required operation. Do not recreate retired one-shot regeneration workflows, and do not add per-slice diagnostic workflow files: focused diagnostics are permanent modes of `diagnose.yml`.
 

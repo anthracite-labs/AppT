@@ -16,6 +16,7 @@ Dispatch only when:
 - material project/architecture decisions required for the work are accepted;
 - scope and non-goals are bounded;
 - acceptance criteria are observable;
+- non-trivial production behavior has an explicit implementation reuse disposition compiled from current AppT code and owning harvest evidence;
 - the work can be expressed as one sensible reviewable implementation unit.
 
 Use `../skills/implementation-planning/SKILL.md` when approved work needs decomposition, sequencing, risk-first proof, or a bounded Arena contract. Plan only to the depth required to make the Issue executable. Do not pre-implement the solution in prose.
@@ -35,6 +36,20 @@ State what must become true.
 Give only the accepted decisions and canonical repository references Arena needs to execute correctly.
 
 Do not paste chat history or duplicate all of `PROJECT_STATE.md`.
+
+### Implementation Reuse Plan
+
+For each non-trivial behavior, state the executable disposition compiled by the control plane:
+
+`EXISTING APPT`, `ADAPT`, `PORT`, `CLEAN-ROOM REIMPLEMENT`, `BEHAVIORAL REFERENCE`, `TEST-VECTOR/DATA`, or `NEW`.
+
+For upstream reuse, identify the pinned source/path, licence, exact material to reuse, rejected material, and AppT destination. For `NEW`, state why no suitable existing/reusable implementation applies.
+
+This is not a second harvest register. The owning architecture documents remain canonical provenance; the Issue carries only the subset needed to execute this slice.
+
+Do not retroactively invalidate an already-dispatched Issue solely because its active contract predates this section. Apply the reuse-plan requirement to new Arena-ready Issues and to the next material contract revision of older in-flight work.
+
+Do not retroactively invalidate an already-dispatched Issue solely because its active contract predates this section. Apply the reuse-plan requirement to new Arena-ready Issues and to the next material contract revision of older in-flight work.
 
 ### Scope
 
@@ -87,7 +102,7 @@ Do not say Arena was launched or dispatched unless a real launch mechanism was i
 
 ## 3. Arena autonomy
 
-For non-trivial multi-step or multi-file implementation, Arena uses `../skills/incremental-implementation/SKILL.md`. Its evidence-first implementation gate is mandatory: Arena must recover repository truth, re-open material first-party authoritative sources for external contracts, and inspect the relevant pinned implementation-harvest evidence before coding non-trivial behavior. Model memory or assumed API/framework knowledge is not implementation authority. When another lifecycle trigger from `../routing/capabilities.md` applies—including test-driven development—Arena also loads that skill rather than improvising an alternate method.
+For non-trivial multi-step or multi-file implementation, Arena uses `../skills/incremental-implementation/SKILL.md`. Its evidence-first and reuse-before-reimplement gates are mandatory: Arena must recover repository truth, re-open material first-party authoritative sources for external contracts, inspect the relevant pinned implementation-harvest evidence, and execute the Issue's Implementation Reuse Plan before coding non-trivial behavior. Model memory or assumed API/framework knowledge is not implementation authority, and the ability to write equivalent code is not a reason to ignore an `EXISTING APPT`, `ADAPT`, or `PORT` disposition. When another lifecycle trigger from `../routing/capabilities.md` applies—including test-driven development—Arena also loads that skill rather than improvising an alternate method.
 
 Within the approved contract Arena may:
 
@@ -110,6 +125,7 @@ Arena must not silently change material:
 - security or trust boundaries;
 - major dependency/tooling decisions;
 - data models or external contracts;
+- source-licence or implementation-reuse boundaries;
 - out-of-scope systems.
 
 ## 4. Contract exceptions
@@ -164,6 +180,17 @@ Issue #<n> — Revision <n>
 
 Concise description of what was actually changed.
 
+### Reuse & Provenance
+
+For each material implementation surface, report the executed disposition and source:
+
+- `EXISTING APPT`, `ADAPT`, `PORT`, `CLEAN-ROOM REIMPLEMENT`, `BEHAVIORAL REFERENCE`, `TEST-VECTOR/DATA`, or `NEW`;
+- pinned upstream reference when applicable;
+- tests/vectors reused or ported;
+- for `NEW`, the reason the Issue authorized new implementation.
+
+State any deviation from the Issue's reuse plan. A material change of licence/reuse boundary returns to the control plane instead of being silently improvised.
+
 ### Verification
 
 List targeted checks and their results, plus terminal repository verification and its result.
@@ -186,7 +213,7 @@ Do not turn the PR into an implementation diary. Final evidence and unresolved l
 
 The control plane uses `../skills/code-review/SKILL.md` for this review so accepted-contract compliance and engineering quality are examined separately before human acceptance.
 
-The control plane reviews the PR against the active Issue revision and available technical evidence.
+The control plane reviews the PR against the active Issue revision, its Implementation Reuse Plan, and available technical evidence.
 
 The only contract-review outcomes are:
 

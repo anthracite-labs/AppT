@@ -71,7 +71,7 @@ Order, all inside the bound:
 2. SSDP `M-SEARCH` for `urn:dial-multiscreen-org:service:dial:1`, kept only when the response already identifies Samsung.
 3. `NsdManager` browse for `_airplay._tcp`, kept only when the service identifies manufacturer Samsung.
 
-Do not send `ssdp:all`. That census collects printers, routers, and unrelated devices and is not required for the Samsung-first product. Other brands are out of V1; their protocols stay HARVEST and are not probed.
+Do not send `ssdp:all`. That census collects printers, routers, and unrelated devices and is not required for the Samsung-first product. Other brands are out of V1; their protocols remain research-only and are not probed.
 
 A response is a candidate, not a card. Confirm with device-info before emitting `Found`. Device-info is fetched only for candidates, on the advertised host, ports 8001 and 8002 only. No LAN port scan.
 

@@ -329,7 +329,7 @@ Every implementation-relevant architecture document has an owning slice. A slice
 | Test strategy, lifecycle E2E, and physical acceptance | [testing.md](testing.md) | S01, S04, S06, S12, S15, S16, S17 |
 | Cross-module lifecycle flows | [flows.md](flows.md) | S02, S03, S06, S08, S09, S10, S13, S16 |
 | Product intent and canonical domain language | [PRODUCT.md](../PRODUCT.md), [CONTEXT.md](../../CONTEXT.md) | every slice, as the contract it implements |
-| External evidence and implementation provenance | Owning architecture documents per [README.md](README.md#evidence-and-implementation-harvest) | Introduced where behavior becomes real; no separate harvest slice/register |
+| External evidence, implementation provenance, and reuse disposition | Owning architecture documents per [README.md](README.md#evidence-and-implementation-harvest) | Introduced where behavior becomes real; projected into each Arena Issue as the executable Implementation Reuse Plan; no separate harvest slice/register |
 
 Cross-cutting invariants are not a single slice's work; each is introduced where it first becomes real and closed where stated.
 

@@ -124,12 +124,14 @@ For every material external/protocol claim whose implementation depends on resea
 | OSS implementation evidence | Repository links for implementations actually inspected |
 | Pinned provenance | Commit/tag plus relevant file/class/function paths |
 | License | License of the material inspected |
-| Harvest method | `ADAPT`, `PORT`, `CLEAN-ROOM REIMPLEMENT`, `BEHAVIORAL REFERENCE`, or `TEST-VECTOR/DATA` |
+| Harvest method | Executable reuse boundary: `ADAPT`, `PORT`, `CLEAN-ROOM REIMPLEMENT`, `BEHAVIORAL REFERENCE`, or `TEST-VECTOR/DATA`; this is not citation-only metadata |
 | Harvested material | The exact algorithm, state behavior, message shape, test vector, race rule, or operational pattern used |
 | Rejected material | Upstream behavior AppT deliberately does not carry across |
 | AppT owner | Module/document/interface that owns the resulting behavior |
 | Verification | Fixture/test/physical/provider evidence that proves AppT's result |
 | Validated | Date/revision of the research pass |
+
+Before Arena dispatch, the control plane compiles only the evidence relevant to that slice into the Issue's **Implementation Reuse Plan**. That executable plan adds `EXISTING APPT` and `NEW` to the harvest methods above: existing AppT code is preferred where it already solves the problem, and `NEW` requires an explicit reason that reuse is unsuitable. The Issue does not become a new provenance owner; source, licence, path, and validation details remain canonical in the owning architecture documents.
 
 The current complete-codebase comparison set is intentionally distributed to its relevant owners rather than copied here: Smart-TV-Remote-Control informs Samsung discovery/connection/protocol; KDE Connect Android informs local-network and pairing-race hardening; Home Assistant Android informs Android lifecycle/discovery/E2E test practice; IR Blaster Remote informs local-only post-crash diagnostics UX. Protocol-only libraries remain in [protocol.md](protocol.md) where they are needed.
 
