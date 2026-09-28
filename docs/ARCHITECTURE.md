@@ -204,6 +204,12 @@ Allowed harvest methods are:
 - **BEHAVIORAL REFERENCE** — use an implementation only to identify states, races, edge cases, or design patterns.
 - **TEST-VECTOR/DATA** — use compatible test vectors/data under their own license/provenance terms.
 
+These methods are executable implementation boundaries, not citation-only metadata. Before an implementation slice is dispatched, the control plane compiles the relevant distributed evidence into that Issue's **Implementation Reuse Plan**. The plan may also use `EXISTING APPT` for accepted repository code and `NEW` for genuinely AppT-specific implementation.
+
+Where a maintained, compatible-license implementation already solves the same bounded problem and fits AppT's accepted architecture, security, and privacy boundaries, prefer deliberate `ADAPT` or `PORT` reuse over equivalent blank-page code. Reuse or port the relevant upstream tests/vectors as well when permitted. `BEHAVIORAL REFERENCE` and `CLEAN-ROOM REIMPLEMENT` are explicit independent-implementation boundaries. `NEW` requires a concrete reason; model ability to generate the code is not one.
+
+The owning architecture documents remain the provenance source of truth. The per-slice Issue is an executable projection of those dispositions, not a resurrected standalone harvest register.
+
 Until the final AppT source license is accepted, GPL/LGPL-family implementations are behavioral/protocol knowledge sources only unless a later human-approved licensing decision explicitly permits source reuse. This is a provenance boundary, not a claim that those projects are unsafe.
 
 Screening principles retained from the original remote-control research are now architecture rules rather than a separate register: prefer maintained and auditable implementations; reject embedded credentials, tracker/ad SDKs, unnecessary listeners, and opaque proprietary control-path dependencies; keep privileges and exit cost narrow; verify manifest/dependency changes; and make product claims match demonstrated runtime capability.
