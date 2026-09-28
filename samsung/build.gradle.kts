@@ -92,7 +92,6 @@ kotlin {
             "-Xwarning-level=UNNECESSARY_LATEINIT:disabled",
             "-Xwarning-level=REDUNDANT_LABEL_WARNING:disabled",
             "-Xwarning-level=REDUNDANT_PROJECTION:disabled",
-            "-Xwarning-level=SMARTCAST_TO_TYPE_VARIABLE:disabled",
             "-Xwarning-level=INFERRED_INVISIBLE_RETURN_TYPE_WARNING:disabled",
             "-Xwarning-level=INFERRED_INVISIBLE_WHEN_TYPE_WARNING:disabled",
             "-Xwarning-level=IMPLICIT_PROPERTY_TYPE_MAKES_BEHAVIOR_ORDER_DEPENDANT:disabled",
