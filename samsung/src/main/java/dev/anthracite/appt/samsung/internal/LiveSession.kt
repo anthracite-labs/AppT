@@ -170,7 +170,9 @@ internal class LiveSession(
             when (val stored = secrets.loadSecret(television.id)) {
                 is StoredSecret.Available -> stored.secret
                 StoredSecret.Unavailable -> {
-                    publishSecretsUnavailable()
+                    // NeedsRepair without a repair reason is the caller-facing SecretsUnavailable
+                    // surface: fail closed, no connect, no token, no fallback.
+                    publish(SessionState.NeedsRepair, repairReason = null)
                     return
                 }
                 StoredSecret.Absent -> null
@@ -251,30 +253,31 @@ internal class LiveSession(
         // not persist stale pairing evidence (connection.md#evidence-and-race-handling-harvest).
         if (!generation.isActive()) return
         val saved = resumedFrom
-        if (saved != null) {
-            if (token != null && token != saved.token) {
-                try {
-                    secrets.saveSecret(television.id, PairingSecret(token = token, pin = saved.pin))
-                } catch (ignored: IOException) {
-                    // A replacement that cannot be stored leaves the old pairing in place: the
-                    // stored token may be refused next time, which is TokenRejected, not a silent
-                    // divergence between the file and the television.
-                    return
-                }
+        if (saved == null) {
+            val pin = connectionPin
+            try {
+                persistPairing(token = token, pin = pin)
+            } catch (ignored: IOException) {
+                // The session itself is alive, but the pairing could not be saved. Fail closed: the
+                // user sees that the saved connection needs pairing again, and nothing pretends a
+                // pairing exists (data.md#samsung-secret-record).
+                publish(SessionState.NeedsRepair, repairReason = null)
+                endUnansweredAttempt()
+                return
             }
-            publish(SessionState.Ready)
-            return
-        }
-        val pin = connectionPin()
-        try {
-            persistPairing(token = token, pin = pin)
-        } catch (ignored: IOException) {
-            // The session itself is alive, but the pairing could not be saved. Fail closed: the
-            // user sees that the saved connection needs pairing again, and nothing pretends a
-            // pairing exists (data.md#samsung-secret-record).
-            publishSecretsUnavailable()
-            endUnansweredAttempt()
-            return
+        } else {
+            // On a resumed connection the saved identity already matched, so a token the
+            // television reissued replaces the stored one atomically. A replacement that cannot
+            // be stored leaves the old pairing in place: the stored token may be refused next
+            // time, which is TokenRejected, not a silent divergence between the file and the
+            // television.
+            try {
+                if (token != null && token != saved.token) {
+                    secrets.saveSecret(television.id, PairingSecret(token = token, pin = saved.pin))
+                }
+            } catch (ignored: IOException) {
+                return
+            }
         }
         publish(SessionState.Ready)
     }
@@ -284,8 +287,8 @@ internal class LiveSession(
      * channel, or null on the plaintext channel, whose identity is the protocol UUID saved in the
      * device record instead.
      */
-    private fun connectionPin(): String? =
-        openConnection?.certificateIdentity?.takeIf { television.tls }
+    private val connectionPin: String?
+        get() = openConnection?.certificateIdentity?.takeIf { television.tls }
 
     /**
      * The approval write: the samsung-private device record first, then the token and pin as one
@@ -379,14 +382,11 @@ internal class LiveSession(
     }
 
     /**
-     * `NeedsRepair` without a repair reason is the caller-facing `SecretsUnavailable` surface:
-     * saved material exists but could not be used, so pairing again is required. There is no
-     * plaintext fallback and no token transmission on this path.
+     * The single publication point for session state. `NeedsRepair` with a null [repairReason] is
+     * the caller-facing `SecretsUnavailable` surface: saved material exists but could not be
+     * used, so pairing again is required. There is no plaintext fallback and no token
+     * transmission on that path.
      */
-    private fun publishSecretsUnavailable() {
-        publish(SessionState.NeedsRepair, repairReason = null)
-    }
-
     private fun publish(state: SessionState, repairReason: RepairReason? = null) {
         mutableSnapshot.value = SessionSnapshot(state, TvCapabilities(channelKeys), repairReason)
     }

@@ -43,8 +43,8 @@ internal object DeviceRecordJson {
             try {
                 json.parseToJsonElement(text).jsonObject
             } catch (ignored: IllegalArgumentException) {
-                return null
-            }
+                null
+            } ?: return null
         val lastAddress = root.textOrNull("lastAddress") ?: return null
         val version = (root["version"] as? JsonPrimitive)?.intOrNull
         if (version != null && version > SamsungDeviceRecord.DEVICE_RECORD_VERSION) return null
@@ -252,11 +252,11 @@ internal class KeystoreSamsungStore private constructor(
          * The secret file envelope: magic `APS1`, one format-version byte, then the cipher output
          * (IV and GCM body). An unknown magic or version is an undecryptable file, not a crash.
          */
-        private fun parseEnvelope(blob: ByteArray): ByteArray? {
-            if (blob.size <= ENVELOPE_MAGIC.size + 1) return null
-            if (!blob.copyOfRange(0, ENVELOPE_MAGIC.size).contentEquals(ENVELOPE_MAGIC)) return null
-            if (blob[ENVELOPE_MAGIC.size] != ENVELOPE_VERSION) return null
-            return blob.copyOfRange(ENVELOPE_MAGIC.size + 1, blob.size)
-        }
+        private fun parseEnvelope(blob: ByteArray): ByteArray? =
+            blob
+                .takeIf { it.size > ENVELOPE_MAGIC.size + 1 }
+                ?.takeIf { it.copyOfRange(0, ENVELOPE_MAGIC.size).contentEquals(ENVELOPE_MAGIC) }
+                ?.takeIf { it[ENVELOPE_MAGIC.size] == ENVELOPE_VERSION }
+                ?.let { it.copyOfRange(ENVELOPE_MAGIC.size + 1, it.size) }
     }
 }
