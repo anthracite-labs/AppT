@@ -6,6 +6,15 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.security.GeneralSecurityException
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
 
 /**
  * Thrown when the store itself cannot do its job (key unavailable, directory unavailable, rename
@@ -44,18 +53,18 @@ internal object DeviceRecordJson {
                 json.parseToJsonElement(text).jsonObject
             } catch (ignored: IllegalArgumentException) {
                 null
-            } ?: return null
-        val lastAddress = root.textOrNull("lastAddress") ?: return null
-        val version = (root["version"] as? JsonPrimitive)?.intOrNull
+            }
+        val version = (root?.get("version") as? JsonPrimitive)?.intOrNull
+        val lastAddress = root?.textOrNull("lastAddress") ?: return null
         if (version != null && version > SamsungDeviceRecord.DEVICE_RECORD_VERSION) return null
         return SamsungDeviceRecord(
             version = version ?: SamsungDeviceRecord.DEVICE_RECORD_VERSION,
-            uuid = root.textOrNull("uuid"),
+            uuid = root?.textOrNull("uuid"),
             lastAddress = lastAddress,
-            tls = root.boolean("tls") ?: false,
-            adoptedChannel = root.boolean("adoptedChannel") ?: true,
-            displayName = root.textOrNull("displayName"),
-            stableIdentity = root.boolean("stableIdentity") ?: false,
+            tls = root?.boolean("tls") ?: false,
+            adoptedChannel = root?.boolean("adoptedChannel") ?: true,
+            displayName = root?.textOrNull("displayName"),
+            stableIdentity = root?.boolean("stableIdentity") ?: false,
         )
     }
 
