@@ -22,13 +22,14 @@ def section(text: str, heading: str) -> str:
     return text[body_start:] if end == -1 else text[body_start:end]
 
 
-def require_slice(pattern: str, value: str, label: str, errors: list[str]) -> int | None:
-    """Extract one Sxx slice from an expected projection sentence."""
-    match = re.search(pattern, value, re.MULTILINE)
-    if match is None:
-        errors.append(f"{label}: expected slice reference is missing")
-        return None
-    return int(match.group(1))
+def first_content_line(value: str) -> str:
+    """Return the first non-empty line from a section."""
+    return next((line.strip() for line in value.splitlines() if line.strip()), "")
+
+
+def slice_refs(value: str) -> list[int]:
+    """Return Sxx references in textual order."""
+    return [int(match) for match in re.findall(r"\bS(\d{2})\b", value)]
 
 
 def validate_project_state(text: str) -> list[str]:
@@ -36,6 +37,7 @@ def validate_project_state(text: str) -> list[str]:
     errors: list[str] = []
 
     try:
+        phase = first_content_line(section(text, "Phase"))
         objective = section(text, "Current Objective")
         decisions = section(text, "Accepted Decisions")
         blockers = section(text, "Durable Blockers")
@@ -44,67 +46,67 @@ def validate_project_state(text: str) -> list[str]:
     except ValueError as exc:
         return [str(exc)]
 
-    active = require_slice(
-        r"^Compile and dispatch S(\d{2})\b",
-        objective.strip(),
-        "Current Objective",
-        errors,
-    )
-    decision_active = require_slice(
+    if phase != "Implementation.":
+        return errors
+
+    next_matches = re.findall(
         r"^- S(\d{2}) is the next authorized implementation slice\.$",
         decisions,
-        "Accepted Decisions",
-        errors,
+        re.MULTILINE,
     )
-    blocker_active = require_slice(
-        r"^None for S(\d{2}) dispatch\.$",
-        blockers.strip(),
-        "Durable Blockers",
-        errors,
-    )
-    action_active = require_slice(
-        r"compile and dispatch S(\d{2})\.",
-        next_action.strip(),
-        "Next Authorized Action",
-        errors,
-    )
-    latest = require_slice(
-        r"^S(\d{2})\b",
-        milestone.strip(),
-        "Latest Accepted Milestone",
-        errors,
-    )
+    if len(next_matches) != 1:
+        errors.append(
+            "Accepted Decisions: expected exactly one "
+            "'Sxx is the next authorized implementation slice' entry"
+        )
+        return errors
 
-    known = [
-        ("Accepted Decisions", decision_active),
-        ("Durable Blockers", blocker_active),
-        ("Next Authorized Action", action_active),
-    ]
-    if active is not None:
-        for label, candidate in known:
-            if candidate is not None and candidate != active:
-                errors.append(
-                    f"{label}: projects S{candidate:02d} while Current Objective projects S{active:02d}"
-                )
+    active = int(next_matches[0])
 
-        if active > 1:
-            expected_previous = active - 1
-            if latest is not None and latest != expected_previous:
-                errors.append(
-                    "Latest Accepted Milestone: "
-                    f"expected S{expected_previous:02d} before active S{active:02d}, "
-                    f"found S{latest:02d}"
-                )
+    objective_refs = slice_refs(first_content_line(objective))
+    if not objective_refs:
+        errors.append("Current Objective: implementation objective must name the active slice")
+    elif objective_refs[0] != active:
+        errors.append(
+            f"Current Objective: projects S{objective_refs[0]:02d} "
+            f"while Accepted Decisions projects S{active:02d}"
+        )
 
-            accepted_pattern = re.compile(
-                rf"^- S{expected_previous:02d} is accepted through .+$",
-                re.MULTILINE,
+    blocker_match = re.search(r"^None for S(\d{2}) dispatch\.$", blockers.strip())
+    if blocker_match is not None and int(blocker_match.group(1)) != active:
+        errors.append(
+            f"Durable Blockers: projects S{int(blocker_match.group(1)):02d} "
+            f"while Accepted Decisions projects S{active:02d}"
+        )
+
+    action_refs = slice_refs(first_content_line(next_action))
+    if action_refs and action_refs[0] != active:
+        errors.append(
+            f"Next Authorized Action: projects S{action_refs[0]:02d} "
+            f"while Accepted Decisions projects S{active:02d}"
+        )
+
+    latest_refs = slice_refs(first_content_line(milestone))
+    if active > 1:
+        expected_previous = active - 1
+        if not latest_refs:
+            errors.append("Latest Accepted Milestone: expected a predecessor slice reference")
+        elif latest_refs[0] != expected_previous:
+            errors.append(
+                "Latest Accepted Milestone: "
+                f"expected S{expected_previous:02d} before active S{active:02d}, "
+                f"found S{latest_refs[0]:02d}"
             )
-            if accepted_pattern.search(decisions) is None:
-                errors.append(
-                    "Accepted Decisions: "
-                    f"S{expected_previous:02d} must be recorded accepted before S{active:02d} is next"
-                )
+
+        accepted_pattern = re.compile(
+            rf"^- S{expected_previous:02d} is accepted through .+$",
+            re.MULTILINE,
+        )
+        if accepted_pattern.search(decisions) is None:
+            errors.append(
+                "Accepted Decisions: "
+                f"S{expected_previous:02d} must be recorded accepted before S{active:02d} is next"
+            )
 
     return errors
 
