@@ -198,11 +198,11 @@ These names are the contract. Implementation may split them; it may not drop the
 
 ### Presentation and accessibility
 
-Instrumented Compose coverage enables the platform accessibility validator on the rendered routes. That adds automated checks such as contrast, labeling, and touch-target issues where the platform can evaluate them; the explicit AppT contracts below remain required because they cover product semantics, responsive behavior, reduced motion, and gesture alternatives that a generic validator does not prove.
+Instrumented Compose coverage on API 34+ enables the platform accessibility validator on the rendered routes. The Compose accessibility API requires AndroidComposeTestRule on API 34+ and does not run under Robolectric. It adds automated checks such as contrast, labeling, touch-target, and traversal issues where the platform can evaluate them; the explicit AppT contracts below remain required because they cover product semantics, responsive behavior, reduced motion, and gesture alternatives that a generic validator does not prove. The existing API 29 installed-app acceptance remains a separate compatibility signal.
 
 | Test | Assertion |
 |---|---|
-| `composeAccessibilityChecksPass` | Instrumented Compose tests enable platform accessibility checks on every shipped route and report no validator errors |
+| `composeAccessibilityChecksPass` | API 34+ AndroidComposeTestRule coverage enables platform accessibility checks on every shipped route and reports no validator errors |
 | `launchRoutingResolvesRemoteFirst` | With a remembered television and allowed access, launch resolves to `Remote` and no dashboard exists |
 | `gatedLaunchNeverOpensSession` | A blocked launch destination is Account or Entitlement and `SamsungTvs.open` is not called |
 | `remoteShowsNoLicensingPrompts` | No purchase, trial countdown, or account prompt composable appears on the Remote surface |
