@@ -23,7 +23,30 @@ Identify objective, scope, out-of-scope areas, constraints, acceptance criteria,
 
 Load only the project context needed for the current slice.
 
-### 2. Choose the smallest meaningful slice
+### 2. Establish implementation evidence before coding
+
+Do not treat model memory, familiarity with a framework, or an assumed API shape as implementation authority.
+
+Before writing production code for a non-trivial behavior:
+
+1. read the active AppT contract and the owning architecture/documentation for that behavior;
+2. inspect the current AppT code at the seam being changed so local conventions and already-accepted behavior come from repository truth;
+3. for material external API, platform, provider, protocol, security, storage, lifecycle, or toolchain behavior, re-open the relevant first-party authoritative source linked by the owning document, or the current first-party owner when the recorded link is stale;
+4. inspect the relevant pinned implementation-evidence / harvest entries in the owning architecture documents for concrete algorithms, message shapes, races, edge cases, lifecycle patterns, or test strategies, respecting the recorded provenance, licence, and harvest method;
+5. use AppT fixtures, tests, and physical/provider evidence to close the gap between external claims and AppT's accepted behavior.
+
+The source hierarchy is deliberate:
+
+- the accepted AppT contract and current repository own project truth;
+- first-party authoritative sources own external contracts;
+- pinned harvested OSS and physical evidence inform implementation technique and de-facto behavior without becoming provider guarantees;
+- model memory may suggest what to inspect but is not evidence.
+
+There is intentionally no separate harvest register. When a contract points to harvest material, recover it from the relevant owning architecture documents.
+
+Research only the implementation facts needed for the active behavior. Do not turn implementation into open-ended browsing. If authoritative or implementation evidence is missing, stale, or contradictory in a way that could materially change the accepted contract, stop and return a contract exception instead of inventing the missing behavior.
+
+### 3. Choose the smallest meaningful slice
 
 Prefer a complete behavior that:
 
@@ -34,7 +57,7 @@ Prefer a complete behavior that:
 
 Use a wide migration sequence only when a vertical slice cannot remain valid independently.
 
-### 3. Implement simply and stay in scope
+### 4. Implement simply and stay in scope
 
 Choose the simplest correct implementation for the current contract.
 
@@ -48,7 +71,7 @@ Do not mix:
 
 Record useful out-of-scope debt separately.
 
-### 4. Use the right feedback loop
+### 5. Use the right feedback loop
 
 For behavior changes, apply `../test-driven-development/SKILL.md` when test-first behavior is practical.
 
@@ -56,9 +79,9 @@ For bugs, reproduce before fixing.
 
 For configuration or other non-testable changes, use the smallest check that can prove the current hypothesis.
 
-Follow `../../execution/verification.md` rather than running terminal repository verification after every edit.
+Follow `../../execution/verification.md` and `../../routing/route.md` rather than running terminal repository verification after every edit. Use the smallest practical local check first. If that exact operation is genuinely blocked, use the narrowest existing hosted diagnostic route. Temporary branch-scoped workflow YAML is last-resort infrastructure only when local tooling and existing diagnostic modes cannot perform the required operation; keep it narrowly scoped and unprivileged, and remove it before the finished candidate unless it is explicitly accepted as permanent infrastructure.
 
-### 5. Classify implementation discoveries
+### 6. Classify implementation discoveries
 
 **Local detail:** helper shape, naming, bounded refactor, or other implementation choice inside the contract → proceed.
 
@@ -66,13 +89,13 @@ Follow `../../execution/verification.md` rather than running terminal repository
 
 **Contract exception:** material requirement, architecture, security, dependency, data, interface, scope, or user-visible behavior must change → stop and report under Arena policy.
 
-### 6. Carry forward verified slices
+### 7. Carry forward verified slices
 
 After each slice, keep focused checks green and remove temporary scaffolding unless it has earned a permanent role.
 
 Do not restart the plan or reopen accepted decisions without evidence.
 
-### 7. Produce a finished candidate
+### 8. Produce a finished candidate
 
 When all slices are implemented:
 
@@ -94,6 +117,7 @@ Leave:
 
 ## Boundaries
 
+- Do not code material external behavior from model memory or unverified assumptions.
 - Do not silently rewrite the contract to fit implementation.
 - Do not mix unrelated cleanup into the change.
 - Do not use full CI as the ordinary inner feedback loop.
