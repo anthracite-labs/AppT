@@ -561,7 +561,14 @@ and is only analysis data: no target Gradle, npm, wrapper, local action or scrip
 runs in this job. The trusted pinned scanner receives:
 
 - explicit `project.settings` pointing **outside** the target to the anchor's
-  configuration, and an empty `sonar.modules` to prevent child settings loading;
+  configuration, without a target `projectBaseDir` override; the action's default
+  `.` keeps analysis anchored in the trusted workspace;
+- explicit `sonar.sources`, `sonar.tests`, and `sonar.java.binaries` rooted under
+  `sonar-target/`, so the anchor's product files are not analyzed by mistake;
+- whole-argument quoting (`"-Dkey=value"`), not value-only quoting (`-Dkey="value"`):
+  the pinned action uses `string-argv` 0.3.2, which preserves quotes in the latter
+  spelling, unlike shell/shlex parsing;
+- an empty `sonar.modules` to prevent child settings loading;
 - fixed SonarCloud web/API endpoints, never target-derived destinations;
 - fresh `sonar.userHome` and `sonar.working.directory` outside the target/artifacts;
 - explicit absolute coverage paths into separate Kover and backend artifact

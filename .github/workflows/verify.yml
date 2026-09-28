@@ -948,21 +948,24 @@ jobs:
         uses: sonarsource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4
         with:
           scannerVersion: 8.1.0.6389
-          projectBaseDir: sonar-target
-          # CLI settings override discovery of target sonar-project.properties.
-          # Empty modules prevents secondary target-controlled module settings.
-          # Endpoints, working state and report paths are all trusted constants.
+          # Stay at the trusted anchor (the action defaults projectBaseDir to
+          # '.'). Do not combine the explicit settings file with a target base.
+          # Analyze only target paths; target settings remain inert. Quote each
+          # WHOLE argument: string-argv 0.3.2 preserves quotes after the '='.
           args: >-
-            -Dproject.settings="${{ github.workspace }}/sonar-project.properties"
-            -Dsonar.modules=
-            -Dsonar.host.url=https://sonarcloud.io
-            -Dsonar.scanner.sonarcloudUrl=https://sonarcloud.io
-            -Dsonar.scanner.apiBaseUrl=https://api.sonarcloud.io
-            -Dsonar.working.directory="${{ runner.temp }}/sonar-work"
-            -Dsonar.userHome="${{ runner.temp }}/sonar-home"
-            -Dsonar.coverage.jacoco.xmlReportPaths="${{ runner.temp }}/sonar-kover/build/reports/kover/report.xml,${{ runner.temp }}/sonar-kover/app/build/reports/kover/report.xml,${{ runner.temp }}/sonar-kover/app/build/reports/kover/reportDebug.xml,${{ runner.temp }}/sonar-kover/build/reports/kover/reportDebug.xml"
-            -Dsonar.javascript.lcov.reportPaths="${{ runner.temp }}/sonar-backend/lcov.info"
-            -Dsonar.scm.revision=${{ steps.assert-target.outputs.sha || github.sha }}
+            "-Dproject.settings=${{ github.workspace }}/sonar-project.properties"
+            "-Dsonar.sources=sonar-target/app/src/main,sonar-target/samsung/src/main,sonar-target/backend/src"
+            "-Dsonar.tests=sonar-target/app/src/test,sonar-target/backend/test"
+            "-Dsonar.java.binaries=sonar-target/app/build/intermediates/javac/debug/classes,sonar-target/app/build/tmp/kotlin-classes/debug"
+            "-Dsonar.modules="
+            "-Dsonar.host.url=https://sonarcloud.io"
+            "-Dsonar.scanner.sonarcloudUrl=https://sonarcloud.io"
+            "-Dsonar.scanner.apiBaseUrl=https://api.sonarcloud.io"
+            "-Dsonar.working.directory=${{ runner.temp }}/sonar-work"
+            "-Dsonar.userHome=${{ runner.temp }}/sonar-home"
+            "-Dsonar.coverage.jacoco.xmlReportPaths=${{ runner.temp }}/sonar-kover/build/reports/kover/report.xml,${{ runner.temp }}/sonar-kover/app/build/reports/kover/report.xml,${{ runner.temp }}/sonar-kover/app/build/reports/kover/reportDebug.xml,${{ runner.temp }}/sonar-kover/build/reports/kover/reportDebug.xml"
+            "-Dsonar.javascript.lcov.reportPaths=${{ runner.temp }}/sonar-backend/lcov.info"
+            "-Dsonar.scm.revision=${{ steps.assert-target.outputs.sha || github.sha }}"
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 

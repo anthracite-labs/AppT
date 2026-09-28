@@ -328,8 +328,12 @@ The quality-platform job does **not** execute target build/install scripts. It
 keeps its trusted dispatch-anchor checkout at the workspace root, checks the
 validated target into `sonar-target`, and downloads coverage into separate
 runner-temporary directories. The scanner reads the anchor's
-`sonar-project.properties` through an explicit `project.settings` argument;
-target and artifact copies are not scanner configuration. Module settings are
+`sonar-project.properties` through an explicit `project.settings` argument.
+The scanner stays at the trusted anchor (no target `projectBaseDir` input);
+explicit `sonar.sources`, `sonar.tests` and `sonar.java.binaries` overrides select
+only `sonar-target/...` paths. Entire `-Dkey=value` arguments are quoted because
+the pinned action's parser preserves quotes placed only around a value.
+Target and artifact copies are not scanner configuration. Module settings are
 disabled, endpoints are fixed, and scanner state starts in fresh directories
 outside all input trees. Input symlinks and special files fail closed before any
 secret-bearing step. Both Kover XML and backend LCOV remain required and are

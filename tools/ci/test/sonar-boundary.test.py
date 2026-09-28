@@ -4,6 +4,7 @@ from copy import deepcopy
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import shlex
 import sys
@@ -140,9 +141,10 @@ class SonarWorkflowTests(unittest.TestCase):
         scanner = steps[-1]
         self.assertEqual(scanner["uses"],
                          "sonarsource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4")
-        self.assertEqual(set(scanner["with"]), {"args", "scannerVersion", "projectBaseDir"})
+        self.assertEqual(set(scanner["with"]), {"args", "scannerVersion"})
         self.assertEqual(scanner["with"]["scannerVersion"], "8.1.0.6389")
-        self.assertEqual(scanner["with"]["projectBaseDir"], "sonar-target")
+        self.assertNotIn("projectBaseDir", scanner["with"],
+                         "explicit trusted settings must use the action's anchor-root default")
         self.assertEqual(scanner["env"], {"SONAR_TOKEN": "${{ secrets.SONAR_TOKEN }}"})
         args = scanner["with"]["args"]
         for expression, value in (
@@ -152,9 +154,18 @@ class SonarWorkflowTests(unittest.TestCase):
         ):
             args = args.replace(expression, value)
         self.assertNotIn("${{", args, "no target-controlled expression may enter scanner options")
-        properties = dict(option.removeprefix("-D").split("=", 1) for option in shlex.split(args))
+        # The pinned action uses string-argv 0.3.2, NOT shell/shlex semantics:
+        # -Dkey="value" retains literal quote bytes. Restrict the workflow to
+        # whole-argument quotes, where both parsers agree (also for spaces).
+        self.assertRegex(args, r'\A(?:\s*"-D[^"\\\n]+")+\s*\Z')
+        options = shlex.split(args)
+        properties = dict(option.removeprefix("-D").split("=", 1) for option in options)
+        self.assertEqual(len(properties), len(options), "duplicate properties must not hide overrides")
         self.assertEqual(properties, {
             "project.settings": "/anchor/sonar-project.properties",
+            "sonar.sources": "sonar-target/app/src/main,sonar-target/samsung/src/main,sonar-target/backend/src",
+            "sonar.tests": "sonar-target/app/src/test,sonar-target/backend/test",
+            "sonar.java.binaries": "sonar-target/app/build/intermediates/javac/debug/classes,sonar-target/app/build/tmp/kotlin-classes/debug",
             "sonar.modules": "",
             "sonar.host.url": "https://sonarcloud.io",
             "sonar.scanner.sonarcloudUrl": "https://sonarcloud.io",
@@ -182,7 +193,7 @@ class SonarWorkflowTests(unittest.TestCase):
 
     def test_target_control_of_scanner_settings_is_detected(self):
         for old, new in (
-            ('-Dproject.settings="${{ github.workspace }}/sonar-project.properties"', ""),
+            ('"-Dproject.settings=${{ github.workspace }}/sonar-project.properties"', ""),
             ("/sonar-project.properties", "/sonar-target/sonar-project.properties"),
             ("-Dsonar.modules=", "-Dsonar.modules=untrusted"),
             ("https://sonarcloud.io", "https://example.invalid"),
@@ -192,6 +203,50 @@ class SonarWorkflowTests(unittest.TestCase):
             scanner = candidate["jobs"]["quality-platform"]["steps"][-1]
             scanner["with"]["args"] = scanner["with"]["args"].replace(old, new)
             with self.subTest(old=old), self.assertRaises(AssertionError):
+                self.assert_boundary(candidate)
+
+    def test_target_project_base_dir_cannot_be_reintroduced(self):
+        for value in ("sonar-target", ".", ""):
+            candidate = deepcopy(self.workflow)
+            candidate["jobs"]["quality-platform"]["steps"][-1]["with"]["projectBaseDir"] = value
+            with self.subTest(value=value), self.assertRaises(AssertionError):
+                self.assert_boundary(candidate)
+        candidate = deepcopy(self.workflow)
+        candidate["jobs"]["quality-platform"]["steps"][-1]["with"]["args"] += (
+            ' "-Dsonar.projectBaseDir=sonar-target"'
+        )
+        with self.assertRaises(AssertionError):
+            self.assert_boundary(candidate)
+
+    def test_each_analysis_path_is_explicitly_target_rooted(self):
+        original = self.workflow["jobs"]["quality-platform"]["steps"][-1]["with"]["args"]
+        for key in ("sonar.sources", "sonar.tests", "sonar.java.binaries"):
+            option = re.search(r'"-D' + re.escape(key) + r'=([^"\n]+)"', original)
+            self.assertIsNotNone(option)
+            replacements = [""]  # Omitting the override would select anchor paths.
+            for path in option[1].split(","):
+                replacements.append(option[0].replace(path, path.removeprefix("sonar-target/")))
+            for replacement in replacements:
+                candidate = deepcopy(self.workflow)
+                candidate["jobs"]["quality-platform"]["steps"][-1]["with"]["args"] = (
+                    original.replace(option[0], replacement)
+                )
+                with self.subTest(key=key, replacement=replacement), self.assertRaises(AssertionError):
+                    self.assert_boundary(candidate)
+
+    def test_value_only_quotes_are_rejected_for_every_path_option(self):
+        original = self.workflow["jobs"]["quality-platform"]["steps"][-1]["with"]["args"]
+        for key in ("project.settings", "sonar.working.directory", "sonar.userHome",
+                    "sonar.coverage.jacoco.xmlReportPaths", "sonar.javascript.lcov.reportPaths"):
+            option = re.search(r'"-D' + re.escape(key) + r'=([^"\n]+)"', original)
+            self.assertIsNotNone(option)
+            # This is the old spelling. shlex alone would silently accept it,
+            # but string-argv passes literal quotes to Scanner CLI's Conf.java.
+            candidate = deepcopy(self.workflow)
+            candidate["jobs"]["quality-platform"]["steps"][-1]["with"]["args"] = (
+                original.replace(option[0], f'-D{key}="{option[1]}"')
+            )
+            with self.subTest(key=key), self.assertRaises(AssertionError):
                 self.assert_boundary(candidate)
 
     def test_artifacts_cannot_overwrite_trusted_checkout(self):
