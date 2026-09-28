@@ -1,5 +1,6 @@
 package dev.anthracite.appt.samsung
 
+import android.security.keystore.AndroidKeyStoreSecretKey
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -77,7 +78,12 @@ class SamsungKeystoreContractTest {
             }
             val stored = key()
             assertEquals("AES", stored.algorithm)
-            assertEquals("AndroidKeyStore", stored.provider.name)
+            // SecretKey exposes no provider; the platform's marker type is the documented way to
+            // assert that the key is AndroidKeyStore-backed rather than a software key.
+            assertTrue(
+                "the key must be AndroidKeyStore-backed",
+                stored is AndroidKeyStoreSecretKey,
+            )
 
             val plaintext = context.packageName.toByteArray() + "round-trip".toByteArray()
             val encrypt = Cipher.getInstance("AES/GCM/NoPadding")
