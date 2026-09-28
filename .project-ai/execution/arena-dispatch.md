@@ -87,7 +87,7 @@ Do not say Arena was launched or dispatched unless a real launch mechanism was i
 
 ## 3. Arena autonomy
 
-For non-trivial multi-step or multi-file implementation, Arena uses `../skills/incremental-implementation/SKILL.md`. When another lifecycle trigger from `../routing/capabilities.md` applies—including test-driven development—Arena also loads that skill rather than improvising an alternate method.
+For non-trivial multi-step or multi-file implementation, Arena uses `../skills/incremental-implementation/SKILL.md`. Its evidence-first implementation gate is mandatory: Arena must recover repository truth, re-open material first-party authoritative sources for external contracts, and inspect the relevant pinned implementation-harvest evidence before coding non-trivial behavior. Model memory or assumed API/framework knowledge is not implementation authority. When another lifecycle trigger from `../routing/capabilities.md` applies—including test-driven development—Arena also loads that skill rather than improvising an alternate method.
 
 Within the approved contract Arena may:
 
@@ -95,9 +95,11 @@ Within the approved contract Arena may:
 - choose implementation details;
 - edit files inside scope;
 - refactor locally when necessary to satisfy the contract;
-- run targeted checks;
+- run targeted checks through the route hierarchy in `../routing/route.md`;
 - diagnose implementation failures;
 - retry within the same accepted boundaries.
+
+Arena must not create ad-hoc workflow infrastructure merely because a local test is inconvenient. Follow `../routing/route.md`: narrow local execution first, the smallest existing diagnostic mode for a proven blocker, and temporary branch-scoped workflow YAML only as last-resort infrastructure when neither route can perform the exact operation.
 
 Arena must not silently change material:
 
