@@ -76,6 +76,47 @@ detekt {
     source.setFrom("src/main/java", "src/main/kotlin")
 }
 
+// TEMP DIAGNOSTIC (S04): surface lint findings through the annotation channel; the runner log
+// is not reachable from the implementation sandbox. REMOVE BEFORE TERMINAL VERIFY.
+tasks.matching { it.name == "lintDebug" }.configureEach {
+    finalizedBy("surfaceLintFindings")
+}
+
+tasks.register("surfaceLintFindings") {
+    doLast {
+        val report = project.file("build/reports/lint-results-debug.xml")
+        if (!report.exists()) {
+            println("::error title=lint-findings::NO LINT XML REPORT AT " + report.path)
+            return@doLast
+        }
+        println("::notice title=lint-findings::report exists, " + report.length() + " bytes")
+        val text = report.readText()
+        val issueTags = Regex("<issue\\b[^>]*>")
+        val attr: (String, String) -> String? = { tag, name ->
+            Regex(name + "=\"([^\"]*)\"").find(tag)?.groupValues?.get(1)
+        }
+        var count = 0
+        issueTags.findAll(text).take(20).forEach { issueMatch ->
+            val tag = issueMatch.value
+            val id = attr(tag, "id") ?: "?"
+            val severity = attr(tag, "severity") ?: "?"
+            val message = (attr(tag, "message") ?: "?").take(160)
+            val locMatch =
+                Regex("<location\\b[^>]*>").find(
+                    text.substringAfter(tag).substringBefore("</issue>"),
+                )
+            val loc = locMatch?.value ?: ""
+            val file = (attr(loc, "file") ?: "?").substringAfterLast("/")
+            val line = attr(loc, "line") ?: "?"
+            count++
+            println("::error title=lint::" + id + " [" + severity + "] " + file + ":" + line + " :: " + message)
+        }
+        if (count == 0) {
+            println("::error title=lint-findings::REPORT PARSED BUT ZERO ISSUES EXTRACTED; head: " + text.take(400))
+        }
+    }
+}
+
 dependencies {
     // S02 discovery (Issue #73). Both are already on :app's resolved graph at
     // these exact versions; see the license/provenance notes in
