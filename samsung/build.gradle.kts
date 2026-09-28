@@ -74,7 +74,6 @@ kotlin {
             "-Xwarning-level=UNCHECKED_CAST:disabled",
             "-Xwarning-level=CAST_NEVER_SUCCEEDS:disabled",
             "-Xwarning-level=EXTENSION_SHADOWED_BY_MEMBER:disabled",
-            "-Xwarning-level=SAFE_CALLABLE_REFERENCE_CALL:disabled",
             "-Xwarning-level=IMPLICIT_BOXING_IN_IDENTITY_EQUALS:disabled",
             "-Xwarning-level=INTEGER_LITERAL_CAST_INSTEAD_OF_TO_CALL:disabled",
             "-Xwarning-level=NULLABLE_ON_DEFINITELY_NOT_NULLABLE:disabled",
