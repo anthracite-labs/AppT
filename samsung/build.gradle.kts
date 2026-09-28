@@ -76,10 +76,7 @@ kotlin {
             "-Xwarning-level=EXTENSION_SHADOWED_BY_MEMBER:disabled",
             "-Xwarning-level=IMPLICIT_BOXING_IN_IDENTITY_EQUALS:disabled",
             "-Xwarning-level=INTEGER_LITERAL_CAST_INSTEAD_OF_TO_CALL:disabled",
-            "-Xwarning-level=NULLABLE_ON_DEFINITELY_NOT_NULLABLE:disabled",
-            "-Xwarning-level=UNEXPECTED_SAFE_CALL:disabled",
             "-Xwarning-level=DEPRECATED_SMARTCAST_ON_DELEGATED_PROPERTY:disabled",
-            "-Xwarning-level=WRONG_ANNOTATION_TARGET:disabled",
         )
     }
 }
