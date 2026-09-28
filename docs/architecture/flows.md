@@ -2,7 +2,7 @@
 
 State machines, field lists, and rules stay in their owning files. This file is the sequence that crosses modules.
 
-Owning files: reconnect in [connection.md](connection.md), secrets and local data in [data.md](data.md), account/trial/entitlement in [sync.md](sync.md), modules and seams in [modules.md](modules.md), lifecycle transitions in [lifecycle.md](lifecycle.md), screens in [presentation.md](presentation.md).
+Owning files: reconnect in [connection.md](connection.md), secrets and local data in [data.md](data.md), account/trial/entitlement in [account-entitlement.md](account-entitlement.md), modules and seams in [modules.md](modules.md), lifecycle transitions in [lifecycle.md](lifecycle.md), screens in [presentation.md](presentation.md).
 
 ## First run to first control
 
