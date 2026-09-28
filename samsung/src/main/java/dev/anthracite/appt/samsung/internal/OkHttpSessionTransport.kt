@@ -101,7 +101,7 @@ internal class OkHttpSessionTransport(
                 }
             }
             IdentityProbe.MATCHED
-        } catch (mismatch: SavedIdentityMismatchException) {
+        } catch (ignored: SavedIdentityMismatchException) {
             IdentityProbe.IDENTITY_CHANGED
         } catch (ignored: Exception) {
             // Unreachable hosts, timeouts, and every handshake failure that is not the saved
