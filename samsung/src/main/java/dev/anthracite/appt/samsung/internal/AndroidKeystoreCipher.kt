@@ -1,6 +1,5 @@
 package dev.anthracite.appt.samsung.internal
 
-import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import java.security.InvalidAlgorithmParameterException
@@ -74,7 +73,11 @@ internal class AndroidKeystoreCipher(private val alias: String = KEYSTORE_ALIAS)
                 KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
             )
             .apply {
-                if (strongBox && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                // minSdk 29 is past P, so the StrongBox API is always present and the SDK_INT
+                // guard lint flags as obsolete is dead code. Hardware availability is still
+                // runtime-negotiated: a device without StrongBox throws
+                // InvalidAlgorithmParameterException here and the TEE fallback generates the key.
+                if (strongBox) {
                     setIsStrongBoxBacked(true)
                 }
             }
