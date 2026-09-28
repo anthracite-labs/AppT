@@ -20,6 +20,12 @@ There is no `domain`, `data`, `usecase`, or `repository` Gradle module. Packages
 
 Suggested namespaces, confirmable before the first Play upload: `dev.anthracite.appt` and `dev.anthracite.appt.samsung`. The application id default is `dev.anthracite.appt`. Changing it before the first Play upload is not an architecture change.
 
+## Architecture evidence
+
+**AUTHORITATIVE:** Android's [UI layer architecture](https://developer.android.com/topic/architecture/ui-layer) recommends state holders such as ViewModels for screen state, unidirectional data flow, and data ownership below the UI. AppT adopts those principles without importing a generic "clean architecture" layer tree.
+
+**IMPLEMENTATION EVIDENCE:** [Home Assistant Android](https://github.com/home-assistant/android) at [`d120c7dc`](https://github.com/home-assistant/android/commit/d120c7dcd0683e163a2379883ba9299af071e1cb), Apache-2.0, demonstrates a mature Android application with repository-owned data, Room, lifecycle-aware ViewModels, WorkManager, and explicit connection/data managers. Method: **BEHAVIORAL REFERENCE**. AppT keeps a much smaller module graph because its current problem does not justify Home Assistant's scale.
+
 ## System structure
 
 ```mermaid
