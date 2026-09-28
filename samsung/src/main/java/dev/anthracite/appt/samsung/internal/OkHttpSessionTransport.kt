@@ -126,7 +126,7 @@ internal class OkHttpSessionTransport(
                 .build()
         val inbound = Channel<String>(Channel.UNLIMITED)
         val opened = CompletableDeferred<Boolean>()
-        val socket = openSocket(client, television, token, inbound, opened, trustManager)
+        val socket = openSocket(client, television, token, inbound, opened)
         if (socket == null) {
             shutdown(client)
             inbound.close()
@@ -156,7 +156,6 @@ internal class OkHttpSessionTransport(
         token: String?,
         inbound: Channel<String>,
         opened: CompletableDeferred<Boolean>,
-        trustManager: SpkiTrustManager,
     ): WebSocket? {
         val listener =
             object : WebSocketListener() {
