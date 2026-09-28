@@ -1,6 +1,7 @@
 package dev.anthracite.appt.samsung.internal
 
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.StrongBoxUnavailableException
 import android.security.keystore.KeyProperties
 import java.security.InvalidAlgorithmParameterException
 import java.security.KeyStore
@@ -60,8 +61,12 @@ internal class AndroidKeystoreCipher(private val alias: String = KEYSTORE_ALIAS)
         try {
             generator.init(spec(strongBox = true))
             return generator.generateKey()
+        } catch (ignored: StrongBoxUnavailableException) {
+            // data.md: StrongBox where available, otherwise TEE. The platform signals a missing
+            // security enclave with StrongBoxUnavailableException (a ProviderException subclass),
+            // so catching only InvalidAlgorithmParameterException never triggered this fallback.
         } catch (ignored: InvalidAlgorithmParameterException) {
-            // data.md: StrongBox where available, otherwise TEE.
+            // A spec this module's own builder produced cannot be the fault; fall back too.
         }
         generator.init(spec(strongBox = false))
         return generator.generateKey()
