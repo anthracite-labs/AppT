@@ -164,7 +164,7 @@ internal class KeystoreSamsungStore private constructor(
     override fun loadDevice(tvId: TvId): SamsungDeviceRecord? =
         synchronized(lock) {
             val name = existingStoredName(tvId) ?: return@synchronized null
-            val file = File(ensureDirectory(devicesDir), name)
+            val file = File(ensureDirectory(devicesDir), name + DEVICE_SUFFIX)
             if (!file.exists()) return@synchronized null
             try {
                 DeviceRecordJson.parse(file.readBytes().decodeToString())

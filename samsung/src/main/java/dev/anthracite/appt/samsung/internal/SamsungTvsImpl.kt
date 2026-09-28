@@ -17,7 +17,6 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
@@ -25,7 +24,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.job
 
 /**
@@ -61,19 +59,15 @@ internal class SamsungTvsImpl(
     /** One monotonic generation counter per television. */
     private val generations = ConcurrentHashMap<TvId, AtomicLong>()
 
-    // The scan reads the durable store (remembered evidence, saved-identity readiness) and does
-    // socket work; neither belongs on the collector's dispatcher, which is the main thread in the
-    // app. flowOn confines the whole upstream — transports confine their own callbacks.
-    override fun discover(): Flow<DiscoveryEvent> =
-        channelFlow {
-            val scan = coroutineContext.job
-            activeScan.getAndSet(scan)?.cancelAndJoin()
-            try {
-                newScan().run { event -> send(event) }
-            } finally {
-                activeScan.compareAndSet(scan, null)
-            }
-        }.flowOn(Dispatchers.IO)
+    override fun discover(): Flow<DiscoveryEvent> = channelFlow {
+        val scan = coroutineContext.job
+        activeScan.getAndSet(scan)?.cancelAndJoin()
+        try {
+            newScan().run { event -> send(event) }
+        } finally {
+            activeScan.compareAndSet(scan, null)
+        }
+    }
 
     override fun open(id: TvId, scope: CoroutineScope): RemoteSession {
         val television =

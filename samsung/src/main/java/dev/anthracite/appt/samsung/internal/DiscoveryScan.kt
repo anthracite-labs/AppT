@@ -8,9 +8,11 @@ import dev.anthracite.appt.samsung.TvId
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -34,7 +36,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  *
  * The scan deliberately runs on its caller's dispatcher and never switches dispatchers itself: the
  * transport moves blocking socket work off-thread. That keeps the bound on the caller's clock,
- * which is what lets tests run the full 10 seconds in virtual time.
+ * which is what lets tests run the full 10 seconds in virtual time. The one exception is the
+ * durable-store read below: file and Keystore work is confined to IO so it never blocks the
+ * caller's (main) thread; it uses no virtual time and no clock the bound depends on.
  */
 internal class DiscoveryScan(
     private val transport: DiscoveryTransport,
@@ -113,8 +117,13 @@ internal class DiscoveryScan(
         // samsung-interface.md#discover: `remembered` means a secret or saved identity exists for
         // this id, and `ReadyToOpen` means `open` should resume a saved pairing. Both read the
         // durable store; neither is inferred from a year, a model, or a name.
-        val savedSecret = secrets.loadSecret(id)
-        val remembered = secrets.loadDevice(id) != null || savedSecret != StoredSecret.Absent
+        // The only dispatcher switch the scan makes: durable file/Keystore reads leave the
+        // caller's (main) thread, and nothing here participates in the caller's bound clock.
+        val (savedSecret, hasRecord) =
+            withContext(Dispatchers.IO) {
+                secrets.loadSecret(id) to (secrets.loadDevice(id) != null)
+            }
+        val remembered = hasRecord || savedSecret != StoredSecret.Absent
         val availability =
             when {
                 info.availability == ControlAvailability.Unsupported -> ControlAvailability.Unsupported

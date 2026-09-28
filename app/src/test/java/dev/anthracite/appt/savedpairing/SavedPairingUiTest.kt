@@ -107,9 +107,10 @@ class SavedPairingUiTest {
         val session = tvs.sessionFor(livingRoom)!!
         session.publish(SessionState.NeedsRepair, repairReason = RepairReason.IdentityChanged)
         settle()
-        assertTrue(
+        assertEquals(
             "the control exists for the failed state",
-            viewModel.state.value.phase is PairingPhase.Failed,
+            SessionState.NeedsRepair,
+            host.current.value?.snapshot?.state,
         )
 
         viewModel.onPairAgain()
@@ -127,9 +128,10 @@ class SavedPairingUiTest {
         val session = tvs.sessionFor(livingRoom)!!
         session.publish(SessionState.NeedsRepair, repairReason = RepairReason.IdentityChanged)
         settle()
-        assertTrue(
+        assertEquals(
             "the control exists for the failed state",
-            viewModel.state.value.connection is ConnectionUi.NeedsRepair,
+            SessionState.NeedsRepair,
+            host.current.value?.snapshot?.state,
         )
 
         viewModel.onConfirmRepair()
