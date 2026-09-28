@@ -1,5 +1,7 @@
 package dev.anthracite.appt.samsung.internal
 
+import kotlinx.coroutines.flow.Flow
+
 /**
  * The internal session-transport seam (docs/architecture/modules.md#internal-seams-inside-samsung).
  *
