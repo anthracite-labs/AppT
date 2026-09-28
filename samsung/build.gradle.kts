@@ -78,10 +78,8 @@ detekt {
 
 // TEMP DIAGNOSTIC (S04): surface detekt findings through the annotation channel, because the
 // runner log is not reachable from the implementation sandbox. REMOVE BEFORE TERMINAL VERIFY.
-tasks.matching { it.name == "detekt" }.configureEach {
-    reports {
-        xml.required.set(true)
-    }
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    reports.xml.required.set(true)
     finalizedBy("surfaceDetektFindings")
 }
 
