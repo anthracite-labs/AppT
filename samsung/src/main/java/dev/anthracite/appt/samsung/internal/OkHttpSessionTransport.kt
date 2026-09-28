@@ -107,12 +107,29 @@ internal class OkHttpSessionTransport(
             IdentityProbe.IDENTITY_CHANGED
         } catch (ignored: GeneralSecurityException) {
             // Lapsed certificates and unusable chains are not the saved identity either.
-            IdentityProbe.FAILED
+            if (ignored.wasCausedBySavedIdentityMismatch()) {
+                IdentityProbe.IDENTITY_CHANGED
+            } else {
+                IdentityProbe.FAILED
+            }
         } catch (ignored: IOException) {
             // Unreachable hosts and handshake transport failures are reachability, not identity.
-            IdentityProbe.FAILED
+            // A TLS stack may wrap the trust manager's decision in its own handshake exception,
+            // so unwrap the cause chain before classifying: a changed identity is never reported
+            // as mere unreachability (connection.md#security-identity).
+            if (ignored.wasCausedBySavedIdentityMismatch()) {
+                IdentityProbe.IDENTITY_CHANGED
+            } else {
+                IdentityProbe.FAILED
+            }
         }
     }
+
+    /** True when this throwable's cause chain reaches [SavedIdentityMismatchException]. */
+    private fun Throwable.wasCausedBySavedIdentityMismatch(): Boolean =
+        generateSequence(this as Throwable?) { it.cause }
+            .take(CAUSE_CHAIN_LIMIT)
+            .any { it is SavedIdentityMismatchException }
 
     private suspend fun open(
         television: ConfirmedTelevision,
@@ -233,6 +250,9 @@ internal class OkHttpSessionTransport(
     companion object {
         /** protocol.md: connect timeout. */
         val CONNECT_TIMEOUT: Duration = 5.seconds
+
+        /** Bound for cause-chain walks; TLS wrappers are shallow, and this ends any cycle. */
+        private const val CAUSE_CHAIN_LIMIT = 10
 
         /** protocol.md: keepalive ping interval on the live socket. */
         val KEEPALIVE_INTERVAL: Duration = 20.seconds
