@@ -41,7 +41,9 @@ Gather:
 - current diff;
 - relevant project commands.
 
-Separate technical failures from human or merge gates.
+For each failing technical domain, identify the smallest affected surface and collect all practical independent failures inside it before editing. Use project-owned tool capabilities such as non-fail-fast/continue modes, complete test reporting, independent sub-checks, report artifacts, or temporary diagnostics when needed. If a composite command stops after its first child failure, run the remaining owned child checks separately when they are independent and safe rather than assuming the first error is the whole failure set.
+
+Separate technical failures from human or merge gates, then classify/group the technical failures before correction.
 
 ### 3. Classify each item
 
@@ -65,15 +67,15 @@ For each substantive comment:
 
 Reviewer authority does not override accepted project authority.
 
-### 5. Diagnose CI failures narrowly
+### 5. Diagnose CI failures narrowly and comprehensively
 
-Read the actual failing log.
+Read the actual failing evidence.
 
-Create or run the smallest useful reproducer, establish root cause, correct it, and regain focused green locally where practical.
+Create or run the smallest useful reproducer, then map the bounded failure surface before correction. "Narrow" describes scope, not a requirement to stop after the first error: use the actual toolchain's safe diagnostic features to expose sibling failures in that scope, classify/group them, establish root cause, correct coherently, and regain focused green locally where practical.
 
 Use `../debugging-recovery/SKILL.md` for non-trivial root-cause work and `../test-driven-development/SKILL.md` when regression protection is appropriate.
 
-CI should confirm the fix rather than serve as the only edit-run loop.
+CI should confirm the fix rather than serve as the only edit-run loop. Do not push one speculative correction per newly discovered error when a bounded diagnostic pass can surface the set first.
 
 ### 6. Keep corrections bounded
 
@@ -108,8 +110,8 @@ Produce:
 
 ## Boundaries
 
-- Do not change code before reading the failing evidence.
-- Do not use push-and-pray CI loops.
+- Do not change code before reading the failing evidence and mapping the practical bounded failure set.
+- Do not use push-and-pray or one-error-at-a-time CI loops when the same bounded diagnostic can expose independent failures.
 - Do not implement review comments merely because they were requested.
 - Do not treat style preference as a contract requirement.
 - Do not create a new PR for an ordinary implementation miss.
@@ -123,6 +125,7 @@ Before handoff, confirm:
 - current head and active contract are known;
 - every actionable item is classified;
 - code failures were reproduced narrowly where practical;
+- each failing technical domain was diagnosed broadly enough to expose its practical independent failure set, or the limitation is explicit;
 - root causes, not symptoms, were corrected;
 - valid feedback was implemented and invalid feedback was technically rejected;
 - corrections stayed within scope;
