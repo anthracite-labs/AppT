@@ -6,6 +6,7 @@ import dev.anthracite.appt.samsung.DiscoveryEvent
 import dev.anthracite.appt.samsung.SamsungTvs
 import dev.anthracite.appt.samsung.TvFailure
 import dev.anthracite.appt.samsung.TvId
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.toList
@@ -48,6 +49,7 @@ class SamsungTvsDiscoveryTest {
                     confirmed,
                     secrets,
                     mintId = { "local-test-" + ++minted },
+                    readDispatcher = Dispatchers.Unconfined,
                 )
             },
             confirmed = confirmed,

@@ -11,6 +11,7 @@ import dev.anthracite.appt.samsung.SessionState
 import dev.anthracite.appt.samsung.TvCommand
 import dev.anthracite.appt.samsung.TvFailure
 import dev.anthracite.appt.samsung.TvId
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -626,7 +627,7 @@ class SamsungTvsSavedPairingTest {
         val tvs =
             SamsungTvsImpl(
                 newScan = {
-                    DiscoveryScan(FixtureTransport(Fixture.load(caseId)), confirmed, store)
+                    DiscoveryScan(FixtureTransport(Fixture.load(caseId)), confirmed, store, readDispatcher = Dispatchers.Unconfined)
                 },
                 confirmed = confirmed,
                 secrets = store,

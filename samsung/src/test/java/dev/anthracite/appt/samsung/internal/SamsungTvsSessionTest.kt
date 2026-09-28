@@ -16,6 +16,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -88,7 +89,7 @@ class SamsungTvsSessionTest {
     ): SamsungTvs {
         val confirmed = ConfirmedTelevisions()
         return SamsungTvsImpl(
-            newScan = { DiscoveryScan(FixtureTransport(Fixture.load(caseId)), confirmed, secrets) },
+            newScan = { DiscoveryScan(FixtureTransport(Fixture.load(caseId)), confirmed, secrets, readDispatcher = Dispatchers.Unconfined) },
             confirmed = confirmed,
             secrets = secrets,
             newSession = newSession,

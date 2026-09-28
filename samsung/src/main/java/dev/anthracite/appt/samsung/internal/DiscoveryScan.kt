@@ -8,6 +8,7 @@ import dev.anthracite.appt.samsung.TvId
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
@@ -37,8 +38,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  * The scan deliberately runs on its caller's dispatcher and never switches dispatchers itself: the
  * transport moves blocking socket work off-thread. That keeps the bound on the caller's clock,
  * which is what lets tests run the full 10 seconds in virtual time. The one exception is the
- * durable-store read below: file and Keystore work is confined to IO so it never blocks the
- * caller's (main) thread; it uses no virtual time and no clock the bound depends on.
+ * durable-store read below: file and Keystore work is confined to [readDispatcher] (IO in
+ * production) so it never blocks the caller's (main) thread. Tests inject an unconfined
+ * dispatcher, which keeps the read on the caller's clock like every other step.
  */
 internal class DiscoveryScan(
     private val transport: DiscoveryTransport,
@@ -46,6 +48,7 @@ internal class DiscoveryScan(
     private val secrets: SamsungSecretStore,
     private val mintId: () -> String = TvIdentity::mint,
     private val bound: Duration = SCAN_BOUND,
+    private val readDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     suspend fun run(emit: suspend (DiscoveryEvent) -> Unit) {
         val lan = transport.activeLan()
@@ -120,7 +123,7 @@ internal class DiscoveryScan(
         // The only dispatcher switch the scan makes: durable file/Keystore reads leave the
         // caller's (main) thread, and nothing here participates in the caller's bound clock.
         val (savedSecret, hasRecord) =
-            withContext(Dispatchers.IO) {
+            withContext(readDispatcher) {
                 secrets.loadSecret(id) to (secrets.loadDevice(id) != null)
             }
         val remembered = hasRecord || savedSecret != StoredSecret.Absent
