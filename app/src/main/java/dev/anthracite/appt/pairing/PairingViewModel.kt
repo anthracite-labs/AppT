@@ -60,8 +60,7 @@ class PairingViewModel(
      */
     fun onPairAgain() {
         viewModelScope.launch {
-            val held = activeRemoteHost.current.value?.takeIf { it.tvId == tvId } ?: return@launch
-            held.session.confirmRepair()
+            activeRemoteHost.confirmedPairAgain(tvId)
         }
     }
 

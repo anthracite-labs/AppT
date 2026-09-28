@@ -96,6 +96,33 @@ class ActiveRemoteHost(
         observe(tvId, session)
     }
 
+    /**
+     * The user-confirmed re-pair for the retained session of [tvId].
+     *
+     * For the saved-identity failures (`TokenRejected`, `IdentityChanged`) the session performs
+     * the re-pair itself: `confirmRepair` discards the saved approval and pairs as new
+     * (samsung-interface.md). For `SecretsUnavailable` the saved material is unreadable and the
+     * session's `confirmRepair` is contractually ignored, so the app-level pair again removes
+     * this phone's Samsung relationship with the `forget` primitive and opens fresh; the fresh
+     * approval then writes a new secret (data.md: "pair again writes a new file"). Both routes
+     * reach this only behind the screens' explicit confirmation dialog.
+     */
+    suspend fun confirmedPairAgain(tvId: TvId) {
+        val held = mutableCurrent.value?.takeIf { it.tvId == tvId } ?: return
+        if (held.snapshot.state != SessionState.NeedsRepair) return
+        if (held.snapshot.repairReason != null) {
+            held.session.confirmRepair()
+            return
+        }
+        // The retained NeedsRepair session is live by `isLive`, so `enter` alone would reuse it;
+        // close it first. Keeping the owners: the user is retrying the same visible television.
+        closeSession(clearOwners = false)
+        // A Failed forget leaves the relationship in place; re-entering then honestly re-reaches
+        // SecretsUnavailable and offers the confirmed pair again again (fail-closed, no fake).
+        samsungTvs.forget(tvId)
+        enter(tvId)
+    }
+
     /** Takes an interest in the held session. Idempotent for the same [owner]. */
     fun retain(owner: Any) {
         owners += owner

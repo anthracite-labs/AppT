@@ -347,7 +347,7 @@ private fun TvFailure.message(): Int =
         TvFailure.Unreachable -> R.string.remote_unreachable
         TvFailure.Unsupported -> R.string.remote_unsupported
         TvFailure.TimedOut -> R.string.remote_needs_repair
-        TvFailure.SecretsUnavailable -> R.string.remote_needs_repair
+        TvFailure.SecretsUnavailable -> R.string.pairing_failed_secrets_unavailable
         TvFailure.IdentityChanged -> R.string.remote_identity_changed
         else -> R.string.remote_unavailable
     }

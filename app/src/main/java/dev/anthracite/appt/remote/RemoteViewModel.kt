@@ -68,14 +68,14 @@ class RemoteViewModel(
     }
 
     /**
-     * The confirmed re-pair, offered only from the explicit confirmation dialog. The session
-     * discards the saved pairing and contacts the television as new; the session ignores this call
-     * from any state that is not one of the saved-connection failures.
+     * The confirmed re-pair, offered only from the explicit confirmation dialog. The host routes
+     * it: the session re-pairs for the saved-identity failures, and an unreadable saved connection
+     * (`SecretsUnavailable`) is forgotten and paired as new (data.md: "pair again writes a new
+     * file"). Both are ignored from any state the confirmed re-pair does not apply to.
      */
     fun onConfirmRepair() {
         viewModelScope.launch {
-            val held = activeRemoteHost.current.value?.takeIf { it.tvId == tvId } ?: return@launch
-            held.session.confirmRepair()
+            activeRemoteHost.confirmedPairAgain(tvId)
         }
     }
 

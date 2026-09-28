@@ -105,6 +105,12 @@ class SavedPairingUiTest {
         val host = entered()
         val viewModel = PairingViewModel(livingRoom, host, TvProfiles(FakeTvProfileDao()) { 1L })
         val session = tvs.sessionFor(livingRoom)!!
+        session.publish(SessionState.NeedsRepair, repairReason = RepairReason.IdentityChanged)
+        settle()
+        assertTrue(
+            "the control exists for the failed state",
+            viewModel.state.value.phase is PairingPhase.Failed,
+        )
 
         viewModel.onPairAgain()
         settle()
@@ -119,12 +125,79 @@ class SavedPairingUiTest {
         val viewModel =
             RemoteViewModel(livingRoom, host, TvProfiles(FakeTvProfileDao()) { 1L }, preferenceStore())
         val session = tvs.sessionFor(livingRoom)!!
+        session.publish(SessionState.NeedsRepair, repairReason = RepairReason.IdentityChanged)
+        settle()
+        assertTrue(
+            "the control exists for the failed state",
+            viewModel.state.value.connection is ConnectionUi.NeedsRepair,
+        )
 
         viewModel.onConfirmRepair()
         settle()
 
         assertEquals(1, session.confirmRepairs)
-        assertTrue(viewModel.state.value.connection is ConnectionUi.Connecting)
+    }
+
+    @Test
+    fun pairAgainOnAnUnreadableSavedConnectionForgetsAndPairsFresh() = runTest {
+        val host = entered()
+        val viewModel = PairingViewModel(livingRoom, host, TvProfiles(FakeTvProfileDao()) { 1L })
+        val session = tvs.sessionFor(livingRoom)!!
+        // SecretsUnavailable publishes NeedsRepair with no repair reason; confirmRepair ignores it.
+        session.publish(SessionState.NeedsRepair)
+        settle()
+
+        viewModel.onPairAgain()
+        settle()
+
+        assertEquals(
+            "the unreadable Samsung relationship is forgotten",
+            listOf(livingRoom),
+            tvs.forgottenIds,
+        )
+        assertEquals(
+            "the session's confirmRepair is not the secrets path",
+            0,
+            session.confirmRepairs,
+        )
+        assertTrue("the stuck session was closed", session.closed)
+        assertTrue(
+            "a fresh session was opened for the same television",
+            tvs.sessionFor(livingRoom) !== session,
+        )
+    }
+
+    @Test
+    fun theRemotePairsAgainTheSameWayThroughItsConfirmedRepair() = runTest {
+        val host = entered()
+        val viewModel =
+            RemoteViewModel(livingRoom, host, TvProfiles(FakeTvProfileDao()) { 1L }, preferenceStore())
+        val session = tvs.sessionFor(livingRoom)!!
+        session.publish(SessionState.NeedsRepair)
+        settle()
+
+        viewModel.onConfirmRepair()
+        settle()
+
+        assertEquals(listOf(livingRoom), tvs.forgottenIds)
+        assertEquals(0, session.confirmRepairs)
+        assertTrue(tvs.sessionFor(livingRoom) !== session)
+    }
+
+    @Test
+    fun pairAgainDoesNothingOutsideTheRepairStates() = runTest {
+        val host = entered()
+        val viewModel = PairingViewModel(livingRoom, host, TvProfiles(FakeTvProfileDao()) { 1L })
+        val session = tvs.sessionFor(livingRoom)!!
+        session.ready()
+        settle()
+
+        viewModel.onPairAgain()
+        settle()
+
+        assertEquals("a healthy session is not dropped", 0, session.confirmRepairs)
+        assertEquals("and nothing was forgotten", emptyList<TvId>(), tvs.forgottenIds)
+        assertTrue(tvs.sessionFor(livingRoom) === session)
     }
 
     private suspend fun TestScope.entered(): ActiveRemoteHost {
