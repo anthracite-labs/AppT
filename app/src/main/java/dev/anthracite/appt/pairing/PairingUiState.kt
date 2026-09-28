@@ -56,7 +56,8 @@ data class PairingUiState(
                         null -> TvFailure.SecretsUnavailable
                         RepairReason.ApprovalDenied -> TvFailure.NeedsRepair
                         RepairReason.ApprovalTimedOut -> TvFailure.TimedOut
-                        RepairReason.TokenRejected, RepairReason.IdentityChanged ->
+                        RepairReason.IdentityChanged -> TvFailure.IdentityChanged
+                        RepairReason.TokenRejected ->
                             TvFailure.IdentityChanged
                     }
                 SessionState.Unreachable -> TvFailure.Unreachable
