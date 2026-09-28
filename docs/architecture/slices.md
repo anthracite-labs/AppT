@@ -1,6 +1,6 @@
 # Implementation slice map
 
-Architecture output only. **Do not open implementation Issues from this file.** This route was reconciled through Issue #23 and is under human review; after acceptance, ChatGPT compiles one slice at a time into an Arena Issue, and each dispatch names this file, the slice, and that slice's architecture sources.
+Architecture output only. **Do not open implementation Issues from this file.** This is the accepted implementation route after the lifecycle/evidence reconciliation in Issue #96. S01–S03 remain accepted history; future work is compiled one authorized slice at a time into an Arena Issue, and each dispatch names this file, the slice, and that slice's architecture sources.
 
 Every slice is vertical: a user or tester can observe the outcome, and CI proves it, without waiting for a later slice to make the earlier one real. Security, privacy, accessibility, and reliability constraints appear in the slice where they first become real, not in a final cleanup slice.
 
