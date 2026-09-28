@@ -4,6 +4,18 @@
 
 The connected television is the source of truth. Model and year tables do not unlock controls. Device-info flags order internal probes. They do not, by themselves, show a button.
 
+## Implementation evidence
+
+The typed AppT command surface is an AppT contract; upstream key names are implementation evidence only.
+
+- [xchwarze/samsung-tv-ws-api](https://github.com/xchwarze/samsung-tv-ws-api) at [`e48d6377`](https://github.com/xchwarze/samsung-tv-ws-api/commit/e48d6377faede37db1f034d726a079b9d8034fac), LGPL-3.0, `samsungtvws/remote.py` and `shortcuts.py`: **CLEAN-ROOM REIMPLEMENT** reference for remote-key/event shapes.
+- [Home Assistant Core Samsung TV](https://github.com/home-assistant/core/tree/7f1a7451ba8cafc440bbbaf0894ac96c44aa8647/homeassistant/components/samsungtv) at [`7f1a7451`](https://github.com/home-assistant/core/commit/7f1a7451ba8cafc440bbbaf0894ac96c44aa8647), Apache-2.0, `media_player.py`: **BEHAVIORAL REFERENCE** showing mature use of keys such as `KEY_VOLUP` through the same Samsung library family.
+- [Smart-TV-Remote-Control](https://github.com/mazen-salah/Smart-TV-Remote-Control) at [`68a97ec3`](https://github.com/mazen-salah/Smart-TV-Remote-Control/commit/68a97ec304fd41dc7e94dde15cd41f56391f6d04), MIT, Samsung service/remote UI paths: **BEHAVIORAL REFERENCE** for capability-oriented control presentation and command failure handling.
+
+AppT does not adopt an upstream key merely because it exists in a library. A key enters `RemoteKey` only when it serves accepted product behavior and is proven through fixture or physical evidence. Service/factory/test keys stay excluded.
+
+Validated: 2026-09-28.
+
 ## Evidence
 
 | Control | Shown when | Hidden when |
