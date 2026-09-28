@@ -31,7 +31,8 @@ Success means S04 implements only behavior that becomes real in S04, includes th
 - S03 is accepted through implementation PR #80.
 - Repository CI/agent-control and verification hardening are accepted through PR #89.
 - Mandatory lifecycle skill routing and diagnose-before-fix gates are accepted through PR #84.
-- S04 is the next authorized implementation slice. Its contract must be recompiled from the reconciled architecture before dispatch; it does not pre-create `Favourite` or `PendingForget`.
+- S04 is the next authorized implementation slice.
+- Its contract must be recompiled from the reconciled architecture before dispatch; it does not pre-create `Favourite` or `PendingForget`.
 - S07 may be dependency-ready but is not active or authorized.
 - Provider facts marked `needs validation` must be confirmed when they first become implementation-relevant. Material external/protocol claims also carry explicit authority/implementation-evidence/AppT-decision provenance in their owning architecture documents.
 - Final AppT source-license selection and focused Samsung vendor-terms/legal review remain pre-public-release gates.
