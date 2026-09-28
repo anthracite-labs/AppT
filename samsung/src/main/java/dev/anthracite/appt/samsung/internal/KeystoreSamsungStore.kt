@@ -59,12 +59,14 @@ internal object DeviceRecordJson {
         if (version != null && version > SamsungDeviceRecord.DEVICE_RECORD_VERSION) return null
         return SamsungDeviceRecord(
             version = version ?: SamsungDeviceRecord.DEVICE_RECORD_VERSION,
-            uuid = root?.textOrNull("uuid"),
+            // The lastAddress elvis above has already proven root non-null (a null root yields
+            // null through the safe call and returns), so the receiver is smart-cast here.
+            uuid = root.textOrNull("uuid"),
             lastAddress = lastAddress,
-            tls = root?.boolean("tls") ?: false,
-            adoptedChannel = root?.boolean("adoptedChannel") ?: true,
-            displayName = root?.textOrNull("displayName"),
-            stableIdentity = root?.boolean("stableIdentity") ?: false,
+            tls = root.boolean("tls") ?: false,
+            adoptedChannel = root.boolean("adoptedChannel") ?: true,
+            displayName = root.textOrNull("displayName"),
+            stableIdentity = root.boolean("stableIdentity") ?: false,
         )
     }
 
