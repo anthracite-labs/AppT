@@ -54,7 +54,7 @@ ksp = "2.3.12"
 # resolves on :app, so declaring it adds no new artifact to the app graph; it
 # becomes a direct, reviewed pin instead of a transitive one.
 # License: Apache-2.0. Publisher: JetBrains (org.jetbrains.kotlinx), Maven Central.
-kotlinx-coroutines = "1.9.0"
+kotlinx-coroutines = "1.11.0"
 junit = "4.13.2"
 robolectric = "4.17"
 # detekt is AppT's Kotlin static-analysis floor (Issue #36). Pinned to the
@@ -67,9 +67,9 @@ robolectric = "4.17"
 # Updates arrive as reviewed pull requests, like every other pin.
 detekt = "1.23.8"
 # Spotless deterministic Kotlin formatting (Spotless + ktfmt) (Issue #56).
-spotless = "7.0.2"
+spotless = "8.10.2"
 # Kover coverage report generation and verification floor (Issue #56).
-kover = "0.9.5"
+kover = "0.9.9"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
