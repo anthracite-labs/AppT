@@ -60,7 +60,7 @@ Use `.project-ai/skills/implementation-planning/SKILL.md` and `.project-ai/execu
 - `docs/architecture/testing.md`
 - `docs/architecture/release.md`
 - `docs/BUILD.md`
-- `docs/HARVEST.md`
+- `docs/architecture/account-entitlement.md`
 - `.github/workflows/verify.yml`
 - `.project-ai/bootstrap/project.md`
 - `.project-ai/routing/capabilities.md`
