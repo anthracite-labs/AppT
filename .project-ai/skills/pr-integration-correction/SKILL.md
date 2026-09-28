@@ -43,6 +43,10 @@ Gather:
 
 Separate technical failures from human or merge gates.
 
+Before editing, when one failing domain can contain multiple independent failures, run or inspect the bounded diagnostic in the most evidence-rich mode the tool safely supports. Collect the practical failure set in one pass where possible: native continuation, non-bail test execution, compiler/static-analysis multi-error output, structured reports, and existing CI artifacts all qualify. A continuation mechanism must preserve the failing result.
+
+Group related observations by likely root cause before classifying individual symptoms.
+
 ### 3. Classify each item
 
 | Class | Action |
@@ -65,15 +69,15 @@ For each substantive comment:
 
 Reviewer authority does not override accepted project authority.
 
-### 5. Diagnose CI failures narrowly
+### 5. Diagnose CI failures as a bounded set
 
-Read the actual failing log.
+Read the actual failing logs and reports.
 
-Create or run the smallest useful reproducer, establish root cause, correct it, and regain focused green locally where practical.
+Create or run the smallest useful reproducer to confirm the reported symptom, then use `../debugging-recovery/SKILL.md` to expose the practical independent failures in the affected surface before correction. Classify and group the resulting failure set by root cause, correct coherent causes minimally, and regain focused green locally where practical.
 
-Use `../debugging-recovery/SKILL.md` for non-trivial root-cause work and `../test-driven-development/SKILL.md` when regression protection is appropriate.
+Use `../test-driven-development/SKILL.md` when regression protection is appropriate.
 
-CI should confirm the fix rather than serve as the only edit-run loop.
+CI should confirm the grouped correction rather than serve as a one-error-at-a-time edit/push loop. If an upstream failure blocks dependent diagnostics, correct only that blocker, rerun the bounded failure-surface pass, and continue from the newly observed evidence.
 
 ### 6. Keep corrections bounded
 
@@ -100,7 +104,7 @@ Do not mark accepted or merge from this skill.
 Produce:
 
 - PR / current head
-- Resolved Items: evidence → root cause → correction → focused verification
+- Resolved Items grouped by root cause: evidence → correction → focused verification
 - Unresolved Items
 - Contract Exceptions
 - Current Verification State
@@ -110,6 +114,7 @@ Produce:
 
 - Do not change code before reading the failing evidence.
 - Do not use push-and-pray CI loops.
+- Do not discover and patch one CI failure at a time when the same bounded diagnostic can safely expose independent failures together.
 - Do not implement review comments merely because they were requested.
 - Do not treat style preference as a contract requirement.
 - Do not create a new PR for an ordinary implementation miss.
@@ -122,6 +127,7 @@ Before handoff, confirm:
 
 - current head and active contract are known;
 - every actionable item is classified;
+- the practical bounded failure set was collected before correction, or the evidence limit is explicit;
 - code failures were reproduced narrowly where practical;
 - root causes, not symptoms, were corrected;
 - valid feedback was implemented and invalid feedback was technically rejected;
