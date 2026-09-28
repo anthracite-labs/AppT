@@ -14,7 +14,7 @@ Implementation.
 
 ## Current Objective
 
-Recompile S04 — Saved pairing, fail-closed identity, and the safe forget primitive — against the lifecycle/evidence-reconciled architecture, then dispatch it as the next authorized implementation slice.
+Dispatch S04 — Saved pairing, fail-closed identity, and the safe forget primitive — from Arena Issue #91 contract revision 2 as the next authorized implementation slice.
 
 Success means S04 implements only behavior that becomes real in S04, includes the staged physical Samsung checkpoint, preserves S03's accepted first-control/session boundaries, and satisfies the accepted security, privacy, provenance, supply-chain, and verification floor.
 
@@ -32,7 +32,7 @@ Success means S04 implements only behavior that becomes real in S04, includes th
 - Repository CI/agent-control and verification hardening are accepted through PR #89.
 - Mandatory lifecycle skill routing and diagnose-before-fix gates are accepted through PR #84.
 - S04 is the next authorized implementation slice.
-- Its contract must be recompiled from the reconciled architecture before dispatch; it does not pre-create `Favourite` or `PendingForget`.
+- Issue #91 contract revision 2 is the Arena-ready S04 contract compiled from the reconciled architecture; it does not pre-create `Favourite` or `PendingForget`.
 - S07 may be dependency-ready but is not active or authorized.
 - Provider facts marked `needs validation` must be confirmed when they first become implementation-relevant. Material external/protocol claims also carry explicit authority/implementation-evidence/AppT-decision provenance in their owning architecture documents.
 - Final AppT source-license selection and focused Samsung vendor-terms/legal review remain pre-public-release gates.
@@ -48,7 +48,7 @@ S03 — Pair on the television and the first command — accepted through PR #80
 
 ## Next Authorized Action
 
-Revise Issue #91 from the reconciled S04 contract in `docs/architecture/slices.md`, then use `.project-ai/skills/implementation-planning/SKILL.md` and `.project-ai/execution/arena-dispatch.md` to dispatch S04.
+Dispatch Issue #91 contract revision 2 to Arena using `.project-ai/execution/arena-dispatch.md`; review the resulting PR against that revision before human acceptance.
 
 ## Authoritative References
 
