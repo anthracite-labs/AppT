@@ -76,44 +76,6 @@ detekt {
     source.setFrom("src/main/java", "src/main/kotlin")
 }
 
-// TEMP DIAGNOSTIC (S04): surface failing unit-test identities and messages through the Gradle
-// failure annotation, because the runner log is not reachable from the implementation sandbox.
-// REMOVE BEFORE TERMINAL VERIFICATION.
-val failedUnitTests = mutableListOf<String>()
-tasks.withType<Test>().configureEach {
-    addTestListener(
-        object : TestListener {
-            override fun beforeSuite(suite: TestDescriptor?) = Unit
-
-            override fun beforeTest(testDescriptor: TestDescriptor?) = Unit
-
-            override fun afterTest(
-                test: TestDescriptor?,
-                result: TestResult?,
-            ) {
-                if (test != null && result?.resultType == TestResult.ResultType.FAILURE) {
-                    failedUnitTests.add(
-                        test.className + "." + test.name + " :: " +
-                            (result.exceptions.firstOrNull()?.message ?: "no message").take(400),
-                    )
-                }
-            }
-
-            override fun afterSuite(
-                suite: TestDescriptor?,
-                result: TestResult?,
-            ) = Unit
-        },
-    )
-    doLast {
-        if (failedUnitTests.isNotEmpty()) {
-            throw GradleException(
-                "FAILED UNIT TESTS: " + failedUnitTests.joinToString(" || ").take(2400)
-            )
-        }
-    }
-}
-
 dependencies {
     // S02 discovery (Issue #73). Both are already on :app's resolved graph at
     // these exact versions; see the license/provenance notes in
