@@ -53,7 +53,7 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-        allWarningsAsErrors.set(true)
+        allWarningsAsErrors.set(false) // TEMP DIAGNOSTIC: warnings captured below instead of failing
         extraWarnings.set(true)
         // TEMP DIAGNOSTIC (S04): bisect which warning category fails -Werror. REMOVE BEFORE FINISH.
         freeCompilerArgs.addAll(
@@ -131,6 +131,27 @@ detekt {
     buildUponDefaultConfig = true
     autoCorrect = false
     source.setFrom("src/main/java", "src/main/kotlin")
+}
+
+// TEMP DIAGNOSTIC (S04): surface Kotlin compile warnings through the task failure message, so
+// they reach the CI annotation channel. REMOVE BEFORE FINISH.
+val capturedWarnings = mutableListOf<String>()
+tasks.matching { it.name == "compileDebugKotlin" }.configureEach {
+    doFirst {
+        logging.addStandardOutputListener { line ->
+            if (line.contains("w: ")) capturedWarnings += line.trim()
+        }
+        logging.addStandardErrorListener { line ->
+            if (line.contains("w: ")) capturedWarnings += line.trim()
+        }
+    }
+    doLast {
+        if (capturedWarnings.isNotEmpty()) {
+            throw GradleException(
+                "CAPTURED COMPILE WARNINGS: " + capturedWarnings.joinToString(" || ")
+            )
+        }
+    }
 }
 
 dependencies {
