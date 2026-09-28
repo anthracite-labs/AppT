@@ -240,6 +240,25 @@ tasks.register("samsungDependencyBoundary") {
 }
 
 // ---------------------------------------------------------------------------
+// samsungGraphExcludesFirebase
+// ---------------------------------------------------------------------------
+
+// docs/architecture/testing.md#required-behavioral-contracts names this assertion
+// `samsungGraphExcludesFirebase`: "Gradle dependencies of :samsung exclude Firebase, Play
+// services, and every telemetry SDK." The proof is a resolution of :samsung's real production
+// graph, which `samsungDependencyBoundary` above already performs against exactly that forbidden
+// vocabulary. The accepted contract name is therefore re-exposed here instead of being duplicated
+// as a second, weaker declaration-level check: the assertion is unchanged, only its name is
+// invocable, and it runs inside `appTGuards` like every other accepted name.
+tasks.register("samsungGraphExcludesFirebase") {
+    group = "verification"
+    description =
+        "Gradle dependencies of :samsung exclude Firebase, Play services and every telemetry SDK " +
+            "(docs/architecture/testing.md)."
+    dependsOn(samsungDependencyBoundaryInstance)
+}
+
+// ---------------------------------------------------------------------------
 // noProductionModuleDependsOnBenchmark
 // ---------------------------------------------------------------------------
 
@@ -478,6 +497,7 @@ tasks.register("appTGuards") {
         tasks.named("noTelemetryDependency"),
         tasks.named("noFirestoreClientInApp"),
         tasks.named("samsungDependencyBoundary"),
+        tasks.named("samsungGraphExcludesFirebase"),
         tasks.named("noProductionModuleDependsOnBenchmark"),
         tasks.named("noLogInSamsungSource"),
         tasks.named("noSyncRecordInProductionSource"),

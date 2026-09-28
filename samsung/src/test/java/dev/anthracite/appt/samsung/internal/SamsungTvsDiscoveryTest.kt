@@ -36,8 +36,14 @@ class SamsungTvsDiscoveryTest {
 
     private var minted = 0
 
-    private fun tvs(transport: FixtureTransport): SamsungTvs = SamsungTvsImpl {
-        DiscoveryScan(transport, mintId = { "local-test-${++minted}" })
+    private fun tvs(transport: FixtureTransport): SamsungTvs {
+        val confirmed = ConfirmedTelevisions()
+        return SamsungTvsImpl(
+            newScan = {
+                DiscoveryScan(transport, confirmed, mintId = { "local-test-" + ++minted })
+            },
+            confirmed = confirmed,
+        )
     }
 
     /** Runs one full scan of [caseId] to completion and returns its events. */
@@ -303,9 +309,14 @@ class SamsungTvsDiscoveryTest {
     fun deviceInfoIsOnlyRequestedFromCandidatesOnPort8001() = runTest {
         val fixtures = Fixture.directories().map { it.name }
         fixtures.forEach { caseId ->
-            val transport = FixtureTransport(Fixture.load(caseId))
+            val fixture = Fixture.load(caseId)
+            // The session-transport fixtures carry no discovery traffic, so this contract says
+            // nothing about them; SamsungTvsSessionTest covers those instead. Skipping them also
+            // keeps the discovery loader from being pointed at a trace shape it does not describe.
+            if (fixture.probes.isEmpty() && fixture.deviceInfo.isEmpty()) return@forEach
+            val transport = FixtureTransport(fixture)
             scan(transport)
-            val candidateHosts = Fixture.load(caseId).probes.map { it.host }.toSet()
+            val candidateHosts = fixture.probes.map { it.host }.toSet()
             assertTrue(
                 "$caseId: device-info only on candidate hosts, port 8001",
                 transport.outbound.all { it.host in candidateHosts && it.port == 8001 },

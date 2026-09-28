@@ -16,6 +16,9 @@ import kotlinx.serialization.json.JsonPrimitive
  * @property uuid the normalized television UUID, or null when the document carries none.
  * @property reportedHost the address the document says it was served from, used only to reject a
  *   document that does not belong to the probed candidate. Not retained past confirmation.
+ * @property tokenAuthSupport true when the television asks for token auth on the remote channel.
+ *   protocol.md: this is a handshake preference, so it selects the adopted TLS channel. It is not a
+ *   button and it never unlocks a control on its own.
  */
 internal data class DeviceInfo(
     val isTelevision: Boolean,
@@ -23,6 +26,7 @@ internal data class DeviceInfo(
     val name: String,
     val availability: ControlAvailability,
     val reportedHost: String?,
+    val tokenAuthSupport: Boolean,
 )
 
 /**
@@ -38,6 +42,7 @@ internal object DeviceInfoParser {
     /** Device-info `type` for a television. Soundbars, speakers and players report other types. */
     private val TELEVISION_TYPE = Regex("samsung\\s*smart\\s*tv", RegexOption.IGNORE_CASE)
     private const val TIZEN = "tizen"
+    private const val TRUE = "true"
 
     fun parse(document: String): DeviceInfo? {
         val root = parseRoot(document) ?: return null
@@ -53,8 +58,16 @@ internal object DeviceInfoParser {
             name = sanitizeName(field("name")),
             availability = availabilityFor(field("OS")),
             reportedHost = device.text("ip")?.takeIf { it.isNotBlank() },
+            tokenAuthSupport = field("TokenAuthSupport").asBoolean(),
         )
     }
+
+    /**
+     * protocol.md: `isSupport` and friends may arrive as an object or as a stringified JSON object,
+     * and a flag may be reported as the string `"true"`. An absent or unreadable flag is not
+     * evidence, so it reads as false.
+     */
+    private fun String?.asBoolean(): Boolean = this?.trim()?.lowercase(Locale.ROOT) == TRUE
 
     /**
      * protocol.md: "Non-Tizen explicit OS supports `Unsupported`". A television that states a

@@ -4,7 +4,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -15,15 +17,30 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.anthracite.appt.AppSettingsLauncher
+import dev.anthracite.appt.data.FakeTvProfileDao
+import dev.anthracite.appt.data.TvProfiles
 import dev.anthracite.appt.discovery.DiscoveryTestTags
 import dev.anthracite.appt.gate.LocalNetworkPhase
 import dev.anthracite.appt.localnetwork.LocalNetworkTestTags
+import dev.anthracite.appt.pairing.PairingTestTags
+import dev.anthracite.appt.preferences.PreferenceStore
+import dev.anthracite.appt.remote.ActiveRemoteHost
+import dev.anthracite.appt.remote.RemoteTestTags
+import dev.anthracite.appt.samsung.CommandResult
 import dev.anthracite.appt.samsung.DiscoveryEvent
+import dev.anthracite.appt.samsung.RemoteKey
 import dev.anthracite.appt.samsung.TvFailure
+import dev.anthracite.appt.samsung.TvId
 import dev.anthracite.appt.testing.FakePermissionGate
 import dev.anthracite.appt.testing.FakeSamsungTvs
+import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 import dev.anthracite.appt.tokens.AppTTheme
 import dev.anthracite.appt.welcome.WelcomeTestTags
+import java.io.File
+import java.nio.file.Files
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -44,12 +61,27 @@ class AppTNavGraphTest {
 
     private val tvs = FakeSamsungTvs()
     private val gate = FakePermissionGate()
+    private val profiles = TvProfiles(FakeTvProfileDao()) { 1L }
+    // Resolved once: DataStore reads its file more than once, and a fresh directory per call
+    // would hand every read a different file.
+    private val preferencesFile =
+        File(Files.createTempDirectory("appt-nav").toFile(), PREFERENCES_FILE_NAME)
+
+    private val store =
+        PreferenceStore(
+            PreferenceDataStoreFactory.create(
+                scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+                produceFile = { preferencesFile },
+            )
+        )
+    private val host =
+        ActiveRemoteHost(tvs, CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate))
     private lateinit var navController: NavHostController
 
     /**
-     * @param host replaces the activity as the graph's lifecycle owner, to drive ON_STOP/ON_START.
+     * @param lifecycleOwner replaces the activity as the graph's owner, to drive ON_STOP/ON_START.
      */
-    private fun setGraph(host: LifecycleOwner? = null) {
+    private fun setGraph(lifecycleOwner: LifecycleOwner? = null) {
         composeRule.setContent {
             val graph: @Composable () -> Unit = {
                 navController = rememberNavController()
@@ -58,12 +90,20 @@ class AppTNavGraphTest {
                         samsungTvs = tvs,
                         permissionGate = gate,
                         appSettings = AppSettingsLauncher {},
+                        activeRemoteHost = host,
+                        tvProfiles = profiles,
+                        preferenceStore = store,
                         navController = navController,
                     )
                 }
             }
-            if (host == null) graph()
-            else CompositionLocalProvider(LocalLifecycleOwner provides host, content = graph)
+            if (lifecycleOwner == null) graph()
+            else {
+                CompositionLocalProvider(
+                    LocalLifecycleOwner provides lifecycleOwner,
+                    content = graph,
+                )
+            }
         }
         composeRule.waitForIdle()
     }
@@ -88,18 +128,22 @@ class AppTNavGraphTest {
                 destination.hasRoute<WelcomeRoute>() -> "Welcome"
                 destination.hasRoute<LocalNetworkRoute>() -> "LocalNetwork"
                 destination.hasRoute<DiscoveryRoute>() -> "Discovery"
+                destination.hasRoute<PairingRoute>() -> "Pairing"
+                destination.hasRoute<RemoteRoute>() -> "Remote"
                 else -> null
             }
         }
 
     @Test
-    fun `the graph holds Welcome, LocalNetwork and Discovery and opens on Welcome`() {
+    fun `the graph holds Welcome, LocalNetwork, Discovery, Pairing and Remote and opens on Welcome`() {
         setGraph()
         val destinations = navController.graph.iterator().asSequence().toList()
-        assertEquals(3, destinations.size)
+        assertEquals(5, destinations.size)
         assertTrue(destinations.any { it.hasRoute<WelcomeRoute>() })
         assertTrue(destinations.any { it.hasRoute<LocalNetworkRoute>() })
         assertTrue(destinations.any { it.hasRoute<DiscoveryRoute>() })
+        assertTrue(destinations.any { it.hasRoute<PairingRoute>() })
+        assertTrue(destinations.any { it.hasRoute<RemoteRoute>() })
         assertTrue(navController.graph.findStartDestination().hasRoute<WelcomeRoute>())
         composeRule.onNodeWithTag(WelcomeTestTags.VALUE_PROPOSITION).assertExists()
         composeRule.onNodeWithTag(WelcomeTestTags.PRIMARY_ACTION).assertExists()
@@ -191,5 +235,96 @@ class AppTNavGraphTest {
         composeRule.waitForIdle()
         assertEquals(listOf("Welcome"), backStackRoutes())
         assertTrue(tvs.latest.cancelled)
+    }
+
+    @Test
+    fun `choosing a card opens one session and shows Pairing`() {
+        setGraph()
+        openDiscovery()
+        tvs.latest.send(FakeSamsungTvs.found())
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Living Room TV").performClick()
+        composeRule.waitForIdle()
+        composeRule.waitForIdle()
+
+        assertEquals(
+            "one television, one session",
+            listOf(TvId(FakeSamsungTvs.LIVING_ROOM_ID)),
+            tvs.openedIds,
+        )
+        composeRule.onNodeWithTag(PairingTestTags.TITLE).assertExists()
+        assertEquals(listOf("Welcome", "Discovery", "Pairing"), backStackRoutes())
+    }
+
+    @Test
+    fun `an approved session hands the same session to Remote`() {
+        setGraph()
+        openDiscovery()
+        tvs.latest.send(FakeSamsungTvs.found())
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Living Room TV").performClick()
+        composeRule.waitForIdle()
+        composeRule.waitForIdle()
+        val session = tvs.sessionFor(TvId(FakeSamsungTvs.LIVING_ROOM_ID))!!
+        session.nextResult = CommandResult.Accepted
+        session.ready(setOf(RemoteKey.VolumeUp))
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(RemoteTestTags.TV_NAME).assertExists()
+        assertEquals(
+            "no second open for the handoff",
+            listOf(TvId(FakeSamsungTvs.LIVING_ROOM_ID)),
+            tvs.openedIds,
+        )
+        composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.VolumeUp)).performClick()
+        composeRule.waitForIdle()
+        assertEquals(1, session.commands.size)
+    }
+
+    /**
+     * Discovery stays on the back stack under Pairing and Remote, so coming back to it must not act
+     * on the selection a second time: one television is opened once for the whole trip.
+     */
+    @Test
+    fun `returning from Remote does not re-enter the television`() {
+        setGraph()
+        openDiscovery()
+        tvs.latest.send(FakeSamsungTvs.found())
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Living Room TV").performClick()
+        composeRule.waitForIdle()
+        composeRule.waitForIdle()
+        tvs.sessionFor(TvId(FakeSamsungTvs.LIVING_ROOM_ID))!!.ready(setOf(RemoteKey.VolumeUp))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(RemoteTestTags.TV_NAME).assertExists()
+
+        composeRule.runOnUiThread { navController.popBackStack() }
+        composeRule.waitForIdle()
+
+        assertEquals(
+            "the selection was consumed, so nothing re-enters",
+            listOf(TvId(FakeSamsungTvs.LIVING_ROOM_ID)),
+            tvs.openedIds,
+        )
+        assertEquals(listOf("Welcome", "Discovery"), backStackRoutes())
+        composeRule.onNodeWithTag(DiscoveryTestTags.TITLE).assertExists()
+    }
+
+    @Test
+    fun `cancelling Pairing closes the session and returns to Discovery`() {
+        setGraph()
+        openDiscovery()
+        tvs.latest.send(FakeSamsungTvs.found())
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Living Room TV").performClick()
+        composeRule.waitForIdle()
+        composeRule.waitForIdle()
+        val session = tvs.sessionFor(TvId(FakeSamsungTvs.LIVING_ROOM_ID))!!
+
+        composeRule.onNodeWithTag(PairingTestTags.CANCEL).performClick()
+        composeRule.waitForIdle()
+
+        assertTrue(session.closed)
+        assertEquals(listOf("Welcome", "Discovery"), backStackRoutes())
     }
 }

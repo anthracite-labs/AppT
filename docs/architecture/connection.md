@@ -10,6 +10,8 @@ While the remote is active, one WebSocket session stays up so a command write do
 
 There is no background session and no listening server. The phone is a client.
 
+The live socket is TLS `wss` on port 8002 through OkHttp when the television demonstrates that channel. The adopted plaintext fallback on port 8001 is a bounded raw-socket WebSocket inside `samsung`; it does not enable application-wide cleartext traffic.
+
 ## Security identity
 
 Where a persistent security identity can be established, an unexpected change fails closed. The user must explicitly re-pair. The module never offers a trust-all switch, and `app` never offers "ignore security errors."

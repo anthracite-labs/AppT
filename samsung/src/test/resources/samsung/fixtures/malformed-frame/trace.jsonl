@@ -1,0 +1,6 @@
+{"tMs":0,"dir":"in","kind":"ws-text","body":"{\"event\":\"ms.channel.connect\",\"data\":{\"tok"}
+{"tMs":20,"dir":"in","kind":"ws-text","body":"x"}
+{"tMs":40,"dir":"in","kind":"ws-oversize","body":"[oversized-frame]"}
+{"tMs":60,"dir":"in","kind":"ws-text","body":{"event":"ms.channel.unauthorized"}}
+{"tMs":120,"dir":"in","kind":"ws-text","body":{"event":"ms.channel.connect","data":{"token":"[fixture-token]"}}}
+{"tMs":200,"dir":"out","kind":"ws-text","body":{"method":"ms.remote.control","params":{"Cmd":"Click","DataOfCmd":"KEY_ENTER","Option":"false","TypeOfRemote":"SendRemoteKey"}}}
