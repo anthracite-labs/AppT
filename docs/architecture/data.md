@@ -4,6 +4,17 @@ This file owns what AppT stores on this phone, where it lives, how it survives u
 
 Account, trial, and entitlement storage is separate and is owned by [account-entitlement.md](account-entitlement.md). Entitlement material never shares a file, directory, or type with television secrets.
 
+## Authoritative Android storage evidence
+
+- Android [Security checklist](https://developer.android.com/privacy-and-security/security-tips) recommends Android Keystore for long-term cryptographic-key storage and standard authenticated cryptography such as GCM. AppT's AES-GCM/Keystore choices below are the **APPT DECISION** built on that platform capability.
+- Android [BackupAgent](https://developer.android.com/reference/android/app/backup/BackupAgent) documents that `getNoBackupFilesDir()` contents are excluded from full backup.
+- Android's [DataStore architecture guidance](https://developer.android.com/topic/libraries/architecture/datastore) documents that DataStore files are included in Auto Backup/device transfer by default and shows `data_extraction_rules.xml` exclusions. AppT therefore does not rely on default DataStore behavior for local-only state.
+- Android's [Room migration guide](https://developer.android.com/training/data-storage/room/migrating-db-versions) requires exported schema history for migration testing and documents migration validation with `MigrationTestHelper`.
+
+**Authority limitation:** Android defines storage/backup/crypto mechanisms, not AppT's product rule that television/personalization state must not transfer to another phone. That privacy/product boundary is AppT's decision and is enforced by the storage split and backup rules below.
+
+Validated: 2026-09-28.
+
 ## Storage classes
 
 Four storage classes, deliberately distinct types so one class cannot be written by another's code path:
