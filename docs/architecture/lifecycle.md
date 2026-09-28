@@ -2,7 +2,7 @@
 
 How AppT behaves from cold start to process death, across configuration changes, network changes, screen lock, backgrounding, and Doze. Local-first control is the constraint: no transition may turn a working remote into a failed one, and no transition may open a session that the licensing gate denies.
 
-Owning files elsewhere: session state machine and reconnect budget in [connection.md](connection.md), secrets in [data.md](data.md), gate rules in [sync.md](sync.md), screen ownership in [presentation.md](presentation.md).
+Owning files elsewhere: session state machine and reconnect budget in [connection.md](connection.md), secrets in [data.md](data.md), gate rules in [account-entitlement.md](account-entitlement.md), screen ownership in [presentation.md](presentation.md).
 
 ## Scope
 
