@@ -47,6 +47,8 @@ For upstream reuse, identify the pinned source/path, licence, exact material to 
 
 This is not a second harvest register. The owning architecture documents remain canonical provenance; the Issue carries only the subset needed to execute this slice.
 
+Do not retroactively invalidate an already-dispatched Issue solely because its active contract predates this section. Apply the reuse-plan requirement to new Arena-ready Issues and to the next material contract revision of older in-flight work.
+
 ### Scope
 
 State what Arena may change.
