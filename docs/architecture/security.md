@@ -184,7 +184,9 @@ Any new threat that changes a boundary, a guarantee, or a data category must upd
 Checked while writing this map; re-check before relying on them in code.
 
 - Google Play billing security and server-side verification: <https://developer.android.com/google/play/billing/security>
-- One-time purchase lifecycle and RTDN requirement: <https://developer.android.com/google/play/billing/lifecycle/one-time>
-- `purchases.products` REST resource, including `purchaseState`, `acknowledgementState`, and `purchaseType`: <https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.products>
-- Play Integrity token decoding: <https://developer.android.com/google/play/integrity/verdicts>
-- App-scoped Android ID behaviour: <https://android-developers.googleblog.com/2017/04/changes-to-device-identifiers-in.html>
+- One-time purchase lifecycle, RTDN requirement, and the current V2 purchase-state lookup: <https://developer.android.com/google/play/billing/lifecycle/one-time>
+- `ProductPurchaseV2` REST resource and licence-test context: <https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.productsv2>
+- Play Integrity standard-request binding and verdicts: <https://developer.android.com/google/play/integrity/standard> and <https://developer.android.com/google/play/integrity/verdicts>
+- Firebase App Check with Play Integrity, including outside-Play distribution settings: <https://firebase.google.com/docs/app-check/android/play-integrity-provider>
+- App-scoped Android ID behaviour: <https://developer.android.com/reference/android/provider/Settings.Secure#ANDROID_ID>
+- Cloud KMS asymmetric-key rotation and public-key retrieval: <https://cloud.google.com/kms/docs/key-rotation> and <https://cloud.google.com/kms/docs/retrieve-public-key>
