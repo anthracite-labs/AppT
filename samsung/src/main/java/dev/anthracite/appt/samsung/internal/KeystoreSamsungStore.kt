@@ -1,195 +1,11 @@
 package dev.anthracite.appt.samsung.internal
 
 import android.content.Context
-import android.os.Build
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
 import dev.anthracite.appt.samsung.TvId
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import java.security.InvalidAlgorithmParameterException
-import java.security.KeyStore
-import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
-import javax.crypto.spec.GCMParameterSpec
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.put
-
-/**
- * Randomized encryption of one secret payload (docs/architecture/data.md#samsung-secret-record).
- *
- * Production is [KeystoreSamsungStore.AndroidKeystoreCipher]. The seam exists so the file,
- * atomicity, corruption and idempotence behavior of the store is provable on the JVM with a local
- * AES-GCM cipher, while the real Android Keystore round trip is proven by the instrumented test on
- * a managed device (docs/architecture/testing.md).
- */
-internal interface SecretCipher {
-    /**
-     * Encrypts [plaintext]. Returns the IV followed by the GCM body and authentication tag; every
-     * call must randomize, so encrypting the same plaintext twice yields different bytes.
-     */
-    fun encrypt(plaintext: ByteArray): ByteArray
-
-    /** Decrypts the [encrypt] output shape. Throws when the key or the ciphertext is unusable. */
-    fun decrypt(blob: ByteArray): ByteArray
-}
-
-internal fun SecretCipher.encode(secret: PairingSecret): ByteArray = encrypt(secret.encodedPayload())
-
-internal fun SecretCipher.decode(blob: ByteArray): PairingSecret? = decrypt(blob).decodedPayload()
-
-private const val PAIRING_PAYLOAD_VERSION = 1
-
-/** The payload codec is file-private: `PairingSecret` never exposes its serialized shape. */
-private fun PairingSecret.encodedPayload(): ByteArray =
-    buildJsonObject {
-            put("version", PAIRING_PAYLOAD_VERSION)
-            token?.let { put("token", it) }
-            pin?.let { put("pin", it) }
-        }
-        .toString()
-        .encodeToByteArray()
-
-private fun ByteArray.decodedPayload(): PairingSecret? {
-    val root =
-        try {
-            Json.parseToJsonElement(decodeToString()).jsonObject
-        } catch (ignored: IllegalArgumentException) {
-            return null
-        }
-    val version = (root["version"] as? JsonPrimitive)?.intOrNull
-    if (version != PAIRING_PAYLOAD_VERSION) return null
-    val token = (root["token"] as? JsonPrimitive)?.contentOrNull
-    val pin = (root["pin"] as? JsonPrimitive)?.contentOrNull
-    if (token == null && pin == null) return null
-    return PairingSecret(token = token, pin = pin)
-}
-
-/**
- * The saved pairing credential for one television (docs/architecture/data.md#samsung-secret-record).
- *
- * The payload is the pairing token and the SHA-256 SPKI pin, and nothing else. MAC, address and
- * UUID deliberately do not share this type: a serializer for the samsung-private device record
- * cannot sweep the token along with them, and no caller-side persistence or licensing code ever
- * sees this type at all (data.md#structural-barriers).
- *
- * @property token the approval token the television issued, or null when it has issued none yet.
- * @property pin the SHA-256 of the certificate SubjectPublicKeyInfo this television presented when
- *   the pairing was approved, or null for a pairing made on the plaintext channel, whose security
- *   identity is the protocol UUID instead (docs/architecture/connection.md#security-identity).
- */
-internal data class PairingSecret(val token: String?, val pin: String?)
-
-/** The result of reading one television's saved secret. */
-internal sealed interface StoredSecret {
-    /** No saved pairing exists for this id. First contact applies. */
-    data object Absent : StoredSecret
-
-    /** The saved pairing was decrypted successfully. */
-    data class Available(val secret: PairingSecret) : StoredSecret
-
-    /**
-     * A saved pairing exists but could not be decrypted (Keystore key invalidated, undecryptable
-     * file). This is `SecretsUnavailable`: no plaintext fallback, no token transmission, and never
-     * an empty pairing that pretends the television was never paired
-     * (docs/architecture/connection.md#security-identity).
-     */
-    data object Unavailable : StoredSecret
-}
-
-/**
- * The samsung-private device record for one television
- * (docs/architecture/data.md#samsung-private-device-record).
- *
- * It is how a remembered television is reopened at its last address after process death, and how
- * address changes are remembered, without putting an address, MAC, UUID or display name into Room.
- * It never contains the token or the pin. The file carries a format version; unknown members are
- * ignored on read and missing ones fall back to safe defaults
- * (data.md#samsung-private-file-migration).
- *
- * The capability evidence this slice can honestly write is the adopted control path itself: the
- * TLS flag, the adopted-channel flag, and whether the television exposes a stable identity. The
- * rest of the record's documented members — rejected keys, wake-failure count, model, firmware,
- * MAC — are written by the slices that produce and read that evidence (S11, S12, S13); the format
- * version and `ignoreUnknownKeys` are exactly what lets those members arrive without a migration.
- *
- * @property uuid the television's normalized protocol UUID, or null when it exposes none. The
- *   plaintext channel's saved security identity (connection.md#security-identity).
- * @property lastAddress the address the television last answered on. Internal only.
- * @property tls true when the pairing was approved on the adopted TLS remote channel, so a saved
- *   pin exists or is expected; false when the pairing rides the plaintext fallback.
- * @property adoptedChannel true when the television speaks the adopted control channel at all.
- * @property displayName the candidate display name from device-info, scrubbed, or null.
- * @property stableIdentity true when the television exposed a protocol UUID.
- */
-internal data class SamsungDeviceRecord(
-    val uuid: String?,
-    val lastAddress: String,
-    val tls: Boolean,
-    val adoptedChannel: Boolean,
-    val displayName: String?,
-    val stableIdentity: Boolean,
-    val version: Int = DEVICE_RECORD_VERSION,
-) {
-    companion object {
-        /** data.md#samsung-private-file-migration: the file format this writer owns. */
-        const val DEVICE_RECORD_VERSION = 1
-    }
-}
-
-/**
- * The durable Samsung pairing store seam (docs/architecture/data.md#storage-classes).
- *
- * Production is [KeystoreSamsungStore]; the scripted test adapter is in-memory, with a mode that
- * fails decryption (docs/architecture/testing.md#fake-adapters). This is internal to the `samsung`
- * module: `app` has no API that accepts the ciphertext type and does not build these paths
- * (data.md#samsung-secret-record).
- */
-internal interface SamsungSecretStore {
-    /**
-     * Reads one television's saved secret. A missing file is [StoredSecret.Absent]; an
-     * undecryptable one is [StoredSecret.Unavailable], never an exception and never a fabricated
-     * empty pairing.
-     */
-    fun loadSecret(tvId: TvId): StoredSecret
-
-    /**
-     * Encrypts and atomically replaces the saved secret (temporary file in the same directory,
-     * fsync, rename). Plaintext is never staged outside this call.
-     */
-    fun saveSecret(tvId: TvId, secret: PairingSecret)
-
-    /**
-     * Deletes the saved secret for one television. Used by the explicit `confirmRepair` re-pair.
-     * The samsung-private device record is kept: address continuity is not approval material.
-     * Idempotent. Throws only when deletion genuinely failed, so the caller stays fail-closed.
-     */
-    fun discardSecret(tvId: TvId)
-
-    /** Reads one television's samsung-private device record, or null when there is none. */
-    fun loadDevice(tvId: TvId): SamsungDeviceRecord?
-
-    /** Atomically replaces one television's samsung-private device record. */
-    fun saveDevice(tvId: TvId, record: SamsungDeviceRecord)
-
-    /**
-     * Removes this phone's saved Samsung relationship for one television: the secret and the
-     * samsung-private device record. Idempotent. Throws only when deletion genuinely failed.
-     */
-    fun forget(tvId: TvId)
-
-    /** The ids that have a samsung-private record. Not a UI list and not an account concept. */
-    fun rememberedIds(): Set<TvId>
-}
+import java.security.GeneralSecurityException
 
 /**
  * Thrown when the store itself cannot do its job (key unavailable, directory unavailable, rename
@@ -291,8 +107,11 @@ internal class KeystoreSamsungStore private constructor(
             val secret =
                 try {
                     parseEnvelope(blob)?.let(cipher::decode)
-                } catch (ignored: Exception) {
+                } catch (ignored: GeneralSecurityException) {
                     // Keystore key invalidated, device lock change, corrupt body: fail closed.
+                    null
+                } catch (ignored: IOException) {
+                    // The cipher could not reach its backing Keystore: fail closed.
                     null
                 }
             secret?.let(StoredSecret::Available) ?: StoredSecret.Unavailable
@@ -395,103 +214,12 @@ internal class KeystoreSamsungStore private constructor(
         }
     }
 
-    /**
-     * The Android Keystore cipher behind alias `appt.samsung.v1`
-     * (docs/architecture/data.md#samsung-secret-record).
-     *
-     * The key is non-exportable, does not require user authentication, and every encryption is
-     * randomized. StrongBox is requested first and the TEE is the fallback, which is the accepted
-     * generation order: a device that later loses StrongBox still decrypts through the normal key,
-     * because the key stays in the hardware that generated it.
-     */
-    internal class AndroidKeystoreCipher(private val alias: String = KEYSTORE_ALIAS) : SecretCipher {
-
-        private val lock = Any()
-
-        override fun encrypt(plaintext: ByteArray): ByteArray =
-            synchronized(lock) {
-                val cipher = Cipher.getInstance(TRANSFORMATION)
-                cipher.init(Cipher.ENCRYPT_MODE, key())
-                val iv = cipher.iv
-                check(iv.size == IV_BYTES) { "unexpected GCM IV length" }
-                iv + cipher.doFinal(plaintext)
-            }
-
-        override fun decrypt(blob: ByteArray): ByteArray =
-            synchronized(lock) {
-                if (blob.size <= IV_BYTES) throw SecretStoreException("ciphertext too short")
-                val cipher = Cipher.getInstance(TRANSFORMATION)
-                cipher.init(
-                    Cipher.DECRYPT_MODE,
-                    key(),
-                    GCMParameterSpec(GCM_TAG_BITS, blob, 0, IV_BYTES),
-                )
-                cipher.doFinal(blob, IV_BYTES, blob.size - IV_BYTES)
-            }
-
-        private fun key(): SecretKey {
-            val keystore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
-            (keystore.getKey(alias, null) as? SecretKey)?.let { return it }
-            return generateKey(keystore)
-        }
-
-        private fun generateKey(keystore: KeyStore): SecretKey {
-            if (keystore.containsAlias(alias)) {
-                // An alias entry that is not a usable SecretKey is a Keystore-level fault; surface
-                // it as unavailable rather than silently overwriting security material.
-                throw SecretStoreException("keystore alias exists but is not a usable secret key")
-            }
-            val generator =
-                KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
-            try {
-                generator.init(spec(strongBox = true))
-                return generator.generateKey()
-            } catch (ignored: InvalidAlgorithmParameterException) {
-                // data.md: StrongBox where available, otherwise TEE.
-            }
-            generator.init(spec(strongBox = false))
-            return generator.generateKey()
-        }
-
-        private fun spec(strongBox: Boolean): KeyGenParameterSpec =
-            KeyGenParameterSpec.Builder(
-                    alias,
-                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
-                )
-                .apply {
-                    if (strongBox && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        setIsStrongBoxBacked(true)
-                    }
-                }
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setKeySize(KEY_SIZE_BITS)
-                .setRandomizedEncryptionRequired(true)
-                .setUserAuthenticationRequired(false)
-                .build()
-
-        internal companion object {
-            /** data.md: the Keystore alias for the Samsung pairing secret. */
-            const val KEYSTORE_ALIAS = "appt.samsung.v1"
-        }
-    }
-
     companion object {
         /** data.md: the magic at the head of every secret file. */
         internal val ENVELOPE_MAGIC = "APS1".toByteArray(Charsets.US_ASCII)
 
         /** The envelope version this writer owns. */
         internal const val ENVELOPE_VERSION: Byte = 1
-
-        internal const val IV_BYTES = 12
-
-        internal const val GCM_TAG_BITS = 128
-
-        private const val KEY_SIZE_BITS = 256
-
-        private const val ANDROID_KEYSTORE = "AndroidKeyStore"
-
-        private const val TRANSFORMATION = "AES/GCM/NoPadding"
 
         private const val SECRETS_DIR = "samsung-secrets/v1"
 

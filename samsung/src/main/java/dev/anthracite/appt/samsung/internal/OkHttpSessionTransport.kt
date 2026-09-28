@@ -103,9 +103,11 @@ internal class OkHttpSessionTransport(
             IdentityProbe.MATCHED
         } catch (ignored: SavedIdentityMismatchException) {
             IdentityProbe.IDENTITY_CHANGED
-        } catch (ignored: Exception) {
-            // Unreachable hosts, timeouts, and every handshake failure that is not the saved
-            // identity check failing are reachability, not identity.
+        } catch (ignored: GeneralSecurityException) {
+            // Lapsed certificates and unusable chains are not the saved identity either.
+            IdentityProbe.FAILED
+        } catch (ignored: IOException) {
+            // Unreachable hosts and handshake transport failures are reachability, not identity.
             IdentityProbe.FAILED
         }
     }
@@ -313,7 +315,7 @@ internal class SpkiTrustManager : X509TrustManager {
     }
 
     override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
-        val certificates = chain ?: throw IllegalArgumentException("no peer certificate chain")
+        val certificates = requireNotNull(chain) { "no peer certificate chain" }
         // A pin is the identity decision, not a licence to accept an expired certificate.
         certificates.forEach { certificate -> certificate.checkValidity() }
         val pin = spkiSha256(certificates.first())

@@ -188,43 +188,58 @@ private fun RemoteRepair(
         }
     }
     if (confirming) {
-        AlertDialog(
-            onDismissRequest = { confirming = false },
-            title = {
-                Text(
-                    text = stringResource(R.string.remote_repair_confirm_title),
-                    style = TypeTokens.title,
-                    color = ColorTokens.contentPrimary,
-                )
-            },
-            text = {
-                Text(
-                    text = stringResource(R.string.remote_repair_confirm_body),
-                    style = TypeTokens.body,
-                    color = ColorTokens.contentSecondary,
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        confirming = false
-                        onConfirmRepair()
-                    },
-                    modifier = Modifier.testTag(RemoteTestTags.REPAIR_CONFIRM),
-                ) {
-                    Text(text = stringResource(R.string.remote_repair_confirm), style = TypeTokens.label)
-                }
-            },
-            dismissButton = {
-                OutlinedButton(
-                    onClick = { confirming = false },
-                    modifier = Modifier.testTag(RemoteTestTags.REPAIR_CANCEL),
-                ) {
-                    Text(text = stringResource(R.string.remote_repair_cancel), style = TypeTokens.label)
-                }
-            },
+        RemoteRepairConfirmationDialog(
+            onDismiss = { confirming = false },
+            onConfirm = onConfirmRepair,
         )
     }
+}
+
+/**
+ * The explicit confirmation the re-pair owes the user (presentation.md): the dialog says what is
+ * removed and what comes next, so the destructive act is never a single tap.
+ */
+@Composable
+private fun RemoteRepairConfirmationDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.remote_repair_confirm_title),
+                style = TypeTokens.title,
+                color = ColorTokens.contentPrimary,
+            )
+        },
+        text = {
+            Text(
+                text = stringResource(R.string.remote_repair_confirm_body),
+                style = TypeTokens.body,
+                color = ColorTokens.contentSecondary,
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onDismiss()
+                    onConfirm()
+                },
+                modifier = Modifier.testTag(RemoteTestTags.REPAIR_CONFIRM),
+            ) {
+                Text(text = stringResource(R.string.remote_repair_confirm), style = TypeTokens.label)
+            }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick = onDismiss,
+                modifier = Modifier.testTag(RemoteTestTags.REPAIR_CANCEL),
+            ) {
+                Text(text = stringResource(R.string.remote_repair_cancel), style = TypeTokens.label)
+            }
+        },
+    )
 }
 
 /** The minimal control set: a volume row, a directional pad, and two chrome keys. */
