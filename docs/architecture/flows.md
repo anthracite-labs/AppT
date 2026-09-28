@@ -426,7 +426,7 @@ sequenceDiagram
   App->>Sam: wake(tvId)
   alt wake evidence available
     Sam->>Sam: send bounded WoL attempts
-    Sam-->>App: Attempted
+    Sam-->>App: Sent
     App->>Sam: open(tvId) within wake patience window
   else evidence unavailable
     Sam-->>App: Unavailable
