@@ -470,6 +470,9 @@ class SamsungTvsSavedPairingTest {
                 newScan = { error("no scan in this test") },
                 confirmed = confirmed,
                 secrets = store,
+                newSession = { tv, scope, generation ->
+                    LiveSession(tv, transport, scope, store, generation)
+                },
             )
         val session = tvs.open(tvId, this)
         runCurrent()
