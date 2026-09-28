@@ -1,6 +1,6 @@
 """Provider cache-token boundaries for workflows that execute PR-head code.
 
-Run after yamllint (which supplies PyYAML) in repository-quality CI:
+Run after yamllint (which supplies PyYAML) in the `repo-quality` job:
     python3 tools/ci/test/workflow-cache-contract.test.py
 
 This parses YAML rather than grepping for a reassuring cache-mode line: a job

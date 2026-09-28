@@ -9,8 +9,9 @@
 # Scope boundary — what this script deliberately does NOT do:
 #
 #   * It does not orchestrate CodeQL. CodeQL SAST lifecycle semantics are
-#     owned by GitHub Actions default setup rather than hidden behind a bespoke
-#     shell abstraction.
+#     owned by the repository's Advanced Setup workflow in
+#     `.github/workflows/codeql.yml`, rather than hidden behind a bespoke shell
+#     abstraction.
 #   * It makes no network calls of its own: no curl, no wget, no downloads, no
 #     registry access. (Gradle resolves dependencies the same way it does for any
 #     other build; that is Gradle's behaviour, not this script's.)
@@ -89,9 +90,10 @@ Modes:
              then the repository-state check that every known tooling advisory
              is constrained at a Dependabot-mutable seam and resolved at a
              patched version in gradle/verification-metadata.xml.
-  detekt     Kotlin static analysis over the production Kotlin in :app and
-             :samsung, against config/detekt/detekt.yml, plus
-             dependencyLockCheck. Mirrors the `detekt` CI job exactly.
+  detekt     The repository-local Kotlin static/security subset: detekt over
+             production Kotlin in :app and :samsung against
+             config/detekt/detekt.yml, plus dependencyLockCheck. This is narrower
+             than the full `android-static` domain and `ciCheck`.
   build      The exact strict Gradle build used for CodeQL Kotlin extraction.
              The command is printed below rather than documented by hand, so
              this help text cannot drift from what the script actually runs.
@@ -102,8 +104,8 @@ Notes:
   * Requires no secrets and makes no network calls of its own.
   * Fails closed: a missing required tool is an error, not a skipped check.
   * Exits non-zero if any constituent check fails.
-  * CodeQL is intentionally not driven from here; CodeQL is owned by
-    GitHub Actions default setup.
+  * CodeQL is intentionally not driven from here; AppT's current CodeQL
+    Advanced Setup is `.github/workflows/codeql.yml`.
 USAGE
   printf '\nThe strict Gradle build command:\n    ./gradlew %s %s\n' \
     "${GRADLE_STRICT_FLAGS[*]}" "${GRADLE_BUILD_TASKS[*]}"
@@ -130,8 +132,8 @@ check_deps() {
   require node
   node --test "tools/security/test/enforce-gradle-tooling-constraints.test.mjs"
   # Repository-state check, so it runs against the committed tree exactly as
-  # the `quality` job does: every known build-time tooling advisory must be
-  # constrained at a Dependabot-mutable seam AND resolved at a patched version
+  # the `repo-policy` domain does: every known build-time tooling advisory
+  # must be constrained at a Dependabot-mutable seam AND resolved at a patched version
   # in gradle/verification-metadata.xml.
   info "node tools/security/enforce-gradle-tooling-constraints.mjs"
   node tools/security/enforce-gradle-tooling-constraints.mjs
@@ -144,9 +146,9 @@ check_detekt() {
   # Runs against the single repository-owned config/detekt/detekt.yml. There is
   # no baseline file and no --auto-correct, so a finding fails the run.
   #
-  # The task list mirrors the detekt checks in ciCheck exactly —
-  # detekt plus dependencyLockCheck in one invocation under strict verification —
-  # so a green run here is the same evidence CI produces, not a weaker variant.
+  # This deliberately runs only detekt and dependencyLockCheck under strict
+  # verification. It is a narrower repository-local check, not equivalent to
+  # all work owned by the `android-static` domain or the `ciCheck` umbrella.
   info "./gradlew ${GRADLE_STRICT_FLAGS[*]} detekt dependencyLockCheck"
   ./gradlew "${GRADLE_STRICT_FLAGS[@]}" detekt dependencyLockCheck
 }
