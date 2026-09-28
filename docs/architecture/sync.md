@@ -59,8 +59,8 @@ flowchart TD
 | Cloud Functions for Firebase, 2nd gen | The entire entitlement API | Stateless functions; each request authenticated and authorized |
 | Cloud Firestore | Durable account, marker, and purchase-binding records | **Server-only.** Client SDK is not in the Android dependency graph; security rules deny all client reads and writes |
 | Secret Manager | HMAC keys for eligibility markers and purchase fingerprints | Versioned; never leaves the backend |
-| Cloud KMS | Non-exportable ES256 key that signs entitlement proofs | Public keys exposed through `GET /v1/keys` for offline verification |
-| Play Integrity decode API | Server-side verdicts for trial and purchase decisions | Provider fact; see needs validation |
+| Cloud KMS | Non-exportable ES256 key that signs entitlement proofs | The backend retrieves public keys from KMS and publishes the accepted versions as JWKS through `GET /v1/keys`; asymmetric-key rotation is explicit and overlaps old/new public keys until issued proofs using the retiring version no longer need verification |
+| Play Integrity decode API | Server-side verdicts for trial and purchase decisions | Standard requests bind the protected decision payload with `requestHash`; decoded verdicts are evaluated for that request and are not retained as an identifier |
 | Scheduled reconciliation | Daily Cloud Scheduler job that finalises deletions which stopped after the Auth user was removed, releasing frozen bindings only once Firebase Auth confirms the user is gone | Backend-only; the Android client never triggers or observes it directly |
 | Google Play Developer API | Authoritative purchase verification and acknowledgement | Service account with the narrow publisher scope |
 | Cloud Pub/Sub + RTDN | Refund, chargeback, and cancellation signals | One Play-managed topic per Play app; at-least-once, unordered |
@@ -305,8 +305,8 @@ One Android device receives one AppT trial total. There is no paid-device roster
 ### Marker keying and rotation
 
 - `hmacHex = HMAC-SHA256(keyVersion, scope + ":" + normalizedValue)`.
-- Email normalization: trim and lowercase the Firebase-verified email. Provider aliasing (`+` tags, provider dot handling) is **not** normalized in V1; that gap is recorded in [security.md](security.md) and [README.md](README.md#needs-validation).
-- Device normalization: the app-scoped Android ID string, used only inside the request. It is never logged, never stored raw, and never sent anywhere except this eligibility call.
+- Email normalization: trim and lowercase the Firebase-verified email. Provider aliasing (`+` tags, provider dot handling) is **not** normalized in V1; [security.md](security.md) records this as an accepted best-effort abuse gap rather than an invented cross-provider equivalence rule.
+- Device normalization: the app-scoped Android ID string, used only inside the request. It is never logged, never stored raw, and never sent anywhere except this eligibility call. Android scopes this value to the signing identity, user, and device and may change it after a factory reset or signing-key transition; AppT therefore treats the device marker as best-effort across those platform identity changes rather than as a permanent physical-device identifier.
 - Keys live in Secret Manager with explicit versions. New markers use the active version. Eligibility checks compute the HMAC for every retained key version and look up each; a match under any retained version denies a new trial.
 - Rotation limits **new** linkability; it cannot re-key existing markers, because that would require storing the raw values. Keeping keys while their markers exist is the honest design. When the trial program ends, markers and their keys are deleted together as a documented data-lifecycle action.
 - There is no AppT install identifier. A random per-install id was part of the removed sync design; nothing in this architecture needs one, so it does not exist.
@@ -340,9 +340,9 @@ sequenceDiagram
     App-->>User: waiting for Google Play, no entitlement yet
   else state PURCHASED
     App->>Fn: POST /v1/purchase/verify (idempotent, App Check, integrity)
-    Fn->>Api: purchases.products.get(package, product, token)
-    Api-->>Fn: purchaseState, purchaseType, acknowledgementState, productId
-    alt purchaseState PURCHASED and product matches and purchaseType is a standard purchase
+    Fn->>Api: purchases.productsv2.getproductpurchasev2(package, token)
+    Api-->>Fn: purchaseStateContext, testPurchaseContext, acknowledgementState, product line item
+    alt state PURCHASED and product matches and testPurchaseContext is absent
       Fn->>Fn: fingerprint token, bind to uid, set entitlement active
       Fn->>Api: acknowledge the purchase
       Fn-->>App: granted, signed lifetime proof
@@ -357,7 +357,7 @@ Verification rules:
 
 - Grant only on an authoritative response whose package, product, and token match the request and whose state is purchased.
 - Acknowledge within Google's three-day window from the backend so an unacknowledged purchase cannot be auto-refunded by client failure.
-- `purchaseType` (test, promo, rewarded) never grants a durable production Lifetime Entitlement. Such a purchase is recorded for diagnostics and is reported as rejected to the client with an internal reason.
+- A `ProductPurchaseV2` carrying `testPurchaseContext` never grants a durable production Lifetime Entitlement. V1 does not deliberately enable promo or rewarded acquisition paths; if either is introduced later, its current V2 representation must be validated and classified before that acquisition path can grant entitlement.
 - The fingerprint is `HMAC-SHA256(keyVersion, packageName + ":" + purchaseToken)`. Product id is stored on the binding record but not inside the fingerprint, so a voided-purchase notification (which carries no product id) still resolves.
 - The raw purchase token lives only in memory during the verification call.
 
@@ -524,7 +524,7 @@ Retry behaviour:
 - The endpoint is idempotent and re-entrant. A retry resumes from the recorded phase instead of starting over, so a partially completed deletion completes on the next attempt.
 - Freezing happens **before** the Auth user is deleted, so there is no window in which the old account can still authenticate while the purchase is bindable elsewhere.
 - If the client disappears after phase 3, the daily reconciliation function finishes phases 4 and 5. It queries `accounts` where `status == "deleting"`, and for each one whose `deletionId` names frozen bindings it confirms the Firebase Auth user is gone, then releases those bindings and finishes the account. This is the only automated `frozen → released` path.
-- The reconciliation never deletes a Firebase Auth user and never releases a binding whose identity can still authenticate. When the Auth read still returns the user, the account stays `deleting` and its binding stays `frozen`, both records keep their `deletionId`, and the deletion resumes when the user retries from the Account surface (the gate offers Retry deletion) or when an audited support action completes it. That state denies use and denies re-binding, and an operator alert fires once an account has been `deleting` for more than seven days.
+- The reconciliation never deletes a Firebase Auth user and never releases a binding whose identity can still authenticate. It assumes no zero-delay visibility after deletion: until an Auth read actually reports the user absent, or if that read fails, the account stays `deleting` and its binding stays `frozen` for a later retry. When the Auth read still returns the user, the account stays `deleting` and its binding stays `frozen`, both records keep their `deletionId`, and the deletion resumes when the user retries from the Account surface (the gate offers Retry deletion) or when an audited support action completes it. That state denies use and denies re-binding, and an operator alert fires once an account has been `deleting` for more than seven days.
 - A frozen binding whose `deletionId` is null or names no `deleting` account is a corruption signal. The job releases nothing, it raises an operator alert, and an audited support action resolves it. No automated path can release a binding without the Auth-removal proof.
 - The reconciliation query uses equality on `status` plus a range on `deletionStartedAt`, so the composite index it needs is declared in `backend/firestore.indexes.json` like every other index.
 - A frozen binding denies the previous account's own requests with `deletion_pending`, so a half-deleted account cannot use the purchase either.
@@ -569,7 +569,7 @@ Environment separation, secret handling, backend deploy/rollback, and Play track
 
 ## Needs validation
 
-Provider facts this architecture relies on are listed once in [README.md](README.md#needs-validation) and detailed in [security.md](security.md#needs-validation). The ones that would change this file if wrong: the current Play Developer API method for one-time product state, `purchaseType` behaviour, RTDN one-time and voided notification shapes, Play Integrity verdict vocabulary, app-scoped Android ID stability, and Cloud KMS/JWKS rotation procedure.
+The remaining provider facts that can change this file are deliberately narrow: the exact `ProductPurchaseV2` representation of promo/rewarded acquisitions if AppT ever enables those flows, and the live signing-key-upgrade continuity drill owned by [release.md](release.md). Documented RTDN shapes, Standard Integrity `requestHash`, App Check channel configuration, app-scoped Android ID limits, Android vitals/R8 behavior, and KMS public-key/rotation mechanics are treated as current provider contracts rather than perpetual unknowns.
 
 No implementation slice may recreate the removed TV-personalization sync model.
 
@@ -582,7 +582,7 @@ No implementation slice may recreate the removed TV-personalization sync model.
 | `deviceMarkerDeniesSecondTrial` | A second account on the same device signal is not trial-eligible |
 | `trialFollowsAccountAcrossPhones` | A second phone receives the original expiry and creates no new window |
 | `trialMarkerKeyRotationResolvesOldMarkers` | A marker written under a previous key version still denies a new trial |
-| `testPurchaseDoesNotGrantLifetime` | A `purchaseType` test purchase is rejected for a durable Lifetime Entitlement in every environment |
+| `testPurchaseDoesNotGrantLifetime` | A `ProductPurchaseV2` with `testPurchaseContext` is rejected for a durable Lifetime Entitlement in every environment |
 | `trialAttachIsIdempotent` | Refreshing from a second phone returns the original expiry and writes the device marker exactly once |
 | `deletionFreezesBeforeAuthDelete` | The binding is `frozen` before the Auth user is removed, and `deletion_pending` denies use meanwhile |
 | `frozenBindingRetainsOwnerCorrelation` | Freezing writes one deletion-scoped `deletionId` across the binding and the account, so the reconciliation lookups are defined |
