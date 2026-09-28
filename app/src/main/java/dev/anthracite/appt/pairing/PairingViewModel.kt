@@ -59,9 +59,7 @@ class PairingViewModel(
      * (presentation.md), so this is reachable only from the "Pair again" control.
      */
     fun onPairAgain() {
-        viewModelScope.launch {
-            activeRemoteHost.confirmedPairAgain(tvId)
-        }
+        viewModelScope.launch { activeRemoteHost.confirmedPairAgain(tvId) }
     }
 
     private companion object {

@@ -74,9 +74,7 @@ class RemoteViewModel(
      * file"). Both are ignored from any state the confirmed re-pair does not apply to.
      */
     fun onConfirmRepair() {
-        viewModelScope.launch {
-            activeRemoteHost.confirmedPairAgain(tvId)
-        }
+        viewModelScope.launch { activeRemoteHost.confirmedPairAgain(tvId) }
     }
 
     private companion object {
