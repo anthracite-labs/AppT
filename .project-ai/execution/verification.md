@@ -20,6 +20,10 @@ Typical progression:
 
 Do not repeatedly run the entire repository suite or remote CI while diagnosing a narrow failure if a smaller reproducer can provide faster, clearer evidence. Do not use terminal full `verify` as the implementation debugger.
 
+Within the selected affected scope, however, diagnostic execution should maximize useful failure evidence before correction. After the first symptom is reproduced, prefer the tool's native evidence-expansion mechanisms where safe: continue independent tasks, keep tests non-fail-fast, retain compiler/linter/type-checker multi-error output, and collect structured reports or artifacts. This is bounded breadth, not repository-wide breadth.
+
+Diagnostic continuation must preserve strict pass/fail semantics. A failing task, test, compiler, linter, or analysis remains failing. If a failed prerequisite prevents dependent work from executing, record that dependency, correct only the blocker required to expose the rest of the affected scope, then rerun the bounded diagnostic before broader correction.
+
 ## Terminal repository verification
 
 Before work is called complete, fixed, passing, ready, or technically verified, use `../skills/verification-before-completion/SKILL.md`.
@@ -36,11 +40,12 @@ If terminal repository verification fails:
 
 1. leave the terminal-verification loop immediately;
 2. use `../skills/debugging-recovery/SKILL.md` to identify and confirm the smallest useful reproducer;
-3. establish an evidence-backed root cause before editing when reproduction is practical;
-4. correct the root cause minimally and add regression protection where practical;
-5. regain targeted green evidence for the reproducer and affected scope;
-6. produce a new finished candidate;
-7. run terminal repository verification again only after the targeted surface is green.
+3. harvest the practical independent failures in the bounded affected surface using the tool's native reporting/continuation capabilities;
+4. classify and group the resulting evidence by root cause before editing when reproduction is practical;
+5. correct the coherent root causes minimally and add regression protection where practical;
+6. regain targeted green evidence for the reproducer and the whole affected scope;
+7. produce a new finished candidate;
+8. run terminal repository verification again only after the targeted surface is green.
 
 If a practical reproducer cannot be run in the current environment, preserve the exact blocker and use `../routing/route.md` to try the narrowest safe alternate route. Equivalent targeted evidence from that route may satisfy the focused-verification requirement. If no safe route can provide equivalent targeted evidence, stop and return the blocker; do not produce a new finished candidate or run terminal repository verification. Repeated terminal CI runs are not an acceptable substitute for the diagnostic loop.
 
