@@ -38,9 +38,9 @@ jobs:
           ./gradlew --no-daemon spotlessKotlinCheck 2>&1 | tee /tmp/spotless.log || {
             echo "### spotlessKotlinCheck violations (full list)" >> "$GITHUB_STEP_SUMMARY"
             awk '/had format violations/,/^\* Try/' /tmp/spotless.log >> "$GITHUB_STEP_SUMMARY" || true
-            # Chunked into ::error annotations so the evidence survives step-summary limits.
-            awk '/had format violations/,/^\* Try/' /tmp/spotless.log | fold -w 480 | nl -ba | while read -r n chunk; do
-              printf '::error title=spotless-%s::%s\n' "$n" "${chunk//$'\n'/ }"
+            # One annotation per line, numbered, so the evidence is ordered and complete.
+            awk '/had format violations/,/^\* Try/' /tmp/spotless.log | grep -n '' | while IFS= read -r l; do
+              printf '::error title=f%s::%s\n' "${l%%:*}" "${l#*:}"
             done
             exit 1
           }
