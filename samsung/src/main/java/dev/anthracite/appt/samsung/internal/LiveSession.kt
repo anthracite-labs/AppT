@@ -182,8 +182,8 @@ internal class LiveSession(
             publish(SessionState.NeedsRepair, RepairReason.IdentityChanged)
             return
         }
-        when (val attempt = transport.connect(television, saved)) {
-            is ConnectionAttempt.Opened -> runConnection(attempt.connection, saved)
+        when (val result = transport.connect(television, saved)) {
+            is ConnectionAttempt.Opened -> runConnection(result.connection, saved)
             // The saved pin did not match this handshake. The token never reached the attempt, so
             // there is nothing to retract: fail closed and ask the user to re-pair explicitly.
             ConnectionAttempt.IdentityMismatch ->
