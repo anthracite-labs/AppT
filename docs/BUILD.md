@@ -349,6 +349,57 @@ check this split without running target code or contacting Sonar. See the
 [release security analysis](architecture/release.md#secret-bearing-sonar-boundary)
 for the pinned upstream source evidence and the remaining hosted-proof boundary.
 
+### Diagnostic breadth and failure capture
+
+AppT diagnostics optimize for **maximum useful evidence inside the smallest relevant
+failure domain**. A first failure confirms that the domain is red; it is not
+automatically the whole failure set.
+
+For the Gradle-backed `app-unit`, `samsung-unit`, `android-static`, and
+`android-build` modes, `tools/ci/diagnose-focus.mjs` includes Gradle
+`--continue` in the reviewed argv. Gradle documents that this continues
+independent requested tasks after a task failure, while tasks that depend on a
+failed prerequisite are not executed. It therefore expands evidence where the
+task graph allows it; it cannot make a blocked dependent task runnable or turn
+the build green. See the first-party Gradle task-failure behavior:
+<https://docs.gradle.org/current/userguide/custom_tasks.html>.
+
+Gradle JVM `Test` tasks are non-fail-fast by default and execute all detected
+tests before reporting the task failure. AppT does not enable `failFast` on
+these diagnostic test tasks. See:
+<https://docs.gradle.org/current/userguide/java_testing.html>.
+
+The backend Jest configuration leaves `bail` unset; Jest's default is `0`, so
+it runs the selected tests and reports their failures rather than stopping after
+the first one. See:
+<https://jestjs.io/docs/configuration#bail-number--boolean>.
+
+Use those native behaviors deliberately:
+
+1. prove the reported symptom with the narrowest useful reproducer;
+2. run the whole affected diagnostic mode when multiple independent failures
+   may exist;
+3. inspect the normal logs **and** the structured reports/artifacts before
+   editing — `diagnose.yml` uploads app and Samsung JVM test reports even when
+   their test task fails;
+4. group the observed failures by root cause and separate implementation
+   defects, test defects/stale expectations, infrastructure failures, and
+   contract exceptions;
+5. correct coherent root causes, then rerun the whole affected diagnostic
+   domain so a newly exposed failure is evidence, not another blind CI cycle.
+
+Continuation is diagnostic breadth, not failure tolerance. Do not set
+`ignoreFailures`, suppress compiler/linter failures, weaken `-Werror`, lower
+assertions, or otherwise make a red diagnostic appear green.
+
+If native logs and reports cannot expose enough evidence, add the smallest
+targeted temporary diagnostic instrumentation that can: a listener, assertion,
+trace, stack output, or report hook. Keep it branch-scoped, mark it temporary,
+and remove it before terminal verification unless it has earned a permanent
+observability/testing role. Temporary workflow YAML remains the last resort
+described above, after local tooling and the existing `diagnose.yml` modes
+cannot perform the needed diagnostic operation.
+
 ### Focusing a diagnostic
 
 Every `diagnose.yml` mode accepts an optional `focus` input that narrows that
