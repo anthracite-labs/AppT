@@ -87,20 +87,30 @@ tasks.register("surfaceDetektFindings") {
     doLast {
         val report = project.file("build/reports/detekt/detekt.xml")
         if (!report.exists()) {
-            println("::error title=detekt-findings::no detekt xml report at " + report.path)
-        } else {
-            val text = report.readText()
-            val files = Regex("<file name=\"([^\"]+)\"[^>]*>([\\s\\S]*?)</file>")
-            val errors = Regex("<error[^>]*source=\"([^\"]+)\"[^>]*message=\"([^\"]*)\"")
-            files.findAll(text).take(12).forEach { fileMatch ->
-                errors.findAll(fileMatch.groupValues[2]).take(12).forEach { errorMatch ->
-                    val path = fileMatch.groupValues[1].substringAfterLast("/")
-                    println(
-                        "::error title=detekt::" + path + " :: " + errorMatch.groupValues[1] +
-                            " :: " + errorMatch.groupValues[2].take(160),
-                    )
-                }
+            println("::error title=detekt-findings::NO DETEKT XML REPORT AT " + report.path)
+            return@doLast
+        }
+        println("::notice title=detekt-findings::report exists, " + report.length() + " bytes")
+        val text = report.readText()
+        val errorTags = Regex("<error\\b[^>]*>")
+        val attr: (String, String) -> String? = { tag, name ->
+            Regex(name + "=\"([^\"]*)\"").find(tag)?.groupValues?.get(1)
+        }
+        val files = Regex("<file name=\"([^\"]+)\"[^>]*>([\\s\\S]*?)</file>")
+        var count = 0
+        files.findAll(text).forEach { fileMatch ->
+            val path = fileMatch.groupValues[1].substringAfterLast("/")
+            errorTags.findAll(fileMatch.groupValues[2]).take(12).forEach { errorMatch ->
+                val tag = errorMatch.value
+                val source = attr(tag, "source") ?: "?"
+                val line = attr(tag, "line") ?: "?"
+                val message = (attr(tag, "message") ?: "?").take(140)
+                count++
+                println("::error title=detekt::" + path + ":" + line + " " + source + " :: " + message)
             }
+        }
+        if (count == 0) {
+            println("::error title=detekt-findings::REPORT PARSED BUT ZERO ERRORS EXTRACTED; head: " + text.take(400))
         }
     }
 }
