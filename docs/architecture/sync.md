@@ -114,7 +114,7 @@ interface PlayBilling {                                  // Play Billing library
 }
 
 interface IntegrityProvider {                            // Play Integrity + App Check tokens
-    suspend fun requestToken(nonce: String): IntegrityTokenOutcome
+    suspend fun requestToken(requestHash: String): IntegrityTokenOutcome
 }
 ```
 
@@ -135,6 +135,8 @@ data class LicensingSnapshot(
 ## Backend API surface
 
 All endpoints require a Firebase ID token. All require an App Check token. The uid always comes from the verified token, never from a body field. App Check tokens are minted by the registration that matches the build's signing certificate, which is why production, internal, and debug builds are registered separately in [release.md](release.md#signing-identity-and-distribution-channel); the backend side of enforcement is identical in `internal` and `production`.
+
+For Play Integrity Standard requests, the app computes the documented `requestHash` over the canonical fields of the protected entitlement decision before requesting the integrity token. The backend recomputes that hash from the authenticated request and rejects a decoded token whose request hash does not match. This binds the attestation to the action being authorized; it is not a Classic-request nonce and is never retained as an identifier.
 
 | Endpoint | Purpose | Request | Success response | Failure responses |
 |---|---|---|---|---|
@@ -579,6 +581,7 @@ No implementation slice may recreate the removed TV-personalization sync model.
 |---|---|
 | `accountlessFirstSessionIsExemptOnce` | The first session opens without an account; after it ends, the next entry requires sign-in |
 | `entitlementRequiresVerifiedEmail` | An unverified email/password account cannot activate a trial |
+| `integrityRequestHashBindsDecision` | A Standard Integrity token whose decoded `requestHash` does not match the canonical entitlement request is rejected before trial or purchase state changes |
 | `deviceMarkerDeniesSecondTrial` | A second account on the same device signal is not trial-eligible |
 | `trialFollowsAccountAcrossPhones` | A second phone receives the original expiry and creates no new window |
 | `trialMarkerKeyRotationResolvesOldMarkers` | A marker written under a previous key version still denies a new trial |
