@@ -66,11 +66,9 @@ class SamsungKeystoreContractTest {
     @Test
     fun theProductionKeySpecRoundTripsOnThisDevice() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        var usedStrongBox = false
         try {
             try {
                 generateKey(strongBox = true)
-                usedStrongBox = true
             } catch (strongBoxUnavailable: Exception) {
                 // The documented fallback: StrongBox where the device has it, plain TEE otherwise.
                 generateKey(strongBox = false)
