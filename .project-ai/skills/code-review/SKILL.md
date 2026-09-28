@@ -42,7 +42,8 @@ Check:
 - scope/out-of-scope boundaries are respected;
 - constraints and non-goals are preserved;
 - implementation did not silently change user-visible behavior;
-- verification actually proves the criteria.
+- verification actually proves the criteria;
+- the Issue's Implementation Reuse Plan was followed, including licence/reuse boundaries and any required reused or ported tests.
 
 Classify:
 
@@ -60,6 +61,7 @@ Inspect the changed behavior on the axes that matter:
 | Tests | behavior-focused, regression-sensitive, useful failure signal, real boundaries? |
 | Simplicity | unnecessary concepts, pass-through layers, tangled control flow, weak invariants? |
 | Architecture | ownership, dependency direction, seams, canonical helpers, leakage across boundaries? |
+| Reuse / provenance | was existing AppT or approved upstream implementation reused as planned; is `NEW` justified; were no-copy boundaries respected; were relevant upstream tests/vectors carried across? |
 | Security | does a security trigger require the security-engineering skill? |
 | Performance | unbounded/multiplicative work, hot-path waste, missing bounds, retry pathologies? |
 | Compatibility | public contracts, schemas, events, config, migration, timing/ordering changes? |
@@ -118,5 +120,6 @@ Before finishing review, confirm:
 - engineering findings explain concrete impact;
 - tests and verification evidence were inspected;
 - security, performance, compatibility, and operational effects were considered where relevant;
+- reuse/provenance deviations and unjustified blank-page implementation are explicit;
 - verification gaps are explicit;
 - the result does not imply human acceptance.
