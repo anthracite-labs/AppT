@@ -99,8 +99,8 @@ class ActiveRemoteHost(
     /**
      * The user-confirmed re-pair for the retained session of [tvId].
      *
-     * For the saved-identity failures (`TokenRejected`, `IdentityChanged`) the session performs
-     * the re-pair itself: `confirmRepair` discards the saved approval and pairs as new
+     * For the saved-identity failures (`TokenRejected`, `IdentityChanged`) the session performs the
+     * re-pair itself: `confirmRepair` discards the saved approval and pairs as new
      * (samsung-interface.md). For `SecretsUnavailable` the saved material is unreadable and the
      * session's `confirmRepair` is contractually ignored, so the app-level pair again removes
      * this phone's Samsung relationship with the `forget` primitive and opens fresh; the fresh
