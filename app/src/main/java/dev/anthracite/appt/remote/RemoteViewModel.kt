@@ -50,7 +50,8 @@ class RemoteViewModel(
      *
      * A command is only offered while the session is `Ready`, so a write that the session accepts
      * is the first-control event: `firstControlAchieved` is set here, once, and setting it never
-     * interrupts the session and never shows account UI (data.md, sync.md#remote-entry-gate).
+     * interrupts the session and never shows account UI (data.md,
+     * account-entitlement.md#remote-entry-gate).
      */
     fun onCommand(command: TvCommand) {
         viewModelScope.launch {

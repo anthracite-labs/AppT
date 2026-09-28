@@ -36,8 +36,8 @@ data class ActiveRemoteSnapshot(
  * `enter` is the only path that opens a session, so no screen or ViewModel calls `SamsungTvs.open`
  * and the licensing gate cannot be bypassed by reaching a surface directly. S03 has no account, no
  * billing and no entitlement, so the entry decision is always allowed; the decision point is the
- * [entryAllowed] parameter, where sync.md#remote-entry-gate's `AccountGate` plugs in when the
- * account slice lands.
+ * [entryAllowed] parameter, where account-entitlement.md#remote-entry-gate's `AccountGate` plugs in
+ * when the account slice lands.
  *
  * Interest counting is [retain]/[release], not navigation: Pairing, Remote, a sheet and a
  * configuration change all hold interest, so a rotation never releases and never re-opens.

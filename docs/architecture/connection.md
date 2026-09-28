@@ -4,6 +4,21 @@ Caller-facing operations are `open`, `retryApproval`, `confirmRepair`, `wake`, a
 
 Local control after pairing does not call Firebase, does not check App Check, and does not wait for licensing or account checks. A cloud outage leaves this machine unchanged.
 
+## Evidence and race-handling harvest
+
+### IMPLEMENTATION EVIDENCE
+
+- [Smart-TV-Remote-Control](https://github.com/mazen-salah/Smart-TV-Remote-Control) at [`68a97ec3`](https://github.com/mazen-salah/Smart-TV-Remote-Control/commit/68a97ec304fd41dc7e94dde15cd41f56391f6d04), MIT: `lib/blocs/tv_connection/tv_connection_bloc.dart` uses a generation counter so a connect completing after disconnect/forget cannot resurrect the old session; `lib/core/repositories/tv_repository.dart` centralizes active-session replacement and one-shot wake/retry. Method: **BEHAVIORAL REFERENCE**.
+- [KDE Connect Android](https://github.com/KDE/kdeconnect-android) at [`6d6eb6b6`](https://github.com/KDE/kdeconnect-android/commit/6d6eb6b6659013f950229d00d7c06a18d9897142), GPL-2.0/GPL-3.0: `PairingHandler.kt` covers duplicate/concurrent pair requests, peer/user cancel, and bounded timeouts; `LanLinkProvider.kt` prevents an obsolete lost link from removing its replacement. Method: **BEHAVIORAL REFERENCE** only.
+
+### APPT DECISION
+
+Every asynchronous open/reconnect/repair attempt belongs to a session generation. A newer `open`, `close`, confirmed repair, or local forget invalidates older work. A late callback from an invalidated generation may close its own resources but may not publish `Ready`, persist a token/pin, overwrite newer address evidence, or remove a replacement session.
+
+This rule complements the existing reconnect state machine; it does not create a second connection manager. Regression proof is `supersededConnectCannotResurrectSession` in [testing.md](testing.md).
+
+Validated: 2026-09-28.
+
 ## Session
 
 While the remote is active, one WebSocket session stays up so a command write does not handshake again. The module releases that socket when `close` runs or the caller's scope cancels. `app` calls `close` 15 seconds after the remote surface stops.

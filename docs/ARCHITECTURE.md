@@ -4,7 +4,7 @@
 
 This document records the architecture decisions already made for AppT. It is the canonical input for detailed architecture mapping during the architecture phase.
 
-`docs/PRODUCT.md` owns product intent. This file owns accepted technical direction. `docs/HARVEST.md` records which ideas from the harvested remote-control research are adopted, retained as references, or rejected.
+`docs/PRODUCT.md` owns product intent. This file owns accepted technical direction. Detailed architecture documents own the external evidence and implementation-harvest material for the behavior they specify; AppT does not maintain a separate harvest/disposition register.
 
 ## Delivery strategy
 
@@ -113,7 +113,7 @@ The `app` module does not construct raw Samsung WebSocket payloads, raw `KEY_*` 
 - Trial eligibility is constrained by privacy-minimized pseudonymous signals derived from the verified email identity and Android device. There is no AppT install identifier; the random per-install id belonged to the removed sync design. Raw television or behavioral data is not part of anti-abuse state.
 - Use **Play Integrity** for authenticity/fraud checks at appropriate entitlement actions, not as a device-tracking or behavioral system.
 - On Android, the lifetime unlock is a **Google Play one-time non-consumable product**.
-- Purchase validation must be authoritative before lifetime entitlement is granted. The backend is the AppT Entitlement Backend on Firebase Cloud Functions with a server-only Firestore datastore, reached over validated HTTPS endpoints; the Android client has no Firestore dependency. See `docs/architecture/sync.md`.
+- Purchase validation must be authoritative before lifetime entitlement is granted. The backend is the AppT Entitlement Backend on Firebase Cloud Functions with a server-only Firestore datastore, reached over validated HTTPS endpoints; the Android client has no Firestore dependency. See `docs/architecture/account-entitlement.md`.
 - A validated lifetime entitlement is associated with the AppT account and can be restored after sign-in on another supported Android device.
 - The entitlement model stays conceptually vendor-neutral for future iOS, but Android purchase portability to iOS is not promised.
 - Account deletion removes account-held username/trial/license data subject to required transaction/legal retention and does not delete device-local TV pairing or personalization. Only pseudonymous trial-eligibility markers and the minimum purchase-binding record survive deletion, and neither contains television, personalization, or behavioral data.
@@ -185,6 +185,28 @@ These are binding unless deliberately changed by a later architecture decision:
 8. **Universal TV abstractions wait for a second real ecosystem.**
 9. **TV and remote personalization remain device-local; the cloud account is limited to identity, username, trial/anti-abuse state, and license entitlement.**
 10. **No behavioral analytics and no cloud crash reporting.**
+
+## Evidence and provenance
+
+Architecture claims that depend on the outside world use three explicit evidence classes:
+
+- **AUTHORITATIVE** — the current owner of a platform/provider contract: Android/Google/Firebase/Samsung documentation, a specification, or another first-party source. The owning architecture document links the exact source and states what it does **not** establish when the boundary matters.
+- **IMPLEMENTATION EVIDENCE** — behavior observed in an open-source implementation, real-device fixture, or mature application. This evidence can show that an approach is practical or expose edge cases; it is never promoted into a vendor guarantee.
+- **APPT DECISION** — the behavior AppT accepts after reconciling product intent, authoritative constraints, implementation evidence, security/privacy requirements, and physical/provider verification.
+
+When open-source material materially informs an AppT decision, the owning architecture document records the repository, pinned commit or tag, relevant source path, license, harvest method, the exact behavior/pattern used, rejected upstream behavior where relevant, and the AppT test or physical evidence that proves our implementation.
+
+Allowed harvest methods are:
+
+- **ADAPT** — modify compatible-license source with attribution/notice obligations satisfied.
+- **PORT** — translate compatible-license implementation into AppT while preserving required attribution and tests.
+- **CLEAN-ROOM REIMPLEMENT** — independently implement observable behavior/protocol knowledge without copying incompatible source.
+- **BEHAVIORAL REFERENCE** — use an implementation only to identify states, races, edge cases, or design patterns.
+- **TEST-VECTOR/DATA** — use compatible test vectors/data under their own license/provenance terms.
+
+Until the final AppT source license is accepted, GPL/LGPL-family implementations are behavioral/protocol knowledge sources only unless a later human-approved licensing decision explicitly permits source reuse. This is a provenance boundary, not a claim that those projects are unsafe.
+
+Screening principles retained from the original remote-control research are now architecture rules rather than a separate register: prefer maintained and auditable implementations; reject embedded credentials, tracker/ad SDKs, unnecessary listeners, and opaque proprietary control-path dependencies; keep privileges and exit cost narrow; verify manifest/dependency changes; and make product claims match demonstrated runtime capability.
 
 ## Elaboration
 

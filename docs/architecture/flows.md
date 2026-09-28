@@ -2,7 +2,47 @@
 
 State machines, field lists, and rules stay in their owning files. This file is the sequence that crosses modules.
 
-Owning files: reconnect in [connection.md](connection.md), secrets and local data in [data.md](data.md), account/trial/entitlement in [sync.md](sync.md), modules and seams in [modules.md](modules.md), lifecycle transitions in [lifecycle.md](lifecycle.md), screens in [presentation.md](presentation.md).
+Owning files: reconnect in [connection.md](connection.md), secrets and local data in [data.md](data.md), account/trial/entitlement in [account-entitlement.md](account-entitlement.md), modules and seams in [modules.md](modules.md), lifecycle transitions in [lifecycle.md](lifecycle.md), screens in [presentation.md](presentation.md).
+
+## Whole-app lifecycle index
+
+This is the traceability spine for V1. It does not duplicate state machines or schemas; each row points to the document that owns the behavior and the slice where it becomes real.
+
+| Lifecycle stage | Required behavior | Owner(s) | Slice / proof |
+|---|---|---|---|
+| Fresh install | No fabricated TV/account/entitlement state; launch starts from Welcome/LocalNetwork | [lifecycle.md](lifecycle.md), [presentation.md](presentation.md) | S01/S02; first-use E2E |
+| App upgrade | Migrate each local store before routing; never silently reinterpret failure as a fresh install | [data.md](data.md), [lifecycle.md](lifecycle.md), [release.md](release.md) | S16; `upgradeFromPreviousReleasePreservesLocalState` |
+| Cold launch | Resolve permission state, remembered TV, last-used TV, first-control milestone, identity/cache, then gate before opening a session | [lifecycle.md](lifecycle.md), [account-entitlement.md](account-entitlement.md) | S08/S09; daily-control E2E |
+| Local-network gate | Explain need before any prompt/scan; use target-SDK-appropriate permission contract | [discovery.md](discovery.md) | S02 |
+| Discovery | Bounded foreground scan, canonicalized/deduped candidates, partial-probe failure tolerated, resources released | [discovery.md](discovery.md) | S02; `ipv4MappedIpv6DedupsSameCandidate` |
+| TV selection | Friendly card only; unsupported devices never receive commands | [presentation.md](presentation.md), [samsung-interface.md](samsung-interface.md) | S02/S03 |
+| First pairing | TV-side Allow/Deny, no saved token on first contact, candidate security identity retained only for approved pairing | [connection.md](connection.md), [protocol.md](protocol.md) | S03 |
+| First control | Command writes on the already-open session; first `Accepted` marks the one exempt session | [samsung-interface.md](samsung-interface.md), [account-entitlement.md](account-entitlement.md) | S03 |
+| Saved pairing | Persist token/security identity securely; restart resumes only after identity check | [data.md](data.md), [connection.md](connection.md) | S04 + physical checkpoint |
+| Identity change / repair | Fail closed before token transmission; explicit user repair confirmation | [connection.md](connection.md), [security.md](security.md) | S04 |
+| Daily Remote | Capability-driven commands, stable core layout, settings, early local diagnostics | [commands.md](commands.md), [presentation.md](presentation.md), [diagnostics.md](diagnostics.md) | S05 |
+| Rotation / temporary absence | Retain or grace-release the active session; no second open/gate on configuration recreation | [lifecycle.md](lifecycle.md) | S06 |
+| Network loss / address change | Supervised bounded reconnect; rediscover only saved identity; stale attempts cannot resurrect sessions | [connection.md](connection.md), [discovery.md](discovery.md) | S06 + physical checkpoint |
+| Process death | Lose in-memory session; durable state decides next launch; first-session exemption does not survive process death after first control | [lifecycle.md](lifecycle.md), [presentation.md](presentation.md) | S06/S08 |
+| Environment / signing | Artifact identity fixes backend/Firebase/Play environment; no cross-environment certificate trust | [release.md](release.md) | S07 |
+| Account requirement | After exempt session ends, every new Remote entry passes the gate; active Remote is never interrupted | [account-entitlement.md](account-entitlement.md) | S08 |
+| Trial | Server-authoritative start/expiry; valid cached trial works offline until known expiry | [account-entitlement.md](account-entitlement.md) | S08 |
+| Remembered-TV daily launch | Last-used TV routes Remote-first only after gate; list/switch/rename/forget are device-local | [data.md](data.md), [presentation.md](presentation.md) | S09 |
+| Forget / re-pair | Atomic UI removal + `PendingForget` retry; new pairing supersedes stale pending deletion | [data.md](data.md), [samsung-interface.md](samsung-interface.md) | S09 |
+| Purchase start | Play Billing launches one-time product; `PENDING` grants nothing | [account-entitlement.md](account-entitlement.md) | S10 |
+| Purchase interrupted / app inactive | Listener/query/RTDN observations converge; foreground query recovers transactions completed while inactive | [account-entitlement.md](account-entitlement.md), [lifecycle.md](lifecycle.md) | S10; purchase-interruption E2E |
+| Lifetime grant | Backend verifies authoritative Play state, binds once, acknowledges, returns signed proof | [account-entitlement.md](account-entitlement.md), [security.md](security.md) | S10 |
+| Restore / second phone | Sign-in + current Play purchase revalidation restores entitlement; TV state remains independent per phone | [account-entitlement.md](account-entitlement.md) | S10 |
+| Refund / chargeback | RTDN/backend revokes; next Remote entry blocks, active Remote stays live | [account-entitlement.md](account-entitlement.md) | S10 |
+| Account deletion | Ordered/resumable account deletion; purchase binding freezes before Auth removal and releases only after proof of removal | [account-entitlement.md](account-entitlement.md) | S08 + S10 |
+| Apps/text/favourites | Only live capabilities appear; favourites remain local and atomic | [commands.md](commands.md), [data.md](data.md) | S11 |
+| Wake | Attempt only from observed MAC/interface evidence; failure is honest capability state | [connection.md](connection.md), [commands.md](commands.md) | S12 + physical checkpoint |
+| Diagnostics/support | Bounded redacted record; explicit preview/share/clear; nothing uploads automatically | [diagnostics.md](diagnostics.md) | Recorder S05, UI/export S13 |
+| Unexpected crash | Only captured local evidence may be offered for review next launch; no crash SDK/upload and no false crash label for ordinary process death | [diagnostics.md](diagnostics.md), [lifecycle.md](lifecycle.md) | S13 |
+| Accessibility/window/locale | Every shipped route remains operable with assistive tech, 200% text, responsive windows and configuration recreation | [presentation.md](presentation.md), [ui-ux.md](ui-ux.md) | S14 |
+| Reliability / E2E closure | Benchmarks plus journey-level tests prove cross-layer behavior and retain failure artifacts | [testing.md](testing.md), [reliability.md](reliability.md) | S15 |
+| Candidate upgrade/release | Install-over-install proof, exact artifact identity, staged promotion machinery and halt criteria | [release.md](release.md) | S16 |
+| Final physical/release gates | Release candidate repeats critical Samsung path; source-license and Samsung vendor-terms decisions close before public promotion | [testing.md](testing.md), [release.md](release.md) | S17 |
 
 ## First run to first control
 
@@ -166,6 +206,34 @@ sequenceDiagram
 ```
 
 If the validator is unavailable while Play reports `PURCHASED`, the client writes a 24-hour non-renewable provisional record and shows it as temporary. A later authoritative answer replaces it.
+
+## Purchase completes while AppT is inactive
+
+Provider behavior is owned by [account-entitlement.md](account-entitlement.md#provider-evidence-and-purchase-resume-lifecycle). The important lifecycle rule is that a Play UI callback is not the only source of truth.
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant App as AppT
+  participant Play as Play Billing
+  participant Lic as Licensing
+  participant Fn as Entitlement Backend
+
+  User->>App: Buy once
+  App->>Play: launchBillingFlow
+  Play-->>App: PENDING or AppT backgrounds before final callback
+  App-->>App: process may be killed; no purchase UI state persisted
+  Note over Play: transaction later becomes PURCHASED
+  User->>App: Return/reopen
+  App->>Play: reconnect BillingClient + query current lifetime purchases
+  Play-->>App: PURCHASED token
+  App->>Lic: normalized purchase observation
+  Lic->>Fn: idempotent verify/bind
+  Fn-->>Lic: existing or new authoritative grant
+  Lic-->>App: one Lifetime state
+```
+
+The listener, foreground query, Restore action, and RTDN/backend state all converge. `PENDING` never becomes entitlement merely because the process restarted.
 
 ## Restore purchase, including after account deletion
 
@@ -368,6 +436,30 @@ sequenceDiagram
 Freezing before deleting the Auth user is what makes the sequence safe: while the old identity can still authenticate, the purchase is bound to nobody and usable by nobody. The deletion-scoped `deletionId` written at freeze is what lets the daily reconciliation find the frozen bindings again, and it releases them only after an Auth read confirms the user is gone, recording `authRemovalConfirmedAt` as the proof; while the user still exists it leaves the binding frozen and raises an alert instead of releasing.
 
 The account backend retains only pseudonymous trial markers and the released purchase binding. Television data was never there to delete.
+
+## Upgrade in place
+
+```mermaid
+sequenceDiagram
+  participant Old as Installed AppT N
+  participant OS as Android package manager
+  participant New as AppT N+1
+  participant Data as Room/DataStore/private files
+  participant Gate as Launch resolver
+
+  Old->>Data: representative remembered TV, preferences, pairing/entitlement state
+  OS->>New: install candidate over existing package without clearing data
+  New->>Data: run supported migrations/rotations
+  alt all stores usable
+    Data-->>New: migrated state
+    New->>Gate: resolve normal launch
+  else one store corrupt/unavailable
+    Data-->>New: documented per-store recovery
+    New-->>Gate: preserve unaffected state; never pretend fresh install
+  end
+```
+
+From the second public release onward, the source artifact is the immediately previous production artifact. [release.md](release.md#upgrade-in-place-release-proof) owns candidate/source identity and [testing.md](testing.md#whole-application-lifecycle-e2e) owns the journey evidence.
 
 ## Diagnostics: local record and user-confirmed export
 

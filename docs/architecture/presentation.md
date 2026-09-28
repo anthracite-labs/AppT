@@ -2,7 +2,7 @@
 
 Technical realization of the settled product-surface decisions in [ui-ux.md](ui-ux.md): routes, screen/UI state contracts, Compose/ViewModel ownership, process restoration, responsive rules, design-token categories, accessibility contracts, and error presentation.
 
-Ownership: [ui-ux.md](ui-ux.md) owns what the user sees and which product decisions are settled. This file owns how those surfaces are built. It does not reopen a settled decision. Module seams and dependency direction are owned by [modules.md](modules.md); lifecycle transitions are owned by [lifecycle.md](lifecycle.md); entitlement semantics by [sync.md](sync.md).
+Ownership: [ui-ux.md](ui-ux.md) owns user-visible experience rules and product-surface choices. This file owns technical realization: routes, state holders, restoration, Compose contracts, and verification hooks. A duplicated rule is removed from one owner rather than allowed to drift. Module seams and dependency direction are owned by [modules.md](modules.md); lifecycle transitions are owned by [lifecycle.md](lifecycle.md); entitlement semantics by [account-entitlement.md](account-entitlement.md).
 
 Architecture vocabulary follows [modules.md](modules.md): **module**, **interface**, **seam**, **adapter**, **depth**, **leverage**, and **locality**.
 
@@ -320,6 +320,8 @@ Token categories are architecture. Roles and floor values are binding; final pix
 | `brand.*` | mascot art sizes and placements | mascot never occupies persistent remote space |
 
 ## Accessibility contracts and verification hooks
+
+**AUTHORITATIVE:** Android's [Compose accessibility testing](https://developer.android.com/develop/ui/compose/accessibility/testing) documents automated accessibility checks through `AndroidComposeTestRule.enableAccessibilityChecks()`, including checks for labels, color contrast, touch target size, and traversal order. AppT's route-specific contracts below remain stricter where product behavior requires it.
 
 Contracts are binding for every shipped surface. Each has a verification hook so accessibility cannot be a final polish pass. API 34+ AndroidComposeTestRule coverage also enables the platform accessibility validator on rendered surfaces, including contrast, touch-target, labeling, and traversal checks; the provider API is not a Robolectric check. Those generic checks supplement rather than replace the explicit AppT contracts below.
 

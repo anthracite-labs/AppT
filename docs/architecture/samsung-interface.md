@@ -188,7 +188,7 @@ Starts or resumes the persistent session for one television. The initial snapsho
 
 Sends one typed command.
 
-- Returns `Accepted` when the command has been written to the live session, not when the television has visibly acted. The television often does not acknowledge a key. The account gate uses the first `Accepted` as its observable proxy for the first successful local-control session. That proxy is a socket write. Do not invent an acknowledgement. See [sync.md](sync.md).
+- Returns `Accepted` when the command has been written to the live session, not when the television has visibly acted. The television often does not acknowledge a key. The account gate uses the first `Accepted` as its observable proxy for the first successful local-control session. That proxy is a socket write. Do not invent an acknowledgement. See [account-entitlement.md](account-entitlement.md).
 - Returns `Rejected` for expected failures. It does not throw those failures.
 - Throws `CancellationException` only when the calling coroutine is cancelled.
 - Cancelling one `command` does not close the session.
@@ -296,7 +296,7 @@ Malformed television traffic is handled inside the module. Callers see the sessi
 ## What callers owe the module
 
 - Do not call `discover` or `open` before the permission gate is granted, except to handle `LocalNetworkDenied` if a race loses the grant.
-- Do not call `open` when the account gate forbids continued use. The module will still work; the gate is app policy, so it cannot be enforced inside `samsung`. See [sync.md](sync.md).
+- Do not call `open` when the account gate forbids continued use. The module will still work; the gate is app policy, so it cannot be enforced inside `samsung`. See [account-entitlement.md](account-entitlement.md).
 - Do not call `forget` because a list row disappeared. `forget` is only for a local user unpair, retried while the id is in `PendingForget`, and never in response to a network or account event. See [data.md](data.md).
 - Do not log `TvCommand.InsertText.text`, discovery names, or `redactedDiagnostics` fields plus extra identifiers. There is no crash-reporting SDK to log to; everything that is recorded stays in the local redacted record described in [diagnostics.md](diagnostics.md).
 - Do not add a second Samsung client beside this interface.

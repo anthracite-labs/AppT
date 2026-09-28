@@ -2,6 +2,26 @@
 
 Caller-facing scan behavior is `SamsungTvs.discover()` in [samsung-interface.md](samsung-interface.md). This file is the behavior behind that operation, plus the application permission gate.
 
+## Evidence and implementation harvest
+
+### AUTHORITATIVE
+
+Android's [Android 17 behavior changes](https://developer.android.com/about/versions/17/behavior-changes-17) establish that apps targeting API 37+ need `ACCESS_LOCAL_NETWORK` for broad LAN communication unless they use system-mediated device discovery. This is why target-36 V1 does not pre-request that permission and why a future target-37 bump must change this gate deliberately.
+
+### IMPLEMENTATION EVIDENCE
+
+- [Smart-TV-Remote-Control](https://github.com/mazen-salah/Smart-TV-Remote-Control) at [`68a97ec3`](https://github.com/mazen-salah/Smart-TV-Remote-Control/commit/68a97ec304fd41dc7e94dde15cd41f56391f6d04), MIT: `lib/core/repositories/tv_repository.dart`, `lib/services/upnp/ssdp_discovery_service.dart`, and the Bonjour discovery service run independent discovery mechanisms and retain partial results when one mechanism fails. Method: **BEHAVIORAL REFERENCE**.
+- [KDE Connect Android](https://github.com/KDE/kdeconnect-android) at [`6d6eb6b6`](https://github.com/KDE/kdeconnect-android/commit/6d6eb6b6659013f950229d00d7c06a18d9897142), GPL-2.0/GPL-3.0: `backends/lan/MdnsDiscovery.kt` and `LanLinkProvider.kt` demonstrate resolver serialization, multicast-lock cleanup, private-address rejection, duplicate/rate-limit handling, and IPv4-mapped-IPv6 normalization. Method: **BEHAVIORAL REFERENCE** only.
+- [Home Assistant Android](https://github.com/home-assistant/android) at [`d120c7dc`](https://github.com/home-assistant/android/commit/d120c7dcd0683e163a2379883ba9299af071e1cb), Apache-2.0: `onboarding/serverdiscovery/HomeAssistantSearcher.kt` and `ServerDiscoveryViewModel.kt` model discovery as lifecycle-scoped Flow work with explicit cancellation/testing. Method: **BEHAVIORAL REFERENCE**.
+
+### APPT DECISION
+
+AppT keeps discovery bounded, foreground-owned, cancellable, and tolerant of one probe mechanism failing. Candidate addresses are canonicalized before deduplication, including IPv4 addresses represented as IPv4-mapped IPv6; one scan does not create duplicate cards for alternate textual representations of the same endpoint. Resolver/listener resources and the multicast lock are always released on cancellation/failure.
+
+KDE's general trusted-network feature is **not** harvested: AppT does not add SSID-derived trust or broaden its privacy surface. Smart-TV-Remote-Control's manual-IP fallback is also not adopted into V1; the product keeps discovery consumer-facing and protocol/address details hidden.
+
+Validated: 2026-09-28.
+
 ## Permission gate
 
 One gate in `app` owns local-network permission policy. `samsung` does not launch permission UI.

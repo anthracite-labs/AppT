@@ -6,6 +6,22 @@ V1 has a **bounded, always-redacted local diagnostic record** and an **explicit,
 
 Owning files elsewhere: the Diagnostics surface contract is in [presentation.md](presentation.md#diagnostics), redaction and privacy tests are in [testing.md](testing.md), the threat-model view is in [security.md](security.md), and the dependency rules are in [release.md](release.md) and [modules.md](modules.md).
 
+## Implementation evidence and AppT delta
+
+### IMPLEMENTATION EVIDENCE
+
+[IR Blaster Remote](https://github.com/iodn/android-ir-blaster) at [`392ebc71`](https://github.com/iodn/android-ir-blaster/commit/392ebc71df3e1ed8b6e07fbb25dce01771e9acdd), GPL-3.0, provides a complete-app reference for local-only crash capture and next-launch user review. Relevant paths are `android/app/src/main/kotlin/org/nslabs/ir_blaster/CrashReports.kt`, `lib/utils/crash_reporting.dart`, `lib/widgets/crash_report_dialog.dart`, and `lib/main.dart`. Method: **BEHAVIORAL REFERENCE** only.
+
+### APPT DECISION
+
+AppT harvests only the privacy-preserving lifecycle pattern: useful diagnostic evidence can survive locally and the customer may review/share it later without automatic upload. AppT does **not** copy IR Blaster's report fields, device-identification choices, Flutter implementation, or GPL source.
+
+The bounded redacted recorder is infrastructure needed while control/reconnect/account work is being built, so its foundation lands with the core Remote rather than waiting for the final Diagnostics screen. The user-facing preview/share/clear surface still lands in the later diagnostics slice.
+
+An uncaught-crash marker may be recorded locally only if the crash path can do so without weakening the redaction/latency rules. A process kill, force-stop, reboot, or low-memory death with no captured uncaught exception must **not** be relabeled as a crash. On a real captured crash, the next launch may offer one non-blocking "Review diagnostics" affordance; nothing is sent automatically.
+
+Validated: 2026-09-28.
+
 ## Ownership
 
 | Piece | Owner | On the command path | Default |

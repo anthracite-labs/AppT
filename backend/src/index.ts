@@ -14,7 +14,7 @@
  *  * a deployment workflow.
  *
  * The backend never enters the Android dependency graph; the only contract
- * between the two is the future HTTPS API in docs/architecture/sync.md.
+ * between the two is the future HTTPS API in docs/architecture/account-entitlement.md.
  */
 
 export { backendPackage, type BackendPackage } from './package-identity';

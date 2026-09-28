@@ -2,7 +2,21 @@
 
 How AppT behaves from cold start to process death, across configuration changes, network changes, screen lock, backgrounding, and Doze. Local-first control is the constraint: no transition may turn a working remote into a failed one, and no transition may open a session that the licensing gate denies.
 
-Owning files elsewhere: session state machine and reconnect budget in [connection.md](connection.md), secrets in [data.md](data.md), gate rules in [sync.md](sync.md), screen ownership in [presentation.md](presentation.md).
+Owning files elsewhere: session state machine and reconnect budget in [connection.md](connection.md), secrets in [data.md](data.md), gate rules in [account-entitlement.md](account-entitlement.md), screen ownership in [presentation.md](presentation.md).
+
+## Evidence and lifecycle reference implementations
+
+### AUTHORITATIVE
+
+Android's [Activity lifecycle](https://developer.android.com/guide/components/activities/activity-lifecycle) distinguishes configuration recreation from process death, recommends lifecycle-aware components rather than burying dependent-component behavior in Activity callbacks, and describes when transient UI state versus persistent local state must be restored.
+
+### IMPLEMENTATION EVIDENCE
+
+[Home Assistant Android](https://github.com/home-assistant/android) at [`d120c7dc`](https://github.com/home-assistant/android/commit/d120c7dcd0683e163a2379883ba9299af071e1cb), Apache-2.0, is the complete Android-app reference used here. Its onboarding/discovery stack uses `SavedStateHandle`, ViewModels, lifecycle-scoped discovery Flows, repositories, Room, WorkManager, and explicit connection-state providers. Relevant paths include `app/.../onboarding/serverdiscovery/ServerDiscoveryViewModel.kt`, `HomeAssistantSearcher.kt`, and `common/.../servers/ServerManager.kt`. Method: **BEHAVIORAL REFERENCE**.
+
+KDE Connect Android's persistent background service is deliberately **not** harvested: AppT V1 has no background remote session or foreground service.
+
+Validated: 2026-09-28.
 
 ## Scope
 
@@ -65,6 +79,34 @@ Configuration changes do **not** release any retain. The Activity is recreated, 
 | `onDestroy` caused by process death | Everything in memory is gone; persisted state decides the next launch |
 | Multi-window / split screen | Treated as a window-size change while visible. The Activity may or may not be recreated; the session behavior is identical either way. `onStop` still releases when the app is not visible |
 | Picture-in-picture | Not used |
+
+## Install, app update, and external-flow return
+
+These are first-class lifecycle transitions, not release-only concerns.
+
+### Fresh install
+
+A fresh install starts with no remembered television, no pairing secret, no local entitlement cache, and no first-control milestone. Firebase Auth may later create local identity state only after the user enters the account flow. Launch resolves to Welcome/LocalNetwork rather than fabricating restored state.
+
+### Upgrade in place
+
+Installing AppT N+1 over N preserves valid local state through the migration contracts in [data.md](data.md). Before normal launch routing:
+
+1. Room opens only through an explicit supported migration path.
+2. DataStore key migration completes or retains the previous readable value.
+3. Samsung-private and Samsung-secret records migrate/rotate without exposing plaintext.
+4. The entitlement cache migrates or is discarded safely; discarding a cache requires online entitlement refresh, never loss of the underlying purchase.
+5. Only after storage initialization succeeds does launch routing read remembered TVs, first-control state, account cache, and entitlement proof.
+
+An app update must never silently turn a migration failure into "new install", silently forget a TV, or silently grant/erase entitlement. Corrupt or unsupported local state follows [data.md](data.md#corruption-recovery).
+
+The release proof is an install-over-install journey in [testing.md](testing.md) and [release.md](release.md). From the second public release onward, the source artifact is the immediately previous production artifact. Before that, internal/pre-release artifacts exercise the same migration machinery without pretending a public predecessor exists.
+
+### Return from Play or another system surface
+
+A Play Billing UI, Credential Manager surface, settings screen, or permission prompt may background or recreate AppT. Returning to AppT never trusts an in-flight UI flag as durable truth.
+
+For Play specifically, [account-entitlement.md](account-entitlement.md#provider-evidence-and-purchase-resume-lifecycle) owns reconciliation: after BillingClient reconnects and whenever AppT returns to the foreground with a pending/unknown purchase, current purchases are queried and fed through the same idempotent verification path as `PurchasesUpdatedListener`.
 
 ## Process death and cold restart
 
@@ -145,6 +187,10 @@ The licensing gate runs at exactly two moments:
 2. **Post-refresh boundary** — a cached proof that changed as a result of a refresh is used by the next entry, not by the current session.
 
 It never runs on rotation, resume, reconnect, sheet dismissal, or a command. That is what makes "an active remote is never interrupted" a structural property rather than a promise.
+
+## Permission and platform-policy change
+
+The permission gate is evaluated before a LAN operation, not simply because an Activity resumed. An OS/target-SDK update may change the permission required for that operation; [discovery.md](discovery.md) owns the target-36 versus target-37 contract. A permission revoked in system settings therefore returns the next discovery/entry attempt to LocalNetwork without opening a Samsung session.
 
 ## Tests this file implies
 

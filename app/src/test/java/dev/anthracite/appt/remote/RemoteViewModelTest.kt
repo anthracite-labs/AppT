@@ -34,7 +34,8 @@ import org.junit.rules.TemporaryFolder
 
 /**
  * Remote observes the host's session, sends typed commands on it, and is the only place
- * `firstControlAchieved` is written (presentation.md#remote, data.md, sync.md#remote-entry-gate).
+ * `firstControlAchieved` is written (presentation.md#remote, data.md,
+ * account-entitlement.md#remote-entry-gate).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class RemoteViewModelTest {

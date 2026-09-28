@@ -1,8 +1,8 @@
 # UI/UX architecture
 
-This file owns AppT's product-surface architecture: information architecture, screen/state behavior, interaction patterns, visual-system rules, and accessibility constraints.
+This file owns AppT's **user-visible experience decisions**: information hierarchy, interaction intent, visual character, recovery language, one-handed use, and accessibility expectations.
 
-It elaborates `docs/PRODUCT.md`. It does not change control, account, licensing, or Samsung protocol semantics.
+Technical route/state/ViewModel/restoration mechanics are owned by [presentation.md](presentation.md); lifecycle behavior by [lifecycle.md](lifecycle.md). This file elaborates `docs/PRODUCT.md` and does not duplicate those implementation contracts or change control, account, licensing, or Samsung protocol semantics.
 
 ## Experience principles
 

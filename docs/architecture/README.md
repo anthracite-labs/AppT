@@ -1,10 +1,10 @@
 # Architecture map
 
-Detailed elaboration of the accepted baseline in `docs/ARCHITECTURE.md`. **This map is the V1 architecture closure for the current architecture round, accepted by the human on 2026-09-23.** The superseded Firestore TV-personalization sync model has been removed from every live document. The pre-S01 gate is human review of the reconciled implementation route in [slices.md](slices.md) (Issue #23), not further architecture reconciliation.
+Detailed elaboration of the accepted baseline in `docs/ARCHITECTURE.md`. **This map was lifecycle/evidence-reconciled under Issue #96 on 2026-09-28 before S04 implementation continued.** Accepted S01–S03 history is preserved; [slices.md](slices.md) owns the corrected future route. The superseded television-sync and standalone harvest-register designs are removed from live architecture.
 
 `docs/ARCHITECTURE.md` owns decisions and invariants. This directory owns concrete modules, state, data, presentation, environments, and slices. If a document here conflicts with the baseline, the baseline wins until a later architecture decision changes it.
 
-Product intent stays in `docs/PRODUCT.md`. Canonical domain language is in `CONTEXT.md`. Harvest dispositions stay in `docs/HARVEST.md`. This map does not reopen them.
+Product intent stays in `docs/PRODUCT.md`. Canonical domain language is in `CONTEXT.md`. External/provider evidence and open-source implementation harvests live in the architecture document that owns the behavior they support; this map defines the evidence format and does not act as a separate harvest register.
 
 ## Read by branch
 
@@ -19,7 +19,7 @@ Load the file for the branch in front of you. Do not load the whole directory by
 | Typed commands, capability evidence, phone input | [commands.md](commands.md) |
 | Wire and generation knowledge inside `samsung` | [protocol.md](protocol.md) |
 | Room, DataStore, Keystore, migration, corruption recovery | [data.md](data.md) |
-| Customer account, seven-day trial, lifetime entitlement, backend topology | [sync.md](sync.md) |
+| Customer account, seven-day trial, lifetime entitlement, backend topology | [account-entitlement.md](account-entitlement.md) |
 | Routes, screen state, restoration, responsive rules, tokens, accessibility | [presentation.md](presentation.md) |
 | Android lifecycle, network transitions, background limits | [lifecycle.md](lifecycle.md) |
 | Reliability and performance targets with verification | [reliability.md](reliability.md) |
@@ -33,7 +33,7 @@ Load the file for the branch in front of you. Do not load the whole directory by
 
 `protocol.md` is for `samsung` implementers. `app` code uses only the types in `samsung-interface.md`. `ui-ux.md` owns product-surface decisions; `presentation.md` owns how they are built.
 
-`sync.md` keeps its historical file name for link stability. It owns account and licensing only; it does not describe any television-data synchronization, because none exists.
+`account-entitlement.md` owns account, trial, Play purchase, entitlement, and the remote-entry licensing gate. Television state is never synchronized through that architecture.
 
 ## Diagrams
 
@@ -43,8 +43,8 @@ Load the file for the branch in front of you. Do not load the whole directory by
 | First-run permission → discovery → pairing → first control | [flows.md](flows.md) |
 | Reconnect and control lifecycle | [connection.md](connection.md) |
 | Local storage classes and secret lifecycle | [data.md](data.md) |
-| Account, trial, and entitlement lifecycle | [sync.md](sync.md) |
-| Backend topology | [sync.md](sync.md) |
+| Account, trial, and entitlement lifecycle | [account-entitlement.md](account-entitlement.md) |
+| Backend topology | [account-entitlement.md](account-entitlement.md) |
 | Route graph and launch routing | [presentation.md](presentation.md) |
 | Active Remote lifecycle | [lifecycle.md](lifecycle.md) |
 | Trust boundaries | [security.md](security.md) |
@@ -56,7 +56,7 @@ The binding text is the numbered list in `docs/ARCHITECTURE.md`. This table is o
 
 | Invariant | Where the map keeps it |
 |---|---|
-| 1. Local control independent of cloud | `samsung` has no Firebase, Play, or licensing dependency. The command path never touches the backend. The gate reads cached proofs only. See [modules.md](modules.md), [sync.md](sync.md), [lifecycle.md](lifecycle.md). |
+| 1. Local control independent of cloud | `samsung` has no Firebase, Play, or licensing dependency. The command path never touches the backend. The gate reads cached proofs only. See [modules.md](modules.md), [account-entitlement.md](account-entitlement.md), [lifecycle.md](lifecycle.md). |
 | 2. Samsung protocol complexity inside `samsung` | One external seam, `SamsungTvs`. Wire names stay in [protocol.md](protocol.md). |
 | 3. Pairing secrets device-local and Keystore-backed | [data.md](data.md). Secrets are a distinct type in a distinct directory, never in Room, DataStore, or the entitlement cache. |
 | 4. Capability-driven UI | Evidence rules in [commands.md](commands.md). Unsupported cards and rejected keys expose no controls. |
@@ -64,7 +64,7 @@ The binding text is the numbered list in `docs/ARCHITECTURE.md`. This table is o
 | 6. No unnecessary listening server | Client probes and outbound sockets only. See [discovery.md](discovery.md) and [protocol.md](protocol.md). |
 | 7. Android optimized for Android | Native Kotlin/Compose/ViewModel stack. iOS is out of scope. |
 | 8. No universal TV abstraction | The type is `SamsungTvs`, not a cross-brand adapter. Ecosystem #2 is the trigger for a new seam. |
-| 9. TV and remote personalization are device-local; cloud account data is licensing-only | [data.md](data.md) stores no account ownership; [sync.md](sync.md) stores no television, personalization, or behavioral field and lists the forbidden names. |
+| 9. TV and remote personalization are device-local; cloud account data is licensing-only | [data.md](data.md) stores no account ownership; [account-entitlement.md](account-entitlement.md) stores no television, personalization, or behavioral field and lists the forbidden names. |
 | 10. No behavioral analytics and no cloud reporting | [diagnostics.md](diagnostics.md): no telemetry dependency at all, bounded redacted local record, explicit user-confirmed export, no upload path. |
 
 ## Settled decision ownership
@@ -76,14 +76,14 @@ Every settled decision projected into `.project-ai/PROJECT_STATE.md` has an owni
 | Product intent, privacy model, licensing promises, discovery/setup expectations | `docs/PRODUCT.md` |
 | Canonical domain terms (Television, Local Pairing, Television Personalization, Interaction Preferences, Active Remote, Customer Account, Username, Trial, Lifetime Entitlement, Forget this TV, and the licensing terms added this round) | `CONTEXT.md` |
 | Accepted technical baseline, invariants, platform baseline | `docs/ARCHITECTURE.md` |
-| Harvest ADOPT / HARVEST / REJECT dispositions | `docs/HARVEST.md` |
+| External evidence and implementation-harvest provenance | The owning architecture document, using the evidence standard below |
 | Android-native stack, module shape, seams, dependency rules, background limits | [modules.md](modules.md), [lifecycle.md](lifecycle.md) |
 | Samsung control depth: discovery, pairing, session, commands, protocol | [discovery.md](discovery.md), [connection.md](connection.md), [commands.md](commands.md), [protocol.md](protocol.md), [samsung-interface.md](samsung-interface.md) |
 | Device-local personalization, favourites, preferences, last-used television | [data.md](data.md), [presentation.md](presentation.md) |
 | Remote-first behavior, failure UX, thumb-first reach, customization rules | [ui-ux.md](ui-ux.md), [presentation.md](presentation.md) |
 | Screen/state contracts, routes, restoration, responsive behavior, accessibility contracts | [presentation.md](presentation.md) |
-| Account purpose, sign-in paths, Username, trial, purchase, restore, refund, provisional entitlement, paid offline, sign-out, deletion | [sync.md](sync.md) |
-| Remote-entry licensing gate and first-session exemption | [sync.md](sync.md), [lifecycle.md](lifecycle.md), [presentation.md](presentation.md) |
+| Account purpose, sign-in paths, Username, trial, purchase, restore, refund, provisional entitlement, paid offline, sign-out, deletion | [account-entitlement.md](account-entitlement.md) |
+| Remote-entry licensing gate and first-session exemption | [account-entitlement.md](account-entitlement.md), [lifecycle.md](lifecycle.md), [presentation.md](presentation.md) |
 | Environment separation, deployment, rollback, release checks | [release.md](release.md) |
 | Threat model, guarantees versus best-effort, needs-validation register | [security.md](security.md) |
 | Local-only redacted diagnostics and user-confirmed export | [diagnostics.md](diagnostics.md) |
@@ -103,17 +103,41 @@ These apply the baseline. They are not new product decisions. Review can reject 
 - Play carries exactly one artifact: the production-flavoured release candidate is uploaded to the internal testing track and promoted from there, while internal-environment builds are tester builds distributed outside Play. See [release.md](release.md#release-path-and-artifact-identity).
 - AppT backup is disabled for application data, so a new phone starts remote state clean; signing in restores identity and entitlement only.
 
-## Harvest application
+## Evidence and implementation harvest
 
-`docs/HARVEST.md` remains the disposition register. This map does not change ADOPT, HARVEST, or REJECT intent.
+Evidence is stored with the architecture decision it supports. There is no cross-cutting harvest register.
 
-Clean-room reimplementation is the one HARVEST practice used while building V1 protocol behavior. It is justified because the adopted WebSocket path must live inside `samsung`, and the usual reference library is LGPL-3.0. The screener already says not to copy incompatible reference code. Using that practice does not decide AppT's license.
+Use these labels consistently:
 
-No REJECT row is reintroduced. Diagnostic share is not file-sync, and V1 adopts neither ACRA nor any cloud crash reporter: cloud crash reporting was removed from V1 this round, so diagnostics are local-only. There is no `TvAdapter`, no per-brand module, no iOS runtime, no credential sync, no ads, no listening mirror, and no F-Droid commitment.
+- **AUTHORITATIVE** — first-party platform/provider/specification evidence.
+- **IMPLEMENTATION EVIDENCE** — OSS or physical behavior that demonstrates an implementation or edge case but does not become a provider guarantee.
+- **APPT DECISION** — the accepted AppT contract after reconciling the evidence with product/security/privacy constraints.
+
+For every material external/protocol claim whose implementation depends on research, the owning document records:
+
+| Field | Required content |
+|---|---|
+| Decision / behavior | The exact AppT contract |
+| Authority | First-party owner, when one exists |
+| Authoritative link | Direct URL to the relevant page/spec |
+| Authority limitation | What that source does not establish |
+| OSS implementation evidence | Repository links for implementations actually inspected |
+| Pinned provenance | Commit/tag plus relevant file/class/function paths |
+| License | License of the material inspected |
+| Harvest method | `ADAPT`, `PORT`, `CLEAN-ROOM REIMPLEMENT`, `BEHAVIORAL REFERENCE`, or `TEST-VECTOR/DATA` |
+| Harvested material | The exact algorithm, state behavior, message shape, test vector, race rule, or operational pattern used |
+| Rejected material | Upstream behavior AppT deliberately does not carry across |
+| AppT owner | Module/document/interface that owns the resulting behavior |
+| Verification | Fixture/test/physical/provider evidence that proves AppT's result |
+| Validated | Date/revision of the research pass |
+
+The current complete-codebase comparison set is intentionally distributed to its relevant owners rather than copied here: Smart-TV-Remote-Control informs Samsung discovery/connection/protocol; KDE Connect Android informs local-network and pairing-race hardening; Home Assistant Android informs Android lifecycle/discovery/E2E test practice; IR Blaster Remote informs local-only post-crash diagnostics UX. Protocol-only libraries remain in [protocol.md](protocol.md) where they are needed.
+
+A vendor document and an OSS repository are not interchangeable. When Samsung does not document a de-facto remote-control wire detail, [protocol.md](protocol.md) says so explicitly and relies on pinned implementation evidence plus AppT fixtures/physical evidence rather than presenting the behavior as a Samsung guarantee.
 
 ## Settled privacy, account, and licensing semantics
 
-The owning product decisions are in `docs/PRODUCT.md`, with canonical language in `CONTEXT.md`. [sync.md](sync.md) records the technical architecture.
+The owning product decisions are in `docs/PRODUCT.md`, with canonical language in `CONTEXT.md`. [account-entitlement.md](account-entitlement.md) records the technical architecture.
 
 - the Customer Account exists only for authentication, Username, seven-day trial state, anti-abuse eligibility, and lifetime license entitlement;
 - television identity, local pairing, TV names, favourites, remote arrangement, preferences, last-used television, diagnostics, and usage history are not account or backend data;
@@ -133,7 +157,7 @@ Only provider facts that still require live/provider evidence remain here. Docum
 
 | Fact | Where it matters |
 |---|---|
-| Exact `ProductPurchaseV2` representation of promo or rewarded one-time-product acquisitions, **if** either acquisition mode is deliberately enabled for AppT | [sync.md](sync.md), [security.md](security.md), [release.md](release.md) |
+| Exact `ProductPurchaseV2` representation of promo or rewarded one-time-product acquisitions, **if** either acquisition mode is deliberately enabled for AppT | [account-entitlement.md](account-entitlement.md), [security.md](security.md), [release.md](release.md) |
 | First production Play app-signing key upgrade continuity drill: the new Play signing certificate is registered with App Check before rollout and the Play-delivered build continues to satisfy App Check and Play Integrity after the upgrade | [release.md](release.md), [security.md](security.md) |
 
 ## Open items that are not architecture

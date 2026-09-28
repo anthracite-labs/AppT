@@ -2,7 +2,7 @@
 
 This file owns the technical architecture for the Customer Account, the seven-day Trial, the Google Play lifetime unlock, and the Lifetime Entitlement.
 
-**File name is historical.** It once owned a Firestore TV-personalization sync design. That design is superseded and removed. The name is kept so links, review history, and the Issue's verification steps stay valid; the content is account and licensing only.
+This document is intentionally named for what it owns. Historical television-sync designs remain recoverable from Git history; no live filename or architecture term should imply that television state is synchronized.
 
 AppT does **not** synchronize televisions, favourites, remote layouts, preferences, last-used television, pairing state, pairing secrets, diagnostics, or usage history through the customer account. There is no AppT cloud synchronization of television data at all.
 
@@ -16,6 +16,31 @@ AppT does **not** synchronize televisions, favourites, remote layouts, preferenc
 | Play transaction ownership | Google Play | Google's, not AppT's |
 
 Signing out, switching accounts, deleting an account, restoring a licence on another phone, or losing connectivity never merges, uploads, replaces, or deletes the phone's local TV state.
+
+## Provider evidence and purchase-resume lifecycle
+
+### AUTHORITATIVE
+
+- Google Play, [One-time purchase lifecycle](https://developer.android.com/google/play/billing/lifecycle/one-time): a purchase can be detected through RTDN, `PurchasesUpdatedListener`, or by manually fetching purchases when the app resumes; processing should be server-side, entitlement is granted only for `PURCHASED`, and a non-consumable purchase must be acknowledged.
+- Google Play, [Fight fraud and abuse](https://developer.android.com/google/play/billing/security): purchase verification and acknowledgement are sensitive logic that should live on a backend; `PENDING` must not grant entitlement.
+- Firebase, [App Check with Play Integrity on Android](https://firebase.google.com/docs/app-check/android/play-integrity-provider): App Check supports applications distributed on Google Play, outside Google Play, or both, with channel-specific integrity settings.
+
+These sources define Play/Firebase contracts. They do **not** define AppT's one-account binding, seven-day trial, deletion phases, provisional-entitlement policy, or local-TV privacy boundary; those are AppT decisions in this document.
+
+### APPT DECISION
+
+`PlayBilling` owns one client-side reconciliation stream. `PurchasesUpdatedListener`, an explicit Restore action, and foreground/resume reconciliation all feed the same idempotent path:
+
+1. When the purchase capability is active, `PlayBilling` establishes or re-establishes its BillingClient connection. It does not keep a background service alive.
+2. After BillingClient connects, and whenever AppT returns to the foreground while a lifetime purchase is pending, unknown, or being restored, `PlayBilling` queries the current lifetime-product purchases.
+3. A listener result and a query result are normalized to the same purchase observation keyed by purchase token. Duplicate observations are harmless.
+4. `PENDING` updates presentation only and grants nothing.
+5. `PURCHASED` is sent to the Entitlement Backend for the authoritative verification/binding path below. The raw purchase token remains memory-only.
+6. If AppT is killed or backgrounded while Play UI is open, no in-flight UI state is restored. The next foreground query recovers the transaction.
+7. RTDN can make the backend authoritative before the app sees the transaction; client refresh converges on that backend state rather than creating a second grant.
+8. WorkManager does not launch billing flows and does not retry a purchase behind the user's back. Foreground reconciliation is state recovery, not a second purchase attempt.
+
+Verification names for this lifecycle live in [testing.md](testing.md): `pendingPurchaseCompletesWhileProcessDead`, `billingReconnectRequeriesPurchases`, and `duplicatePurchaseObservationIsIdempotent`.
 
 ## Authentication
 

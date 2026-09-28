@@ -2,7 +2,7 @@
 
 This file owns what AppT stores on this phone, where it lives, how it survives upgrades, and how it recovers from corruption. Everything here is **device-local**. There is no AppT cloud synchronization of any television, personalization, or preference data, and no sync metadata, tombstones, version tuples, or outbox flags exist.
 
-Account, trial, and entitlement storage is separate and is owned by [sync.md](sync.md). Entitlement material never shares a file, directory, or type with television secrets.
+Account, trial, and entitlement storage is separate and is owned by [account-entitlement.md](account-entitlement.md). Entitlement material never shares a file, directory, or type with television secrets.
 
 ## Storage classes
 
@@ -91,7 +91,7 @@ Preferences DataStore with typed keys. Call sites never use raw key strings.
 | `volumeButtonsControlTv` | Boolean | true | Interaction Preference |
 | `navigationMode` | `Directional` \| `Pointer` | `Directional` | Preferred navigation mode |
 | `permissionExplanationAcknowledged` | Boolean | false | The local-network explanation has been shown and accepted |
-| `firstControlAchieved` | Boolean | false | Set when a command first returns `Accepted`. A socket-write proxy, not visible television action. See [sync.md](sync.md) |
+| `firstControlAchieved` | Boolean | false | Set when a command first returns `Accepted`. A socket-write proxy, not visible television action. See [account-entitlement.md](account-entitlement.md) |
 | `lastOpenedTvId` | String? | null | Quiet reopen target |
 
 Explicitly absent: `lastSyncedUid`, `originDeviceId`, any `prefmeta.*` tuple, install identifiers, and any `updatedAt`/`revision`/`deletedAt` preference metadata. Those belonged to the removed sync design.
@@ -120,13 +120,13 @@ This record is how address changes are remembered without putting addresses in R
 
 ## Entitlement cache
 
-Owned by [sync.md](sync.md). It sits in its own directory with its own Keystore alias (`appt.entitlement.v1`) and its own type, so:
+Owned by [account-entitlement.md](account-entitlement.md). It sits in its own directory with its own Keystore alias (`appt.entitlement.v1`) and its own type, so:
 
 - television secrets cannot be read by licensing code;
 - entitlement proofs cannot be written into a Room entity, DataStore key, or Samsung file;
 - deleting or corrupting one class cannot silently destroy the other.
 
-The provisional record inside this file uses the device-computed `provisionalKey` described in [sync.md](sync.md#provisional-entitlement); the server-keyed purchase fingerprint cannot be computed offline and is never stored here. Raw purchase tokens are never stored anywhere.
+The provisional record inside this file uses the device-computed `provisionalKey` described in [account-entitlement.md](account-entitlement.md#provisional-entitlement); the server-keyed purchase fingerprint cannot be computed offline and is never stored here. Raw purchase tokens are never stored anywhere.
 
 ## Backup and device transfer
 
@@ -141,6 +141,10 @@ The architecture enforces that structurally rather than by listing exclusions:
 Consequences documented for support: after a reinstall a customer signs in to restore their entitlement, and re-pairs their televisions.
 
 ## Migration and upgrade architecture
+
+Storage migration is part of the application lifecycle, not merely a schema concern. [lifecycle.md](lifecycle.md#install-app-update-and-external-flow-return) owns when migration runs; this document owns the per-store safety contract.
+
+The cross-store invariant is: an app update either opens a supported state or exposes the documented recovery for the one corrupt/unavailable store. It must not silently reinterpret existing state as a fresh install. Television state, pairing secrets, preferences, and entitlement cache migrate independently so failure in one class cannot erase another.
 
 ### Room schema migration
 
@@ -210,6 +214,7 @@ Rules that make leakage and re-introduction of cloud state difficult rather than
 
 | Test | Assertion |
 |---|---|
+| `upgradeFromPreviousReleasePreservesLocalState` | An install-over-install candidate migrates representative Room/DataStore/Samsung-private/secret/entitlement state without silent reset; from the second public release onward the source artifact is the immediately previous production release |
 | `schemaContainsNoForbiddenColumn` | The exported schema has no forbidden column name |
 | `roomMigrationEveryVersion` | A migration test exists for every schema version after 1 |
 | `forgetRemovesRowAndFavouritesInOneTransaction` | After the confirming tap, the profile and its favourites are gone and a `PendingForget` row exists, with no intermediate state that re-exposes the television |

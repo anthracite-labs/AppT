@@ -20,6 +20,12 @@ There is no `domain`, `data`, `usecase`, or `repository` Gradle module. Packages
 
 Suggested namespaces, confirmable before the first Play upload: `dev.anthracite.appt` and `dev.anthracite.appt.samsung`. The application id default is `dev.anthracite.appt`. Changing it before the first Play upload is not an architecture change.
 
+## Architecture evidence
+
+**AUTHORITATIVE:** Android's [UI layer architecture](https://developer.android.com/topic/architecture/ui-layer) recommends state holders such as ViewModels for screen state, unidirectional data flow, and data ownership below the UI. AppT adopts those principles without importing a generic "clean architecture" layer tree.
+
+**IMPLEMENTATION EVIDENCE:** [Home Assistant Android](https://github.com/home-assistant/android) at [`d120c7dc`](https://github.com/home-assistant/android/commit/d120c7dcd0683e163a2379883ba9299af071e1cb), Apache-2.0, demonstrates a mature Android application with repository-owned data, Room, lifecycle-aware ViewModels, WorkManager, and explicit connection/data managers. Method: **BEHAVIORAL REFERENCE**. AppT keeps a much smaller module graph because its current problem does not justify Home Assistant's scale.
+
 ## System structure
 
 ```mermaid
@@ -68,7 +74,7 @@ Deletion test: deleting `samsung` would force WebSocket, discovery, pairing, and
 
 ### Licensing (`app`)
 
-`Licensing` is the deep module for trial, purchase, and entitlement state. Its interface is in [sync.md](sync.md#client-seams).
+`Licensing` is the deep module for trial, purchase, and entitlement state. Its interface is in [account-entitlement.md](account-entitlement.md#client-seams).
 
 **Depth:** callers learn one snapshot and six intents. Proof verification, key-set caching, the time model, provisional records, retry policy, App Check, Play verification round trips, and the account gate inputs stay behind the seam.
 
@@ -160,7 +166,7 @@ V1 is a single process. No `android:process`, no foreground service, no boot rec
 `app` owns two pieces of process-level state:
 
 1. **`ActiveRemoteHost`** — the application-scoped owner of the current Active Remote. `Remote` screens retain it; sheets, edit mode, and rotation do not release it. Release starts the 15-second grace. Transitions are owned by [lifecycle.md](lifecycle.md).
-2. **`AccountGate`** — the single licensing decision point, consulted by `ActiveRemoteHost.enter`. Its rules are owned by [sync.md](sync.md#remote-entry-gate).
+2. **`AccountGate`** — the single licensing decision point, consulted by `ActiveRemoteHost.enter`. Its rules are owned by [account-entitlement.md](account-entitlement.md#remote-entry-gate).
 
 The permission gate also lives in `app`. `samsung` never launches permission UI and never reads Firebase Auth. Gate rules are in [discovery.md](discovery.md).
 

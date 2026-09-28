@@ -19,9 +19,9 @@ Runtime: Kotlin, Android Gradle Plugin, Compose BOM, Navigation Compose, kotlinx
 
 Test: JUnit, coroutines-test, Compose UI test, AndroidX test, Macrobenchmark (in the test-only `:macrobenchmark` module owned by [modules.md](modules.md#shape)), Robolectric for DataStore and migration tests, Firebase emulator suite for backend functions.
 
-Backend toolchain: TypeScript on the Cloud Functions 2nd gen Node.js LTS runtime, owned by `backend/`, with `npm` and a committed `package-lock.json` (`npm ci --prefix backend` in CI), ESLint and Prettier configuration in the same directory, and Jest plus `firebase-functions-test` for the unit and emulator tests described in [testing.md](testing.md). The backend is not a Gradle module and never enters the Android dependency graph; the only contract between the two is the HTTPS API in [sync.md](sync.md).
+Backend toolchain: TypeScript on the Cloud Functions 2nd gen Node.js LTS runtime, owned by `backend/`, with `npm` and a committed `package-lock.json` (`npm ci --prefix backend` in CI), ESLint and Prettier configuration in the same directory, and Jest plus `firebase-functions-test` for the unit and emulator tests described in [testing.md](testing.md). The backend is not a Gradle module and never enters the Android dependency graph; the only contract between the two is the HTTPS API in [account-entitlement.md](account-entitlement.md).
 
-**Backend commands are always package-prefixed and run from the repository root**, so no documented command depends on the caller's working directory: `npm ci --prefix backend`, `npm run typecheck --prefix backend`, `npm run lint --prefix backend`, `npm test --prefix backend`, and `npm run test:emulator --prefix backend` (which starts the Firestore and Functions emulators from `backend/firebase.json` and runs the emulator suite). The Firebase CLI is a `backend/` devDependency, so emulator and deploy runs go through that package rather than a globally installed CLI, and CI calls `npm run deploy --prefix backend` with an explicit `--project` per environment. The script names are owned by `backend/package.json`; [sync.md](sync.md#backend-source-architecture) records the same set.
+**Backend commands are always package-prefixed and run from the repository root**, so no documented command depends on the caller's working directory: `npm ci --prefix backend`, `npm run typecheck --prefix backend`, `npm run lint --prefix backend`, `npm test --prefix backend`, and `npm run test:emulator --prefix backend` (which starts the Firestore and Functions emulators from `backend/firebase.json` and runs the emulator suite). The Firebase CLI is a `backend/` devDependency, so emulator and deploy runs go through that package rather than a globally installed CLI, and CI calls `npm run deploy --prefix backend` with an explicit `--project` per environment. The script names are owned by `backend/package.json`; [account-entitlement.md](account-entitlement.md#backend-source-architecture) records the same set.
 
 Not in the graph: `firebase-firestore` (server-only; the client never talks to Firestore directly), `firebase-analytics`, `firebase-crashlytics` or any other crash reporter, advertising and attribution SDKs, ACRA, Whisperlink, Cast, Consumer IR, and any Samsung reference library. Protocol code is written in this repository.
 
@@ -775,6 +775,18 @@ signature-level self-permission is not a capability AppT receives.
 
 Anything else fails CI until the architecture map is changed. In particular the allowlist does not include `AD_ID`, `ACCESS_FINE_LOCATION`, `ACCESS_LOCAL_NETWORK`, `NEARBY_WIFI_DEVICES`, `RECEIVE_BOOT_COMPLETED`, `FOREGROUND_SERVICE`, or install-packages. `NEARBY_WIFI_DEVICES` is added only in the change that adopts a Wi-Fi API which requires it, with `neverForLocation`. A target-37 bump must change this allowlist in the same change that adopts `ACCESS_LOCAL_NETWORK`. See [discovery.md](discovery.md).
 
+## Upgrade-in-place release proof
+
+A release candidate is not complete merely because a clean install works. The data/secret/cache migrations in [data.md](data.md) and launch behavior in [lifecycle.md](lifecycle.md) must be exercised as an install-over-install journey.
+
+- For the first public release, use the latest accepted internal/pre-release artifact carrying the prior schema/state shape; this proves the mechanism without inventing a nonexistent public predecessor.
+- From the second public release onward, install the immediately previous production artifact, seed representative local TV/pairing/preferences/account/entitlement state through supported app/test seams, install the candidate over it without clearing data, then launch and exercise the normal route.
+- The proof must demonstrate that a valid Samsung secret remains decryptable or reaches the documented recovery state, Room/DataStore migrations preserve user-visible state, entitlement remains valid or safely refreshable, and no migration silently behaves like a fresh install.
+- A destructive migration fallback, data-directory wipe, or "clear app data" instruction is not an acceptable release strategy.
+- The source and candidate artifact identities plus candidate commit SHA are recorded with the release evidence.
+
+The journey contract and artifact requirements are in [testing.md](testing.md#whole-application-lifecycle-e2e).
+
 ## Release path and artifact identity
 
 The release artifact is an Android App Bundle. Signing is deliberately split across three identities, and AppT never signs an artifact with a production app-signing key:
@@ -796,6 +808,8 @@ Keeping the app-signing key Google-managed is the chosen strategy. The rejected 
 | `productionRelease` | `production` | **The only artifact uploaded to Play** |
 
 ### Signing identity and distribution channel
+
+**AUTHORITATIVE:** Firebase's [App Check with Play Integrity](https://firebase.google.com/docs/app-check/android/play-integrity-provider) explicitly supports apps distributed on Google Play, outside Google Play, or both, with different advanced-verdict expectations. That source establishes the provider capability; the three-environment/certificate split below is the **APPT DECISION** that keeps each distribution identity isolated.
 
 Signing and registration follow the distribution channel, because Firebase App Check registers an app by its signing-certificate SHA-256 fingerprint and the two channels do not share a certificate:
 
@@ -850,7 +864,7 @@ An uncaught crash is not reported by the app, because V1 ships no crash-reportin
 
 Two gates sit on public production promotion and are not slices:
 
-- Human confirmation of the final source license. The tree contains an MIT `LICENSE`. `docs/HARVEST.md` still records the final license as undecided. Do not treat the file as closing that decision.
+- Human confirmation of the final AppT source license. The tree currently contains an MIT `LICENSE`, but repository presence is not the human source-license decision; the gate closes only when the decision is explicitly accepted and recorded.
 - Focused Samsung vendor-terms review, already required before public release.
 
 Internal testing may proceed before those gates. Public production promotion may not.
