@@ -90,7 +90,13 @@ class KeystoreSamsungStoreTest {
             String(bytes, Charsets.US_ASCII).contains("planted"),
         )
         assertTrue("a fresh IV every save", bytes.copyOfRange(5, 5 + 12).any { it != 0.toByte() })
-        assertEquals("no temporary files remain", 0, files.single().parentFile.list()!!.size - 1)
+        // No temporary files remain beside the secret: the directory holds exactly it.
+        val secretsDirectory = File(temporaryFolder.root, "samsung-secrets/v1")
+        assertEquals(
+            "no temporary files remain",
+            listOf(files.single().name),
+            secretsDirectory.list()?.toList(),
+        )
     }
 
     @Test
@@ -285,7 +291,7 @@ class KeystoreSamsungStoreTest {
             return cipher(Cipher.DECRYPT_MODE, iv).doFinal(blob.copyOfRange(12, blob.size))
         }
 
-        private fun key(): Key = KEYS.computeIfAbsent(keyId, ::generate)
+        private fun key(): Key = KEYS.computeIfAbsent(keyId) { generateNewKey() }
 
         private fun cipher(
             mode: Int,
@@ -301,7 +307,7 @@ class KeystoreSamsungStoreTest {
 
             private val KEYS = java.util.concurrent.ConcurrentHashMap<String, Key>()
 
-            private fun generate(id: String): Key =
+            private fun generateNewKey(): Key =
                 KeyGenerator.getInstance("AES")
                     .apply { init(256, SecureRandom()) }
                     .generateKey()
