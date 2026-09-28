@@ -85,7 +85,7 @@ Minimum fixture set before the matching slice can be called done:
 
 A slice that needs a missing fixture captures a redacted trace or generates a synthetic trace whose provenance says `synthetic`. Synthetic traces are valid for unit contracts. They do not count as a physical-matrix row.
 
-Backend fixtures are JSON request/response pairs under `backend/test/fixtures/`, including a Play verifier response for a standard purchase, a `purchaseType` test purchase, a pending purchase, a revoked purchase, RTDN one-time-purchased, one-time-canceled, and voided-purchase messages, and a duplicate-delivery pair.
+Backend fixtures are JSON request/response pairs under `backend/test/fixtures/`, including a `ProductPurchaseV2` standard purchase, a `ProductPurchaseV2` licence-test response carrying `testPurchaseContext`, a pending purchase, a revoked purchase, RTDN one-time-purchased, one-time-canceled, and voided-purchase messages, and a duplicate-delivery pair.
 
 Backend checks run from the repository root and always name the package: `npm ci --prefix backend`, `npm run typecheck --prefix backend`, `npm run lint --prefix backend`, `npm test --prefix backend`, and `npm run test:emulator --prefix backend`. No documented backend command requires the caller to change directory first, and no command is written without the `--prefix backend` target.
 
@@ -119,11 +119,12 @@ These names are the contract. Implementation may split them; it may not drop the
 | `firstSessionGateEndsWithActiveRemote` | The first `Accepted` does not interrupt the exempt session; after that holder closes, the next entry does not call `SamsungTvs.open` without a user |
 | `gateRunsOnlyOnEntry` | Rotation, resume, reconnect, and sheet dismissal never re-evaluate the gate |
 | `entitlementRequiresVerifiedEmail` | An unverified email/password account cannot activate a trial |
+| `integrityRequestHashBindsDecision` | A Standard Integrity token for different canonical request fields is rejected before trial or purchase state changes |
 | `trialStartsServerSideAndSevenDays` | Activation writes `expiresAt` from the server timestamp and grants exactly seven days |
 | `trialFollowsAccountAcrossPhones` | A second device receives the original expiry and creates no new window |
 | `deviceMarkerDeniesSecondTrial` | A second account on the same device signal is not trial-eligible |
 | `trialMarkerKeyRotationResolvesOldMarkers` | A marker written under a previous key version still denies a new trial with no raw value stored |
-| `testPurchaseDoesNotGrantLifetime` | A `purchaseType` test or promo purchase never grants a durable Lifetime Entitlement in any environment |
+| `testPurchaseDoesNotGrantLifetime` | A `ProductPurchaseV2` licence-test response carrying `testPurchaseContext` never grants a durable Lifetime Entitlement in any environment; promo/rewarded acquisition is not enabled in V1 |
 | `trialAttachIsIdempotent` | Refresh from a second phone returns the original expiry, creates the device marker once, and never extends the window |
 | `deletionFreezesBeforeAuthDelete` | A binding is `frozen` before the Auth user is removed, and `deletion_pending` denies use in that state |
 | `deletionRetryConverges` | A retry after any phase completes the deletion exactly once, and the binding becomes re-bindable only after Auth deletion |
@@ -198,8 +199,11 @@ These names are the contract. Implementation may split them; it may not drop the
 
 ### Presentation and accessibility
 
+Instrumented Compose coverage on API 34+ enables the platform accessibility validator on the rendered routes. The Compose accessibility API requires AndroidComposeTestRule on API 34+ and does not run under Robolectric. It adds automated checks such as contrast, labeling, touch-target, and traversal issues where the platform can evaluate them; the explicit AppT contracts below remain required because they cover product semantics, responsive behavior, reduced motion, and gesture alternatives that a generic validator does not prove. The existing API 29 installed-app acceptance remains a separate compatibility signal.
+
 | Test | Assertion |
 |---|---|
+| `composeAccessibilityChecksPass` | API 34+ AndroidComposeTestRule coverage enables platform accessibility checks on every shipped route and reports no validator errors |
 | `launchRoutingResolvesRemoteFirst` | With a remembered television and allowed access, launch resolves to `Remote` and no dashboard exists |
 | `gatedLaunchNeverOpensSession` | A blocked launch destination is Account or Entitlement and `SamsungTvs.open` is not called |
 | `remoteShowsNoLicensingPrompts` | No purchase, trial countdown, or account prompt composable appears on the Remote surface |
@@ -238,7 +242,7 @@ Welcome to explanation to cards; card has no IP text; approval state; one comman
 | Rules | Client reads and writes denied for every collection, including a hard delete |
 | Trial | Eligible activation; email-marker denial; device-marker denial; idempotent re-activation; attach on an active trial creates one device marker and returns the original expiry; attach is idempotent; attach never extends the window; unverified email denial; unverified-email normalization |
 | Markers | No raw value stored; key rotation lookup across versions; support clear writes an audit record |
-| Purchase | Standard purchase granted and acknowledged; pending grants nothing; `purchaseType` test/promo/rewarded rejected; package/product mismatch rejected; second live account `bound_elsewhere`; replay resolves to the existing binding; raw token absent from all stored documents and logs |
+| Purchase | Standard `ProductPurchaseV2` granted and acknowledged; pending grants nothing; `testPurchaseContext` grants nothing; promo/rewarded acquisition is not enabled in V1; package/product mismatch rejected; second live account `bound_elsewhere`; replay resolves to the existing binding; raw token absent from all stored documents and logs |
 | Revocation | Voided-purchase and one-time-canceled handlers revoke; duplicate delivery is idempotent; out-of-order delivery converges |
 | Deletion | Phase order is mark, freeze, delete Auth, release, finish; the binding is frozen before the Auth user is removed; freezing writes one `deletionId` across the binding and the account; a frozen binding denies with `deletion_pending`; an `accountDeleted` release cannot happen without `authRemovalConfirmedAt`; a retry after any phase converges; the reconciliation job releases only frozen bindings whose Auth user is confirmed gone and alerts instead of releasing while the user still exists; a frozen binding naming no account is alerted, not released; markers retained; no endpoint accepts a request from an account in `deleting` state |
 | Retention | Stored fields are limited to the documented shapes; a schema test fails on a forbidden field name |

@@ -92,9 +92,9 @@ flowchart LR
 | Unauthenticated or forged backend calls | Every endpoint requires a Firebase ID token; the handler derives the uid from the verified token, never from a request field. App Check with Play Integrity is enforced on all endpoints. | Enforced by AppT |
 | A signed-in customer reads or writes another customer's records | Records are keyed by uid and only reachable through endpoints; Firestore client access is denied entirely, including reads; the Admin SDK path is server-only. | Enforced by AppT |
 | Privilege escalation through client-supplied fields | The client never sends `uid`, trial dates, entitlement state, purchase bindings, or usernames of other users. The only client-writable semantic value is the Username, validated server-side. | Enforced by AppT |
-| Trial reset through a new account, reinstall, or device | Trial eligibility is decided server-side from pseudonymous markers keyed on the verified email identity and the device signal. The client has no path to mark a trial as fresh. | Enforced by AppT, subject to the marker-rotation limits below |
-| Trial reset through email aliasing | Eligibility uses the normalized verified email identity. Provider aliasing (for example address-level `+` tags or dot-insensitivity) is not normalized in V1. This is a known, accepted gap; normalizing it is a future decision, not an invented rule. | Needs validation (provider normalization + abuse measurement) |
-| Fabricated trial requests from a modified app or emulator | Play Integrity at activation: `PLAY_RECOGNIZED` app integrity plus a device verdict. Weaker device verdicts may deny a trial. | Best-effort, provider-dependent |
+| Trial reset through a new account, reinstall, or device | Trial eligibility is decided server-side from pseudonymous markers keyed on the verified email identity and the current app-scoped Android device signal. The client has no path to mark a trial as fresh. Android scopes that signal to signing identity, user, and device and may change it after a factory reset or signing-key transition, so the one-physical-device rule is best-effort across those platform identity changes. | Enforced by AppT while the platform signal is stable; Best-effort across platform identity changes |
+| Trial reset through email aliasing | Eligibility trims and lowercases the provider-verified address but does not invent provider-specific alias equivalence for `+` tags or dots. V1 accepts that abuse gap because those rules are provider- and domain-specific and can change; a future alias policy requires a separate product/security decision. | Best-effort; accepted V1 gap |
+| Fabricated trial requests from a modified app or emulator | Play Integrity Standard requests bind the protected entitlement decision with `requestHash`; production requires the expected app-integrity/licensing verdicts and evaluates the device verdict for trial eligibility. A mismatched request hash is rejected before state changes. | Best-effort, provider-dependent |
 | Integrity verdicts used as general tracking | Integrity tokens are evaluated for a single decision and are not retained as identifiers, not stored in markers, and not used for behavioral history. | Enforced by AppT |
 | Trial-marker linkability | Markers are HMAC values under a server-only key held in Secret Manager and never stored alongside raw email, username, television, or usage data. They can be linked to each other by an operator with key access; they cannot be reversed. Key rotation limits new linkability, not historical linkability. | Best-effort, documented |
 | Account takeover of the fallback path | Email/password accounts must verify the email before trial activation. Firebase enforces password policy and reset flows. Auth errors never silently clear a cached identity. | Enforced by AppT + provider |
@@ -109,7 +109,7 @@ flowchart LR
 | Purchase token forgery or replay | The purchase fingerprint (server-keyed HMAC of package plus token) is the record key. A fingerprint already bound to a live account cannot be bound to a different live account; a replay of the same token resolves to the existing binding. | Enforced by AppT |
 | Purchase token theft | Raw tokens are never persisted by AppT and never logged. A stolen token that is already bound to a live account cannot be rebound; if it is unbound, the thief still has to pass Play Integrity and own the Play account relationship. | Best-effort |
 | Unbounded account-to-account transfer of one purchase | Binding is one-to-one while the bound account is live. Rebinding requires an authoritative verification after the previously bound account is deleted, or an audited support action. | Enforced by AppT |
-| Licence-test or promo purchases granting production lifetime entitlement | The Developer API `purchaseType` field distinguishes test, promo, and rewarded purchases from standard purchases. Such purchases are recorded but do not grant a durable production Lifetime Entitlement. | Needs validation (exact field behaviour at implementation time) |
+| Licence-test or non-standard purchases granting production lifetime entitlement | `ProductPurchaseV2.testPurchaseContext` identifies licence-test purchases and they never grant a durable production Lifetime Entitlement. V1 does not deliberately enable promo or rewarded acquisition paths; if either is introduced, its current V2 representation must be validated before entitlement logic accepts it. | Enforced by AppT for licence-test purchases; future non-standard acquisition remains gated |
 | Refund or chargeback keeps entitlement | Play RTDN voided-purchase and one-time-product cancellation notifications drive revocation. A revocation applies on the next remote entry and never interrupts an active remote. | Enforced by AppT, provider-dependent |
 | RTDN delivery loss or duplication | Processing is idempotent, keyed by fingerprint and event, and tolerates out-of-order and duplicate messages. The entitlement endpoint re-checks state on every online entitlement refresh, so a missed notification self-heals. | Best-effort |
 | Backend outage used to confiscate paid access | A validated Lifetime Entitlement is cached as a signed proof and permits local control offline indefinitely. A network failure never removes it. | Enforced by AppT |
@@ -166,20 +166,12 @@ These stay out of product copy as promises:
 
 ## Needs validation
 
-Facts that this architecture relies on and that must be confirmed against authoritative provider material during implementation or before public release. They are also listed in [README.md](README.md#needs-validation).
+Only provider behavior that still requires live or non-standard-flow evidence remains here. Confirm it before the named behavior is enabled; do not weaken the fail-closed contracts to avoid the check.
 
 | Fact | Why it matters | Where it is used |
 |---|---|---|
-| Play RTDN one-time-product and voided-purchase notification shapes, and that enabling "all notifications" is required for one-time products | Refund and chargeback revocation | B5, [sync.md](sync.md) |
-| Current Google Play Developer API method for one-time product state (`purchases.products.get` versus the v2 product-purchase lookup) | Purchase verification | [sync.md](sync.md) |
-| `purchaseType` behaviour for licence-test, promo, and rewarded purchases at verification time | Preventing test purchases from granting production entitlement | [sync.md](sync.md), [release.md](release.md) |
-| Play Integrity verdict vocabulary and standard-request nonce binding | Trial and purchase abuse decisions | [sync.md](sync.md) |
-| Behaviour of the app-scoped Android ID across reinstall, restore, and signing-key rotation | Device marker stability for one-trial-per-device | [sync.md](sync.md) |
-| Whether Play Console Android vitals crash and ANR reporting covers an app that ships no crash-reporting SDK, and whether Play accepts an R8 mapping upload for deobfuscation | The release halt criterion and crash visibility after cloud reporting was removed | [release.md](release.md), [diagnostics.md](diagnostics.md) |
-| Firebase App Check enforcement modes per environment, and the console flow for registering an app distributed exclusively outside Google Play (signing-certificate fingerprint plus the `PLAY_RECOGNIZED`, `LICENSED`, and device-integrity advanced settings) | Backend call authenticity for the outside-Play tester build versus production | [release.md](release.md#signing-identity-and-distribution-channel) |
-| Play App Signing app-signing key rotation or key upgrade, and the App Check and Play Integrity re-registration it forces | Keeping the production certificate registration valid | [release.md](release.md#signing-identity-and-distribution-channel) |
-| Firebase Auth Admin SDK visibility of a deleted user: whether a read returns the user as absent immediately after deletion, and how fast that state is observable | The reconciliation proof step that must precede releasing a frozen binding | [sync.md](sync.md), [security.md](security.md) |
-| Cloud KMS asymmetric signing limits, JWKS hosting, and key-rotation procedure | Offline proof verification | [sync.md](sync.md) |
+| Exact `ProductPurchaseV2` representation of promo or rewarded one-time-product acquisitions, if either is deliberately enabled | Preventing an unclassified non-standard acquisition from granting a production Lifetime Entitlement | [sync.md](sync.md), [release.md](release.md) |
+| First production Play app-signing key upgrade continuity drill across App Check certificate registration and real Play Integrity/App Check verdicts | Keeping production backend authentication valid through a signing-identity transition | [release.md](release.md#signing-identity-and-distribution-channel) |
 
 ## Review hooks
 
@@ -192,7 +184,9 @@ Any new threat that changes a boundary, a guarantee, or a data category must upd
 Checked while writing this map; re-check before relying on them in code.
 
 - Google Play billing security and server-side verification: <https://developer.android.com/google/play/billing/security>
-- One-time purchase lifecycle and RTDN requirement: <https://developer.android.com/google/play/billing/lifecycle/one-time>
-- `purchases.products` REST resource, including `purchaseState`, `acknowledgementState`, and `purchaseType`: <https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.products>
-- Play Integrity token decoding: <https://developer.android.com/google/play/integrity/verdicts>
-- App-scoped Android ID behaviour: <https://android-developers.googleblog.com/2017/04/changes-to-device-identifiers-in.html>
+- One-time purchase lifecycle, RTDN requirement, and the current V2 purchase-state lookup: <https://developer.android.com/google/play/billing/lifecycle/one-time>
+- `ProductPurchaseV2` REST resource and licence-test context: <https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.productsv2>
+- Play Integrity standard-request binding and verdicts: <https://developer.android.com/google/play/integrity/standard> and <https://developer.android.com/google/play/integrity/verdicts>
+- Firebase App Check with Play Integrity, including outside-Play distribution settings: <https://firebase.google.com/docs/app-check/android/play-integrity-provider>
+- App-scoped Android ID behaviour: <https://developer.android.com/reference/android/provider/Settings.Secure#ANDROID_ID>
+- Cloud KMS asymmetric-key rotation and public-key retrieval: <https://cloud.google.com/kms/docs/key-rotation> and <https://cloud.google.com/kms/docs/retrieve-public-key>

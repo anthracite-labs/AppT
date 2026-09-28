@@ -194,9 +194,12 @@ when safe, and escalate only the blocked operation.
    `diagnose.yml` mode). Do not add per-slice workflow files as slice
    infrastructure: add a mode to `diagnose.yml` instead.
 
-The backend package, the secret scanner, yamllint, markdownlint, and ShellCheck
-run locally when those tools are present:
+The backend package, project-state/control-plane validators, the secret scanner,
+yamllint, markdownlint, and ShellCheck run locally when those tools are present:
 
+- `python3 .project-ai/skills/validate.py`
+- `python3 tools/ci/test/project-state-contract.test.py`
+- `python3 tools/ci/project_state_contract.py`
 - `npm ci --prefix backend`
 - `npm run verify --prefix backend`
 - `node --test "tools/secret-scan/test/secret-scan.test.mjs" && node tools/secret-scan/secret-scan.mjs`

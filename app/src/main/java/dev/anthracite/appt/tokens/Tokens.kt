@@ -46,10 +46,9 @@ object AppTTokens {
  * `color.*` — dark-first surfaces with content roles whose contrast floors are stated beside each
  * value so a later change cannot quietly drop below them.
  *
- * Contrast ratios below were computed from the WCAG 2.x relative-luminance formula for the exact
- * pairs listed. They are not produced by an automated Compose contrast checker: whether such
- * tooling covers Compose surfaces is an open provider-fact item in
- * docs/architecture/README.md#needs-validation, so S01 does not depend on one.
+ * Contrast ratios below are computed from the WCAG 2.x relative-luminance formula for the exact
+ * pairs listed. This deterministic token-level guard remains useful without device instrumentation;
+ * rendered Compose surfaces receive additional platform accessibility and contrast checks in S14.
  */
 @Immutable
 object ColorTokens {

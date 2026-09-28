@@ -129,23 +129,12 @@ The owning product decisions are in `docs/PRODUCT.md`, with canonical language i
 
 ## Needs validation
 
-Provider and deployment facts that the map relies on. Each must be confirmed against authoritative material during implementation or before public release; none of them is guessed in the documents above.
+Only provider facts that still require live/provider evidence remain here. Documented provider contracts belong in their owning architecture files rather than staying indefinitely marked unknown.
 
 | Fact | Where it matters |
 |---|---|
-| Play RTDN one-time-product and voided-purchase notification shapes, and that enabling all notifications is required for one-time products | [sync.md](sync.md), [security.md](security.md) |
-| Current Google Play Developer API method for one-time product state (`purchases.products.get` versus the v2 product-purchase lookup) | [sync.md](sync.md) |
-| `purchaseType` behaviour for licence-test, promo, and rewarded purchases at verification time | [sync.md](sync.md), [release.md](release.md) |
-| Play Integrity verdict vocabulary, standard-request nonce binding, and App Check enforcement modes per environment | [sync.md](sync.md), [security.md](security.md), [release.md](release.md) |
-| Firebase App Check console flow for an app distributed exclusively outside Google Play: registering the internal signing certificate and setting the `PLAY_RECOGNIZED`, `LICENSED`, and device-integrity advanced settings for that registration | [release.md](release.md), [security.md](security.md) |
-| Play App Signing app-signing key rotation or key upgrade, and the App Check and Play Integrity re-registration it forces | [release.md](release.md) |
-| Firebase Auth Admin SDK visibility of a deleted user (that a read returns the user as absent immediately after deletion) | [sync.md](sync.md), [security.md](security.md) |
-| App-scoped Android ID stability across reinstall, restore, and signing-key rotation | [sync.md](sync.md) |
-| Whether Play Console supports more than one RTDN topic per app | [release.md](release.md) |
-| Play Console Android vitals crash and ANR coverage for an app with no crash-reporting SDK, and Play's acceptance of an R8 mapping upload | [release.md](release.md), [diagnostics.md](diagnostics.md) |
-| Cloud KMS asymmetric signing limits, JWKS hosting, and key-rotation procedure | [sync.md](sync.md) |
-| Email-alias normalization for trial eligibility (address-level `+` tags and provider dot handling) | [security.md](security.md) |
-| Automated contrast-check tooling coverage for Compose surfaces | [presentation.md](presentation.md), [testing.md](testing.md) |
+| Exact `ProductPurchaseV2` representation of promo or rewarded one-time-product acquisitions, **if** either acquisition mode is deliberately enabled for AppT | [sync.md](sync.md), [security.md](security.md), [release.md](release.md) |
+| First production Play app-signing key upgrade continuity drill: the new Play signing certificate is registered with App Check before rollout and the Play-delivered build continues to satisfy App Check and Play Integrity after the upgrade | [release.md](release.md), [security.md](security.md) |
 
 ## Open items that are not architecture
 
@@ -155,4 +144,4 @@ Pre-existing and not blockers for this map:
 - the focused Samsung vendor-terms and legal review before public release;
 - physical-device evidence that tunes the reliability targets in [reliability.md](reliability.md).
 
-This map was accepted with the architecture closure on 2026-09-23, which authorized the phase transition to implementation. The next gate is human review and acceptance of the reconciled implementation route in [slices.md](slices.md) before S01 is compiled; the current position lives in `.project-ai/PROJECT_STATE.md`.
+This map was accepted with the architecture closure on 2026-09-23 and remains the durable implementation map. It deliberately does not project which slice is next; the current accepted milestone and next authorized action live only in `.project-ai/PROJECT_STATE.md`.

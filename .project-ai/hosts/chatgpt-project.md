@@ -7,7 +7,7 @@ The **control plane** is the normal ChatGPT Project session operating from repos
 At the start of each new substantive project chat:
 
 1. Read `.project-ai/PROJECT_STATE.md` from the current `main` branch.
-2. Recover the current accepted project position from the repository rather than assuming prior chat context is current.
+2. Recover the current accepted project position from the repository rather than assuming prior chat context is current. Before acting on a projected next implementation slice, compare `PROJECT_STATE.md`'s latest accepted milestone/next action with merged implementation PR history and active implementation Issues/PRs; if history is ahead of the projection, repair the projection before planning or dispatch.
 3. Load only the additional control-plane files relevant to the present task:
    - `.project-ai/routing/capabilities.md` when classifying what kind of work is required.
    - `.project-ai/routing/capabilities.md` owns lifecycle skill routing; when a listed trigger matches, load and follow that `.project-ai/skills/*/SKILL.md`. Multiple skills may apply.

@@ -14,9 +14,9 @@ Implementation.
 
 ## Current Objective
 
-Compile and dispatch S03 — Pair on the television and the first command — as the next authorized implementation slice.
+Compile and dispatch S04 — Saved pairing, fail-closed identity, and the safe forget primitive — as the next authorized implementation slice.
 
-Success means S03 is implemented and accepted against the existing architecture and slice contract while preserving S02 discovery/privacy boundaries and the accepted security, supply-chain, and verification floor.
+Success means S04 is implemented and accepted against the existing architecture and slice contract while preserving S03's first-control/session boundaries and the accepted security, privacy, supply-chain, and verification floor.
 
 ## Accepted Decisions
 
@@ -28,7 +28,10 @@ Success means S03 is implemented and accepted against the existing architecture 
 - The pre-S02 security baseline is accepted through PR #38.
 - Verification and independent AI-code assurance are accepted through PR #60.
 - S02 is accepted through implementation PR #75 and corrective closeout PR #77.
-- S03 is the next authorized implementation slice.
+- S03 is accepted through implementation PR #80.
+- Repository CI/agent-control and verification hardening are accepted through PR #89.
+- Mandatory lifecycle skill routing and diagnose-before-fix gates are accepted through PR #84.
+- S04 is the next authorized implementation slice.
 - S07 may be dependency-ready but is not active or authorized.
 - Provider facts marked `needs validation` must be confirmed when they first become implementation-relevant.
 - Final AppT source-license selection and focused Samsung vendor-terms/legal review remain pre-public-release gates.
@@ -36,15 +39,15 @@ Success means S03 is implemented and accepted against the existing architecture 
 
 ## Durable Blockers
 
-None for S03 dispatch.
+None for S04 dispatch.
 
 ## Latest Accepted Milestone
 
-S02 — Local-network explanation and bounded discovery — accepted through PR #75 and corrective closeout PR #77.
+S03 — Pair on the television and the first command — accepted through PR #80.
 
 ## Next Authorized Action
 
-Use `.project-ai/skills/implementation-planning/SKILL.md` and `.project-ai/execution/arena-dispatch.md` to compile and dispatch S03.
+Use `.project-ai/skills/implementation-planning/SKILL.md` and `.project-ai/execution/arena-dispatch.md` to compile and dispatch S04.
 
 ## Authoritative References
 
