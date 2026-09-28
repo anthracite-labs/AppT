@@ -156,8 +156,8 @@ sequenceDiagram
   else PURCHASED
     App->>Lic: verifyPurchase(purchase)
     Lic->>Fn: POST /v1/purchase/verify
-    Fn->>Api: purchases.products.get
-    Api-->>Fn: purchased, standard purchase type
+    Fn->>Api: purchases.productsv2.getproductpurchasev2
+    Api-->>Fn: PURCHASED state, product line item, no testPurchaseContext
     Fn->>Api: acknowledge
     Fn-->>Lic: granted, signed lifetime proof
     Lic->>Lic: cache proof
