@@ -140,11 +140,11 @@ class KeystoreSamsungStoreTest {
 
     @Test
     fun anUndecryptableKeystoreSurfacesUnavailable() {
-        val store = newStore(LocalAesGcmCipher())
+        val store = newStore()
         store.saveSecret(tvId, secret)
 
         // The same directories, but the Keystore can no longer decrypt (invalidated key).
-        val reopened = newStore(LocalAesGcmCipher())
+        val reopened = newStore(LocalAesGcmCipher(keyId = "invalidated-keystore"))
         assertEquals(StoredSecret.Unavailable, reopened.loadSecret(tvId))
     }
 
@@ -269,16 +269,11 @@ class KeystoreSamsungStoreTest {
         File(temporaryFolder.root, "samsung-secrets/v1").walkTopDown().filter { it.isFile }.toList()
 
     /**
-     * A JVM AES-GCM cipher standing in for the Android Keystore: the same 256-bit AES-GCM shape,
-     * with a fresh key per instance so two instances model a Keystore that was invalidated between
-     * saves and loads.
+     * A JVM AES-GCM cipher standing in for the Android Keystore: the same 256-bit AES-GCM shape.
+     * Like the real Keystore, the key outlives any store instance, so a reopened store decrypts
+     * what a previous one sealed; a different [keyId] models an invalidated or replaced key.
      */
-    private class LocalAesGcmCipher : SecretCipher {
-        private val key: Key =
-            KeyGenerator.getInstance("AES")
-                .apply { init(256, SecureRandom()) }
-                .generateKey()
-
+    private class LocalAesGcmCipher(private val keyId: String = DEVICE_KEYSTORE) : SecretCipher {
         override fun encrypt(plaintext: ByteArray): ByteArray {
             val iv = ByteArray(12).also(SecureRandom()::nextBytes)
             val body = cipher(Cipher.ENCRYPT_MODE, iv).doFinal(plaintext)
@@ -290,12 +285,26 @@ class KeystoreSamsungStoreTest {
             return cipher(Cipher.DECRYPT_MODE, iv).doFinal(blob.copyOfRange(12, blob.size))
         }
 
+        private fun key(): Key = KEYS.computeIfAbsent(keyId, ::generate)
+
         private fun cipher(
             mode: Int,
             iv: ByteArray,
         ): Cipher =
             Cipher.getInstance("AES/GCM/NoPadding").apply {
-                init(mode, key, GCMParameterSpec(128, iv))
+                init(mode, key(), GCMParameterSpec(128, iv))
             }
+
+        companion object {
+            /** The id every ordinary store instance shares, like the device's one Keystore. */
+            const val DEVICE_KEYSTORE = "device-keystore"
+
+            private val KEYS = java.util.concurrent.ConcurrentHashMap<String, Key>()
+
+            private fun generate(id: String): Key =
+                KeyGenerator.getInstance("AES")
+                    .apply { init(256, SecureRandom()) }
+                    .generateKey()
+        }
     }
 }
