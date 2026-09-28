@@ -63,6 +63,8 @@ When more than one legally and architecturally valid route exists, prefer existi
 
 Arena may narrow an approved reuse target to a smaller reusable unit, but it may not silently cross the recorded licence/reuse boundary or replace an approved reuse path with unrelated blank-page code. If the recorded disposition is missing, stale, unsafe, or materially wrong, stop and return the smallest contract exception needed to correct it.
 
+An already-dispatched Issue whose active revision predates the reuse-plan requirement is grandfathered until its next material contract revision. Do not invent a new reuse policy mid-implementation; continue to respect the owning architecture document's recorded harvest methods.
+
 Research only the implementation facts needed for the active behavior. Do not turn implementation into open-ended browsing. If authoritative or implementation evidence is missing, stale, or contradictory in a way that could materially change the accepted contract, stop and return a contract exception instead of inventing the missing behavior.
 
 ### 3. Choose the smallest meaningful slice
