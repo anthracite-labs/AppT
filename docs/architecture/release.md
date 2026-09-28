@@ -91,13 +91,19 @@ verification; the backend package owns TypeScript verification; repository-owned
 guards own AppT-specific privacy and module invariants. A tool is added only when
 it owns a concern that no existing control owns.
 
-The live repository workflows are `.github/workflows/verify.yml` and
-`.github/workflows/codeql.yml`. Historical `ci.yml` and `maintenance.yml` are
-retired; their GitHub Actions runs remain archival evidence, not an active
-baseline. This section describes the current verification topology.
+The live repository workflows are `.github/workflows/verify.yml`,
+`.github/workflows/diagnose.yml`, `.github/workflows/codeql.yml`,
+`.github/workflows/maintenance.yml`, and
+`.github/workflows/agent-control.yml`. Historical `ci.yml` is retired; its
+GitHub Actions runs remain archival evidence, not an active baseline. This
+section describes the current verification topology.
 
-Issue #56 landed that topology on `main`. Do not recreate deleted one-shot or
-legacy workflow YAML.
+Issue #56 landed that topology on `main`; Issue #88 replaced its monolithic
+Android job with parallel failure domains, moved focused feedback into
+`diagnose.yml`, and added the maintenance purge and the agent-control bridge.
+Do not recreate deleted one-shot or legacy workflow YAML, and do not add
+per-slice diagnostic workflow files: focused diagnostics are permanent and
+live in `diagnose.yml`.
 
 ### GitHub-owned controls
 
@@ -127,69 +133,108 @@ Repository workflow code must not duplicate those platform controls.
 
 ### Repository verification workflow
 
-The repository owns one verification workflow:
-`.github/workflows/verify.yml`. Pull-request synchronization runs only a fast,
-non-build check: diff/whitespace validation, repository security-policy
-self-tests, secret scanning and tooling-constraint checks. It must not compile
-Android, execute `ciCheck`, run backend verification, start a managed device,
-run SonarQube, or regenerate dependency state.
+The repository owns one authoritative verification workflow:
+`.github/workflows/verify.yml`. Pull-request synchronization runs only the two
+cheap repository domains — repository policy and repository quality — plus
+dependency review when the candidate changed dependency inputs. It must not
+compile Android, execute `ciCheck` or any of its narrower domains, run backend
+verification, start a managed device, run SonarQube, or regenerate dependency
+state.
 
-The full verification groups run only when a human explicitly dispatches the
-workflow for a branch with `mode=full` (the default), and automatically after
-changes land on `main`. This is the accepted response to measured Actions cost
-and implementation latency: coding iterations stay cheap, while the human
-chooses the point at which the long verification bill is paid.
+The full verification domains run on pushes to `main` and on an explicit
+`workflow_dispatch` (there is no `mode` input; a dispatched run is the full
+suite). This is the accepted response to measured Actions cost and
+implementation latency: coding iterations stay cheap, while the human or an
+authorized control-plane integration chooses the point at which the long
+verification bill is paid.
 
-A separate `workflow_dispatch` `mode=samsung-targeted` runs only Spotless,
-`:samsung:compileDebugUnitTestKotlin`, and `:samsung:test`. That mode is
-implementation feedback. It skips backend, managed-device, SonarQube, and
-dependency-review jobs and does not produce `verify / gate`.
+Focused, permanent, non-terminal feedback lives in `.github/workflows/diagnose.yml`
+as `workflow_dispatch` modes: `app-unit`, `samsung-unit`, `android-static`,
+`android-build`, `backend-static`, `backend-test`, `backend`, and `device`. A
+diagnostic run is implementation feedback only. It never produces `verify / gate`,
+and it must not be read as terminal repository verification. It replaced the
+retired `samsung-targeted` dispatch mode of `verify.yml`, which no longer
+exists.
 
-The workflow exposes one stable branch-protection interface: `verify / gate`.
-On ordinary pull requests that gate represents the quick check. A manually
-dispatched full run produces the same gate after the complete verification
-groups. Internal job names may evolve without changing branch protection. The
-Samsung-targeted mode must not satisfy or masquerade as that gate.
+The workflow exposes one stable branch-protection interface: `verify / gate`
+(workflow `verify`, job `gate`). On ordinary pull requests that gate represents
+the two cheap repository domains and dependency review; a full run produces the
+same gate after every verification domain. Internal job names may evolve
+without changing branch protection. No diagnostic run can satisfy or masquerade
+as that gate.
 
-The workflow contains these responsibility groups:
+The workflow runs these failure domains as independent parallel jobs, so one
+failing domain cannot hide the evidence of another. Each job re-establishes its
+own toolchain through the repository-local composite actions under
+`.github/actions/**` (`setup-node`, `setup-jvm`); because GitHub resolves a
+local action from the workspace on disk, every job that uses one runs
+`actions/checkout` before it, and the composites own toolchain setup only:
 
-1. **quality** — repository-generic checks that do not belong to a language
+1. **repo-policy** — diff/whitespace validation, repository security-policy
+   self-tests, secret scanning, tooling-constraint checks, and the maintenance
+   purge self-tests. No language build.
+2. **repo-quality** — repository-generic checks that do not belong to a language
    build: `actionlint` for workflow correctness, `zizmor` for GitHub Actions
    security posture, ShellCheck plus `shfmt` for authored shell, `yamllint`
-   for generic YAML, `markdownlint` for canonical Markdown, and
-   repository-owned policy/self-tests. These tools run directly or through
-   package-native entrypoints rather than through MegaLinter or Super-Linter.
-2. **android** — one Gradle lifecycle task, `ciCheck`, under strict dependency
-   verification. `ciCheck` aggregates strict Kotlin compiler diagnostics
-   (extra warnings promoted to errors), deterministic Kotlin formatting through
-   Spotless + ktfmt, debug assembly, JVM/Robolectric tests, Android Lint, detekt,
-   Kover coverage generation/verification, dependency-lock validation,
-   `appTGuards`, meaningful architecture tests where a current non-duplicated
-   architecture law exists, and macrobenchmark compilation. Gradle remains the
-   owner of Android/Kotlin verification.
-3. **backend** — `npm ci --prefix backend` followed by one package-owned
-   `npm run verify --prefix backend` interface aggregating strict TypeScript
-   typechecking, typed ESLint, Prettier checking, Knip dead-code/dependency
-   analysis, Jest tests, and LCOV coverage generation/verification. Firebase
-   emulator tests join the backend verification surface when the backend slice
-   makes them real.
-4. **device** — Android Gradle Managed Devices, initially one API 29 device
+   for generic YAML, `markdownlint` for canonical Markdown. These tools run
+   directly or through package-native entrypoints rather than through
+   MegaLinter or Super-Linter. This domain deliberately does not repeat the
+   policy self-tests above.
+3. **android-format** — the single Android formatting responsibility:
+   deterministic Kotlin formatting through Spotless + ktfmt, exposed as the root
+   `androidFormat` task. Spotless and ktfmt are one check, never two.
+4. **android-static** — the root `androidStatic` task: Android Lint, detekt,
+   `appTGuards`, and `dependencyLockCheck`, under strict dependency
+   verification and Gradle `--continue` so Lint, detekt and the guard floor all
+   report in one run.
+5. **android-build** — the root `androidBuild` task: debug assembly (which runs
+   the merged-manifest permission and `AD_ID` guards) plus macrobenchmark
+   compilation.
+6. **android-unit** — the root `androidUnit` task: `:app:testDebugUnitTest` and
+   `:samsung:test` plus Kover coverage generation and verification. Samsung unit
+   tests are authoritative verification evidence, not diagnostics, so a full run
+   always produces them.
+7. **backend-static** — `npm run verify:static --prefix backend`: strict
+   TypeScript typechecking, typed ESLint, Prettier checking, and Knip
+   dead-code/dependency analysis.
+8. **backend-test** — `npm run verify:test --prefix backend`: Jest with LCOV
+   coverage. Independent of the static domain in both directions, so neither
+   failure hides the other's evidence.
+9. **device** — Android Gradle Managed Devices, initially one API 29 device
    because API 29 is AppT's `minSdk`, running the installed-app instrumentation
    smoke/acceptance surface. No third-party emulator-runner Action is part of
    the target stack.
-5. **dependency-review** — GitHub Dependency Review on pull requests that change
-   dependency inputs. It consumes the GitHub dependency graph and does not
-   replace Gradle locking or strict verification.
-6. **quality-platform** — CI-based SonarQube Cloud analysis after Android and
-   backend verification have produced coverage reports. Sonar owns the
-   cross-language maintainability/reliability, new-code coverage and duplication
-   quality gate; it does not replace CodeQL as AppT's authoritative security
-   SAST. The CI job waits for the Sonar quality-gate result before succeeding.
-7. **gate** — depends on every mandatory repository verification group and
-   succeeds only when all required groups succeeded. This is the sole stable
-   repository-owned status intended for default-branch protection.
+10. **changes** — change detection over the GitHub compare API, so a
+    conditional job below never leaves a required check pending the way a
+    top-level `paths:` filter would.
+11. **dependency-review** — GitHub Dependency Review on pull requests, and on
+    full runs when the candidate changed dependency inputs. It consumes the
+    GitHub dependency graph and does not replace Gradle locking or strict
+    verification. AppT's own dependency security policy is enforced on top of it
+    by `tools/security/enforce-dependency-policy.mjs`.
+12. **quality-platform** — CI-based SonarQube Cloud analysis over the coverage
+    evidence produced by `android-unit` and `backend-test`. It waits on the two
+    producers only: an Android formatting or Android static failure must not
+    suppress the quality-platform evidence. Sonar owns the
+    cross-language maintainability/reliability, new-code coverage and duplication
+    quality gate; it does not replace CodeQL as AppT's authoritative security
+    SAST. The CI job waits for the Sonar quality-gate result before succeeding.
+13. **gate** — depends on every domain above and succeeds only when all required
+    domains succeeded. This is the sole stable repository-owned status intended
+    for default-branch protection. It requires `changes` to have succeeded in its
+    own right: `dependency-review` declares `needs: changes`, so a failed
+    change-detection job makes GitHub skip `dependency-review`, and a gate that
+    merely accepted a skipped dependency review would let that failure fail
+    open. `skipped` is accepted for `dependency-review` only once `changes` has
+    succeeded.
 
-The Android verification floor preserved behind `ciCheck` includes:
+`ciCheck` remains the local umbrella over the four Android domains
+(`androidFormat`, `androidStatic`, `androidBuild`, `androidUnit`) so a developer
+keeps one convenient aggregate command. CI does not use it, because one
+monolithic invocation cannot report a formatting failure and a unit-test failure
+independently.
+
+The Android verification floor preserved behind those domains includes:
 
 - Kotlin compiler extra diagnostics with warnings treated as errors, without a
   blanket suppression/baseline used merely to make CI green;
@@ -202,9 +247,14 @@ The Android verification floor preserved behind `ciCheck` includes:
   framework merely to claim coverage;
 - dependency lock validation and strict dependency verification;
 - the manifest permission allowlist and `AD_ID` prohibition;
-- no telemetry/crash-reporting/advertising/attribution artifact;
+- no telemetry/crash-reporting/advertising/attribution artifact (`noTelemetryDependency`
+  on `:app`; the crash-reporting vocabulary is part of this guard, and the
+  former `noCrashReportingInApp` task was removed as a duplicate resolution of
+  the same graph);
 - no Firestore client in `:app`;
-- the `:samsung` dependency boundary and no direct `android.util.Log`;
+- the `:samsung` dependency boundary and no direct `android.util.Log` (the
+  boundary also owns `:samsung`'s telemetry question, which is why the `:samsung`
+  instance of `noTelemetryDependency` was removed);
 - no production dependency on `:macrobenchmark`;
 - no removed television-sync record or mutation-queue model in production code;
 - the version-catalog pin policy;
@@ -215,6 +265,14 @@ repository root. `package-lock.json` is committed and `npm ci` is the only
 CI install mode. The package emits Jest LCOV coverage and treats Knip findings
 as dead-code/dependency failures rather than allowing agent-generated residue to
 accumulate.
+
+The package exposes the same floor through three interfaces so CI can separate
+the two failure domains without duplicating the commands they own:
+`npm run verify:static --prefix backend` (typecheck, ESLint, Prettier, Knip),
+`npm run verify:test --prefix backend` (Jest with LCOV coverage), and
+`npm run verify --prefix backend` (both, in that order) for local use. Firebase
+emulator tests join the backend verification surface when the backend slice
+makes them real.
 
 Coverage is evidence, not proof of test quality. Sonar's new-code quality gate
 owns the cross-language coverage threshold once its AppT integration is proven;
@@ -231,15 +289,26 @@ cross-language maintainability/reliability, new-code coverage and duplication
 quality-gate evidence. A Sonar security finding is useful additional evidence but
 does not replace CodeQL or change CodeQL's merge threshold.
 
-GitHub secret protection owns provider/generic secret detection; the repository
-may retain only the narrow first-party file/policy guard needed to forbid
-AppT-specific credential material such as keystores, certificates and
-Firebase/service-account files.
+GitHub secret protection owns provider/generic secret detection, and the
+repository must not duplicate it. `tools/secret-scan/secret-scan.mjs` therefore
+keeps only the AppT-specific credential-file and credential-material guards:
+forbidden extensions and basenames (keystores, certificates, keys,
+`google-services.json`, service-account files), private-key blocks, private-key
+assignments, service-account key documents, Firebase Cloud Messaging server
+keys, JSON Web Tokens, and hardcoded credential assignments. Provider token
+formats — Google API keys, AWS access key ids, GitHub tokens, Slack tokens,
+Stripe secret keys — are owned by GitHub Secret Scanning and Push Protection and
+are deliberately not detected here; `PROVIDER_OWNED_SAMPLES` in that file and its
+tests hold that boundary in place. A provider key written as a hardcoded
+assignment is still caught, by the assignment guard rather than by provider
+detection.
 
-Android Lint, detekt, Spotless/ktfmt, Kover, ESLint, Prettier, Knip and Jest
-remain native to their project toolchains. actionlint, zizmor, ShellCheck,
-shfmt, yamllint and markdownlint remain narrow repository specialists. None is
-re-hosted through MegaLinter or Super-Linter.
+Android Lint, detekt, Kover, ESLint, Prettier, Knip and Jest remain native to
+their project toolchains. Spotless + ktfmt is one formatting responsibility, not
+two checks: it is exposed once as the `android-format` domain and the root
+`androidFormat` task, and is never split into separate formatting jobs.
+actionlint, zizmor, ShellCheck, shfmt, yamllint and markdownlint remain narrow
+repository specialists. None is re-hosted through MegaLinter or Super-Linter.
 
 Duplication has one blocking owner. Prefer Sonar's new-code duplication gate once
 the live AppT Sonar integration is proven. Until then, a narrow local detector
@@ -312,15 +381,308 @@ verification. The target repository therefore owns one verification workflow now
 those later responsibilities become real: `verify.yml`, optional `deep.yml`, and
 `release.yml`. `.github/workflows/codeql.yml` is the separate security-analysis
 workflow and is not counted in that ordinary-verification inventory.
+`.github/workflows/diagnose.yml` (focused, non-terminal feedback),
+`.github/workflows/maintenance.yml` (manual destructive housekeeping) and
+`.github/workflows/agent-control.yml` (trusted dispatch bridge) are not ordinary
+verification workflows either, and are not counted in that inventory.
 
-Routine GitHub retention/cache settings own Actions housekeeping. No permanent
-maintenance workflow exists merely to delete old runs or caches.
+### Focused diagnostics (`diagnose.yml`)
+
+`.github/workflows/diagnose.yml` is the permanent home of focused
+implementation feedback. It is `workflow_dispatch` only, one mode per meaningful
+failure domain (`app-unit`, `samsung-unit`, `android-static`, `android-build`,
+`backend-static`, `backend-test`, `backend`, `device`), and each mode uploads the
+reports it produces so an agent or a human can read the failure without
+re-running the whole suite.
+
+A diagnostic run is implementation feedback only. It is not terminal repository
+verification, it does not satisfy `verify / gate`, and no job in it can produce
+that status. It replaced the retired `samsung-targeted` dispatch mode of
+`verify.yml`, which no longer exists.
+
+Do not add per-slice or one-shot diagnostic workflow files. When a new focused
+feedback need appears, add a mode to this workflow.
+
+#### Focus within a mode
+
+Every mode accepts an optional `focus` input that narrows that mode without
+widening it. `tools/ci/diagnose-focus.mjs` owns what "narrow" means per mode and
+returns the exact argv vector to run, so the value is data rather than command
+text. The contract:
+
+- an empty `focus` reproduces the mode's existing, unfocused command exactly — a
+  focus can only narrow, never replace, the mode;
+- a non-empty `focus` narrows only within the mode, through the underlying
+  tool's native selector or a finite allowlist of sub-responsibilities the mode
+  already owns;
+- a value that starts with `-`, contains a control character, has the wrong shape
+  for the mode, or names a sub-responsibility belonging to a different mode fails
+  closed before anything runs;
+- the run summary records the mode and the effective focus.
+
+| Mode | Focus form | Narrows to |
+|---|---|---|
+| `app-unit`, `samsung-unit` | Gradle test class/method pattern | `--tests <pattern>` on that module's own test task |
+| `android-static` | `lint` \| `detekt` \| `guards` \| `dependency-lock` | the owned tasks `androidStatic` already depends on |
+| `android-build` | `app` \| `macrobenchmark` | the owned tasks `androidBuild` already depends on |
+| `backend-static` | `typecheck` \| `lint` \| `format` \| `knip` | the npm scripts `verify:static` already runs |
+| `backend-test` | `file:<pattern>` \| `name:<pattern>` | a Jest positional pattern, or `--testNamePattern` |
+| `backend` | `static` \| `test` \| `static:<sub>` \| `test:<pattern>` | its own static or test responsibility, and that responsibility's own selector |
+| `device` | `class:<fqcn>` \| `package:<pkg>` \| `method:<fqcn>#<method>` | `android.testInstrumentationRunnerArguments` on the pinned managed device |
+
+The selectors were verified against the pinned toolchain before being committed:
+the Gradle task paths are the ones `build.gradle.kts` declares for each failure
+domain, the npm script names are the ones `backend/package.json` declares, and
+the device task is the `pixel2api29` managed device configured in
+`app/build.gradle.kts`. A focused diagnostic is still implementation feedback
+only; full `verify` is unchanged by any of this.
+
+The label bridge continues to dispatch with an empty focus, because it has no
+safe channel for a value; manual dispatch exposes `focus` directly. No new
+metadata-command parser was added to transport it.
+
+### Agent invocation (`agent-control.yml`)
+
+Arena and the ChatGPT control plane must be able to run focused diagnostics
+without a human clicking through the Actions UI. Two routes exist:
+
+1. **Direct dispatch** — an actor that holds Actions write permission dispatches
+   `verify` or `diagnose` with `workflow_dispatch`. This is the preferred route.
+2. **Trusted command bridge** — `.github/workflows/agent-control.yml`, for an
+   integration that can mutate pull-request metadata but cannot dispatch
+   workflows. Adding one of the command labels (`ci:full`, `ci:app-unit`,
+   `ci:samsung-unit`, `ci:android-static`, `ci:android-build`, `ci:backend`,
+   `ci:backend-static`, `ci:backend-test`, `ci:device`) to a pull request makes
+   the bridge resolve that pull request's exact head SHA and branch, dispatch
+   the matching workflow **from the repository's default branch** carrying the
+   target as inputs, consume the label, and record what it dispatched.
+
+The bridge is the only privileged control path in the repository. It never
+checks out or executes pull-request-controlled code: the one checkout it
+performs is of the **base branch** — which is what `pull_request_target` runs
+the workflow definition from and what `github.sha` points at — and the only code
+it executes is the reviewed repository module
+`tools/ci/dispatch-workflow.mjs`. The workflow it dispatches then runs under
+that workflow's own read-only permissions. Its token permissions are limited to
+`contents: read`, `actions: write`, `issues: write` and `pull-requests: write`,
+and only the labels in its allowlist do anything.
+
+#### Why the bridge dispatches the default branch, and how the head guarantee survives
+
+GitHub's Create Workflow Dispatch endpoint takes `ref` as the git reference for
+the workflow — a **branch or tag name**. It is not a commit SHA, and passing one
+is rejected. A branch is also mutable, so dispatching a branch alone would not
+guarantee that the run verifies the head the command was issued against.
+
+That is only half the problem, and the other half is the reason the dispatch ref
+is the default branch rather than the pull request's head branch. GitHub runs the
+workflow **as the dispatch ref defines it**. Dispatching the head branch would
+therefore let the pull request supply the workflow YAML and every local composite
+action it uses — including `.github/actions/assert-dispatch-target`, the very
+assertion that is supposed to check the target. A pull request could rewrite its
+own assertion and pass it.
+
+So the dispatch ref is the repository's **default branch**, resolved from the
+provider rather than assumed, and the requested target travels as inputs:
+
+- `target_ref` is the pull request's head branch name;
+- `expected_sha` is the exact commit it resolved to.
+
+The dispatched workflow then does the rest, in this order, in every job:
+
+1. **Check out the dispatch anchor.** For a bridge dispatch `github.sha` is the
+   default branch, so this checkout — and the assertion and the local composite
+   actions it uses — is trusted repository content.
+2. **Assert the dispatch target.** With `target_ref` set, the run's own commit is
+   the anchor and not the target, so the ref is resolved through the API and
+   required still to point at `expected_sha` — and `expected_sha` is required to
+   be the head of an **open** pull request whose head ref is `target_ref`. That
+   second part matters: a `workflow_dispatch` input is settable by any actor who
+   can dispatch, so without it an arbitrary commit SHA could be supplied, pass the
+   ref check, and then be built. With it, the only commit that can pass is one a
+   real open pull request actually points at. A branch that moved between the
+   command and the run hard-fails with a message naming both SHAs and telling the
+   issuer to re-issue the label. With `target_ref` empty — an ordinary manual
+   dispatch — there is no pull request to bind to, so the run's own commit is the
+   target and is compared directly.
+3. **Set up the toolchain and resolve any diagnostic focus**, still from the
+   trusted anchor, so the code that decides *what* to run is trusted.
+4. **Check out the commit the assertion proved**, published as its `sha` output,
+   rather than the raw `expected_sha` input. The distinction is deliberate: an
+   input is attacker-reachable, whereas the output is a value trusted logic has
+   just verified. From here on the code under verification is
+   pull-request-controlled, executed by a trusted workflow under that workflow's
+   own read-only repository-token permissions and provider-enforced read-only
+   cache access.
+
+Both `verify.yml` and `diagnose.yml` declare workflow-level **`cache-mode: read`**.
+GitHub enforces this with scoped cache tokens, independently of `GITHUB_TOKEN`
+permissions. The default-branch dispatch can restore caches but cannot write
+PR-controlled data into the default branch's cache scope. No target job may
+override this with `write` or `write-only`. The same read-only restriction applies
+to trusted-only runs; performance does not take precedence over isolation.
+See GitHub's cache access reference [1](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching).
+
+`tools/ci/test/workflow-cache-contract.test.py` parses the actual YAML and checks
+workflow defaults plus every job override, including reusable-workflow callers.
+It runs in mandatory repository-quality verification and mutation-tests missing
+boundaries, write-capable overrides, aliases, flow mappings, and invalid values.
+This also covers the one provider key the pinned actionlint parser does not yet
+recognize; only that exact unknown top-level-key diagnostic is excluded from
+actionlint, not other syntax, security, or workflow checks.
+
+#### Secret-bearing Sonar boundary
+
+The quality-platform job is a separate trust case, not an ordinary no-secret
+build job. The previous single-worktree layout let the target replace
+`sonar-project.properties` before scanning with `SONAR_TOKEN`. Source review
+confirmed control over both authenticated destinations and executable selection:
+
+- The pinned [scan action](https://github.com/SonarSource/sonarqube-scan-action/blob/ba9859eae8dd6bd29e412f25ddbbef3d032000f4/src/main/run-sonar-scanner.js)
+  passes `projectBaseDir` and parsed `args` to the installed scanner. It does not
+  sanitize or replace target project settings. Its signed scanner installation
+  and CLI version `8.1.0.6389` are unchanged.
+- CLI `8.1.0.6389` resolves to commit `b33c7e211208d90c06532c99debf350a45f36f91`.
+  Its [Conf.java](https://github.com/SonarSource/sonar-scanner-cli/blob/b33c7e211208d90c06532c99debf350a45f36f91/src/main/java/org/sonarsource/scanner/cli/Conf.java)
+  loads the base directory's project settings unless `project.settings` supplies
+  another file. `properties()` gives CLI properties final precedence;
+  `loadModulesProperties()` reads child settings only for declared modules.
+- That CLI pins scanner-java-library `4.1.1.1633`, commit
+  `87b5593e4fe3fc9a67402875ecfbfdb7d266f79f`. Its
+  [JavaRunnerFactory](https://github.com/SonarSource/sonar-scanner-java-library/blob/87b5593e4fe3fc9a67402875ecfbfdb7d266f79f/lib/src/main/java/org/sonarsource/scanner/lib/internal/facade/forked/JavaRunnerFactory.java)
+  accepts a configured Java executable, and its
+  [ScannerHttpClient](https://github.com/SonarSource/sonar-scanner-java-library/blob/87b5593e4fe3fc9a67402875ecfbfdb7d266f79f/lib/src/main/java/org/sonarsource/scanner/lib/internal/http/ScannerHttpClient.java)
+  attaches the token to authenticated requests. A read-only GitHub token would
+  not have protected the Sonar token from target-controlled scanner properties.
+
+The corrected job keeps the dispatch anchor (settings and validation helper) at
+the workspace root. The validated SHA is checked out separately in `sonar-target`
+and is only analysis data: no target Gradle, npm, wrapper, local action or script
+runs in this job. The trusted pinned scanner receives:
+
+- explicit `project.settings` pointing **outside** the target to the anchor's
+  configuration, without a target `projectBaseDir` override; the action's default
+  `.` keeps analysis anchored in the trusted workspace;
+- explicit `sonar.sources`, `sonar.tests`, and `sonar.java.binaries` rooted under
+  `sonar-target/`, so the anchor's product files are not analyzed by mistake;
+- whole-argument quoting (`"-Dkey=value"`), not value-only quoting (`-Dkey="value"`):
+  the pinned action uses `string-argv` 0.3.2, which preserves quotes in the latter
+  spelling, unlike shell/shlex parsing;
+- an empty `sonar.modules` to prevent child settings loading;
+- fixed SonarCloud web/API endpoints, never target-derived destinations;
+- fresh `sonar.userHome` and `sonar.working.directory` outside the target/artifacts;
+- explicit absolute coverage paths into separate Kover and backend artifact
+  download directories, with both evidence types required;
+- the exact analyzed commit as `sonar.scm.revision`.
+
+Downloads cannot intentionally overlay either checkout. The trusted input
+validator rejects symlinks/special files in all input trees, overlapping roots,
+missing/empty reports, and pre-existing scanner state before secret use. Source
+and reports remain data for the pinned scanner/analyzers, not scripts or scanner
+configuration. Scanner binaries, trust configuration, PATH and helper code are
+owned by the trusted workflow/action, not the target. `SONAR_TOKEN` is scoped to
+the presence check and scanner; no GitHub token is supplied to the scanner.
+Provider `cache-mode: read` still covers this job.
+
+`tools/ci/test/sonar-boundary.test.py` proves the workflow control/data split and
+inert-file validation, including mutations that restore target settings, module
+loading, endpoint redirection, or artifact overlay. It runs with the cache
+contract in mandatory repository-quality CI. These are offline regression and
+pinned-source proofs, not a live hostile scan. Fresh provider verification and
+Sonar quality-gate evidence are still required on the final candidate; no real
+secret or production endpoint is used to test an exploit.
+
+`expected_sha` is empty for `pull_request` and `push` events, so the assertion is
+a no-op there and the cheap PR cadence is unaffected.
+
+A **fork** pull request cannot be dispatched this way at all: the provider
+dispatches a ref that must exist in this repository, and a fork's head branch
+does not. The bridge fails closed with an explicit error rather than dispatching
+something else.
+
+The translation, the allowlist and the request shape live in
+`tools/ci/dispatch-workflow.mjs` and are proven by
+`tools/ci/test/dispatch-workflow.test.mjs` against a fake API. The test contract
+rejects a commit SHA used directly as `workflow_dispatch.ref`, which is the
+defect the first Issue #88 contract review found, and it rejects the earlier
+mutable-ref shape outright: `targetRef` is required and `ref` may never equal it,
+so the design that loaded the assertion from the branch being verified cannot be
+expressed. The same tests assert that no checkout in either workflow names a
+`workflow_dispatch` input as its ref.
+
+The assertion's own decision logic is extracted from the action and executed for
+real against a fake `gh` by `tools/ci/test/assert-dispatch-target.test.mjs`, so
+every branch is proven: the no-op for non-dispatch events, the manual-dispatch
+comparison, the moved-ref failure, and — the case that matters most — the refusal
+of a commit that is not the head of an open pull request.
+
+Owner follow-ups that cannot be represented in repository code:
+
+- direct `workflow_dispatch` by the control-plane integration requires that
+  actor to hold Actions write permission on this repository;
+- GitHub dispatches only workflows that exist on the default branch, so
+  `diagnose.yml` becomes invocable through the bridge once it lands on `main`.
+
+### Actions maintenance (`maintenance.yml`)
+
+`.github/workflows/maintenance.yml` is manual-only and destructive. Its sole
+trigger is `workflow_dispatch`, and it acts only after the confirmation input is
+exactly `PURGE`. On purge it cancels every other active workflow run, waits for
+those runs to settle, deletes every Actions cache in the repository, cancels and
+settles any run that appeared during the cache phase, deletes every workflow run
+except the run executing now, and then verifies that no cache and no other run
+remains. The destructive sequence lives in
+`tools/ci/purge-actions.mjs` and is proven by `tools/ci/test/purge-actions.test.mjs`
+against a fake API, so it can be validated without deleting real history.
+
+#### Cache deletion is by cache ID
+
+GitHub has no "delete every cache" endpoint. `DELETE .../actions/caches` is
+delete-by-key and *requires* a `key` query parameter; the only way to express an
+exact purge is to list the caches and delete each one by its cache ID with
+`DELETE .../actions/caches/{cache_id}`. `purge-actions.mjs` does exactly that,
+paginating the listing so a repository with more than one page of caches is
+covered, and it still performs the final zero-cache verification.
+
+The fake API in the test suite refuses a bare `DELETE .../actions/caches`
+outright, so a regression to that invalid request shape cannot pass by silently
+succeeding — reverting the fix fails five of the tests.
+
+There is no scheduled or automatic cleanup, and no verification workflow
+contains history deletion. `actions: write` is granted to the maintenance job
+alone; `verify`, `diagnose`, `codeql` and `agent-control` never receive deletion
+privileges. This supersedes the earlier position that no permanent maintenance
+workflow exists.
+
+Its concurrency group is **repository-wide** (`maintenance-${{ github.workflow }}`,
+not scoped to `github.ref`) with `cancel-in-progress: false`. Manual dispatch can
+target any ref, so a ref-scoped group would let two purges run concurrently and
+each cancel or delete the other; a repository-wide group makes a second purge
+wait for the first instead of interrupting it.
+
+The final pre-deletion run listing is treated exactly like the first. The cache
+phase takes real time, and a run queued during it is still active when that
+listing is taken — and GitHub refuses to delete a run that has not finished. So
+the final listing is re-read, any newly active non-current run is cancelled, and
+the same bounded settle rules are applied before anything is deleted. Deleting it
+blind would leave it behind and make a purge that did not do its job look like a
+failure. A run that never settles fails the purge closed rather than being
+reported as a clean end state.
+
+The purge's dry run reads the repository's real state through read-only API calls
+and suppresses only mutations, so the pre-destructive preview reports the actual
+number of runs and caches rather than a misleading zero. The `--settle-timeout-minutes`
+and `--poll-interval-seconds` flags are forwarded into the purge loop, so the
+workflow genuinely controls the timing it declares.
 
 ### Migration sequencing
 
 The expand-contract migration below has landed on `main`. The live inventory is
-`verify.yml` and `codeql.yml`. The steps remain as the accepted history of that
-contraction, not as pending work to resurrect `ci.yml` or `maintenance.yml`.
+`verify.yml`, `diagnose.yml`, `codeql.yml`, `maintenance.yml` and
+`agent-control.yml`. The steps remain as the accepted history of that
+contraction, not as pending work to resurrect `ci.yml`; `maintenance.yml` exists
+again, as the manual-only purge described above, not as the retired cleanup
+plumbing.
 
 The replacement was an expand-contract migration; verification coverage must not
 be silently dropped while infrastructure changes.
@@ -365,6 +727,14 @@ be silently dropped while infrastructure changes.
 7. Update `docs/BUILD.md` and any CI comments to the final commands and delete
    stale implementation documentation. `main` must finish with no parallel
    legacy CI topology.
+8. Issue #88 replaced the monolithic Android job with the parallel failure
+   domains listed above, moved focused feedback out of `verify.yml` into the
+   permanent `diagnose.yml` modes, removed the duplicated underlying guard work
+   (`noCrashReportingInApp`, the `:samsung` instance of `noTelemetryDependency`,
+   and the provider token formats GitHub Secret Scanning owns), added the
+   trusted `agent-control.yml` dispatch bridge, and added the manual-only
+   `maintenance.yml` purge. The `samsung-targeted` dispatch mode is gone and must
+   not be restored.
 
 Every external Action that remains in repository workflow YAML is pinned to a
 full immutable commit SHA. Repository permissions stay least-privilege, and

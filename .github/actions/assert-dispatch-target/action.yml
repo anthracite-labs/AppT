@@ -1,0 +1,162 @@
+# Repository-local composite action: prove the dispatch target is the exact
+# commit the command was issued against, and publish that commit for checkout.
+#
+# Why this exists (Issue #88, human revision)
+# -------------------------------------------
+# `agent-control.yml` dispatches a workflow against the repository's **default
+# branch**, because GitHub's Create Workflow Dispatch endpoint requires `ref` to
+# be a branch or tag name and rejects a commit SHA — and because running the
+# workflow from the pull request's own branch would let that branch supply both
+# the workflow YAML and this very assertion.
+#
+# That leaves the question this action answers: a run executing trusted
+# default-branch content still has to verify *something*, and what it verifies is
+# passed as inputs. `target_ref` is the pull-request head branch the command was
+# issued against; `expected_sha` is the exact commit it resolved to.
+#
+# The check has two shapes:
+#
+#   * `target_ref` set (a bridge dispatch). The run's own commit is the default
+#     branch and is NOT the target, so comparing `github.sha` to `expected_sha`
+#     would be meaningless. Instead the ref is resolved through the API and
+#     required still to point at `expected_sha`, and `expected_sha` is required
+#     to be the head of an **open** pull request whose head ref is `target_ref`.
+#     That last part matters: `workflow_dispatch` inputs are settable by any
+#     actor who can dispatch, so without it an arbitrary commit SHA could be
+#     supplied and would be checked out and built. With it, the only commit that
+#     can pass is one a real open pull request actually points at.
+#
+#   * `target_ref` empty (an ordinary manual dispatch). There is no separate
+#     anchor and no pull request to bind to, so the run's own commit is the
+#     target and is compared directly.
+#
+# `expected_sha` empty means "not a dispatch at all" (`pull_request`, `push`),
+# and the assertion is a no-op there so the cheap PR cadence is unaffected.
+#
+# The action publishes the validated commit as its `sha` output, and callers
+# check **that** out rather than the raw input. The distinction is deliberate: a
+# `workflow_dispatch` input is attacker-reachable, whereas the output is a value
+# trusted logic has just proven, so the checkout is of a proven commit rather
+# than of whatever was supplied.
+#
+# Trust note: this action is resolved from the workspace on disk, which is why
+# every calling job checks out the dispatch anchor *before* referencing it and
+# checks the validated target out only afterwards. The logic that decides
+# whether to run is trusted; the code it then verifies is not, and runs under the
+# calling workflow's own read-only permissions.
+name: Assert dispatch target
+description: >-
+  Proves the requested dispatch target still resolves to the expected commit and
+  publishes that commit. Requires the repository to be checked out first.
+
+inputs:
+  expected-sha:
+    description: >-
+      The commit SHA the dispatch was issued against. Empty for non-dispatch
+      events, which skips the assertion.
+    required: false
+    default: ''
+  target-ref:
+    description: >-
+      The branch the bridge resolved the head from, for a bridge dispatch. Empty
+      for an ordinary manual dispatch, where the run's own commit is the target.
+    required: false
+    default: ''
+  token:
+    description: >-
+      Token used to resolve the target ref. Read-only contents access is enough.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  sha:
+    description: >-
+      The validated commit SHA to check out. Empty when the assertion is skipped.
+    value: ${{ steps.assert.outputs.sha }}
+
+runs:
+  using: composite
+  steps:
+    - name: Prove the dispatch target still resolves to the expected SHA
+      id: assert
+      shell: bash
+      env:
+        EXPECTED_SHA: ${{ inputs.expected-sha }}
+        TARGET_REF: ${{ inputs.target-ref }}
+        ACTUAL_SHA: ${{ github.sha }}
+        EVENT_NAME: ${{ github.event_name }}
+        REPOSITORY: ${{ github.repository }}
+        REPOSITORY_OWNER: ${{ github.repository_owner }}
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "$EXPECTED_SHA" ]; then
+          # Not a dispatch: nothing to assert, and nothing to check out.
+          echo "No expected SHA supplied (${EVENT_NAME}); skipping the dispatch-target assertion."
+          exit 0
+        fi
+
+        if [ -z "$TARGET_REF" ]; then
+          # An ordinary manual dispatch: this run's own commit is the target.
+          if [ "$ACTUAL_SHA" = "$EXPECTED_SHA" ]; then
+            echo "Dispatch target confirmed: ${ACTUAL_SHA}."
+            echo "sha=${EXPECTED_SHA}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          {
+            echo "::error title=Dispatch target moved::This run was dispatched for commit ${EXPECTED_SHA}, but the ref now resolves to ${ACTUAL_SHA}. The branch moved after the command was issued, so verifying it would verify different code than requested. Re-issue the command to dispatch the current head."
+          } >&2
+          exit 1
+        fi
+
+        # A bridge dispatch: this run executes trusted default-branch content, so
+        # its own commit is the anchor rather than the target.
+        #
+        # Validate Git branch syntax independently from URL transport. Legal
+        # names can contain reserved URL characters such as '#' and '&'. Use a
+        # full heads ref to avoid expanding checkout shorthand such as @{-1};
+        # branch names also cannot start with '-'.
+        if [[ "$TARGET_REF" == -* ]] || ! git check-ref-format "refs/heads/${TARGET_REF}"; then
+          {
+            echo "::error title=Invalid dispatch target ref::'${TARGET_REF}' is not a valid branch name, so nothing was run."
+          } >&2
+          exit 1
+        fi
+
+        # Preserve slash separators in the branch path, but encode every other
+        # URL metacharacter. The branch-only endpoint cannot resolve a tag or a
+        # SHA-prefix in place of the requested head branch.
+        encoded_ref="$(jq -rn --arg ref "$TARGET_REF" '$ref | @uri | gsub("%2F"; "/")')"
+        resolved="$(gh api "repos/${REPOSITORY}/git/ref/heads/${encoded_ref}" --jq '.object.sha' 2>/dev/null || true)"
+        if [ -z "$resolved" ]; then
+          {
+            echo "::error title=Dispatch target unresolvable::Could not resolve ${TARGET_REF} in ${REPOSITORY} to a commit. The requested target cannot be verified, so nothing was run."
+          } >&2
+          exit 1
+        fi
+
+        if [ "$resolved" != "$EXPECTED_SHA" ]; then
+          {
+            echo "::error title=Dispatch target moved::This run was dispatched for commit ${EXPECTED_SHA}, but ${TARGET_REF} now resolves to ${resolved}. The branch moved after the command was issued, so verifying it would verify different code than requested. Re-issue the command label to dispatch the current head."
+          } >&2
+          exit 1
+        fi
+
+        # Bind the commit to a real open pull request. A `workflow_dispatch`
+        # input is settable by anyone who can dispatch, so without this an
+        # arbitrary SHA could be supplied, pass the check above, and then be
+        # built. Requiring it to be the head of an open pull request whose head
+        # ref is the requested one means only a commit a real pull request
+        # actually points at can be verified.
+        encoded_head="$(jq -rn --arg head "${REPOSITORY_OWNER}:${TARGET_REF}" '$head | @uri')"
+        open_heads="$(gh api "repos/${REPOSITORY}/pulls?head=${encoded_head}&state=open" --jq '.[].head.sha' 2>/dev/null || true)"
+        if ! printf '%s\n' "$open_heads" | grep -Fxq "$EXPECTED_SHA"; then
+          {
+            echo "::error title=Dispatch target is not an open pull-request head::Commit ${EXPECTED_SHA} is not the head of any open pull request from ${TARGET_REF} in ${REPOSITORY}. A dispatch target must be the head of a real open pull request, so nothing was run."
+          } >&2
+          exit 1
+        fi
+
+        echo "Dispatch target confirmed: ${TARGET_REF} is an open pull-request head resolving to ${EXPECTED_SHA}."
+        echo "sha=${EXPECTED_SHA}" >> "$GITHUB_OUTPUT"

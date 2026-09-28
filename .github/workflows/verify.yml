@@ -1,3 +1,35 @@
+# AppT repository verification — the authoritative PR/full verification workflow.
+#
+# Topology (Issue #88)
+# -------------------
+# `verify` is the one authoritative verification workflow and the sole stable
+# required status check: workflow `verify` + job `gate` => `verify / gate`.
+#
+# The old monolithic Android job (one root `ciCheck` invocation) is replaced by
+# independent failure domains that run in parallel. Unrelated evidence keeps
+# being produced when another domain fails — a formatting failure can no longer
+# hide app unit-test evidence, and a backend static failure can no longer hide
+# backend test evidence — and the gate alone decides acceptance. Gradle keeps
+# owning Android/Kotlin verification; each Android domain invokes the matching
+# root lifecycle task (`androidFormat`, `androidStatic`, `androidBuild`,
+# `androidUnit`), and `ciCheck` remains the convenient local umbrella over all
+# of them.
+#
+# Cadence: pull-request synchronization runs only the cheap repository domains
+# (policy and quality) plus dependency review when dependency inputs changed.
+# The expensive Android, backend, managed-device and quality-platform domains
+# run on pushes to `main` and on an explicit `workflow_dispatch`, so a coding
+# iteration stays cheap while the human or an authorized control-plane
+# integration chooses when the full bill is paid.
+#
+# Boundaries:
+#   * focused, permanent, non-terminal diagnostics live in `diagnose.yml`;
+#   * CodeQL (`codeql.yml`) remains the separate, authoritative security SAST;
+#   * destructive Actions maintenance lives only in `maintenance.yml`;
+#   * agent invocation goes through `agent-control.yml`;
+#   * nothing in this workflow deletes workflow runs or caches, and every job
+#     here is read-only.
+
 name: verify
 
 on:
@@ -10,20 +42,28 @@ on:
   workflow_dispatch:
     inputs:
       base_ref:
-        description: 'Base ref for manual dependency review'
+        description: 'Base ref for dependency review on a manual run'
         required: false
         default: 'main'
-      mode:
+      expected_sha:
         description: >-
-          full: terminal repository verification. samsung-targeted: Android/JVM
-          implementation feedback only (spotlessCheck, :samsung compile+test).
-          Not terminal evidence; does not satisfy verify/gate.
+          Commit SHA the dispatch was issued against. Set by the agent-control
+          bridge; every job hard-fails before doing any work if the target no
+          longer resolves to it. Leave empty for an ordinary manual dispatch.
         required: false
-        default: 'full'
-        type: choice
-        options:
-          - full
-          - samsung-targeted
+        default: ''
+      target_ref:
+        description: >-
+          Branch the agent-control bridge resolved the head from. Validated
+          against expected_sha by trusted logic before any work runs. Leave
+          empty for an ordinary manual dispatch.
+        required: false
+        default: ''
+
+# Cache authorization is separate from GITHUB_TOKEN permissions. These
+# trusted-default-branch dispatches execute validated PR code; provider-scoped
+# cache tokens must never let that code save into the default branch cache.
+cache-mode: read
 
 permissions:
   contents: read
@@ -35,32 +75,53 @@ concurrency:
 env:
   JAVA_VERSION: '17'
   NODE_VERSION: '24'
-  GRADLE_VERSION: '9.7.1'
   ACTIONLINT_VERSION: '1.7.7'
   SHFMT_VERSION: '3.10.0'
 
 jobs:
   # ---------------------------------------------------------------------------
-  # 0. Quick PR checks — intentionally no Android/backend build
+  # 1. Repository policy / fast checks — no Android or backend build.
   # ---------------------------------------------------------------------------
-  quick:
-    if: github.event_name == 'pull_request'
-    name: Quick checks
+  repo-policy:
+    name: Repository policy and fast checks
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
+      - name: Assert the dispatch target
+        id: assert-target
+        if: inputs.expected_sha != ''
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
+
       - name: Set up Node
-        # actions/setup-node v7.0.0
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           node-version: ${{ env.NODE_VERSION }}
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
+          persist-credentials: false
 
       - name: Fast repository checks
         run: |
@@ -69,46 +130,68 @@ jobs:
           node --test "tools/secret-scan/test/secret-scan.test.mjs"
           node --test "tools/security/test/enforce-dependency-policy.test.mjs"
           node --test "tools/security/test/enforce-gradle-tooling-constraints.test.mjs"
+          node --test "tools/ci/test/purge-actions.test.mjs"
+          node --test "tools/ci/test/dispatch-workflow.test.mjs"
+          node --test "tools/ci/test/diagnose-focus.test.mjs"
+          node --test "tools/ci/test/assert-dispatch-target.test.mjs"
           node tools/secret-scan/secret-scan.mjs
           node tools/security/enforce-gradle-tooling-constraints.mjs
 
   # ---------------------------------------------------------------------------
-  # 1. Quality — repository-generic checks outside Android/backend builds
+  # 2. Repository generic quality checks — no Android or backend build.
+  #    Deliberately does not repeat the policy self-tests above.
   # ---------------------------------------------------------------------------
-  quality:
-    if: github.event_name != 'pull_request' && github.event.inputs.mode != 'samsung-targeted'
+  repo-quality:
     name: Repository quality specialists
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
+      - name: Assert the dispatch target
+        id: assert-target
+        if: inputs.expected_sha != ''
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
+
       - name: Set up Node
-        # actions/setup-node v7.0.0
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Validate project AI skills
-        run: python3 .project-ai/skills/validate.py
-
-      - name: Security and policy self-tests
-        run: |
-          node --test "tools/secret-scan/test/secret-scan.test.mjs"
-          node --test "tools/security/test/enforce-dependency-policy.test.mjs"
-          node --test "tools/security/test/enforce-gradle-tooling-constraints.test.mjs"
-          node tools/secret-scan/secret-scan.mjs
-          node tools/security/enforce-gradle-tooling-constraints.mjs
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
+          persist-credentials: false
 
       - name: Run yamllint
         run: |
           pip install --break-system-packages yamllint==1.35.1
           yamllint -c .yamllint.yml .
+
+      - name: Prove provider cache isolation
+        # PyYAML is supplied by the pinned yamllint install immediately above.
+        run: |
+          python3 tools/ci/test/workflow-cache-contract.test.py
+          python3 tools/ci/test/sonar-boundary.test.py
 
       - name: Run markdownlint
         # DavidAnson/markdownlint-cli2-action v24.2.0
@@ -155,7 +238,11 @@ jobs:
           tar -xzf "${archive}" actionlint
           sudo install -m 0755 actionlint /usr/local/bin/actionlint
           set -o pipefail
-          actionlint 2>&1 | tee /tmp/actionlint.log || {
+          # The pinned parser predates provider cache-mode syntax. Only this
+          # exact unknown top-level key is delegated to the parsed-YAML cache
+          # contract above; every other actionlint diagnostic still fails CI.
+          actionlint -ignore '^unexpected key "cache-mode" for "workflow" section\.' \
+            2>&1 | tee /tmp/actionlint.log || {
             echo "::error title=actionlint Failure::$(head -n 20 /tmp/actionlint.log | tr '\n' ' ')"
             exit 1
           }
@@ -168,55 +255,113 @@ jobs:
           annotations: true
 
   # ---------------------------------------------------------------------------
-  # 2. Android — root Gradle lifecycle task ciCheck
+  # 3. Android formatting — Spotless + ktfmt as ONE formatting responsibility.
   # ---------------------------------------------------------------------------
-  android:
-    if: github.event_name != 'pull_request' && github.event.inputs.mode != 'samsung-targeted'
-    name: Android and Kotlin verification
+  android-format:
+    name: Android formatting
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
-      - name: Set up JDK
-        # actions/setup-java v6.0.1
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+      - name: Assert the dispatch target
+        id: assert-target
+        if: inputs.expected_sha != ''
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
-          distribution: temurin
+          expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
+
+      - name: Set up the Android/JVM toolchain
+        uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
           java-version: ${{ env.JAVA_VERSION }}
-
-      - name: Set up Gradle
-        # gradle/actions/setup-gradle v6.3.0
-        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          gradle-version: ${{ env.GRADLE_VERSION }}
-          cache-provider: 'basic'
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
+          persist-credentials: false
 
-      - name: Run root Gradle ciCheck under strict dependency verification
+      - name: Run Android formatting check
         run: |
           set -o pipefail
-          ./gradlew --no-daemon --dependency-verification=strict ciCheck 2>&1 | tee /tmp/cicheck.log || {
-            echo "::error title=ciCheck Failure::$(grep -A 10 "\* What went wrong:" /tmp/cicheck.log | head -n 10 | tr '\n' ' ')"
-            grep -A 30 "FAILURE: Build failed" /tmp/cicheck.log || true
+          ./gradlew --no-daemon --dependency-verification=strict androidFormat 2>&1 | tee /tmp/format.log || {
+            echo "::error title=Android formatting Failure::$(grep -A 10 "\* What went wrong:" /tmp/format.log | head -n 10 | tr '\n' ' ')"
+            grep -A 30 "FAILURE: Build failed" /tmp/format.log || true
             exit 1
           }
 
-      - name: Upload Kover coverage report
-        if: always()
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+  # ---------------------------------------------------------------------------
+  # 4. Android static / policy verification — Lint, detekt, appTGuards, locks.
+  #    `--continue` so Lint, detekt and the guard floor all report in one run.
+  # ---------------------------------------------------------------------------
+  android-static:
+    name: Android static and policy verification
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the dispatch anchor
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          name: kover-coverage-report
-          path: |
-            app/build/reports/kover/**
-            build/reports/kover/**
-          if-no-files-found: warn
-          retention-days: 7
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
+          persist-credentials: false
+
+      - name: Assert the dispatch target
+        id: assert-target
+        if: inputs.expected_sha != ''
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
+
+      - name: Set up the Android/JVM toolchain
+        uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
+          persist-credentials: false
+
+      - name: Run Android static and policy verification
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon --dependency-verification=strict --continue androidStatic 2>&1 | tee /tmp/static.log || {
+            echo "::error title=Android static Failure::$(grep -A 10 "\* What went wrong:" /tmp/static.log | head -n 10 | tr '\n' ' ')"
+            grep -A 30 "FAILURE: Build failed" /tmp/static.log || true
+            exit 1
+          }
 
       - name: Upload Lint reports
         if: always()
@@ -243,32 +388,230 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # 3. Backend — TypeScript typecheck, lint, prettier, knip, jest + coverage
+  # 5. Android build — debug assembly (which runs the merged-manifest guards)
+  #    and macrobenchmark compilation.
   # ---------------------------------------------------------------------------
-  backend:
-    if: github.event_name != 'pull_request' && github.event.inputs.mode != 'samsung-targeted'
-    name: Backend typecheck, lint, knip and coverage
+  android-build:
+    name: Android build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
+      - name: Assert the dispatch target
+        id: assert-target
+        if: inputs.expected_sha != ''
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
+
+      - name: Set up the Android/JVM toolchain
+        uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
+          persist-credentials: false
+
+      - name: Run Android build
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon --dependency-verification=strict --continue androidBuild 2>&1 | tee /tmp/build.log || {
+            echo "::error title=Android build Failure::$(grep -A 10 "\* What went wrong:" /tmp/build.log | head -n 10 | tr '\n' ' ')"
+            grep -A 30 "FAILURE: Build failed" /tmp/build.log || true
+            exit 1
+          }
+
+  # ---------------------------------------------------------------------------
+  # 6. Android unit / Robolectric verification — :app and :samsung tests plus
+  #    the Kover coverage evidence Sonar consumes. Samsung unit tests are
+  #    authoritative verification evidence here, not diagnostics.
+  # ---------------------------------------------------------------------------
+  android-unit:
+    name: Android unit and Robolectric verification
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the dispatch anchor
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
+          persist-credentials: false
+
+      - name: Assert the dispatch target
+        id: assert-target
+        if: inputs.expected_sha != ''
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
+
+      - name: Set up the Android/JVM toolchain
+        uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
+          persist-credentials: false
+
+      - name: Run Android unit tests and Kover coverage verification
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon --dependency-verification=strict --continue androidUnit 2>&1 | tee /tmp/unit.log || {
+            echo "::error title=Android unit Failure::$(grep -A 10 "\* What went wrong:" /tmp/unit.log | head -n 10 | tr '\n' ' ')"
+            grep -A 30 "FAILURE: Build failed" /tmp/unit.log || true
+            exit 1
+          }
+
+      - name: Upload Kover coverage report
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: kover-coverage-report
+          path: |
+            app/build/reports/kover/**
+            build/reports/kover/**
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 7. Backend static verification — typecheck, ESLint, Prettier, Knip.
+  # ---------------------------------------------------------------------------
+  backend-static:
+    name: Backend static verification
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the dispatch anchor
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
+          persist-credentials: false
+
+      - name: Assert the dispatch target
+        id: assert-target
+        if: inputs.expected_sha != ''
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
+
       - name: Set up Node
-        # actions/setup-node v7.0.0
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           node-version: ${{ env.NODE_VERSION }}
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
+          persist-credentials: false
 
       - name: Install from committed lockfile
         run: npm ci --prefix backend
 
-      - name: Run backend verify interface
-        run: npm run verify --prefix backend
+      - name: Run backend static verification interface
+        run: npm run verify:static --prefix backend
+
+  # ---------------------------------------------------------------------------
+  # 8. Backend tests + LCOV — independent of backend static verification, so a
+  #    static failure cannot hide test evidence (and the reverse).
+  # ---------------------------------------------------------------------------
+  backend-test:
+    name: Backend tests and coverage
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the dispatch anchor
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
+          persist-credentials: false
+
+      - name: Assert the dispatch target
+        id: assert-target
+        if: inputs.expected_sha != ''
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
+
+      - name: Set up Node
+        uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
+          persist-credentials: false
+
+      - name: Install from committed lockfile
+        run: npm ci --prefix backend
+
+      - name: Run backend tests with LCOV coverage
+        run: npm run verify:test --prefix backend
 
       - name: Upload backend coverage
         if: always()
@@ -281,34 +624,50 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # 4. Device — Android Gradle Managed Device API 29 acceptance test
+  # 9. Device — installed-app acceptance on a Gradle Managed Device (API 29).
   # ---------------------------------------------------------------------------
   device:
-    if: github.event_name != 'pull_request' && github.event.inputs.mode != 'samsung-targeted'
     name: Installed-app acceptance on Gradle Managed Device (API 29)
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # For a bridge dispatch this is the default branch the workflow ran
+          # from, so the assertion below and the local composite actions it uses
+          # are trusted repository content. The dispatch target is checked out
+          # afterwards, once it has been validated.
           persist-credentials: false
 
-      - name: Set up JDK
-        # actions/setup-java v6.0.1
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+      - name: Assert the dispatch target
+        id: assert-target
+        if: inputs.expected_sha != ''
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
+          expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
 
-      - name: Set up Gradle
-        # gradle/actions/setup-gradle v6.3.0
-        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+      - name: Set up the Android/JVM toolchain
+        uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
-          gradle-version: ${{ env.GRADLE_VERSION }}
-          cache-provider: 'basic'
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The commit the assertion just proved, not the raw dispatch input. An
+          # input is attacker-reachable; this is a value trusted logic has
+          # verified. Everything from here on is the code under verification,
+          # executed by this trusted workflow under its own read-only
+          # permissions -- the same trust level as an ordinary pull-request run.
+          ref: ${{ steps.assert-target.outputs.sha }}
+          persist-credentials: false
 
       - name: Enable KVM
         run: |
@@ -348,29 +707,145 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # 5. Dependency Review — PR dependency graph deltas
+  # 10. Change detection — what the candidate actually touched. This job always
+  #     runs, so a conditional job below never leaves a required check pending
+  #     the way a top-level `paths:` filter would.
+  # ---------------------------------------------------------------------------
+  changes:
+    name: Change detection
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      dependency-inputs: ${{ steps.detect.outputs.dependency-inputs }}
+    steps:
+      - name: Detect dependency-input changes
+        id: detect
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_BASE_REF: ${{ inputs.base_ref }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          TARGET_SHA: ${{ inputs.expected_sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          # A bridge dispatch runs this workflow from the default branch, so
+          # `github.sha` is the anchor rather than the candidate. The candidate
+          # is the validated dispatch target.
+          case "$EVENT_NAME" in
+            pull_request)
+              base="$PR_BASE_SHA"
+              head="$PR_HEAD_SHA"
+              ;;
+            push)
+              base="$PUSH_BEFORE"
+              head="$HEAD_SHA"
+              ;;
+            *)
+              base="${INPUT_BASE_REF:-main}"
+              head="$TARGET_SHA"
+              ;;
+          esac
+
+          # Fail safe: an unknown or unusable comparison base means "assume the
+          # dependency inputs changed" and let dependency review decide.
+          #
+          # Dependency inputs are the files whose change alters a resolved
+          # dependency graph: the Gradle declaration surface (any `*.gradle.kts`,
+          # the committed `*.gradle.lockfile` lockfiles including the root
+          # `settings-gradle.lockfile`, and everything under `gradle/` — the
+          # version catalog, the verification metadata and the wrapper pin) plus
+          # the backend package manifest and lockfile.
+          dependency_input_pattern='^(backend/package(-lock)?\.json|gradle/.*|.*\.gradle\.kts|(.*/)?gradle\.lockfile|.*[-.]gradle\.lockfile)$'
+          changed=true
+          if [ -n "$base" ] && [ "$base" != "0000000000000000000000000000000000000000" ]; then
+            files="$(gh api "repos/${REPOSITORY}/compare/${base}...${head}" --jq '.files[].filename' 2>/dev/null || true)"
+            if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -Eq "$dependency_input_pattern"; then
+              changed=false
+            fi
+          fi
+
+          echo "dependency-inputs=${changed}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Change detection"
+            echo
+            echo "- event: \`${EVENT_NAME}\`"
+            echo "- comparison: \`${base:-<unavailable>}...${head}\`"
+            echo "- dependency inputs changed: \`${changed}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # 11. Dependency Review — PR dependency graph deltas. Conditional on the
+  #     change-detection job above rather than on a top-level path filter.
   # ---------------------------------------------------------------------------
   dependency-review:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'samsung-targeted'
     name: Dependency Review
+    needs: changes
+    if: >-
+      github.event_name == 'pull_request' ||
+      needs.changes.outputs.dependency-inputs == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
-      pull-requests: write
     steps:
-      - name: Check out the base and head of the change
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          # Full history of the default branch the workflow ran from, so the
+          # comparison base is present as a remote ref. For a bridge dispatch
+          # this is trusted repository content; the dispatch target is checked
+          # out afterwards, once it has been validated.
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Set up Node
-        # actions/setup-node v7.0.0
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - name: Assert the dispatch target
+        id: assert-target
+        if: inputs.expected_sha != ''
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
+
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The commit the assertion just proved, with full history so both ends
+          # of the comparison are present. `git clean` resets the worktree but
+          # leaves the remote refs the anchor checkout fetched, so the
+          # comparison base is still resolvable.
+          ref: ${{ steps.assert-target.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve the comparison base
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_BASE_REF: ${{ inputs.base_ref }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+            pull_request)
+              echo "ref=${PR_BASE_REF}" >> "$GITHUB_OUTPUT"
+              ;;
+            push)
+              echo "ref=${PUSH_BEFORE}" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "ref=${INPUT_BASE_REF:-main}" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
 
       - name: Dependency review
         # actions/dependency-review-action v5.0.0
@@ -382,8 +857,8 @@ jobs:
           comment-summary-in-pr: never
           retry-on-snapshot-warnings: true
           retry-on-snapshot-warnings-timeout: 600
-          base-ref: ${{ inputs.base_ref }}
-          head-ref: ${{ github.sha }}
+          base-ref: ${{ steps.base.outputs.ref }}
+          head-ref: ${{ inputs.expected_sha || github.sha }}
 
       - name: Enforce strict dependency security policy
         shell: bash
@@ -392,21 +867,45 @@ jobs:
         run: node tools/security/enforce-dependency-policy.mjs
 
   # ---------------------------------------------------------------------------
-  # 6. Quality Platform — CI-based SonarQube Cloud quality gate analysis
+  # 12. Quality platform — SonarQube Cloud over the coverage evidence produced
+  #     by the two producer jobs. It deliberately does not wait on Android
+  #     formatting or Android static verification: an unrelated failure there
+  #     must not suppress the quality-platform evidence.
   # ---------------------------------------------------------------------------
   quality-platform:
-    if: github.event_name != 'pull_request' && github.event.inputs.mode != 'samsung-targeted'
     name: SonarQube Cloud quality platform
-    needs: [android, backend]
+    needs:
+      - android-unit
+      - backend-test
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - name: Check out
+      - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          fetch-depth: 0
+          # Keep trusted settings/helpers in the workspace root. Target source
+          # gets a separate checkout and cannot replace scanner control files.
+          persist-credentials: false
+
+      - name: Assert the dispatch target
+        id: assert-target
+        if: inputs.expected_sha != ''
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
+
+      - name: Check out source as data in a separate directory
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # Bridge: the validated target SHA. Ordinary main/manual run: its
+          # exact event SHA. Neither path loads control logic from this tree.
+          ref: ${{ steps.assert-target.outputs.sha || github.sha }}
+          path: sonar-target
           persist-credentials: false
 
       - name: Download Kover coverage report
@@ -414,32 +913,32 @@ jobs:
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
           name: kover-coverage-report
-          path: .
+          path: ${{ runner.temp }}/sonar-kover
 
       - name: Download backend coverage report
         # actions/download-artifact v7.0.0
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
           name: backend-coverage-report
-          path: backend/coverage
+          path: ${{ runner.temp }}/sonar-backend
 
-      - name: Verify coverage evidence files
+      - name: Validate inert Sonar inputs and fresh scanner state
+        env:
+          SCAN_TEMP: ${{ runner.temp }}
         run: |
-          echo "Verifying coverage evidence files for Sonar import..."
-          ls -la backend/coverage/lcov.info || {
-            echo "::error::Backend Jest LCOV coverage report missing at backend/coverage/lcov.info"
-            exit 1
-          }
-          find . -name "*kover*.xml" -o -name "report.xml" -o -name "reportDebug.xml" | grep -q . || {
-            echo "::error::Kover XML coverage report missing"
-            exit 1
-          }
-          echo "Coverage evidence verified."
+          python3 tools/ci/validate-sonar-inputs.py \
+            --source sonar-target \
+            --android "$SCAN_TEMP/sonar-kover" \
+            --backend "$SCAN_TEMP/sonar-backend" \
+            --work "$SCAN_TEMP/sonar-work" \
+            --home "$SCAN_TEMP/sonar-home"
 
       - name: Check for SonarQube Cloud Token
         id: check_token
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          if [ -z "${{ secrets.SONAR_TOKEN }}" ]; then
+          if [ -z "$SONAR_TOKEN" ]; then
             echo "::error title=SonarQube Cloud Token Missing::SONAR_TOKEN secret is required for mandatory SonarQube Cloud quality platform analysis. Analysis cannot be bypassed."
             exit 1
           fi
@@ -447,72 +946,48 @@ jobs:
       - name: Run SonarQube Cloud Analysis
         # sonarsource/sonarqube-scan-action v8.2.2
         uses: sonarsource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4
+        with:
+          scannerVersion: 8.1.0.6389
+          # Stay at the trusted anchor (the action defaults projectBaseDir to
+          # '.'). Do not combine the explicit settings file with a target base.
+          # Analyze only target paths; target settings remain inert. Quote each
+          # WHOLE argument: string-argv 0.3.2 preserves quotes after the '='.
+          args: >-
+            "-Dproject.settings=${{ github.workspace }}/sonar-project.properties"
+            "-Dsonar.sources=sonar-target/app/src/main,sonar-target/samsung/src/main,sonar-target/backend/src"
+            "-Dsonar.tests=sonar-target/app/src/test,sonar-target/backend/test"
+            "-Dsonar.java.binaries=sonar-target/app/build/intermediates/javac/debug/classes,sonar-target/app/build/tmp/kotlin-classes/debug"
+            "-Dsonar.modules="
+            "-Dsonar.host.url=https://sonarcloud.io"
+            "-Dsonar.scanner.sonarcloudUrl=https://sonarcloud.io"
+            "-Dsonar.scanner.apiBaseUrl=https://api.sonarcloud.io"
+            "-Dsonar.working.directory=${{ runner.temp }}/sonar-work"
+            "-Dsonar.userHome=${{ runner.temp }}/sonar-home"
+            "-Dsonar.coverage.jacoco.xmlReportPaths=${{ runner.temp }}/sonar-kover/build/reports/kover/report.xml,${{ runner.temp }}/sonar-kover/app/build/reports/kover/report.xml,${{ runner.temp }}/sonar-kover/app/build/reports/kover/reportDebug.xml,${{ runner.temp }}/sonar-kover/build/reports/kover/reportDebug.xml"
+            "-Dsonar.javascript.lcov.reportPaths=${{ runner.temp }}/sonar-backend/lcov.info"
+            "-Dsonar.scm.revision=${{ steps.assert-target.outputs.sha || github.sha }}"
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ---------------------------------------------------------------------------
-  # 2b. Samsung-targeted feedback — implementation loop only, never terminal
-  # ---------------------------------------------------------------------------
-  samsung-feedback:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'samsung-targeted'
-    name: Samsung-targeted feedback (not terminal verification)
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    steps:
-      - name: Check out
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-
-      - name: Set up JDK
-        # actions/setup-java v6.0.1
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
-        with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
-
-      - name: Set up Gradle
-        # gradle/actions/setup-gradle v6.3.0
-        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
-        with:
-          gradle-version: ${{ env.GRADLE_VERSION }}
-          cache-provider: 'basic'
-
-      - name: Record that this run is not terminal verification
-        run: |
-          {
-            echo "### Samsung-targeted feedback"
-            echo
-            echo "This dispatch is implementation feedback only."
-            echo "It is **not** terminal repository verification and does not satisfy \`verify / gate\`."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Spotless check
-        run: ./gradlew --no-daemon --dependency-verification=strict spotlessCheck
-
-      - name: Compile Samsung debug unit tests
-        run: ./gradlew --no-daemon --dependency-verification=strict :samsung:compileDebugUnitTestKotlin
-
-      - name: Run Samsung unit tests
-        run: ./gradlew --no-daemon --dependency-verification=strict :samsung:test
-
-  # ---------------------------------------------------------------------------
-  # 7. Gate — required status interface for default branch protection (verify / gate)
+  # 13. Gate — the single stable required status interface for default-branch
+  #     protection (`verify / gate`). It decides acceptance; nothing else does.
   # ---------------------------------------------------------------------------
   gate:
-    name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'samsung-targeted' && 'Samsung-targeted is not terminal verification' || 'gate' }}
+    name: gate
     needs:
-      - quick
-      - quality
-      - android
-      - backend
+      - repo-policy
+      - repo-quality
+      - android-format
+      - android-static
+      - android-build
+      - android-unit
+      - backend-static
+      - backend-test
       - device
+      - changes
       - dependency-review
       - quality-platform
-      - samsung-feedback
     if: always()
     runs-on: ubuntu-24.04
     permissions:
@@ -521,55 +996,131 @@ jobs:
       - name: Evaluate gate results
         env:
           EVENT_NAME: ${{ github.event_name }}
-          MODE: ${{ github.event.inputs.mode }}
-          SAMSUNG_FEEDBACK_RESULT: ${{ needs.samsung-feedback.result }}
-          QUICK_RESULT: ${{ needs.quick.result }}
-          QUALITY_RESULT: ${{ needs.quality.result }}
-          ANDROID_RESULT: ${{ needs.android.result }}
-          BACKEND_RESULT: ${{ needs.backend.result }}
+          REPO_POLICY_RESULT: ${{ needs.repo-policy.result }}
+          REPO_QUALITY_RESULT: ${{ needs.repo-quality.result }}
+          ANDROID_FORMAT_RESULT: ${{ needs.android-format.result }}
+          ANDROID_STATIC_RESULT: ${{ needs.android-static.result }}
+          ANDROID_BUILD_RESULT: ${{ needs.android-build.result }}
+          ANDROID_UNIT_RESULT: ${{ needs.android-unit.result }}
+          BACKEND_STATIC_RESULT: ${{ needs.backend-static.result }}
+          BACKEND_TEST_RESULT: ${{ needs.backend-test.result }}
           DEVICE_RESULT: ${{ needs.device.result }}
+          CHANGES_RESULT: ${{ needs.changes.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           QUALITY_PLATFORM_RESULT: ${{ needs.quality-platform.result }}
+          TARGET_SHA: ${{ inputs.expected_sha || github.sha }}
         run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$MODE" = "samsung-targeted" ]; then
-            echo "samsung-feedback: $SAMSUNG_FEEDBACK_RESULT"
-            if [ "$SAMSUNG_FEEDBACK_RESULT" != "success" ]; then
-              echo "::error::Samsung-targeted feedback failed. This is not terminal verification."
-              exit 1
+          set -uo pipefail
+
+          failed=0
+
+          report() {
+            printf '%-20s %s\n' "$1" "$2"
+          }
+
+          require() {
+            report "$1" "$2"
+            if [ "$2" != "success" ]; then
+              echo "::error::$1 did not succeed (result: $2)."
+              failed=1
             fi
-            echo "Samsung-targeted feedback succeeded. This is not terminal repository verification and does not satisfy verify/gate."
-            exit 0
-          fi
+          }
+
+          allow_skipped() {
+            report "$1" "$2"
+            case "$2" in
+              success | skipped) ;;
+              *)
+                echo "::error::$1 failed (result: $2)."
+                failed=1
+                ;;
+            esac
+          }
+
+          not_run() {
+            report "$1" "skipped (full verification only)"
+          }
+
+          {
+            echo "### verify / gate"
+            echo
+            echo "Verified commit: \`${TARGET_SHA:-unset}\`"
+            echo
+            echo "| domain | result |"
+            echo "| --- | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # `dependency-review` declares `needs: changes`. When `changes` fails, GitHub
+          # skips `dependency-review` entirely, so its result is `skipped` -- and a gate
+          # that merely accepts a skipped dependency review would let a failed
+          # change-detection job fail open. Change detection is therefore required in its
+          # own right before any dependency-review result is accepted.
+          require_dependency_review() {
+            require changes "$CHANGES_RESULT"
+            allow_skipped dependency-review "$DEPENDENCY_REVIEW_RESULT"
+          }
 
           if [ "$EVENT_NAME" = "pull_request" ]; then
-            echo "quick: $QUICK_RESULT"
-            if [ "$QUICK_RESULT" != "success" ]; then
-              echo "::error::Quick pull-request checks failed."
-              exit 1
+            echo "Pull-request verification: repository policy, repository quality, change"
+            echo "detection and dependency review only. The Android, backend,"
+            echo "managed-device and quality-platform domains are produced by a full"
+            echo "verification run (push to main, workflow_dispatch, or the"
+            echo "agent-control bridge)."
+            echo
+
+            require repo-policy "$REPO_POLICY_RESULT"
+            require repo-quality "$REPO_QUALITY_RESULT"
+            require_dependency_review
+
+            not_run android-format
+            not_run android-static
+            not_run android-build
+            not_run android-unit
+            not_run backend-static
+            not_run backend-test
+            not_run device
+            not_run quality-platform
+          else
+            echo "Full repository verification."
+            echo
+
+            require repo-policy "$REPO_POLICY_RESULT"
+            require repo-quality "$REPO_QUALITY_RESULT"
+            require android-format "$ANDROID_FORMAT_RESULT"
+            require android-static "$ANDROID_STATIC_RESULT"
+            require android-build "$ANDROID_BUILD_RESULT"
+            require android-unit "$ANDROID_UNIT_RESULT"
+            require backend-static "$BACKEND_STATIC_RESULT"
+            require backend-test "$BACKEND_TEST_RESULT"
+            require device "$DEVICE_RESULT"
+            require quality-platform "$QUALITY_PLATFORM_RESULT"
+            require_dependency_review
+          fi
+
+          {
+            printf '| %s | %s |\n' "repo-policy" "$REPO_POLICY_RESULT"
+            printf '| %s | %s |\n' "repo-quality" "$REPO_QUALITY_RESULT"
+            printf '| %s | %s |\n' "changes" "$CHANGES_RESULT"
+            printf '| %s | %s |\n' "android-format" "$ANDROID_FORMAT_RESULT"
+            printf '| %s | %s |\n' "android-static" "$ANDROID_STATIC_RESULT"
+            printf '| %s | %s |\n' "android-build" "$ANDROID_BUILD_RESULT"
+            printf '| %s | %s |\n' "android-unit" "$ANDROID_UNIT_RESULT"
+            printf '| %s | %s |\n' "backend-static" "$BACKEND_STATIC_RESULT"
+            printf '| %s | %s |\n' "backend-test" "$BACKEND_TEST_RESULT"
+            printf '| %s | %s |\n' "device" "$DEVICE_RESULT"
+            printf '| %s | %s |\n' "dependency-review" "$DEPENDENCY_REVIEW_RESULT"
+            printf '| %s | %s |\n' "quality-platform" "$QUALITY_PLATFORM_RESULT"
+            echo
+            if [ "$failed" -eq 0 ]; then
+              echo "All required verification domains succeeded."
+            else
+              echo "One or more required verification domains failed."
             fi
-            echo "Quick pull-request checks passed. Full verification is human-triggered."
-            exit 0
-          fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
-          echo "quality:           $QUALITY_RESULT"
-          echo "android:           $ANDROID_RESULT"
-          echo "backend:           $BACKEND_RESULT"
-          echo "device:            $DEVICE_RESULT"
-          echo "dependency-review: $DEPENDENCY_REVIEW_RESULT"
-          echo "quality-platform:  $QUALITY_PLATFORM_RESULT"
-
-          if [ "$QUALITY_RESULT" != "success" ] || \
-             [ "$ANDROID_RESULT" != "success" ] || \
-             [ "$BACKEND_RESULT" != "success" ] || \
-             [ "$DEVICE_RESULT" != "success" ] || \
-             [ "$QUALITY_PLATFORM_RESULT" != "success" ]; then
-            echo "::error::One or more mandatory verification groups failed."
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::One or more mandatory verification domains failed."
             exit 1
           fi
 
-          if [ "$DEPENDENCY_REVIEW_RESULT" != "success" ] && [ "$DEPENDENCY_REVIEW_RESULT" != "skipped" ]; then
-            echo "::error::Dependency review failed with status: $DEPENDENCY_REVIEW_RESULT"
-            exit 1
-          fi
-
-          echo "All verification gates passed successfully."
+          echo "verify / gate passed."
