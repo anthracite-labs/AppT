@@ -23,7 +23,29 @@ Use authoritative requirements, architecture, security constraints, non-goals, p
 
 Do not plan from chat summaries when repository artifacts own the decision.
 
-### 2. Decide whether the work fits one unit
+### 2. Compile the implementation reuse plan
+
+For every non-trivial behavior in the unit, resolve implementation leverage before dispatch. Start from the current AppT seam and the pinned implementation-harvest evidence in the owning architecture documents.
+
+Record one disposition per behavior:
+
+- `EXISTING APPT` — extend or compose accepted repository code rather than recreate it;
+- `ADAPT` — modify compatible-license source under its recorded obligations;
+- `PORT` — translate compatible-license implementation into AppT while preserving provenance and relevant tests;
+- `CLEAN-ROOM REIMPLEMENT` — independently implement only the recorded observable behavior/protocol knowledge;
+- `BEHAVIORAL REFERENCE` — use the upstream implementation only for states, races, edge cases, or design patterns;
+- `TEST-VECTOR/DATA` — reuse compatible tests, fixtures, or vectors under their recorded terms;
+- `NEW` — write AppT-specific implementation because no suitable reusable path exists.
+
+`NEW` is not the default. State the concrete reason reuse is unsuitable: incompatible licence, wrong platform/architecture, stale or unsafe implementation, unacceptable dependency/permission/privacy cost, materially different AppT contract, or genuinely absent upstream implementation.
+
+When compatible implementation and tests already solve the same bounded problem, prefer `ADAPT` or `PORT` over blank-page reimplementation. Reuse upstream tests/test vectors alongside code where their licence and fit permit it.
+
+The plan identifies source repository, pinned revision, relevant path/function or test, licence, disposition, exact material to reuse, rejected material, and AppT destination. It must remain small enough to live in the Arena Issue; the owning architecture documents remain the provenance source of truth.
+
+If the required provenance/disposition is missing or uncertain, resolve it before Arena dispatch rather than making Arena choose a licensing or architecture policy.
+
+### 3. Decide whether the work fits one unit
 
 A unit should have:
 
@@ -35,7 +57,7 @@ A unit should have:
 
 Split larger work before dispatch.
 
-### 3. Prefer vertical slices
+### 4. Prefer vertical slices
 
 Prefer a narrow complete capability through the layers it actually needs over horizontal "all database / all API / all UI" phases.
 
@@ -43,24 +65,25 @@ Each slice should be independently demonstrable or verifiable where practical.
 
 For inherently wide migrations, use a compatible expand → migrate → contract sequence instead of fake vertical slices.
 
-### 4. Model real dependency edges
+### 5. Model real dependency edges
 
 A blocker exists only when later work cannot safely begin or complete without earlier work.
 
 Identify independent frontier work rather than making list order imply dependency.
 
-### 5. Move material risk early
+### 6. Move material risk early
 
 Schedule the cheapest proof of a dangerous assumption before investing in dependent work: integration spike, migration proof, benchmark, compatibility check, or similar evidence.
 
 Do not build speculative infrastructure merely to "de-risk" hypotheticals.
 
-### 6. Define each unit by outcome
+### 7. Define each unit by outcome
 
 For each unit, define:
 
 - objective;
 - context/authority;
+- implementation reuse plan;
 - scope;
 - out of scope;
 - constraints;
@@ -71,7 +94,7 @@ For each unit, define:
 
 Use file paths only when they add durable execution context.
 
-### 7. Stop at executable
+### 8. Stop at executable
 
 A capable implementer should be able to choose local code structure while remaining inside the contract.
 
@@ -84,6 +107,7 @@ For Arena work, render the final unit using the exact Issue contract sections in
 Produce:
 
 - the implementation units;
+- the per-unit implementation reuse plan;
 - genuine dependency edges;
 - risk-first proof work where required;
 - a bounded execution contract per unit;
@@ -99,6 +123,7 @@ For Arena, one Issue maps to one branch and one PR.
 - Do not infer blockers from list order.
 - Do not hide unrelated cleanup inside the plan.
 - Do not pre-implement the solution in prose.
+- Do not let `NEW` become a synonym for "the implementer can write this from memory."
 
 ## Completion gate
 
@@ -109,6 +134,7 @@ Before dispatch, confirm:
 - dependencies are explicit and genuine;
 - vertical slicing was preferred where appropriate;
 - material uncertainty appears early;
+- every non-trivial behavior has an explicit reuse disposition and any `NEW` implementation has a concrete reason;
 - acceptance criteria are observable;
 - verification points to project truth;
 - contract exceptions return material decisions to the control plane;
