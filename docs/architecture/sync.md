@@ -300,7 +300,7 @@ The refresh call always carries `deviceSignal`. It is the client's normal sign-i
 | Google identity | Provider-verified; no separate verification step |
 | Lifetime Entitlement already active on the account | Trial activation is not needed; entitlement is returned |
 
-One Android device receives one AppT trial total. There is no paid-device roster, no device cap, and no device registry anywhere in the system.
+The product rule is one trial per Android device. V1 enforces that rule with the app-scoped Android device signal while Android keeps that signal stable; factory reset or signing-key transitions can change the platform identity, so abuse prevention across those transitions is best-effort. There is no paid-device roster, no device cap, and no device registry anywhere in the system.
 
 ### Marker keying and rotation
 
