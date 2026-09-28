@@ -470,7 +470,7 @@ class SamsungTvsSessionTest {
         val opened = mutableListOf<ConfirmedTelevision>()
         val transport = ScriptedSessionTransport(script(prompt()))
         val tvs =
-            samsungTvs("ssdp-tizen-tv") { tv, scope ->
+            samsungTvs("ssdp-tizen-tv") { tv, scope, _ ->
                 opened += tv
                 LiveSession(tv, transport, scope, secrets)
             }
@@ -514,7 +514,7 @@ class SamsungTvsSessionTest {
     fun openOnAnUnsupportedTelevisionOpensNoSocket() = runTest {
         val opened = mutableListOf<ConfirmedTelevision>()
         val tvs =
-            samsungTvs("unsupported-no-keys") { tv, scope ->
+            samsungTvs("unsupported-no-keys") { tv, scope, _ ->
                 opened += tv
                 LiveSession(tv, ScriptedSessionTransport(script(prompt())), scope, secrets)
             }
