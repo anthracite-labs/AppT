@@ -111,7 +111,7 @@ internal class OkHttpSessionTransport(
         }
     }
 
-    private fun open(
+    private suspend fun open(
         television: ConfirmedTelevision,
         requiredPin: String?,
         token: String?,
