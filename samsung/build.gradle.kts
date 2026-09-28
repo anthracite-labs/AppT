@@ -139,10 +139,10 @@ val capturedWarnings = mutableListOf<String>()
 tasks.matching { it.name == "compileDebugKotlin" }.configureEach {
     doFirst {
         logging.addStandardOutputListener { line ->
-            if (line.contains("w: ")) capturedWarnings += line.trim()
+            if (line.contains("w: ")) capturedWarnings.add(line.trim())
         }
         logging.addStandardErrorListener { line ->
-            if (line.contains("w: ")) capturedWarnings += line.trim()
+            if (line.contains("w: ")) capturedWarnings.add(line.trim())
         }
     }
     doLast {
