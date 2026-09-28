@@ -135,7 +135,6 @@ The current complete-codebase comparison set is intentionally distributed to its
 
 A vendor document and an OSS repository are not interchangeable. When Samsung does not document a de-facto remote-control wire detail, [protocol.md](protocol.md) says so explicitly and relies on pinned implementation evidence plus AppT fixtures/physical evidence rather than presenting the behavior as a Samsung guarantee.
 
-
 ## Settled privacy, account, and licensing semantics
 
 The owning product decisions are in `docs/PRODUCT.md`, with canonical language in `CONTEXT.md`. [account-entitlement.md](account-entitlement.md) records the technical architecture.
