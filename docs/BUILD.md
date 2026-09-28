@@ -377,6 +377,36 @@ are proven by `tools/ci/test/diagnose-focus.test.mjs` against the pinned
 toolchain. A focused diagnostic is still non-terminal; full `verify` is
 unchanged.
 
+### Diagnostic breadth inside a focus
+
+A diagnostic `focus` narrows **scope**; it does not require the run to stop at the
+first observable failure. Once the smallest useful mode/focus is selected, collect
+as much valid evidence as the owning tool can safely produce before editing.
+
+`tools/ci/diagnose-focus.mjs` is the command owner. Its Gradle-backed
+`app-unit`, `samsung-unit`, `android-static`, and `android-build` commands use
+Gradle's continue-on-independent-failure behavior so one failed task does not hide
+independent sibling-task evidence. That behavior cannot make work whose prerequisite
+failed runnable, so a compile failure may still prevent dependent tests. JVM test
+tasks are expected to report the tests they can execute rather than being made
+fail-fast for diagnostics.
+
+The same principle applies to non-Gradle owners without pretending they share a
+Gradle flag. Jest test diagnostics should retain their normal all-tests reporting
+unless a narrower selector is intentional. Backend static verification is composed
+of the repository-owned typecheck, lint, format, and Knip checks; when the aggregate
+npm script stops after one child failure, use the existing `backend-static` focus
+selectors to run the remaining independent child checks and collect the bounded
+failure set before correction.
+
+If ordinary output is insufficient, use the smallest temporary diagnostic mechanism
+that preserves the real behavior: richer reporter output, test/build artifacts,
+temporary listeners/assertions/logging, or a small harness. Follow
+`.project-ai/skills/debugging-recovery/SKILL.md`: keep diagnostics non-secret and
+bounded, remove temporary instrumentation before terminal verification unless it
+earns a permanent role, and never weaken the final verification contract merely to
+collect more errors.
+
 The maintenance purge deletes every Actions cache and every workflow run except
 its own. GitHub has no "delete every cache" endpoint — `DELETE .../actions/caches`
 requires a `key` — so the purge lists the caches and deletes each one by cache
