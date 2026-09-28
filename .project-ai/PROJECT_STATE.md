@@ -14,7 +14,7 @@ Implementation.
 
 ## Current Objective
 
-Dispatch S04 — Saved pairing, fail-closed identity, and the safe forget primitive — from Arena Issue #91 contract revision 2 as the next authorized implementation slice.
+Dispatch S04 — Saved pairing, fail-closed identity, and the safe forget primitive — from Arena Issue #91 contract revision 3 as the next authorized implementation slice.
 
 Success means S04 implements only behavior that becomes real in S04, includes the staged physical Samsung checkpoint, preserves S03's accepted first-control/session boundaries, and satisfies the accepted security, privacy, provenance, supply-chain, and verification floor.
 
@@ -32,7 +32,7 @@ Success means S04 implements only behavior that becomes real in S04, includes th
 - Repository CI/agent-control and verification hardening are accepted through PR #89.
 - Mandatory lifecycle skill routing and diagnose-before-fix gates are accepted through PR #84.
 - S04 is the next authorized implementation slice.
-- Issue #91 contract revision 2 is the Arena-ready S04 contract compiled from the reconciled architecture; it does not pre-create `Favourite` or `PendingForget`.
+- Issue #91 contract revision 3 is the Arena-ready S04 contract. Revision 3 preserves the reconciled S04 behavior/boundaries while requiring evidence-first implementation: repository truth first, material first-party authoritative sources re-opened for external contracts, relevant pinned implementation-harvest evidence inspected before coding, and temporary workflows used only as last-resort test infrastructure. It does not pre-create `Favourite` or `PendingForget`.
 - S07 may be dependency-ready but is not active or authorized.
 - Provider facts marked `needs validation` must be confirmed when they first become implementation-relevant. Material external/protocol claims also carry explicit authority/implementation-evidence/AppT-decision provenance in their owning architecture documents.
 - Final AppT source-license selection and focused Samsung vendor-terms/legal review remain pre-public-release gates.
@@ -48,7 +48,7 @@ S03 — Pair on the television and the first command — accepted through PR #80
 
 ## Next Authorized Action
 
-Dispatch Issue #91 contract revision 2 to Arena using `.project-ai/execution/arena-dispatch.md`; review the resulting PR against that revision before human acceptance.
+Dispatch Issue #91 contract revision 3 to Arena using `.project-ai/execution/arena-dispatch.md`; review the resulting PR against that revision before human acceptance.
 
 ## Authoritative References
 
