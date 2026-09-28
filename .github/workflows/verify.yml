@@ -127,6 +127,8 @@ jobs:
         run: |
           git diff --check
           python3 .project-ai/skills/validate.py
+          python3 tools/ci/test/project-state-contract.test.py
+          python3 tools/ci/project_state_contract.py
           node --test "tools/secret-scan/test/secret-scan.test.mjs"
           node --test "tools/security/test/enforce-dependency-policy.test.mjs"
           node --test "tools/security/test/enforce-gradle-tooling-constraints.test.mjs"
