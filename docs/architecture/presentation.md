@@ -321,7 +321,7 @@ Token categories are architecture. Roles and floor values are binding; final pix
 
 ## Accessibility contracts and verification hooks
 
-Contracts are binding for every shipped surface. Each has a verification hook so accessibility cannot be a final polish pass. Instrumented Compose tests also enable the platform accessibility validator on rendered surfaces, including its contrast checks; those generic checks supplement rather than replace the explicit AppT contracts below.
+Contracts are binding for every shipped surface. Each has a verification hook so accessibility cannot be a final polish pass. API 34+ AndroidComposeTestRule coverage also enables the platform accessibility validator on rendered surfaces, including contrast, touch-target, labeling, and traversal checks; the provider API is not a Robolectric check. Those generic checks supplement rather than replace the explicit AppT contracts below.
 
 | Contract | Verification hook |
 |---|---|
