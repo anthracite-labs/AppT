@@ -142,6 +142,10 @@ Consequences documented for support: after a reinstall a customer signs in to re
 
 ## Migration and upgrade architecture
 
+Storage migration is part of the application lifecycle, not merely a schema concern. [lifecycle.md](lifecycle.md#install-app-update-and-external-flow-return) owns when migration runs; this document owns the per-store safety contract.
+
+The cross-store invariant is: an app update either opens a supported state or exposes the documented recovery for the one corrupt/unavailable store. It must not silently reinterpret existing state as a fresh install. Television state, pairing secrets, preferences, and entitlement cache migrate independently so failure in one class cannot erase another.
+
 ### Room schema migration
 
 - Every version bump ships an explicit `Migration`; destructive fallback is a test failure if present.
@@ -210,6 +214,7 @@ Rules that make leakage and re-introduction of cloud state difficult rather than
 
 | Test | Assertion |
 |---|---|
+| `upgradeFromPreviousReleasePreservesLocalState` | An install-over-install candidate migrates representative Room/DataStore/Samsung-private/secret/entitlement state without silent reset; from the second public release onward the source artifact is the immediately previous production release |
 | `schemaContainsNoForbiddenColumn` | The exported schema has no forbidden column name |
 | `roomMigrationEveryVersion` | A migration test exists for every schema version after 1 |
 | `forgetRemovesRowAndFavouritesInOneTransaction` | After the confirming tap, the profile and its favourites are gone and a `PendingForget` row exists, with no intermediate state that re-exposes the television |
