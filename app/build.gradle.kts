@@ -166,6 +166,28 @@ detekt {
     source.setFrom("src/main/java", "src/main/kotlin")
 }
 
+
+// TEMP DIAGNOSTIC (S04): announce failing tests through the annotation channel; the runner log
+// is not reachable from the implementation sandbox. The task still fails. REMOVE BEFORE TERMINAL.
+tasks.withType<Test>().configureEach {
+    addTestListener(
+        object : TestListener {
+            override fun beforeSuite(suite: TestDescriptor) {}
+            override fun beforeTest(testDescriptor: TestDescriptor) {}
+            override fun afterTest(testDescriptor: TestDescriptor, result: TestResult) {
+                if (result.resultType == TestResult.ResultType.FAILURE) {
+                    val message = result.exception?.message?.replace("\n", " ")?.take(220) ?: ""
+                    println(
+                        "::error title=test-failure::" + testDescriptor.className + "." +
+                            testDescriptor.displayName + " :: " + message,
+                    )
+                }
+            }
+            override fun afterSuite(suite: TestDescriptor, result: TestResult) {}
+        },
+    )
+}
+
 dependencies {
     // app -> samsung is the only production module edge (modules.md).
     implementation(project(":samsung"))
