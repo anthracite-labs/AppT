@@ -96,7 +96,7 @@ Not in this slice: pairing, Room, Request Support export.
 
 Observable outcome: the user selects a controllable card, allows AppT on the television, presses volume or a direction key, and the command is written on the already open session. The first `Accepted` records the first-control milestone that later decides the account exemption.
 
-Architecture sources: [connection.md](connection.md), [protocol.md](protocol.md), [samsung-interface.md](samsung-interface.md), [sync.md](sync.md#remote-entry-gate), [presentation.md](presentation.md#pairing), [data.md](data.md), [flows.md — first run to first control](flows.md#first-run-to-first-control).
+Architecture sources: [connection.md](connection.md), [protocol.md](protocol.md), [samsung-interface.md](samsung-interface.md), [account-entitlement.md](account-entitlement.md#remote-entry-gate), [presentation.md](presentation.md#pairing), [data.md](data.md), [flows.md — first run to first control](flows.md#first-run-to-first-control).
 
 Depends on: S02.
 
@@ -152,7 +152,7 @@ Not in this slice: account, television list, TV switching.
 
 Observable outcome: three isolated environments exist and prove it. A debug build resolves only development identifiers; an internal tester build signed with the internal key installs outside Play and resolves only the internal environment; a production-flavoured candidate uploads to the Play internal testing track, installs against production, and is re-signed by Play App Signing. Backend rules and indexes deploy to all three projects through the CI pipeline, and the Play app carries the lifetime product with a licence tester configured.
 
-Architecture sources: [release.md](release.md) (environments, release path and artifact identity, signing identity and distribution channel, backend deployment and rollback), [sync.md](sync.md#backend-source-architecture), [security.md](security.md#b7-ci-supply-chain-and-release).
+Architecture sources: [release.md](release.md) (environments, release path and artifact identity, signing identity and distribution channel, backend deployment and rollback), [account-entitlement.md](account-entitlement.md#backend-source-architecture), [security.md](security.md#b7-ci-supply-chain-and-release).
 
 Depends on: S01. May run in parallel with the control spine.
 
@@ -166,7 +166,7 @@ Not in this slice: account, trial, or purchase endpoints, RTDN handlers, the fir
 
 Observable outcome: the first successful local-control session is never blocked on sign-in. When that session ends, the next remote entry asks the user to continue, and the television is never opened while the gate denies. Google sign-in and email/password both work, an unverified email cannot start a trial, and an eligible account receives a seven-day trial with an exact remaining time in Account and Settings. Signing in on a second phone returns the same expiry and marks that phone as trial-consumed. Signing out keeps every television and the cached proof, blocks a new entry, and never interrupts an active session. With the backend unreachable, a valid trial still permits control. The account functions are the first real backend deployment, and the production rollback drill is recorded.
 
-Architecture sources: [sync.md](sync.md) (authentication, topology, backend source architecture, API surface, record shapes, trial and attach, gate, local cache), [presentation.md](presentation.md#account), [lifecycle.md](lifecycle.md#workmanager), [release.md](release.md#environments), [flows.md](flows.md) — [first free control to the account requirement](flows.md#first-free-control-to-the-account-requirement), [account sign-in and trial activation](flows.md#account-sign-in-and-trial-activation), [trial expiry and the next remote entry](flows.md#trial-expiry-and-the-next-remote-entry), [sign-out](flows.md#sign-out), [account deletion](flows.md#account-deletion), [backend outage during control](flows.md#backend-outage-during-control).
+Architecture sources: [account-entitlement.md](account-entitlement.md) (authentication, topology, backend source architecture, API surface, record shapes, trial and attach, gate, local cache), [presentation.md](presentation.md#account), [lifecycle.md](lifecycle.md#workmanager), [release.md](release.md#environments), [flows.md](flows.md) — [first free control to the account requirement](flows.md#first-free-control-to-the-account-requirement), [account sign-in and trial activation](flows.md#account-sign-in-and-trial-activation), [trial expiry and the next remote entry](flows.md#trial-expiry-and-the-next-remote-entry), [sign-out](flows.md#sign-out), [account deletion](flows.md#account-deletion), [backend outage during control](flows.md#backend-outage-during-control).
 
 Depends on: S06, S07.
 
@@ -180,7 +180,7 @@ Not in this slice: purchase, restore, revocation, purchase-binding deletion dura
 
 Observable outcome: Buy once completes a Play purchase and unlocks a lifetime entitlement; a reinstall plus sign-in restores it; a refund or chargeback blocks the next remote entry without interrupting an active one; a paid customer keeps local control while the backend is unreachable; if the validator is unavailable while Play reports a purchase, the user gets an honest temporary unlock that expires within 24 hours and cannot be renewed for that purchase. Account deletion freezes the purchase binding before the Auth user is deleted and releases it only after the removal is proven.
 
-Architecture sources: [sync.md](sync.md) (purchase, binding, deletion durability, revocation, provisional, local cache, gate), [presentation.md](presentation.md#entitlement-and-purchase), [release.md](release.md#play-and-rtdn-are-shared-by-design), [security.md](security.md), [flows.md](flows.md) — [purchase](flows.md#purchase), [restore purchase including after account deletion](flows.md#restore-purchase-including-after-account-deletion), [restore on a second phone](flows.md#restore-on-a-second-phone), [refund or chargeback](flows.md#refund-or-chargeback), [account deletion](flows.md#account-deletion).
+Architecture sources: [account-entitlement.md](account-entitlement.md) (purchase, binding, deletion durability, revocation, provisional, local cache, gate), [presentation.md](presentation.md#entitlement-and-purchase), [release.md](release.md#play-and-rtdn-are-shared-by-design), [security.md](security.md), [flows.md](flows.md) — [purchase](flows.md#purchase), [restore purchase including after account deletion](flows.md#restore-purchase-including-after-account-deletion), [restore on a second phone](flows.md#restore-on-a-second-phone), [refund or chargeback](flows.md#refund-or-chargeback), [account deletion](flows.md#account-deletion).
 
 Depends on: S08.
 
@@ -194,7 +194,7 @@ Not in this slice: any television-related cloud data, any entitlement-based devi
 
 Observable outcome: reopening AppT lands on the last-used television and starts connecting; the remembered list shows friendly names and ordinary-language state; Add TV returns to discovery; Forget from the list, behind an explicit confirmation, removes the television from this phone immediately, including its favourites, and finishes the local unpair even if `samsung` is temporarily unavailable; the switch sheet moves between remembered televisions without a swipe gesture; every one of those entries passes through the licensing gate first. The Settings TVs section opens the list.
 
-Architecture sources: [data.md](data.md), [presentation.md](presentation.md) (launch routing, Remote, switch sheet, TvList), [lifecycle.md](lifecycle.md), [sync.md](sync.md#remote-entry-gate), [flows.md](flows.md) — [process death and reopen](flows.md#process-death-and-reopen), [switching televisions](flows.md#switching-televisions).
+Architecture sources: [data.md](data.md), [presentation.md](presentation.md) (launch routing, Remote, switch sheet, TvList), [lifecycle.md](lifecycle.md), [account-entitlement.md](account-entitlement.md#remote-entry-gate), [flows.md](flows.md) — [process death and reopen](flows.md#process-death-and-reopen), [switching televisions](flows.md#switching-televisions).
 
 Depends on: S08.
 
@@ -317,7 +317,7 @@ Every implementation-relevant architecture document has an owning slice. A slice
 | Local data and persistence | [data.md](data.md) | S03, S04, S10, S13 |
 | Routes and screen-state contracts | [presentation.md](presentation.md) | S02, S03, S05, S08, S09, S10, S11, S13, S14 |
 | UI/UX surface map | [ui-ux.md](ui-ux.md) | S02, S05, S08, S10, S13, S14 |
-| Account, trial, purchase, entitlement backend | [sync.md](sync.md) | S07, S08, S09 |
+| Account, trial, purchase, entitlement backend | [account-entitlement.md](account-entitlement.md) | S07, S08, S09 |
 | Environments, signing, release, Play, App Check | [release.md](release.md) | S07, S08, S16 |
 | App lifecycle and WorkManager | [lifecycle.md](lifecycle.md) | S06, S10 |
 | Local diagnostics and redacted export | [diagnostics.md](diagnostics.md) | S13 |
