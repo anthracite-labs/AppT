@@ -1,0 +1,187 @@
+# AppT trusted agent-control / dispatch bridge (Issue #88).
+#
+# Why this file exists
+# -------------------
+# Arena and the ChatGPT control plane must be able to run focused diagnostics
+# without a human clicking through the Actions UI. The preferred route is a
+# direct `workflow_dispatch` by an actor that holds Actions write permission.
+# When the connected integration can only mutate pull-request metadata — add a
+# command label, for example — this bridge is the repository-supported route:
+# it translates a labelled command into an ordinary workflow dispatch.
+#
+# Trust model (read this before changing anything here)
+# ----------------------------------------------------
+#   * `pull_request_target` is a privileged trigger: it runs the workflow
+#     definition from the base branch and is given a token. It is accepted here
+#     only because of what this job does NOT do:
+#       - it never checks the pull-request head out, so no
+#         pull-request-controlled file, script or composite action is ever
+#         executed in this job. The one checkout it performs is of the base
+#         branch, which is what `github.sha` is here;
+#       - it never runs `./gradlew`, `npm`, or any repository build step;
+#       - the only code it executes is the reviewed repository module
+#         `tools/ci/dispatch-workflow.mjs`, plus `gh api` calls;
+#       - the workflow it dispatches then runs under that workflow's own
+#         read-only permissions.
+#   * The dispatch ref is the repository's **default branch**, never the pull
+#     request's head branch. This is the load-bearing half of the trust model.
+#     GitHub runs the workflow *as the dispatch ref defines it*, so dispatching
+#     the head branch would let the pull request supply the workflow YAML and
+#     every local composite action it uses — including the assertion that is
+#     supposed to check the dispatch target. A pull request could rewrite its
+#     own assertion and pass it. Dispatching the default branch means the
+#     workflow and its validation logic are trusted content the pull request
+#     cannot rewrite.
+#   * GitHub's Create Workflow Dispatch endpoint requires `ref` to be a branch
+#     or tag name and rejects a commit SHA, so the requested target travels as
+#     **inputs** instead: `target_ref` is the pull request's head branch and
+#     `expected_sha` is the exact commit it resolved to. The dispatched workflow
+#     resolves `target_ref` with trusted logic, requires it still to point at
+#     `expected_sha`, and only then checks that SHA out for Gradle, npm and
+#     device work (`.github/actions/assert-dispatch-target`). That is what
+#     preserves the exact-PR-head guarantee the command was issued against.
+#   * The token permissions are the narrowest set that can do the job:
+#     `contents: read` to resolve the pull request, `actions: write` to
+#     dispatch a workflow, and `issues: write` plus `pull-requests: write` to
+#     consume the command marker and record what was dispatched. No workflow
+#     receives broader authority because this file exists.
+#   * Only the labels in the allowlist below do anything. An unrecognised label
+#     produces no run at all, and the command marker is removed only after a
+#     successful dispatch, so a failed command can be retried.
+#   * A pull request whose head lives in another repository (a fork) cannot be
+#     dispatched at all: the provider dispatches a ref that must exist in this
+#     repository. The bridge fails closed with an explicit error.
+#
+# Provider follow-up (owner action, not a repository change): direct
+# `workflow_dispatch` by the control-plane integration requires that actor to
+# hold Actions write permission on this repository. Until then this bridge is
+# the route. Additionally, GitHub only dispatches a workflow that exists on the
+# default branch, so `diagnose.yml` becomes invocable through this bridge once
+# it lands on `main`.
+
+name: agent-control
+
+# zizmor: ignore[dangerous-triggers] deliberate, narrowly scoped dispatch authority; see the trust model above
+on: # zizmor: ignore[dangerous-triggers] deliberate, narrowly scoped dispatch authority; this job never checks out or executes pull-request code
+  pull_request_target:
+    types:
+      - labeled
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-control-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Dispatch requested command
+    if: >-
+      github.event_name == 'pull_request_target' &&
+      github.event.action == 'labeled' &&
+      contains(
+        fromJSON('[
+          "ci:full",
+          "ci:app-unit",
+          "ci:samsung-unit",
+          "ci:android-static",
+          "ci:android-build",
+          "ci:backend",
+          "ci:backend-static",
+          "ci:backend-test",
+          "ci:device"
+        ]'),
+        github.event.label.name
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Check out the base branch
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # `pull_request_target` runs this workflow definition from the base
+          # branch, and `github.sha` here is the base branch's last commit, so
+          # this checkout is trusted repository code. It is deliberately NOT
+          # the pull-request head: no pull-request-controlled file is placed on
+          # disk in this job, and none is executed. The dispatch module below
+          # is repository code, reviewed through the ordinary pull-request path.
+          persist-credentials: false
+
+      - name: Resolve the head and dispatch the requested workflow
+        id: dispatch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          LABEL: ${{ github.event.label.name }}
+        run: |
+          set -euo pipefail
+
+          # The label is the only untrusted value here, and it is matched
+          # against a fixed allowlist inside the module rather than being
+          # interpolated into a command line.
+          #
+          # The module resolves the pull-request head and the repository's
+          # default branch, then dispatches the requested workflow **from the
+          # default branch** — trusted content — carrying the head branch as
+          # `target_ref` and the resolved head SHA as `expected_sha`. The
+          # dispatched run validates that pair with trusted logic before it
+          # checks the SHA out, so it verifies exactly the commit the command
+          # was issued against. Its logic and its request shape are proven by
+          # tools/ci/test/dispatch-workflow.test.mjs.
+          node tools/ci/dispatch-workflow.mjs \
+            --repo "$REPOSITORY" \
+            --pr "$PR_NUMBER" \
+            --label "$LABEL"
+
+      - name: Consume the command marker
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          LABEL: ${{ github.event.label.name }}
+        run: |
+          set -euo pipefail
+          gh api --method DELETE "repos/${REPOSITORY}/issues/${PR_NUMBER}/labels/${LABEL}"
+          echo "Removed the ${LABEL} command marker from #${PR_NUMBER}."
+
+      - name: Record the dispatch on the pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          LABEL: ${{ github.event.label.name }}
+          SHA: ${{ steps.dispatch.outputs.sha }}
+          REF: ${{ steps.dispatch.outputs.ref }}
+          TARGET_REF: ${{ steps.dispatch.outputs.target-ref }}
+          RUN_URL: ${{ steps.dispatch.outputs.run-url }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+
+          # The run URL is best effort: a dispatch that is accepted but not yet
+          # listed is still a successful dispatch. Written as an explicit `if`
+          # so the empty case is obvious at a glance rather than depending on
+          # how `set -e` interacts with a nested command substitution.
+          run_link=''
+          if [ -n "$RUN_URL" ]; then
+            run_link="$(printf '\n\nRun: %s' "$RUN_URL")"
+          fi
+
+          # No backticks or expansions inside the single-quoted format string:
+          # they are literal in single quotes, which ShellCheck reports as
+          # SC2016. The values arrive as arguments instead.
+          body="$(
+            printf 'Requested by @%s via the %s command label.\n\nDispatched from the trusted default branch %s for target branch %s, expected commit %s.%s\n\nThe dispatched run resolves the target branch with trusted logic, requires it still to resolve to that commit, and only then checks it out — so this is evidence about exactly the head the command was issued against.\n\nThis is implementation feedback only; terminal verification of a finished candidate is a full verify run (verify / gate).' \
+              "$ACTOR" "$LABEL" "$REF" "$TARGET_REF" "$SHA" "$run_link"
+          )"
+
+          gh api --method POST "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --field "body=${body}"

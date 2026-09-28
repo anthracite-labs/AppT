@@ -142,24 +142,67 @@ subprojects {
 }
 
 // ---------------------------------------------------------------------------
-// ciCheck — root Android/Kotlin verification lifecycle task (Issue #56)
+// CI-owned Android failure domains (Issue #88)
 // ---------------------------------------------------------------------------
-tasks.register("ciCheck") {
+// `verify.yml` runs each of these as an independent parallel job, so one
+// failing domain cannot hide the evidence of another: formatting, static
+// analysis, the build, and unit/Robolectric tests each report on their own and
+// the `verify / gate` job alone decides acceptance. They are aggregating
+// lifecycle tasks — the work itself stays owned by the module tasks, exactly as
+// `ciCheck` owned it before — and they exist so the failure domains visible in
+// CI are named here rather than only in workflow YAML.
+//
+// Spotless + ktfmt is ONE formatting responsibility, not two checks: it is
+// exposed as the single `androidFormat` domain and is never split into a
+// separate ktfmt job.
+tasks.register("androidFormat") {
+    group = "verification"
+    description = "Android formatting responsibility: deterministic Spotless + ktfmt checking."
+    dependsOn("spotlessCheck")
+}
+
+tasks.register("androidStatic") {
     group = "verification"
     description =
-        "Root Android/Kotlin verification interface aggregating the complete verification floor."
+        "Android static and policy verification: Android Lint, detekt, appTGuards, dependency locks."
     dependsOn(
-        "spotlessCheck",
-        ":app:assembleDebug",
-        ":app:testDebugUnitTest",
         ":app:lintDebug",
         ":samsung:lintDebug",
         ":app:detekt",
         ":samsung:detekt",
-        ":macrobenchmark:assembleBenchmark",
         "appTGuards",
         "dependencyLockCheck",
     )
+}
+
+tasks.register("androidBuild") {
+    group = "verification"
+    description =
+        "Android build: debug assembly (which runs the merged-manifest guards) and macrobenchmark compilation."
+    dependsOn(":app:assembleDebug", ":macrobenchmark:assembleBenchmark")
+}
+
+// Samsung unit tests are authoritative verification evidence, not diagnostics:
+// they are part of the same failure domain as :app's unit/Robolectric tests so
+// a full verification run always produces both.
+tasks.register("androidUnit") {
+    group = "verification"
+    description =
+        "Android unit/Robolectric verification for :app and :samsung, plus Kover coverage generation and verification."
+    dependsOn(":app:testDebugUnitTest", ":samsung:test")
+}
+
+// ---------------------------------------------------------------------------
+// ciCheck — local umbrella over every Android failure domain (Issue #56)
+// ---------------------------------------------------------------------------
+// Preserved as the convenient local aggregate command. CI invokes the narrower
+// domains above instead, because one monolithic invocation cannot report a
+// formatting failure and a unit-test failure independently.
+tasks.register("ciCheck") {
+    group = "verification"
+    description =
+        "Root Android/Kotlin verification interface aggregating the complete verification floor."
+    dependsOn("androidFormat", "androidStatic", "androidBuild", "androidUnit")
 }
 
 gradle.projectsEvaluated {
@@ -174,7 +217,9 @@ gradle.projectsEvaluated {
             ?: tasks.findByName("koverVerifyDebug")
             ?: project(":app").tasks.findByName("koverVerifyDebug")
 
-    tasks.named("ciCheck") {
+    // The coverage producers belong to the unit-test domain, which is the job
+    // that publishes the Kover evidence Sonar consumes.
+    tasks.named("androidUnit") {
         koverXml?.let { dependsOn(it) }
         koverVerify?.let { dependsOn(it) }
     }
