@@ -2,7 +2,30 @@
 
 This file is for implementers inside `samsung`. `app` does not import these names, ports, or payloads. The external **interface** is [samsung-interface.md](samsung-interface.md).
 
-Reference libraries, including `samsung-tv-ws-api` (LGPL-3.0) and Home Assistant's Samsung integration, are knowledge sources only. Do not copy their source. Reimplement from this specification and from redacted fixtures. That clean-room rule is the retained harvest screener applied to an incompatible-license reference. It is not a decision about AppT's license.
+## Evidence and provenance
+
+### AUTHORITATIVE
+
+- Samsung, [Smart View SDK](https://developer.samsung.com/smarttv/develop/extension-libraries/smart-view-sdk/introduction.html), documents Samsung's mobile-to-TV discovery/launch/communication framework.
+- Samsung, [Security Q&A](https://developer.samsung.com/smarttv/develop/faq/security.html), documents TLS support on Samsung Smart TVs.
+
+**Authority limitation:** those Samsung pages do **not** specify the complete de-facto `/api/v2/channels/samsung.remote.control` contract, ports 8001/8002, `ms.channel.connect` token event, or `ms.remote.control` key payload used by AppT. Those wire details therefore remain implementation/fixture evidence, not a Samsung guarantee.
+
+### IMPLEMENTATION EVIDENCE
+
+| Source | Pinned revision / paths | License | Method | What AppT uses |
+|---|---|---|---|---|
+| [xchwarze/samsung-tv-ws-api](https://github.com/xchwarze/samsung-tv-ws-api) | [`e48d6377`](https://github.com/xchwarze/samsung-tv-ws-api/commit/e48d6377faede37db1f034d726a079b9d8034fac): `samsungtvws/connection.py`, `remote.py`, `event.py`, `tests/fixtures/event_ms_channel_connect.json` | [LGPL-3.0](https://github.com/xchwarze/samsung-tv-ws-api/blob/e48d6377faede37db1f034d726a079b9d8034fac/LICENSE) | **CLEAN-ROOM REIMPLEMENT** | Endpoint/event names, token-bearing connect event, key-command shapes, application-list/launch evidence used to design redacted fixtures. |
+| [mazen-salah/Smart-TV-Remote-Control](https://github.com/mazen-salah/Smart-TV-Remote-Control) | [`68a97ec3`](https://github.com/mazen-salah/Smart-TV-Remote-Control/commit/68a97ec304fd41dc7e94dde15cd41f56391f6d04): `lib/services/samsung/samsung_tv_service.dart`, `docs/protocols.md` | [MIT](https://github.com/mazen-salah/Smart-TV-Remote-Control/blob/68a97ec304fd41dc7e94dde15cd41f56391f6d04/LICENSE) | **BEHAVIORAL REFERENCE** | Complete-remote comparison for pairing-token persistence, native WebSocket ping, command pacing, and user-visible failure cases. |
+| [Home Assistant Core Samsung TV](https://github.com/home-assistant/core/tree/7f1a7451ba8cafc440bbbaf0894ac96c44aa8647/homeassistant/components/samsungtv) | [`7f1a7451`](https://github.com/home-assistant/core/commit/7f1a7451ba8cafc440bbbaf0894ac96c44aa8647): `bridge.py`, `media_player.py`, `manifest.json` | Apache-2.0 for Home Assistant Core; it depends on `samsungtvws` 3.0.6 | **BEHAVIORAL REFERENCE** | Mature integration evidence that the same command vocabulary/library family is actively used; not an independent vendor specification. |
+
+### APPT DECISION
+
+Wire behavior is implemented independently inside `samsung` from this contract, redacted fixtures, and physical-TV evidence. GPL/LGPL-family source is not copied. MIT/Apache evidence is still treated as reference unless a specific compatible-source adaptation is deliberately reviewed.
+
+AppT deliberately rejects unsafe reference behavior where it conflicts with our architecture. In particular, a reference client that accepts any self-signed Samsung certificate is **not** evidence for a trust-all mode: [connection.md](connection.md) owns AppT's candidate-SPKI-on-first-approval and fail-closed saved-pin behavior.
+
+Validated: 2026-09-28. Revalidate pinned upstream behavior before changing a wire contract or making a broader compatibility claim.
 
 ## Adopted generation
 
