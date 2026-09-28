@@ -3,6 +3,7 @@ package dev.anthracite.appt.samsung.internal
 import android.annotation.SuppressLint
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.security.GeneralSecurityException
 import java.security.MessageDigest
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
