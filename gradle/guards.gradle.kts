@@ -161,7 +161,7 @@ val noFirestoreClientInAppInstance =
             if (offenders.isNotEmpty()) {
                 throw GradleException(
                     "noFirestoreClientInApp failed. Firestore is server-only; the client never " +
-                        "talks to Firestore directly (docs/architecture/sync.md).\n" +
+                        "talks to Firestore directly (docs/architecture/account-entitlement.md).\n" +
                         offenders.joinToString("\n") { "  $it" }
                 )
             }
@@ -372,7 +372,7 @@ tasks.register("noSyncRecordInProductionSource") {
         if (offenders.isNotEmpty()) {
             throw GradleException(
                 "noSyncRecordInProductionSource failed. No television or personalization data " +
-                    "is ever synchronized (docs/architecture/sync.md).\n" +
+                    "is ever synchronized (docs/architecture/account-entitlement.md).\n" +
                     offenders.joinToString("\n") { "  $it" }
             )
         }
