@@ -459,7 +459,7 @@ internal class KeystoreSamsungStore private constructor(
                         setIsStrongBoxBacked(true)
                     }
                 }
-                .setBlockMode(KeyProperties.BLOCK_MODE_GCM)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setKeySize(KEY_SIZE_BITS)
                 .setRandomizedEncryptionRequired(true)
