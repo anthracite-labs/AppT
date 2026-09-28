@@ -166,7 +166,6 @@ detekt {
     source.setFrom("src/main/java", "src/main/kotlin")
 }
 
-
 dependencies {
     // app -> samsung is the only production module edge (modules.md).
     implementation(project(":samsung"))

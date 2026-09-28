@@ -76,7 +76,6 @@ detekt {
     source.setFrom("src/main/java", "src/main/kotlin")
 }
 
-
 dependencies {
     // S02 discovery (Issue #73). Both are already on :app's resolved graph at
     // these exact versions; see the license/provenance notes in
