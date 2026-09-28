@@ -144,4 +144,4 @@ Pre-existing and not blockers for this map:
 - the focused Samsung vendor-terms and legal review before public release;
 - physical-device evidence that tunes the reliability targets in [reliability.md](reliability.md).
 
-This map was accepted with the architecture closure on 2026-09-23, which authorized the phase transition to implementation. The next gate is human review and acceptance of the reconciled implementation route in [slices.md](slices.md) before S01 is compiled; the current position lives in `.project-ai/PROJECT_STATE.md`.
+This map was accepted with the architecture closure on 2026-09-23 and remains the durable implementation map. It deliberately does not project which slice is next; the current accepted milestone and next authorized action live only in `.project-ai/PROJECT_STATE.md`.
