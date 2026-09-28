@@ -10,6 +10,8 @@ Terminal repository verification is the final technical verification step for a 
 
 Use the smallest meaningful check that can prove or falsify the current implementation hypothesis.
 
+Within that chosen scope, prefer diagnostic execution that exposes all practical independent failures before correction. Narrow scope does not mean first-error-only. Use the owning tool's native non-fail-fast, continue-on-independent-failure, multi-error, report, or equivalent capabilities where they preserve valid evidence; if an umbrella command aborts early, run its independent owned sub-checks separately when safe.
+
 Typical progression:
 
 1. exact reproducer, focused test, or narrow check;
@@ -18,7 +20,7 @@ Typical progression:
 4. broader repository checks only when evidence requires them;
 5. terminal repository verification on the finished candidate.
 
-Do not repeatedly run the entire repository suite or remote CI while diagnosing a narrow failure if a smaller reproducer can provide faster, clearer evidence. Do not use terminal full `verify` as the implementation debugger.
+Do not repeatedly run the entire repository suite or remote CI while diagnosing a narrow failure if a smaller reproducer can provide faster, clearer evidence. Conversely, do not repeatedly edit after the first surfaced error when the same narrow diagnostic surface can safely reveal sibling failures. Do not use terminal full `verify` as the implementation debugger.
 
 ## Terminal repository verification
 
@@ -36,11 +38,12 @@ If terminal repository verification fails:
 
 1. leave the terminal-verification loop immediately;
 2. use `../skills/debugging-recovery/SKILL.md` to identify and confirm the smallest useful reproducer;
-3. establish an evidence-backed root cause before editing when reproduction is practical;
-4. correct the root cause minimally and add regression protection where practical;
-5. regain targeted green evidence for the reproducer and affected scope;
-6. produce a new finished candidate;
-7. run terminal repository verification again only after the targeted surface is green.
+3. map the practical independent failures in that bounded surface before editing;
+4. classify/group the observed failures and establish evidence-backed root causes when reproduction is practical;
+5. correct the root causes coherently and add regression protection where practical;
+6. regain targeted green evidence for the reproducer and affected scope;
+7. produce a new finished candidate;
+8. run terminal repository verification again only after the targeted surface is green.
 
 If a practical reproducer cannot be run in the current environment, preserve the exact blocker and use `../routing/route.md` to try the narrowest safe alternate route. Equivalent targeted evidence from that route may satisfy the focused-verification requirement. If no safe route can provide equivalent targeted evidence, stop and return the blocker; do not produce a new finished candidate or run terminal repository verification. Repeated terminal CI runs are not an acceptable substitute for the diagnostic loop.
 
