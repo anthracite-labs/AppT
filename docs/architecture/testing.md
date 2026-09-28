@@ -226,6 +226,48 @@ Instrumented Compose coverage on API 34+ enables the platform accessibility vali
 | `commandDoesNotAwaitDiagnostics` | A full diagnostic buffer never delays a command |
 | `reconnectRecoveryRate` | ≥ 90% of scripted single drops recover inside the budget |
 
+## Whole-application lifecycle E2E
+
+Unit, fixture, Compose, instrumented, backend, performance, and physical tests remain necessary, but they do not by themselves prove that navigation, persistence, process recreation, account gating, billing reconciliation, and recovery compose into one usable application.
+
+### IMPLEMENTATION EVIDENCE
+
+[Home Assistant Android](https://github.com/home-assistant/android) at [`d120c7dc`](https://github.com/home-assistant/android/commit/d120c7dcd0683e163a2379883ba9299af071e1cb), Apache-2.0, is the complete-app reference for journey-level Android E2E. Its `.github/workflows/e2e.yml` drives `.maestro/onboarding.yaml` across emulators and captures device logs/artifacts on failure. Method: **BEHAVIORAL REFERENCE**.
+
+AppT does not require that exact runner as an architectural seam; S15 selects/locks the smallest project-owned runner that can produce the required evidence. The required evidence is runner-independent.
+
+### Required journeys
+
+1. **First use:** fresh local state → Welcome → LocalNetwork → discovery fake/fixture → pairing → first `Accepted` → leave Remote → next entry reaches Account.
+2. **Daily control:** remembered TV → gate allows → remote-first launch → command → network drop → reconnect → switch TV → return.
+3. **Forget safety:** remembered TV with favourites → confirm Forget → TV disappears atomically → failed Samsung forget leaves retry marker → re-pair supersedes stale pending forget.
+4. **Purchase interruption:** start purchase → observe `PENDING` or background the process → transaction becomes `PURCHASED` while AppT is inactive → reopen → BillingClient reconnect/query → one authoritative grant.
+5. **Upgrade in place:** install source artifact with representative local TV/account/entitlement state → install candidate over it → migrate → launch → pairing/entitlement remain correct or fail through the documented recovery state.
+
+For a journey failure, retain at minimum: ordered step trace, screenshot at failure, accessibility/semantics hierarchy when available, device logcat for the AppT process, candidate SHA/build identity, and the fake/provider/physical environment used. These artifacts are diagnostics for the test run, not product analytics.
+
+### Cross-contract regression names
+
+| Test | Assertion |
+|---|---|
+| `ipv4MappedIpv6DedupsSameCandidate` | IPv4 and its IPv4-mapped-IPv6 representation cannot create two discovery identities/cards |
+| `supersededConnectCannotResurrectSession` | A late result from an invalidated connection generation cannot publish Ready or persist older evidence |
+| `pendingPurchaseCompletesWhileProcessDead` | Foreground purchase query recovers a transaction that completed while AppT was dead |
+| `billingReconnectRequeriesPurchases` | Re-establishing BillingClient with a pending/unknown purchase triggers current-purchase reconciliation |
+| `duplicatePurchaseObservationIsIdempotent` | Listener, query, and backend/RTDN convergence cannot create two grants |
+| `upgradeFromPreviousReleasePreservesLocalState` | Supported install-over-install migration preserves valid TV/pairing/preferences and entitlement behavior |
+
+## Physical evidence cadence
+
+Physical evidence is staged where hardware uncertainty becomes load-bearing rather than postponed to release closure:
+
+- **S04 acceptance:** one real Samsung TLS-token path covers discovery → TV approval → command → app restart → token resume without re-prompt; the recorded row also confirms the persistent security identity used by the candidate or records the hardware limitation honestly.
+- **S06 acceptance:** on the same or another documented Samsung set, one real LAN drop/recovery and one process/Activity lifecycle walk prove that the fake transport did not hide a reconnect/lifecycle incompatibility.
+- **S12 acceptance:** one real wake attempt is recorded; failure is acceptable and becomes honest capability evidence.
+- **S17:** final release-candidate matrix consolidates the accepted physical evidence, repeats the critical TLS-token path on the release unit, and closes the external release gates.
+
+The already accepted S03 implementation is not retroactively invalidated. The S04 physical checkpoint re-exercises S03's discovery/pair/first-command path before saved pairing can be accepted.
+
 ## Room migrations
 
 Once a second schema version exists, migrations run as instrumented or Robolectric tests against the previous exported schema. Destructive fallback is a test failure if it appears in production source.
