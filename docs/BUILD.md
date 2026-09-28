@@ -307,7 +307,7 @@ assertion's own decision logic is proven by
 `tools/ci/test/assert-dispatch-target.test.mjs`, which extracts it from the
 action and runs it against a fake `gh`.
 
-The parsed-YAML cache contract runs in repository-quality CI after yamllint:
+The parsed-YAML cache contract runs in the `repo-quality` job after yamllint:
 
 ```sh
 python3 tools/ci/test/workflow-cache-contract.test.py

@@ -525,7 +525,7 @@ See GitHub's cache access reference [1](https://docs.github.com/en/actions/refer
 
 `tools/ci/test/workflow-cache-contract.test.py` parses the actual YAML and checks
 workflow defaults plus every job override, including reusable-workflow callers.
-It runs in mandatory repository-quality verification and mutation-tests missing
+It runs in the mandatory `repo-quality` job and mutation-tests missing
 boundaries, write-capable overrides, aliases, flow mappings, and invalid values.
 This also covers the one provider key the pinned actionlint parser does not yet
 recognize; only that exact unknown top-level-key diagnostic is excluded from
@@ -587,7 +587,7 @@ Provider `cache-mode: read` still covers this job.
 `tools/ci/test/sonar-boundary.test.py` proves the workflow control/data split and
 inert-file validation, including mutations that restore target settings, module
 loading, endpoint redirection, or artifact overlay. It runs with the cache
-contract in mandatory repository-quality CI. These are offline regression and
+contract in the mandatory `repo-quality` job. These are offline regression and
 pinned-source proofs, not a live hostile scan. Fresh provider verification and
 Sonar quality-gate evidence are still required on the final candidate; no real
 secret or production endpoint is used to test an exploit.
