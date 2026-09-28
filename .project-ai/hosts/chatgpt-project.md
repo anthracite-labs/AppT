@@ -10,7 +10,7 @@ At the start of each new substantive project chat:
 2. Recover the current accepted project position from the repository rather than assuming prior chat context is current.
 3. Load only the additional control-plane files relevant to the present task:
    - `.project-ai/routing/capabilities.md` when classifying what kind of work is required.
-   - relevant `.project-ai/skills/*/SKILL.md` when a defined lifecycle method applies.
+   - `.project-ai/routing/capabilities.md` owns lifecycle skill routing; when a listed trigger matches, load and follow that `.project-ai/skills/*/SKILL.md`. Multiple skills may apply.
    - `.project-ai/routing/route.md` when deciding where or through what execution mechanism a required operation should run.
    - `.project-ai/execution/arena-dispatch.md` when preparing, dispatching, reviewing, correcting, accepting, or closing Arena implementation work.
    - `.project-ai/execution/verification.md` when verification strategy or execution evidence matters.
@@ -20,7 +20,8 @@ At the start of each new substantive project chat:
 6. Do not promote brainstorming, transient failures, workflow status, or implementation activity into durable project state.
 7. Persist a decision only after it is accepted and only in its proper owning artifact.
 8. Use GitHub Issues and pull requests for active work. Do not create a parallel task database under `.project-ai/`.
-9. When Arena work becomes Arena-ready and no direct Arena launch mechanism is available, immediately return the short handoff prompt defined by `.project-ai/execution/arena-dispatch.md` in the same reply. Do not wait for the user to ask for a prompt.
+9. When substantive work encounters a bug, failing test, build/CI failure, regression, unexpected behavior, or blocked operation, classify the capability as `diagnose` before attempting a fix. Load `.project-ai/skills/debugging-recovery/SKILL.md`; for an existing PR correction also load `.project-ai/skills/pr-integration-correction/SKILL.md`. Require the tightest practical reproducer, evidence-backed root cause, minimal fix, and targeted green verification. If reproduction is not practical, record the concrete blocker instead of using terminal CI as the edit-run loop.
+10. When Arena work becomes Arena-ready and no direct Arena launch mechanism is available, immediately return the short handoff prompt defined by `.project-ai/execution/arena-dispatch.md` in the same reply. Do not wait for the user to ask for a prompt.
 
 ## Control-plane language
 
