@@ -1,6 +1,6 @@
 # Architecture map
 
-Detailed elaboration of the accepted baseline in `docs/ARCHITECTURE.md`. **This map is the V1 architecture closure for the current architecture round, accepted by the human on 2026-09-23.** The superseded Firestore TV-personalization sync model has been removed from every live document. The pre-S01 gate is human review of the reconciled implementation route in [slices.md](slices.md) (Issue #23), not further architecture reconciliation.
+Detailed elaboration of the accepted baseline in `docs/ARCHITECTURE.md`. **This map was lifecycle/evidence-reconciled under Issue #96 on 2026-09-28 before S04 implementation continued.** Accepted S01–S03 history is preserved; [slices.md](slices.md) owns the corrected future route. The superseded television-sync and standalone harvest-register designs are removed from live architecture.
 
 `docs/ARCHITECTURE.md` owns decisions and invariants. This directory owns concrete modules, state, data, presentation, environments, and slices. If a document here conflicts with the baseline, the baseline wins until a later architecture decision changes it.
 
