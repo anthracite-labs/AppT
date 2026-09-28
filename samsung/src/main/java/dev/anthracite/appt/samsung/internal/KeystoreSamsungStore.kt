@@ -79,8 +79,8 @@ private fun ByteArray.decodedPayload(): PairingSecret? {
  *
  * The payload is the pairing token and the SHA-256 SPKI pin, and nothing else. MAC, address and
  * UUID deliberately do not share this type: a serializer for the samsung-private device record
- * cannot sweep the token along with them, and Room, DataStore and licensing code never see this
- * type at all (data.md#structural-barriers).
+ * cannot sweep the token along with them, and no caller-side persistence or licensing code ever
+ * sees this type at all (data.md#structural-barriers).
  *
  * @property token the approval token the television issued, or null when it has issued none yet.
  * @property pin the SHA-256 of the certificate SubjectPublicKeyInfo this television presented when

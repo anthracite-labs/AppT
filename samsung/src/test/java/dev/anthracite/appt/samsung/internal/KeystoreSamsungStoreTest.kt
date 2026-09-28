@@ -180,7 +180,8 @@ class KeystoreSamsungStoreTest {
         val store = newStore()
         store.saveDevice(tvId, record)
         val file = File(temporaryFolder.root, "samsung-device/v1/${tvId.value}.json")
-        file.writeText(file.readText().replace("\"version\": 1", "\"version\": 2"))
+        // DeviceRecordJson writes compact JSON, so the rewrite targets the exact emitted form.
+        file.writeText(file.readText().replace("\"version\":1", "\"version\":2"))
 
         assertNull(newStore().loadDevice(tvId))
     }
