@@ -101,6 +101,8 @@ Within the approved contract Arena may:
 
 Arena must not create ad-hoc workflow infrastructure merely because a local test is inconvenient. Follow `../routing/route.md`: narrow local execution first, the smallest existing diagnostic mode for a proven blocker, and temporary branch-scoped workflow YAML only as last-resort infrastructure when neither route can perform the exact operation.
 
+When a failure triggers correction, Arena must follow `../skills/debugging-recovery/SKILL.md` before editing. It must diagnose the smallest relevant surface **comprehensively inside that boundary**: use the project-owned toolchain's safe continue/non-fail-fast/multi-error/reporting capabilities, independent sub-checks, and temporary diagnostic instrumentation or artifacts when needed to expose the practical failure set. Arena must classify/group that evidence before correction instead of entering a one-error-per-commit or push-and-pray loop. Temporary diagnostic code/configuration must be removed before the finished candidate unless it independently earns a permanent repository role.
+
 Arena must not silently change material:
 
 - scope;
