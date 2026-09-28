@@ -43,10 +43,36 @@ internal interface SecretCipher {
     fun decrypt(blob: ByteArray): ByteArray
 }
 
-internal fun SecretCipher.encode(secret: PairingSecret): ByteArray = encrypt(secret.encodePayload())
+internal fun SecretCipher.encode(secret: PairingSecret): ByteArray = encrypt(secret.encodedPayload())
 
-internal fun SecretCipher.decode(blob: ByteArray): PairingSecret? =
-    PairingSecret.decodePayload(decrypt(blob))
+internal fun SecretCipher.decode(blob: ByteArray): PairingSecret? = decrypt(blob).decodedPayload()
+
+private const val PAIRING_PAYLOAD_VERSION = 1
+
+/** The payload codec is file-private: `PairingSecret` never exposes its serialized shape. */
+private fun PairingSecret.encodedPayload(): ByteArray =
+    buildJsonObject {
+            put("version", PAIRING_PAYLOAD_VERSION)
+            token?.let { put("token", it) }
+            pin?.let { put("pin", it) }
+        }
+        .toString()
+        .encodeToByteArray()
+
+private fun ByteArray.decodedPayload(): PairingSecret? {
+    val root =
+        try {
+            Json.parseToJsonElement(decodeToString()).jsonObject
+        } catch (ignored: IllegalArgumentException) {
+            return null
+        }
+    val version = (root["version"] as? JsonPrimitive)?.intOrNull
+    if (version != PAIRING_PAYLOAD_VERSION) return null
+    val token = (root["token"] as? JsonPrimitive)?.contentOrNull
+    val pin = (root["pin"] as? JsonPrimitive)?.contentOrNull
+    if (token == null && pin == null) return null
+    return PairingSecret(token = token, pin = pin)
+}
 
 /**
  * The saved pairing credential for one television (docs/architecture/data.md#samsung-secret-record).
@@ -61,39 +87,7 @@ internal fun SecretCipher.decode(blob: ByteArray): PairingSecret? =
  *   the pairing was approved, or null for a pairing made on the plaintext channel, whose security
  *   identity is the protocol UUID instead (docs/architecture/connection.md#security-identity).
  */
-internal data class PairingSecret(val token: String?, val pin: String?) {
-    internal companion object {
-        /**
-         * The encrypted payload is `token` and `pin` only. Null members are absent members, so an
-         * absent value can never be confused with an empty one by a reader.
-         */
-        private fun PairingSecret.encodePayload(): ByteArray =
-            buildJsonObject {
-                    put("version", PAYLOAD_VERSION)
-                    token?.let { put("token", it) }
-                    pin?.let { put("pin", it) }
-                }
-                .toString()
-                .encodeToByteArray()
-
-        private fun decodePayload(plaintext: ByteArray): PairingSecret? {
-            val root =
-                try {
-                    Json.parseToJsonElement(plaintext.decodeToString()).jsonObject
-                } catch (ignored: IllegalArgumentException) {
-                    return null
-                }
-            val version = (root["version"] as? JsonPrimitive)?.intOrNull
-            if (version != PAYLOAD_VERSION) return null
-            val token = (root["token"] as? JsonPrimitive)?.contentOrNull
-            val pin = (root["pin"] as? JsonPrimitive)?.contentOrNull
-            if (token == null && pin == null) return null
-            return PairingSecret(token = token, pin = pin)
-        }
-
-        private const val PAYLOAD_VERSION = 1
-    }
-}
+internal data class PairingSecret(val token: String?, val pin: String?)
 
 /** The result of reading one television's saved secret. */
 internal sealed interface StoredSecret {
