@@ -171,7 +171,7 @@ class FakeSamsungTvs : SamsungTvs {
     override fun rememberedIds(): Set<TvId> = remembered.toSet()
 
     /** Primes the remembered set, as the durable store would report it after a pairing. */
-    fun remember(vararg ids: TvId) {
+    fun remember(ids: Set<TvId>) {
         remembered += ids
     }
 
