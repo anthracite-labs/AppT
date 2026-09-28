@@ -311,6 +311,7 @@ The parsed-YAML cache contract runs in repository-quality CI after yamllint:
 
 ```sh
 python3 tools/ci/test/workflow-cache-contract.test.py
+python3 tools/ci/test/sonar-boundary.test.py
 ```
 
 It checks effective workflow/job modes and rejects missing boundaries or
@@ -320,6 +321,26 @@ recognize `cache-mode`; only its exact unknown top-level-key diagnostic is
 excluded, with syntax and effective access validated by this mandatory contract.
 All other actionlint findings remain failures. Remove that narrow compatibility
 exception when the pinned parser supports the provider key.
+
+### Secret-bearing Sonar analysis
+
+The quality-platform job does **not** execute target build/install scripts. It
+keeps its trusted dispatch-anchor checkout at the workspace root, checks the
+validated target into `sonar-target`, and downloads coverage into separate
+runner-temporary directories. The scanner reads the anchor's
+`sonar-project.properties` through an explicit `project.settings` argument;
+target and artifact copies are not scanner configuration. Module settings are
+disabled, endpoints are fixed, and scanner state starts in fresh directories
+outside all input trees. Input symlinks and special files fail closed before any
+secret-bearing step. Both Kover XML and backend LCOV remain required and are
+imported from the current run's producer artifacts through explicit paths.
+
+Only the token-presence check and pinned scanner receive `SONAR_TOKEN`; the
+scanner no longer receives an unnecessary `GITHUB_TOKEN`. The scanner action and
+CLI version stay pinned. The parsed-YAML and inert-file regression tests above
+check this split without running target code or contacting Sonar. See the
+[release security analysis](architecture/release.md#secret-bearing-sonar-boundary)
+for the pinned upstream source evidence and the remaining hosted-proof boundary.
 
 ### Focusing a diagnostic
 

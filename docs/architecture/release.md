@@ -531,6 +531,60 @@ This also covers the one provider key the pinned actionlint parser does not yet
 recognize; only that exact unknown top-level-key diagnostic is excluded from
 actionlint, not other syntax, security, or workflow checks.
 
+#### Secret-bearing Sonar boundary
+
+The quality-platform job is a separate trust case, not an ordinary no-secret
+build job. The previous single-worktree layout let the target replace
+`sonar-project.properties` before scanning with `SONAR_TOKEN`. Source review
+confirmed control over both authenticated destinations and executable selection:
+
+- The pinned [scan action](https://github.com/SonarSource/sonarqube-scan-action/blob/ba9859eae8dd6bd29e412f25ddbbef3d032000f4/src/main/run-sonar-scanner.js)
+  passes `projectBaseDir` and parsed `args` to the installed scanner. It does not
+  sanitize or replace target project settings. Its signed scanner installation
+  and CLI version `8.1.0.6389` are unchanged.
+- CLI `8.1.0.6389` resolves to commit `b33c7e211208d90c06532c99debf350a45f36f91`.
+  Its [Conf.java](https://github.com/SonarSource/sonar-scanner-cli/blob/b33c7e211208d90c06532c99debf350a45f36f91/src/main/java/org/sonarsource/scanner/cli/Conf.java)
+  loads the base directory's project settings unless `project.settings` supplies
+  another file. `properties()` gives CLI properties final precedence;
+  `loadModulesProperties()` reads child settings only for declared modules.
+- That CLI pins scanner-java-library `4.1.1.1633`, commit
+  `87b5593e4fe3fc9a67402875ecfbfdb7d266f79f`. Its
+  [JavaRunnerFactory](https://github.com/SonarSource/sonar-scanner-java-library/blob/87b5593e4fe3fc9a67402875ecfbfdb7d266f79f/lib/src/main/java/org/sonarsource/scanner/lib/internal/facade/forked/JavaRunnerFactory.java)
+  accepts a configured Java executable, and its
+  [ScannerHttpClient](https://github.com/SonarSource/sonar-scanner-java-library/blob/87b5593e4fe3fc9a67402875ecfbfdb7d266f79f/lib/src/main/java/org/sonarsource/scanner/lib/internal/http/ScannerHttpClient.java)
+  attaches the token to authenticated requests. A read-only GitHub token would
+  not have protected the Sonar token from target-controlled scanner properties.
+
+The corrected job keeps the dispatch anchor (settings and validation helper) at
+the workspace root. The validated SHA is checked out separately in `sonar-target`
+and is only analysis data: no target Gradle, npm, wrapper, local action or script
+runs in this job. The trusted pinned scanner receives:
+
+- explicit `project.settings` pointing **outside** the target to the anchor's
+  configuration, and an empty `sonar.modules` to prevent child settings loading;
+- fixed SonarCloud web/API endpoints, never target-derived destinations;
+- fresh `sonar.userHome` and `sonar.working.directory` outside the target/artifacts;
+- explicit absolute coverage paths into separate Kover and backend artifact
+  download directories, with both evidence types required;
+- the exact analyzed commit as `sonar.scm.revision`.
+
+Downloads cannot intentionally overlay either checkout. The trusted input
+validator rejects symlinks/special files in all input trees, overlapping roots,
+missing/empty reports, and pre-existing scanner state before secret use. Source
+and reports remain data for the pinned scanner/analyzers, not scripts or scanner
+configuration. Scanner binaries, trust configuration, PATH and helper code are
+owned by the trusted workflow/action, not the target. `SONAR_TOKEN` is scoped to
+the presence check and scanner; no GitHub token is supplied to the scanner.
+Provider `cache-mode: read` still covers this job.
+
+`tools/ci/test/sonar-boundary.test.py` proves the workflow control/data split and
+inert-file validation, including mutations that restore target settings, module
+loading, endpoint redirection, or artifact overlay. It runs with the cache
+contract in mandatory repository-quality CI. These are offline regression and
+pinned-source proofs, not a live hostile scan. Fresh provider verification and
+Sonar quality-gate evidence are still required on the final candidate; no real
+secret or production endpoint is used to test an exploit.
+
 `expected_sha` is empty for `pull_request` and `push` events, so the assertion is
 a no-op there and the cheap PR cadence is unaffected.
 

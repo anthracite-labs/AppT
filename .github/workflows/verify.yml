@@ -189,7 +189,9 @@ jobs:
 
       - name: Prove provider cache isolation
         # PyYAML is supplied by the pinned yamllint install immediately above.
-        run: python3 tools/ci/test/workflow-cache-contract.test.py
+        run: |
+          python3 tools/ci/test/workflow-cache-contract.test.py
+          python3 tools/ci/test/sonar-boundary.test.py
 
       - name: Run markdownlint
         # DavidAnson/markdownlint-cli2-action v24.2.0
@@ -884,10 +886,8 @@ jobs:
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          # For a bridge dispatch this is the default branch the workflow ran
-          # from, so the assertion below and the local composite actions it uses
-          # are trusted repository content. The dispatch target is checked out
-          # afterwards, once it has been validated.
+          # Keep trusted settings/helpers in the workspace root. Target source
+          # gets a separate checkout and cannot replace scanner control files.
           persist-credentials: false
 
       - name: Assert the dispatch target
@@ -898,13 +898,14 @@ jobs:
           expected-sha: ${{ inputs.expected_sha }}
           target-ref: ${{ inputs.target_ref }}
 
-      - name: Check out the exact expected SHA
-        if: inputs.expected_sha != ''
+      - name: Check out source as data in a separate directory
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          # The commit the assertion just proved: this job analyses that code.
-          ref: ${{ steps.assert-target.outputs.sha }}
+          # Bridge: the validated target SHA. Ordinary main/manual run: its
+          # exact event SHA. Neither path loads control logic from this tree.
+          ref: ${{ steps.assert-target.outputs.sha || github.sha }}
+          path: sonar-target
           persist-credentials: false
 
       - name: Download Kover coverage report
@@ -912,32 +913,32 @@ jobs:
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
           name: kover-coverage-report
-          path: .
+          path: ${{ runner.temp }}/sonar-kover
 
       - name: Download backend coverage report
         # actions/download-artifact v7.0.0
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
           name: backend-coverage-report
-          path: backend/coverage
+          path: ${{ runner.temp }}/sonar-backend
 
-      - name: Verify coverage evidence files
+      - name: Validate inert Sonar inputs and fresh scanner state
+        env:
+          SCAN_TEMP: ${{ runner.temp }}
         run: |
-          echo "Verifying coverage evidence files for Sonar import..."
-          ls -la backend/coverage/lcov.info || {
-            echo "::error::Backend Jest LCOV coverage report missing at backend/coverage/lcov.info"
-            exit 1
-          }
-          find . -name "*kover*.xml" -o -name "report.xml" -o -name "reportDebug.xml" | grep -q . || {
-            echo "::error::Kover XML coverage report missing"
-            exit 1
-          }
-          echo "Coverage evidence verified."
+          python3 tools/ci/validate-sonar-inputs.py \
+            --source sonar-target \
+            --android "$SCAN_TEMP/sonar-kover" \
+            --backend "$SCAN_TEMP/sonar-backend" \
+            --work "$SCAN_TEMP/sonar-work" \
+            --home "$SCAN_TEMP/sonar-home"
 
       - name: Check for SonarQube Cloud Token
         id: check_token
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          if [ -z "${{ secrets.SONAR_TOKEN }}" ]; then
+          if [ -z "$SONAR_TOKEN" ]; then
             echo "::error title=SonarQube Cloud Token Missing::SONAR_TOKEN secret is required for mandatory SonarQube Cloud quality platform analysis. Analysis cannot be bypassed."
             exit 1
           fi
@@ -945,9 +946,25 @@ jobs:
       - name: Run SonarQube Cloud Analysis
         # sonarsource/sonarqube-scan-action v8.2.2
         uses: sonarsource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4
+        with:
+          scannerVersion: 8.1.0.6389
+          projectBaseDir: sonar-target
+          # CLI settings override discovery of target sonar-project.properties.
+          # Empty modules prevents secondary target-controlled module settings.
+          # Endpoints, working state and report paths are all trusted constants.
+          args: >-
+            -Dproject.settings="${{ github.workspace }}/sonar-project.properties"
+            -Dsonar.modules=
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.scanner.sonarcloudUrl=https://sonarcloud.io
+            -Dsonar.scanner.apiBaseUrl=https://api.sonarcloud.io
+            -Dsonar.working.directory="${{ runner.temp }}/sonar-work"
+            -Dsonar.userHome="${{ runner.temp }}/sonar-home"
+            -Dsonar.coverage.jacoco.xmlReportPaths="${{ runner.temp }}/sonar-kover/build/reports/kover/report.xml,${{ runner.temp }}/sonar-kover/app/build/reports/kover/report.xml,${{ runner.temp }}/sonar-kover/app/build/reports/kover/reportDebug.xml,${{ runner.temp }}/sonar-kover/build/reports/kover/reportDebug.xml"
+            -Dsonar.javascript.lcov.reportPaths="${{ runner.temp }}/sonar-backend/lcov.info"
+            -Dsonar.scm.revision=${{ steps.assert-target.outputs.sha || github.sha }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ---------------------------------------------------------------------------
   # 13. Gate — the single stable required status interface for default-branch
