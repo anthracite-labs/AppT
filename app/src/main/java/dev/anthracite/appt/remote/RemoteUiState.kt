@@ -78,8 +78,8 @@ sealed interface ConnectionUi {
                             null -> TvFailure.SecretsUnavailable
                             RepairReason.ApprovalDenied -> TvFailure.NeedsRepair
                             RepairReason.ApprovalTimedOut -> TvFailure.TimedOut
-                            RepairReason.TokenRejected, RepairReason.IdentityChanged ->
-                                TvFailure.IdentityChanged
+                            RepairReason.TokenRejected,
+                            RepairReason.IdentityChanged -> TvFailure.IdentityChanged
                         }
                     )
                 SessionState.Unreachable -> Unavailable(TvFailure.Unreachable)
