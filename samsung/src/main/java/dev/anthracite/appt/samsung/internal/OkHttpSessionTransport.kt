@@ -57,9 +57,8 @@ private const val HEX_RADIX = 16
  * read each other's candidate pin, and no URL, frame, token, certificate, address or port is ever
  * logged from here (protocol.md#logging-from-this-layer).
  */
-internal class OkHttpSessionTransport(
-    private val ioDispatcher: CoroutineContext = Dispatchers.IO,
-) : SessionTransport {
+internal class OkHttpSessionTransport(private val ioDispatcher: CoroutineContext = Dispatchers.IO) :
+    SessionTransport {
 
     override suspend fun connect(
         television: ConfirmedTelevision,
