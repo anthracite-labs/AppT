@@ -14,9 +14,9 @@ Implementation.
 
 ## Current Objective
 
-Dispatch S04 — Saved pairing, fail-closed identity, and the safe forget primitive — from Arena Issue #91 contract revision 3 as the next authorized implementation slice.
+Compile and dispatch S05 — Capability-driven Remote surface, Settings shell, and diagnostic recorder — as the next authorized implementation slice.
 
-Success means S04 implements only behavior that becomes real in S04, includes the staged physical Samsung checkpoint, preserves S03's accepted first-control/session boundaries, and satisfies the accepted security, privacy, provenance, supply-chain, and verification floor.
+Success means S05 makes the accepted phone-native Remote, Settings, accessibility, performance, and bounded local-diagnostics foundation real while preserving S04's accepted saved-pairing, fail-closed identity, and safe-forget boundaries.
 
 ## Accepted Decisions
 
@@ -29,12 +29,12 @@ Success means S04 implements only behavior that becomes real in S04, includes th
 - Verification and independent AI-code assurance are accepted through PR #60.
 - S02 is accepted through implementation PR #75 and corrective closeout PR #77.
 - S03 is accepted through implementation PR #80.
+- S04 is accepted through PR #105.
 - Repository CI/agent-control and verification hardening are accepted through PR #89.
 - Mandatory lifecycle skill routing and diagnose-before-fix gates are accepted through PR #84.
 - Bounded diagnostic breadth before correction is accepted through PR #106: inside the smallest affected domain, collect the practical independent failure set, group root causes, then correct coherently without weakening failure semantics.
-- Reuse-before-reimplement is accepted through PR #108 for new Arena-ready Issues and future material revisions: the control plane compiles an Implementation Reuse Plan from accepted AppT code plus distributed harvest evidence; Arena prefers approved `EXISTING APPT`, `ADAPT`, or `PORT` leverage before `NEW`, and `NEW` requires a concrete recorded reason. Active S04 Issue #91 revision 3 is grandfathered until any future material revision.
-- S04 is the next authorized implementation slice.
-- Issue #91 contract revision 3 is the Arena-ready S04 contract. Revision 3 preserves the reconciled S04 behavior/boundaries while requiring evidence-first implementation: repository truth first, material first-party authoritative sources re-opened for external contracts, relevant pinned implementation-harvest evidence inspected before coding, and temporary workflows used only as last-resort test infrastructure. It does not pre-create `Favourite` or `PendingForget`.
+- Reuse-before-reimplement is accepted through PR #108 for new Arena-ready Issues and future material revisions: the control plane compiles an Implementation Reuse Plan from accepted AppT code plus distributed harvest evidence; Arena prefers approved `EXISTING APPT`, `ADAPT`, or `PORT` leverage before `NEW`, and `NEW` requires a concrete recorded reason.
+- S05 is the next authorized implementation slice.
 - S07 may be dependency-ready but is not active or authorized.
 - Provider facts marked `needs validation` must be confirmed when they first become implementation-relevant. Material external/protocol claims also carry explicit authority/implementation-evidence/AppT-decision provenance in their owning architecture documents.
 - Final AppT source-license selection and focused Samsung vendor-terms/legal review remain pre-public-release gates.
@@ -42,15 +42,15 @@ Success means S04 implements only behavior that becomes real in S04, includes th
 
 ## Durable Blockers
 
-None for S04 dispatch.
+None for S05 dispatch.
 
 ## Latest Accepted Milestone
 
-S03 — Pair on the television and the first command — accepted through PR #80.
+S04 — Saved pairing, fail-closed identity, and the safe forget primitive — accepted through PR #105.
 
 ## Next Authorized Action
 
-Dispatch Issue #91 contract revision 3 to Arena using `.project-ai/execution/arena-dispatch.md`; review the resulting PR against that revision before human acceptance.
+Compile S05 from `docs/architecture/slices.md` and its owning architecture sources into an Arena-ready Issue with the required Implementation Reuse Plan, then dispatch it through `.project-ai/execution/arena-dispatch.md`.
 
 ## Authoritative References
 
