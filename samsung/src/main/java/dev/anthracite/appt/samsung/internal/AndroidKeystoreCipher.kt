@@ -82,7 +82,8 @@ internal class AndroidKeystoreCipher(private val alias: String = KEYSTORE_ALIAS)
                 // minSdk 29 is past P, so the StrongBox API is always present and the SDK_INT
                 // guard lint flags as obsolete is dead code. Hardware availability is still
                 // runtime-negotiated: a device without StrongBox throws
-                // InvalidAlgorithmParameterException here and the TEE fallback generates the key.
+                // StrongBoxUnavailableException (a ProviderException) here and the TEE fallback
+                // generates the key — see the catches in [generateKey].
                 if (strongBox) {
                     setIsStrongBoxBacked(true)
                 }
