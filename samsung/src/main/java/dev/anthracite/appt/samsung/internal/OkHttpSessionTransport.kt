@@ -84,7 +84,11 @@ internal class OkHttpSessionTransport(private val ioDispatcher: CoroutineContext
      * below re-enforces the same pin, so the probe is the fail-closed gate and the session keeps
      * the guarantee for its whole lifetime.
      */
-    private suspend fun verifySavedPin(host: String, port: Int, requiredPin: String): IdentityProbe {
+    private suspend fun verifySavedPin(
+        host: String,
+        port: Int,
+        requiredPin: String,
+    ): IdentityProbe {
         val trustManager = SpkiTrustManager()
         trustManager.beginHandshake(requiredPin)
         return try {
