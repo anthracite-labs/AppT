@@ -45,9 +45,9 @@ private const val HEX_RADIX = 16
  * Plaintext port 8001 is not opened here. Android's cleartext policy would reject `ws://` on this
  * stack at targetSdk 36; [PlaintextWebSocketTransport] speaks that fallback on a raw socket.
  *
- * The saved-identity discipline (docs/architecture/connection.md#ordering-relative-to-secrets):
- * a saved SPKI pin is verified against a live handshake with this host *before* the token is
- * attached to the remote-channel URL, so a changed television identity is
+ * The saved-identity discipline (docs/architecture/connection.md#ordering-relative-to-secrets): a
+ * saved SPKI pin is verified against a live handshake with this host *before* the token is attached
+ * to the remote-channel URL, so a changed television identity is
  * [ConnectionAttempt.IdentityMismatch] with the token absent from every attempted URL and write.
  * Only after that verification does the resumed connection open with its token. On first contact
  * there is no saved pin: one certificate is accepted as an in-memory candidate for the session and
