@@ -128,9 +128,13 @@ class PlaintextWebSocketTransportTest {
         // The probe's fresh device-info request must carry a valid authority: a bare IPv6 literal
         // is bracketed exactly as the upgrade request brackets it. The probe reaches a matched
         // identity here, so passing the gate ends in Unreachable (nothing serves the remote
-        // channel), which is the proof the probe ran and returned the document's UUID.
+        // channel: the second connection is accepted by nobody, the upgrade read stalls past
+        // its bound, and open fails normally), which is the proof the probe ran and returned
+        // the document's UUID.
         val ipv6Loopback = InetAddress.getByName("::1")
-        ServerSocket(0, 1, ipv6Loopback).use { server ->
+        // The probe dials the television's derived plaintext remote port, so the stub serves there.
+        ServerSocket(ConfirmedTelevision.PLAINTEXT_REMOTE_PORT, 1, ipv6Loopback).use { server ->
+            server.soTimeout = 30_000
             var hostHeader: String? = null
             val peer = thread {
                 server.accept().use { socket ->
@@ -147,7 +151,8 @@ class PlaintextWebSocketTransportTest {
                     socket.getOutputStream().flush()
                 }
             }
-            val television = plaintextTelevision("7c9e6679-7425-40de-944b-e07fc1f90ae7").copy(host = "::1")
+            val television =
+                plaintextTelevision("7c9e6679-7425-40de-944b-e07fc1f90ae7").copy(host = "::1")
             val attempt =
                 PlaintextWebSocketTransport(keepalive = 1.hours)
                     .connect(television, PairingSecret(token = "resume-token", pin = null))
@@ -162,7 +167,9 @@ class PlaintextWebSocketTransportTest {
     fun theRealProbeFailsClosedOnAnUnreadableDocument() = runBlocking {
         // The default probe returns null for a non-200 document, and a resumed pairing with no
         // establishable current identity is IdentityMismatch — no remote socket, no token.
-        ServerSocket(0, 1, loopback).use { server ->
+        // The probe dials the television's derived plaintext remote port, so the stub serves there.
+        ServerSocket(ConfirmedTelevision.PLAINTEXT_REMOTE_PORT, 1, loopback).use { server ->
+            server.soTimeout = 30_000
             val peer = thread {
                 server.accept().use { socket ->
                     val response =
