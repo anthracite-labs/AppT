@@ -316,7 +316,10 @@ class KeystoreSamsungStoreTest {
         val cipher = LocalAesGcmCipher()
         val blob = cipher.encrypt("payload".toByteArray())
         assertArrayEquals("payload".toByteArray(), cipher.decrypt(blob))
-        assertFalse("fresh IVs per call", blob.contentEquals(cipher.encrypt("payload".toByteArray())))
+        assertFalse(
+            "fresh IVs per call",
+            blob.contentEquals(cipher.encrypt("payload".toByteArray())),
+        )
     }
 
     private fun secretFiles(): List<File> =
