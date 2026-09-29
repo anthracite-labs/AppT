@@ -450,6 +450,16 @@ jobs:
               exit 1
           }
 
+      - name: Upload debug APK
+        if: success()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: appt-debug-${{ inputs.expected_sha || github.sha }}
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
   # ---------------------------------------------------------------------------
   # backend-static — TypeScript typecheck, ESLint, Prettier, Knip.
   # ---------------------------------------------------------------------------
@@ -772,6 +782,17 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
           ls -la /dev/kvm
+
+      - name: Provision the managed-device system images
+        # The hosted runner image preinstalls google_apis-flavored system images only;
+        # the aosp ("default") flavors the managed devices declare are not guaranteed
+        # to be present, and the setup task fails its existence check instead of
+        # downloading them. Install the exact packages the device jobs run against
+        # before any target-controlled Gradle task executes.
+        run: |
+          yes | "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager" \
+            "system-images;android-29;default;x86" \
+            "system-images;android-35;default;x86_64"
 
       - name: Run Gradle Managed Device Acceptance Test (API 29)
         run: |
