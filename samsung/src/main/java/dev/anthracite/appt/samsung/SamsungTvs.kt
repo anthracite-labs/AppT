@@ -66,7 +66,8 @@ interface SamsungTvs {
      *   treating the television as forgotten.
      * * A session that is already open for this id is not closed by `forget` — releasing a session
      *   remains the holder's job — but a late approval from it can no longer publish `Ready` or
-     *   persist pairing evidence (docs/architecture/connection.md#evidence-and-race-handling-harvest).
+     *   persist pairing evidence
+     *   (docs/architecture/connection.md#evidence-and-race-handling-harvest).
      */
     suspend fun forget(id: TvId): ForgetResult
 
