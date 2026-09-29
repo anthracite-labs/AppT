@@ -39,8 +39,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  * transport moves blocking socket work off-thread. That keeps the bound on the caller's clock,
  * which is what lets tests run the full 10 seconds in virtual time. The one exception is the
  * durable-store read below: file and Keystore work is confined to [readDispatcher] (IO in
- * production) so it never blocks the caller's (main) thread. Tests inject an unconfined
- * dispatcher, which keeps the read on the caller's clock like every other step.
+ * production) so it never blocks the caller's (main) thread. Tests inject an unconfined dispatcher,
+ * which keeps the read on the caller's clock like every other step.
  */
 internal class DiscoveryScan(
     private val transport: DiscoveryTransport,
