@@ -296,10 +296,11 @@ internal class PlaintextWebSocketTransport(
                                 "Accept: application/json\r\n" +
                                 "Connection: close\r\n" +
                                 "\r\n"
-                        socket.getOutputStream().use { output ->
-                            output.write(request.encodeToByteArray())
-                            output.flush()
-                        }
+                        // Write without closing the stream: closing a socket's output stream
+                        // closes the socket, and the response is still to be read.
+                        val output = socket.getOutputStream()
+                        output.write(request.encodeToByteArray())
+                        output.flush()
                         BoundedHttpResponse.readOkBody(socket.inputStream, MAX_DEVICE_INFO_BYTES)
                             ?.let(DeviceInfoParser::parse)
                             ?.uuid
