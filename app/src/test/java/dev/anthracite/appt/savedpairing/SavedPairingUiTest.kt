@@ -1,5 +1,6 @@
 package dev.anthracite.appt.savedpairing
 
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import dev.anthracite.appt.data.FakeTvProfileDao
 import dev.anthracite.appt.data.TvProfiles
 import dev.anthracite.appt.pairing.PairingPhase
@@ -31,7 +32,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 
 /**
  * How the saved-pairing session states present (Issue #91, presentation.md): a denied approval
