@@ -1,8 +1,8 @@
 package dev.anthracite.appt.samsung.internal
 
 import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.StrongBoxUnavailableException
 import android.security.keystore.KeyProperties
+import android.security.keystore.StrongBoxUnavailableException
 import java.security.InvalidAlgorithmParameterException
 import java.security.KeyStore
 import javax.crypto.Cipher
