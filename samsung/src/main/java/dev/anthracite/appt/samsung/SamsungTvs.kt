@@ -42,10 +42,10 @@ interface SamsungTvs {
      * * An `Unsupported` television yields a session that reports `Unsupported` and sends no
      *   functional command. An unknown id yields `Unreachable`. Neither opens a socket.
      * * A remembered television resumes: its saved security identity (the TLS pin, or the protocol
-     *   UUID on the plaintext channel) is checked first, and only a match presents the saved
-     *   token, so the session reaches `Ready` without another approval prompt. A changed identity
-     *   is `NeedsRepair` with `RepairReason.IdentityChanged`, and the saved token never reaches
-     *   that connection (docs/architecture/connection.md#security-identity).
+     *   UUID on the plaintext channel) is checked first, and only a match presents the saved token,
+     *   so the session reaches `Ready` without another approval prompt. A changed identity is
+     *   `NeedsRepair` with `RepairReason.IdentityChanged`, and the saved token never reaches that
+     *   connection (docs/architecture/connection.md#security-identity).
      * * Saved material that cannot be decrypted surfaces as `NeedsRepair` without a repair reason
      *   (`TvFailure.SecretsUnavailable`): no fallback, no token, and the user can pair again.
      * * First contact sends no saved token: the television is asked to allow AppT, and the session
