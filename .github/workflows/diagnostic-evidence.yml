@@ -85,15 +85,15 @@ jobs:
                   what_wrong = True
               if what_wrong and line.strip():
                   print("::error title=gradle::{}".format(line.strip()[:250]))
-          for line in log.splitlines():
-              if ": Error:" in line or line.strip().startswith("Error:"):
-                  print("::error title=lint console::{}".format(line.strip()[:400]))
-          reports = glob.glob("**/lint-results*.txt", recursive=True) + glob.glob(
-              "**/lint-results*.xml", recursive=True
-          )
-          if not reports:
-              print("::notice title=evidence::no lint report file was produced")
-          for report in reports[:2]:
-              head = open(report, errors="replace").read().splitlines()[:25]
+          # Everything lint-shaped: the task output around the failure, any Error
+          # line anywhere, and whatever report files exist under any build dir.
+          for index, line in enumerate(log.splitlines()):
+              if "lint" in line.lower() and ("error" in line.lower() or "warning" in line.lower()):
+                  print("::error title=lint out::{}".format(line.strip()[:400]))
+          for report in glob.glob("**/lint-results*", recursive=True):
+              print("::notice title=lint file::{}".format(report))
+              head = open(report, errors="replace").read().splitlines()[:20]
               for line in head:
-                  print("::error title=lint report {}::{}".format(report, line.strip()[:300]))
+                  print("::error title=lint file body::{}".format(line.strip()[:300]))
+          if not glob.glob("**/lint-results*", recursive=True):
+              print("::notice title=evidence::no lint report file exists anywhere")
