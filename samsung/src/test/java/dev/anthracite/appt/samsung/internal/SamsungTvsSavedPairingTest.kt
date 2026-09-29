@@ -135,7 +135,10 @@ class SamsungTvsSavedPairingTest {
         advanceUntilIdle()
 
         assertEquals(SessionState.NeedsRepair, session.snapshot.value.state)
-        assertNull("the secrets surface carries no repair reason", session.snapshot.value.repairReason)
+        assertNull(
+            "the secrets surface carries no repair reason",
+            session.snapshot.value.repairReason,
+        )
         assertTrue(
             "the failed rotation stored nothing new",
             secrets.savedSecrets.isEmpty(),

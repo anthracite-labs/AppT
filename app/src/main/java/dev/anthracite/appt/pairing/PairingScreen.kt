@@ -241,8 +241,8 @@ private fun PairAgainRepairControl(onPairAgain: () -> Unit) {
 }
 
 /**
- * The explicit confirmation the pair again owes the user (presentation.md): the dialog says what
- * is removed and what comes next, so the destructive act is never a single tap.
+ * The explicit confirmation the pair again owes the user (presentation.md): the dialog says what is
+ * removed and what comes next, so the destructive act is never a single tap.
  */
 @Composable
 private fun PairAgainConfirmationDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
