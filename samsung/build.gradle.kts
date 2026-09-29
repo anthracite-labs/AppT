@@ -33,14 +33,16 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    managedDevices {
-        localDevices {
-            // The same local GMD the :app device diagnostic runs, so the module's instrumented
-            // tests execute on the identical Android runtime image.
-            create("pixel2api29") {
-                device = "Pixel 2"
-                apiLevel = 29
-                systemImageSource = "aosp"
+    testOptions {
+        managedDevices {
+            localDevices {
+                // The same local GMD the :app device diagnostic runs, so the module's
+                // instrumented tests execute on the identical Android runtime image.
+                create("pixel2api29") {
+                    device = "Pixel 2"
+                    apiLevel = 29
+                    systemImageSource = "aosp"
+                }
             }
         }
     }
