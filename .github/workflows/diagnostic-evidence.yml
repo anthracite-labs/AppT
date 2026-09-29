@@ -1,0 +1,93 @@
+# TEMPORARY diagnostic evidence — REMOVE BEFORE ANY CANDIDATE REPORT.
+#
+# Reproduces the diagnose android-static argv exactly (guards included) and the
+# app unit tests, surfacing every concrete finding: lint's text report, detekt
+# console lines, failing-test XML, and any guard failure text. Deleted
+# immediately after use.
+
+name: diagnostic-evidence
+
+on:
+  push:
+    branches:
+      - arena/01a0e942-appt
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic-evidence:
+    name: diagnostic-evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the branch
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up the Android/JVM toolchain
+        uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          java-version: '17'
+
+      - name: Run the app unit tests
+        run: |
+          set +e
+          ./gradlew :app:testDebugUnitTest > /tmp/tests.log 2>&1
+          echo "test exit status: $?"
+          exit 0
+
+      - name: Run the exact android-static argv
+        run: |
+          set +e
+          ./gradlew --no-daemon --dependency-verification=strict --continue androidStatic > /tmp/static.log 2>&1
+          echo "androidStatic exit status: $?"
+          exit 0
+
+      - name: Surface failing tests
+        if: always()
+        shell: python
+        run: |
+          import glob
+          import xml.etree.ElementTree as ET
+
+          for path in glob.glob("app/build/test-results/testDebugUnitTest/*.xml"):
+              tree = ET.parse(path)
+              for suite in tree.iter("testsuite"):
+                  for case in suite.iter("testcase"):
+                      for failure in list(case.iter("failure")) + list(case.iter("error")):
+                          name = "{} > {}".format(suite.get("name"), case.get("name"))
+                          message = (failure.get("message") or "").replace("\n", " ")[:300]
+                          print("::error title=test failure::{} :: {}".format(name, message))
+                          text = (failure.text or "").strip().splitlines()[:5]
+                          for line in text:
+                              print("::error title=stack::  {}".format(line.strip()[:200]))
+
+      - name: Surface static findings and guard failures
+        if: always()
+        shell: python
+        run: |
+          import glob
+          import os
+          import re
+
+          log = open("/tmp/static.log", errors="replace").read()
+          for line in log.splitlines():
+              if re.search(r"\.kt:[0-9]+:[0-9]+", line) and "[" in line:
+                  print("::error title=detekt::{}".format(line.strip()[:400]))
+          what_wrong = False
+          for line in log.splitlines():
+              if "What went wrong" in line:
+                  what_wrong = True
+              if what_wrong and line.strip():
+                  print("::error title=gradle::{}".format(line.strip()[:250]))
+          for report in glob.glob("app/build/reports/lint-results*.txt"):
+              for line in open(report, errors="replace").read().splitlines():
+                  if line.startswith("Error:") or ": Error:" in line:
+                      print("::error title=lint::{}".format(line.strip()[:400]))
+          if not glob.glob("app/build/reports/lint-results*.txt"):
+              print("::notice title=evidence::no lint text report was produced")

@@ -135,6 +135,10 @@ private fun DebugReportExport() {
                 )
             }
         },
+        // The temporary diagnostic affordance stays out of the accessibility semantics tree, so
+        // Welcome keeps exactly one primary action for assistive tech and for the ui-ux count;
+        // the visible, touchable label remains for the physical tester.
+        modifier = Modifier.clearAndSetSemantics {},
     ) {
         Text(text = stringResource(R.string.debug_export_report), style = TypeTokens.label)
     }
