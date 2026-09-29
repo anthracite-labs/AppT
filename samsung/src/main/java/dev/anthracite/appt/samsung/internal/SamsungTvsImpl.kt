@@ -49,7 +49,8 @@ internal class SamsungTvsImpl(
     private val newScan: () -> DiscoveryScan,
     private val confirmed: ConfirmedTelevisions = ConfirmedTelevisions(),
     private val secrets: SamsungSecretStore,
-    private val newSession: (ConfirmedTelevision, CoroutineScope, SessionGeneration) -> RemoteSession =
+    private val newSession:
+        (ConfirmedTelevision, CoroutineScope, SessionGeneration) -> RemoteSession =
         { television, scope, generation ->
             LiveSession(television, ProductionSessionTransport(), scope, secrets, generation)
         },
