@@ -124,6 +124,64 @@ class PlaintextWebSocketTransportTest {
     }
 
     @Test
+    fun theRealProbeFormatsABareIpv6LiteralAsABracketedAuthority() = runBlocking {
+        // The probe's fresh device-info request must carry a valid authority: a bare IPv6 literal
+        // is bracketed exactly as the upgrade request brackets it. The probe reaches a matched
+        // identity here, so passing the gate ends in Unreachable (nothing serves the remote
+        // channel), which is the proof the probe ran and returned the document's UUID.
+        val ipv6Loopback = InetAddress.getByName("::1")
+        ServerSocket(0, 1, ipv6Loopback).use { server ->
+            var hostHeader: String? = null
+            val peer = thread {
+                server.accept().use { socket ->
+                    val request = readRequest(socket.getInputStream())
+                    hostHeader = request.lines().first { it.startsWith("Host:", ignoreCase = true) }
+                    val document = """{"device":{"id":"probe-uuid-6"}}"""
+                    val response =
+                        "HTTP/1.1 200 OK\r\n" +
+                            "Content-Type: application/json\r\n" +
+                            "Content-Length: ${document.encodeToByteArray().size}\r\n" +
+                            "\r\n" +
+                            document
+                    socket.getOutputStream().write(response.encodeToByteArray())
+                    socket.getOutputStream().flush()
+                }
+            }
+            val television = plaintextTelevision("probe-uuid-6").copy(host = "::1")
+            val attempt =
+                PlaintextWebSocketTransport(keepalive = 1.hours)
+                    .connect(television, PairingSecret(token = "resume-token", pin = null))
+            peer.join()
+
+            assertEquals(ConnectionAttempt.Unreachable, attempt)
+            assertEquals("Host: [::1]:${server.localPort}", hostHeader)
+        }
+    }
+
+    @Test
+    fun theRealProbeFailsClosedOnAnUnreadableDocument() = runBlocking {
+        // The default probe returns null for a non-200 document, and a resumed pairing with no
+        // establishable current identity is IdentityMismatch — no remote socket, no token.
+        ServerSocket(0, 1, loopback).use { server ->
+            val peer = thread {
+                server.accept().use { socket ->
+                    val response =
+                        "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n"
+                    socket.getOutputStream().write(response.encodeToByteArray())
+                    socket.getOutputStream().flush()
+                }
+            }
+            val saved = PairingSecret(token = "resume-token", pin = null)
+            val attempt =
+                PlaintextWebSocketTransport(keepalive = 1.hours)
+                    .connect(plaintextTelevision("saved-uuid"), saved)
+            peer.join()
+
+            assertEquals(ConnectionAttempt.IdentityMismatch, attempt)
+        }
+    }
+
+    @Test
     fun handshakeIsATokenFreeUpgradeOnARawSocket() = runBlocking {
         ServerSocket(0, 1, loopback).use { server ->
             var request = ""
