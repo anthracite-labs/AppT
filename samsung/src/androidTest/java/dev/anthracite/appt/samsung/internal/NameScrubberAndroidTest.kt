@@ -11,9 +11,9 @@ import org.junit.runner.RunWith
  * The scrubber's regexes must compile on Android's ICU-based engine, which rejects syntax the JVM
  * accepts: the physical failure was an `ExceptionInInitializerError` (a `PatternSyntaxException`)
  * thrown from this class's initializer on the device while every JVM run stayed green. This test
- * initializes the object and exercises the representative identifier cases — ordinary names,
- * UUID, IPv4 with port, MAC in both separators, IPv6, attached and spelled-out ports, and a URL —
- * on the device, so a JVM-only regex regression can never pass again.
+ * initializes the object and exercises the representative identifier cases — ordinary names, UUID,
+ * IPv4 with port, MAC in both separators, IPv6, attached and spelled-out ports, and a URL — on the
+ * device, so a JVM-only regex regression can never pass again.
  */
 @RunWith(AndroidJUnit4::class)
 class NameScrubberAndroidTest {
