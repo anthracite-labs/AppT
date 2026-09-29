@@ -2,7 +2,6 @@ package dev.anthracite.appt.diagnostics
 
 import android.app.Application
 import android.content.Intent
-import android.content.pm.ApplicationInfo
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
@@ -46,7 +45,7 @@ class FlightRecorderTest {
 
     @Test
     fun aNonDebuggableBuildRecordsNothing() {
-        FlightRecorder.configure(enabled = false, directory = temporaryFolder.root)
+        FlightRecorder.configure(active = false, storage = temporaryFolder.root)
         FlightRecorder.record(FlightRecorder.Phase.ScanStarted)
         FlightRecorder.recordFailure(RuntimeException("token=SECRET host=10.0.0.5"))
         assertNull("no report exists on a release build", FlightRecorder.reportFile())
@@ -58,22 +57,26 @@ class FlightRecorderTest {
     }
 
     @Test
-    fun installIsInertOnANonDebuggableBuild() {
-        val before = Thread.getDefaultUncaughtExceptionHandler()
-        application.applicationInfo.flags = application.applicationInfo.flags and
-            ApplicationInfo.FLAG_DEBUGGABLE.inv()
+    fun installWrapsTheHandlerOnceAndRecordsTheAppStart() {
+        FlightRecorder.install(application)
+        assertTrue("a debug build records", FlightRecorder.enabled)
+        val handler = Thread.getDefaultUncaughtExceptionHandler()
         FlightRecorder.install(application)
         assertEquals(
-            "the system handler is untouched",
-            before,
+            "installing twice never double-wraps",
+            handler,
             Thread.getDefaultUncaughtExceptionHandler(),
         )
-        assertFalse(FlightRecorder.enabled)
+        val report = FlightRecorder.reportFile()!!.readText()
+        assertTrue(
+            "the app start is the first record",
+            report.contains(FlightRecorder.Phase.AppCreate.name),
+        )
     }
 
     @Test
     fun storageStaysBoundedUnderAnEventFlood() {
-        FlightRecorder.configure(enabled = true, directory = temporaryFolder.root)
+        FlightRecorder.configure(active = true, storage = temporaryFolder.root)
         repeat(EVENT_FLOOD) { FlightRecorder.record(FlightRecorder.Phase.ScanStarted) }
         val report = FlightRecorder.reportFile()
         assertTrue("the report exists", report != null && report.isFile)
@@ -87,7 +90,7 @@ class FlightRecorderTest {
 
     @Test
     fun aFailureRecordCarriesTypesAndApptFramesOnly() {
-        FlightRecorder.configure(enabled = true, directory = temporaryFolder.root)
+        FlightRecorder.configure(active = true, storage = temporaryFolder.root)
         val hostile = RuntimeException("token=SECRET-123 host=10.0.0.5 uuid=abc")
         hostile.stackTrace =
             arrayOf(
@@ -124,7 +127,7 @@ class FlightRecorderTest {
         application.applicationInfo.flags =
             application.applicationInfo.flags or ApplicationInfo.FLAG_DEBUGGABLE
         FlightRecorder.install(application)
-        assertTrue(FlightRecorder.enabled)
+        assertTrue("the diagnostic build records", FlightRecorder.enabled)
 
         val hostile = CancellationException("ssid=HomeWifi host=10.0.0.9")
         hostile.stackTrace =
@@ -156,19 +159,11 @@ class FlightRecorderTest {
             "the lifecycle events precede the crash record",
             report.indexOf("E ") < report.indexOf("C "),
         )
-
-        val handler = Thread.getDefaultUncaughtExceptionHandler()
-        FlightRecorder.install(application)
-        assertEquals(
-            "installing twice never double-wraps",
-            handler,
-            Thread.getDefaultUncaughtExceptionHandler(),
-        )
     }
 
     @Test
     fun theShareIntentTargetsTheSavedReport() {
-        FlightRecorder.configure(enabled = true, directory = temporaryFolder.root)
+        FlightRecorder.configure(active = true, storage = temporaryFolder.root)
         FlightRecorder.record(FlightRecorder.Phase.RouteDiscovery)
         val intent: Intent? = FlightRecorder.exportIntent(application)
         assertTrue("the report is shared as text", intent?.type == "text/plain")

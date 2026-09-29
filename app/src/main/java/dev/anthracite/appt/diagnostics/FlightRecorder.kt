@@ -90,9 +90,9 @@ internal object FlightRecorder {
     }
 
     /** Test seam: direct configuration. Production code only ever goes through [install]. */
-    internal fun configure(enabled: Boolean, directory: File?) {
-        this.enabled = enabled
-        this.directory = directory
+    internal fun configure(active: Boolean, storage: File?) {
+        enabled = active
+        directory = storage
     }
 
     /** Records one allowlisted lifecycle or discovery event. A no-op unless debuggable. */
