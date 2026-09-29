@@ -159,10 +159,7 @@ private fun RemoteRecovery(message: String, onRetry: () -> Unit) {
  * replaces a saved security relationship (presentation.md#remote).
  */
 @Composable
-private fun RemoteRepair(
-    statusText: String,
-    onConfirmRepair: () -> Unit,
-) {
+private fun RemoteRepair(statusText: String, onConfirmRepair: () -> Unit) {
     var confirming by rememberSaveable { mutableStateOf(false) }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
