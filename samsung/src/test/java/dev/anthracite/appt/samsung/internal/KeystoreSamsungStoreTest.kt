@@ -254,7 +254,11 @@ class KeystoreSamsungStoreTest {
         assertEquals(StoredSecret.Absent, store.loadSecret(tvId))
         assertNull(store.loadDevice(tvId))
         assertEquals(0, store.rememberedIds().size)
-        assertEquals("both directories are empty", 0, temporaryFolder.root.walkTopDown().filter { it.isFile }.count())
+        assertEquals(
+            "both directories are empty",
+            0,
+            temporaryFolder.root.walkTopDown().filter { it.isFile }.count(),
+        )
     }
 
     @Test
