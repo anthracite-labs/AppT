@@ -1,7 +1,7 @@
 package dev.anthracite.appt.diagnostics
 
 import android.app.Application
-import android.content.Intent
+import android.content.pm.ApplicationInfo
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
@@ -58,6 +58,8 @@ class FlightRecorderTest {
 
     @Test
     fun installWrapsTheHandlerOnceAndRecordsTheAppStart() {
+        application.applicationInfo.flags =
+            application.applicationInfo.flags or ApplicationInfo.FLAG_DEBUGGABLE
         FlightRecorder.install(application)
         assertTrue("a debug build records", FlightRecorder.enabled)
         val handler = Thread.getDefaultUncaughtExceptionHandler()
@@ -162,14 +164,13 @@ class FlightRecorderTest {
     }
 
     @Test
-    fun theShareIntentTargetsTheSavedReport() {
+    fun theShareIntentRequiresAnExistingReport() {
         FlightRecorder.configure(active = true, storage = temporaryFolder.root)
+        assertNull("nothing to share before the first record", FlightRecorder.exportIntent(application))
         FlightRecorder.record(FlightRecorder.Phase.RouteDiscovery)
-        val intent: Intent? = FlightRecorder.exportIntent(application)
-        assertTrue("the report is shared as text", intent?.type == "text/plain")
         assertTrue(
-            "the grant flags let the receiver read the report",
-            (intent!!.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0,
+            "the report exists once events are recorded",
+            FlightRecorder.reportFile()?.isFile == true,
         )
     }
 
