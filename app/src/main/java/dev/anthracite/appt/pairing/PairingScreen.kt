@@ -217,23 +217,26 @@ private fun PairingFailed(
         // only repair this surface offers. Retry stays reserved for denied and timed-out
         // approvals; SecretsUnavailable and the identity failures go through here, never Retry.
         if (failure == TvFailure.SecretsUnavailable || failure == TvFailure.IdentityChanged) {
-            var confirming by rememberSaveable { mutableStateOf(false) }
-            Button(
-                onClick = { confirming = true },
-                modifier =
-                    Modifier.fillMaxWidth()
-                        .defaultMinSize(minHeight = SizeTokens.primaryControl)
-                        .testTag(PairingTestTags.PAIR_AGAIN),
-            ) {
-                Text(text = stringResource(R.string.pairing_pair_again), style = TypeTokens.label)
-            }
-            if (confirming) {
-                PairAgainConfirmationDialog(
-                    onDismiss = { confirming = false },
-                    onConfirm = onPairAgain,
-                )
-            }
+            PairAgainRepairControl(onPairAgain = onPairAgain)
         }
+    }
+}
+
+/** The confirmed pair-again repair: the button opens the dialog, the dialog does the act. */
+@Composable
+private fun PairAgainRepairControl(onPairAgain: () -> Unit) {
+    var confirming by rememberSaveable { mutableStateOf(false) }
+    Button(
+        onClick = { confirming = true },
+        modifier =
+            Modifier.fillMaxWidth()
+                .defaultMinSize(minHeight = SizeTokens.primaryControl)
+                .testTag(PairingTestTags.PAIR_AGAIN),
+    ) {
+        Text(text = stringResource(R.string.pairing_pair_again), style = TypeTokens.label)
+    }
+    if (confirming) {
+        PairAgainConfirmationDialog(onDismiss = { confirming = false }, onConfirm = onPairAgain)
     }
 }
 
