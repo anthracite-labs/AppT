@@ -12,19 +12,23 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import android.content.Intent
 import androidx.compose.material3.Button
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.tooling.preview.Preview
 import dev.anthracite.appt.R
+import dev.anthracite.appt.diagnostics.FlightRecorder
 import dev.anthracite.appt.tokens.AppTTheme
 import dev.anthracite.appt.tokens.ColorTokens
 import dev.anthracite.appt.tokens.MotionTokens
@@ -102,6 +106,29 @@ fun WelcomeScreen(onFindMyTv: () -> Unit, modifier: Modifier = Modifier) {
                     style = TypeTokens.label,
                 )
             }
+
+            // TEMPORARY S04 diagnostic (Issue #91): debug builds surface the saved flight-recorder
+            // report here after relaunch; release builds render nothing extra and behave as before.
+            if (FlightRecorder.enabled) {
+                val context = LocalContext.current
+                TextButton(
+                    onClick = {
+                        FlightRecorder.exportIntent(context)?.let { intent ->
+                            context.startActivity(
+                                Intent.createChooser(
+                                    intent,
+                                    context.getString(R.string.debug_export_report),
+                                ),
+                            )
+                        }
+                    },
+                ) {
+                    Text(
+                        text = stringResource(R.string.debug_export_report),
+                        style = TypeTokens.label,
+                    )
+                }
+            }
         }
     }
 }
@@ -109,10 +136,10 @@ fun WelcomeScreen(onFindMyTv: () -> Unit, modifier: Modifier = Modifier) {
 /**
  * The decorative brand mark.
  *
- * Its own composable rather than inline in [WelcomeScreen]: it is self-contained presentation with
- * its own animation state, and inlining it pushed the screen composable past the LongMethod
- * threshold. Nothing about behaviour changes — the node keeps its test tag, keeps its motion token,
- * and stays hidden from the semantics tree.
+ * Its own composable rather than inline in [WelcomeScreen]: it is self-contained presentation
+ * with its own animation state, and inlining it pushed the screen composable past the LongMethod
+ * threshold. Nothing about behaviour changes — the node keeps its test tag, keeps its motion
+ * token, and stays hidden from the semantics tree.
  *
  * Restrained brand personality. It is decorative: it carries no meaning, so it is hidden from the
  * semantics tree entirely (presentation.md: decorative nodes are marked decorative).

@@ -17,6 +17,8 @@
 <resources>
     <string name="app_name">AppT</string>
 
+    <!-- TEMPORARY S04 diagnostic export action (debug builds only). -->
+    <string name="debug_export_report">Export diagnostic report</string>
     <string name="welcome_value_proposition">Your TV remote, on your phone</string>
     <string name="welcome_privacy_reassurance">AppT controls your television directly over your home network. Your televisions and your settings stay on this phone.</string>
     <string name="welcome_primary_action">Find my TV</string>

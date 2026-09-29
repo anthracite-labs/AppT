@@ -3,12 +3,15 @@ package dev.anthracite.appt.discovery
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.anthracite.appt.data.TvProfiles
+import dev.anthracite.appt.diagnostics.FlightRecorder
+import dev.anthracite.appt.diagnostics.FlightRecorder.Phase
 import dev.anthracite.appt.gate.PermissionGate
 import dev.anthracite.appt.samsung.DiscoveredTv
 import dev.anthracite.appt.samsung.DiscoveryEvent
 import dev.anthracite.appt.samsung.SamsungTvs
 import dev.anthracite.appt.samsung.TvFailure
 import dev.anthracite.appt.samsung.TvId
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -83,7 +86,10 @@ class DiscoveryViewModel(
 
     /** The Discovery screen is visible again (lifecycle ON_START). */
     fun onStarted() {
-        if (resumeOnStart) startScan()
+        if (resumeOnStart) {
+            FlightRecorder.record(Phase.ScanResumed)
+            startScan()
+        }
     }
 
     /**
@@ -92,6 +98,7 @@ class DiscoveryViewModel(
      */
     fun onStopped() {
         if (scan?.isActive != true) return
+        FlightRecorder.record(Phase.ScanStopped)
         scan?.cancel()
         scan = null
         resumeOnStart = true
@@ -108,6 +115,7 @@ class DiscoveryViewModel(
         val card = mutableState.value.cards.firstOrNull { it.tvId == tvId }
         if (card == null || card.state == CardState.Unsupported) return
         val tv = discovered[tvId] ?: return
+        FlightRecorder.record(Phase.TvSelected)
         scan?.cancel()
         scan = null
         mutableState.update { current ->
@@ -123,16 +131,25 @@ class DiscoveryViewModel(
     }
 
     private fun startScan() {
+        FlightRecorder.record(Phase.ScanStarted)
         resumeOnStart = false
         scan?.cancel()
         mutableState.value = DiscoveryUiState.Initial
+        // The temporary diagnostic observes an operation failure without changing this class's
+        // behavior: the exception still propagates exactly as it did before the recorder existed.
+        val observeFailure = CoroutineExceptionHandler { _, failed ->
+            FlightRecorder.recordFailure(failed)
+            FlightRecorder.record(Phase.ScanFailed)
+        }
         scan =
-            viewModelScope.launch {
+            viewModelScope.launch(observeFailure) {
                 samsungTvs.discover().collect { event ->
                     if (event is DiscoveryEvent.Found) discovered[event.tv.id] = event.tv
                     mutableState.update { it.reduce(event) }
-                    if (event == DiscoveryEvent.Failed(TvFailure.LocalNetworkDenied))
+                    if (event == DiscoveryEvent.Failed(TvFailure.LocalNetworkDenied)) {
+                        FlightRecorder.record(Phase.GateDenied)
                         gate.reportDenied()
+                    }
                 }
             }
     }
