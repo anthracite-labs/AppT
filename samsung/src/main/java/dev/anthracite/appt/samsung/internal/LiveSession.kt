@@ -37,8 +37,8 @@ import kotlinx.coroutines.launch
  *
  * What this class deliberately does not do:
  * * It never sends a saved token to a television whose saved identity did not match, never sends a
- *   saved token on the plaintext channel, and never persists anything after its
- *   [SessionGeneration] was superseded (connection.md#evidence-and-race-handling-harvest).
+ *   saved token on the plaintext channel, and never persists anything after its [SessionGeneration]
+ *   was superseded (connection.md#evidence-and-race-handling-harvest).
  * * It never falls back to plaintext storage or an empty pairing when secrets are unavailable
  *   (`NeedsRepair` without a repair reason is the caller-facing `SecretsUnavailable` surface).
  * * It never opens a second socket. `command` writes on the connection this attempt already holds.
