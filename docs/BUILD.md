@@ -460,9 +460,7 @@ instead of being reported as a clean end state.
 CodeQL static analysis keeps ordinary pull-request synchronization build-free:
 PR updates scan GitHub Actions and JavaScript/TypeScript only. Java/Kotlin CodeQL
 runs when explicitly dispatched, on pushes to `main`, and on the scheduled
-security run. The CI-policy migration PR used one temporary minimal Kotlin
-compile solely to satisfy the pre-existing code-scanning merge rule while this
-policy was being introduced.
+security run.
 
 Because GitHub-managed Default Setup uses CodeQL bundle 2.27.0 which does not
 support Kotlin 2.4.20 (supported starting in CodeQL CLI / bundle 2.27.1), AppT
