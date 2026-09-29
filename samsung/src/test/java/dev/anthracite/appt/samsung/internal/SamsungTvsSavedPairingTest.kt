@@ -136,10 +136,16 @@ class SamsungTvsSavedPairingTest {
 
         assertEquals(SessionState.NeedsRepair, session.snapshot.value.state)
         assertNull("the secrets surface carries no repair reason", session.snapshot.value.repairReason)
+        assertTrue(
+            "the failed rotation stored nothing new",
+            secrets.savedSecrets.isEmpty(),
+        )
+        val stored = secrets.loadSecret(tvId)
+        assertTrue("the original pairing is still stored", stored is StoredSecret.Available)
         assertEquals(
             "the stored token is unchanged by the failed rotation",
             savedToken,
-            secrets.savedSecrets.single().second.token,
+            (stored as StoredSecret.Available).secret.token,
         )
 
         session.close()
