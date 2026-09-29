@@ -43,8 +43,9 @@ internal class PlaintextWebSocketTransport(
     private val connectTimeout: Duration = CONNECT_TIMEOUT,
     private val keepalive: Duration = KEEPALIVE_INTERVAL,
     private val writeTimeout: Duration = COMMAND_WRITE_TIMEOUT,
-    private val fetchCurrentUuid: suspend (String, Int) -> String? =
-        { host, port -> fetchPlaintextDeviceUuid(host, port) },
+    private val fetchCurrentUuid: suspend (String, Int) -> String? = { host, port ->
+        fetchPlaintextDeviceUuid(host, port)
+    },
 ) : SessionTransport {
 
     /**
