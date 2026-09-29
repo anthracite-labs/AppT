@@ -66,7 +66,7 @@ jobs:
               header = chunks[i]
               body = chunks[i + 1] if i + 1 < len(chunks) else ""
               path = re.search(r" b/(.+)$", header.strip()).group(1)
-              text = (header + body).replace("::", "colon colon")
+              text = (header + body).replace("\n", " ⏎ ")
               for part in range(0, len(text), 1800):
                   piece = text[part : part + 1800]
                   suffix = " part{}".format(part // 1800 + 1) if part else ""
