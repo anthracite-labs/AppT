@@ -102,10 +102,10 @@ class ActiveRemoteHost(
      * For the saved-identity failures (`TokenRejected`, `IdentityChanged`) the session performs the
      * re-pair itself: `confirmRepair` discards the saved approval and pairs as new
      * (samsung-interface.md). For `SecretsUnavailable` the saved material is unreadable and the
-     * session's `confirmRepair` is contractually ignored, so the app-level pair again removes
-     * this phone's Samsung relationship with the `forget` primitive and opens fresh; the fresh
-     * approval then writes a new secret (data.md: "pair again writes a new file"). Both routes
-     * reach this only behind the screens' explicit confirmation dialog.
+     * session's `confirmRepair` is contractually ignored, so the app-level pair again removes this
+     * phone's Samsung relationship with the `forget` primitive and opens fresh; the fresh approval
+     * then writes a new secret (data.md: "pair again writes a new file"). Both routes reach this
+     * only behind the screens' explicit confirmation dialog.
      */
     suspend fun confirmedPairAgain(tvId: TvId) {
         val held = mutableCurrent.value?.takeIf { it.tvId == tvId } ?: return
