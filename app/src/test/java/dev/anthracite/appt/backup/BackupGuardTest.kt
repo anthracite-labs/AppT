@@ -23,7 +23,11 @@ class BackupGuardTest {
     fun backupExcludesAllTvState() {
         // The manifest opt-out is the primary control.
         val application = document(manifest).getElementsByTagName("application").item(0) as Element
-        assertEquals("allowBackup stays false", "false", application.getAttribute("android:allowBackup"))
+        assertEquals(
+            "allowBackup stays false",
+            "false",
+            application.getAttribute("android:allowBackup"),
+        )
         assertEquals(
             "the Android-12+ extraction rules are wired",
             "@xml/data_extraction_rules",
@@ -38,7 +42,11 @@ class BackupGuardTest {
         // Both rule sets exclude everything and include nothing: fail-closed for every path this
         // app owns, which includes the samsung secret and device-record directories.
         val extraction = document(extractionRules)
-        assertEquals("data-extraction-rules is the root", "data-extraction-rules", extraction.documentElement.tagName)
+        assertEquals(
+            "data-extraction-rules is the root",
+            "data-extraction-rules",
+            extraction.documentElement.tagName,
+        )
         assertEquals(
             "no backup include exists in the extraction rules",
             0,
@@ -50,7 +58,11 @@ class BackupGuardTest {
         assertEquals(EXCLUDED_DOMAINS, excludes(transfer))
 
         val legacy = document(backupRules)
-        assertEquals("full-backup-content is the root", "full-backup-content", legacy.documentElement.tagName)
+        assertEquals(
+            "full-backup-content is the root",
+            "full-backup-content",
+            legacy.documentElement.tagName,
+        )
         assertEquals(
             "no backup include exists in the legacy rules",
             0,
@@ -74,7 +86,8 @@ class BackupGuardTest {
             .toSet()
 
     private companion object {
-        /** Every private-storage domain: excluded means nothing of this app can leave the device. */
+        /** Every private-storage domain: excluded means nothing of this app can leave the */
+        /** device. */
         val EXCLUDED_DOMAINS = setOf("root", "file", "database", "sharedpref", "external")
     }
 }
