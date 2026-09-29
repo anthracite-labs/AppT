@@ -275,10 +275,11 @@ internal class PlaintextWebSocketTransport(
 
         /**
          * The television's current protocol UUID, read from a fresh bounded device-info request to
-         * the same host and port the plaintext channel would open (connection.md#security-identity).
-         * Null when the document is unreachable, over-limit, or carries no UUID — the caller fails
-         * closed on null. The socket pattern mirrors [open]: raw, bounded, and never bound to a scan's
-         * LAN context, with no URL, address or port recorded anywhere.
+         * the same host and port the plaintext channel would open
+         * (connection.md#security-identity). Null when the document is unreachable, over-limit, or
+         * carries no UUID — the caller fails closed on null. The socket pattern mirrors [open]:
+         * raw, bounded, and never bound to a scan's LAN context, with no URL, address or port
+         * recorded anywhere.
          */
         private suspend fun fetchPlaintextDeviceUuid(host: String, port: Int): String? {
             val socket = Socket()
