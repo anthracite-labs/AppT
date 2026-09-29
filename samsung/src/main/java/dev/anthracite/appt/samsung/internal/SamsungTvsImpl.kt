@@ -118,9 +118,7 @@ internal class SamsungTvsImpl(
             val confirmed = ConfirmedTelevisions()
             val secrets = KeystoreSamsungStore.fromContext(context)
             return SamsungTvsImpl(
-                newScan = {
-                    DiscoveryScan(AndroidDiscoveryTransport(context), confirmed, secrets)
-                },
+                newScan = { DiscoveryScan(AndroidDiscoveryTransport(context), confirmed, secrets) },
                 confirmed = confirmed,
                 secrets = secrets,
             )
