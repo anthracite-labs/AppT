@@ -98,7 +98,8 @@ internal object DeviceRecordJson {
  *   [StoredSecret.Unavailable] and stays on disk until pairing succeeds again or `forget` removes
  *   it (data.md#samsung-secret-record).
  */
-internal class KeystoreSamsungStore private constructor(
+internal class KeystoreSamsungStore
+private constructor(
     private val secretsDir: File,
     private val devicesDir: File,
     private val cipher: SecretCipher,
