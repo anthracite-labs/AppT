@@ -197,10 +197,7 @@ private fun RemoteRepair(statusText: String, onConfirmRepair: () -> Unit) {
  * removed and what comes next, so the destructive act is never a single tap.
  */
 @Composable
-private fun RemoteRepairConfirmationDialog(
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-) {
+private fun RemoteRepairConfirmationDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
