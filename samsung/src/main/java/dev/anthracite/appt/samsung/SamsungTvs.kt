@@ -60,8 +60,8 @@ interface SamsungTvs {
      * Removes this phone's saved Samsung relationship for [id]: the pairing secret and the
      * samsung-private device record. Idempotent and safe to retry. It deletes nothing else — Room
      * rows, favourites, and the user-facing management transaction are not this module's.
-     * * Returns [ForgetResult.Forgotten] when no Samsung material remains, including when there
-     *   was none.
+     * * Returns [ForgetResult.Forgotten] when no Samsung material remains, including when there was
+     *   none.
      * * Returns [ForgetResult.Failed] when deletion genuinely failed; the caller must retry before
      *   treating the television as forgotten.
      * * A session that is already open for this id is not closed by `forget` — releasing a session
