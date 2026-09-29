@@ -67,6 +67,8 @@ const UNFOCUSED_COMMANDS = {
     '--dependency-verification=strict',
     '-Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect',
     ':app:pixel2api29DebugAndroidTest',
+    ':samsung:pixel2api29DebugAndroidTest',
+    ':samsung:pixel2api35DebugAndroidTest',
   ],
 };
 
@@ -107,7 +109,7 @@ const OWNED_GRADLE_TASKS = {
     'dependencyLockCheck',
   ],
   'android-build': [':app:assembleDebug', ':macrobenchmark:assembleBenchmark'],
-  device: [':app:pixel2api29DebugAndroidTest'],
+  device: [':app:pixel2api29DebugAndroidTest', ':samsung:pixel2api29DebugAndroidTest', ':samsung:pixel2api35DebugAndroidTest'],
 };
 
 const OWNED_NPM_SCRIPTS = {
@@ -241,14 +243,20 @@ describe('a valid focus narrows within its mode', () => {
     // Instrumentation targeting on the pinned managed device.
     ['device', 'class:dev.anthracite.appt.SmokeTest', [
       ':app:pixel2api29DebugAndroidTest',
+    ':samsung:pixel2api29DebugAndroidTest',
+    ':samsung:pixel2api35DebugAndroidTest',
       '-Pandroid.testInstrumentationRunnerArguments.class=dev.anthracite.appt.SmokeTest',
     ]],
     ['device', 'package:dev.anthracite.appt', [
       ':app:pixel2api29DebugAndroidTest',
+    ':samsung:pixel2api29DebugAndroidTest',
+    ':samsung:pixel2api35DebugAndroidTest',
       '-Pandroid.testInstrumentationRunnerArguments.package=dev.anthracite.appt',
     ]],
     ['device', 'method:dev.anthracite.appt.SmokeTest#launches', [
       ':app:pixel2api29DebugAndroidTest',
+    ':samsung:pixel2api29DebugAndroidTest',
+    ':samsung:pixel2api35DebugAndroidTest',
       '-Pandroid.testInstrumentationRunnerArguments.method=dev.anthracite.appt.SmokeTest#launches',
     ]],
   ];
