@@ -60,8 +60,8 @@ sealed interface TvFailure {
     data object SecretsUnavailable : TvFailure
 
     /**
-     * The television's saved relationship no longer matches it: the saved token was refused after
-     * a legitimate match, or its persistent identity changed. The only way forward is the explicit
+     * The television's saved relationship no longer matches it: the saved token was refused after a
+     * legitimate match, or its persistent identity changed. The only way forward is the explicit
      * confirmed re-pair (`RemoteSession.confirmRepair`).
      */
     data object IdentityChanged : TvFailure
