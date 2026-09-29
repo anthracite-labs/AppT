@@ -2,7 +2,7 @@
 
 # 📺 AppT
 
-### Your TV remote, already in your hand.
+<p><strong>Your TV remote, already in your hand.</strong></p>
 
 A local-first television remote built to make everyday control feel immediate, dependable, and simple.
 
@@ -10,7 +10,7 @@ A local-first television remote built to make everyday control feel immediate, d
 [![CodeQL](https://github.com/anthracite-labs/AppT/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/anthracite-labs/AppT/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Android · Samsung Smart TVs first · Open source**
+<p><strong>Android · Samsung Smart TVs first · Open source</strong></p>
 
 [Product](docs/PRODUCT.md) ·
 [Architecture](docs/ARCHITECTURE.md) ·
@@ -37,7 +37,7 @@ ecosystems without turning setup into a networking exercise.
 
 The accepted Android implementation covers the real Samsung path from:
 
-**discovery → television approval → remote commands → secure saved pairing → app/process restart → saved reconnection**
+discovery → television approval → remote commands → secure saved pairing → app/process restart → saved reconnection
 
 Saved pairing is device-local, sensitive pairing material is protected, and a
 persistent television identity change fails closed instead of silently trusting
@@ -49,19 +49,19 @@ a replacement.
 <tr>
 <td width="33%" valign="top">
 
-### ⚡ Local-first
+<strong>⚡ Local-first</strong><br>
 Normal TV control happens directly between the phone and television on the local network.
 
 </td>
 <td width="33%" valign="top">
 
-### 🔐 Pair safely
+<strong>🔐 Pair safely</strong><br>
 Remember approved televisions without turning pairing credentials into ordinary app data.
 
 </td>
 <td width="33%" valign="top">
 
-### 🎛 Capability-aware
+<strong>🎛 Capability-aware</strong><br>
 The product is designed to expose controls a television can actually support, not buttons that merely look plausible.
 
 </td>
@@ -69,19 +69,19 @@ The product is designed to expose controls a television can actually support, no
 <tr>
 <td width="33%" valign="top">
 
-### 📱 Phone-native
+<strong>📱 Phone-native</strong><br>
 The remote is designed for a phone rather than as a picture of a plastic remote.
 
 </td>
 <td width="33%" valign="top">
 
-### 🛡 Privacy-first
+<strong>🛡 Privacy-first</strong><br>
 Television state belongs on the phone. AppT V1 has no behavioral analytics or automatic diagnostic upload path.
 
 </td>
 <td width="33%" valign="top">
 
-### ♿ Accessible
+<strong>♿ Accessible</strong><br>
 Accessibility, clear states, strong contrast, and useful recovery are product requirements, not release polish.
 
 </td>
@@ -161,8 +161,8 @@ AppT is open source under the [MIT License](LICENSE).
 
 <div align="center">
 
-**AppT**
+<strong>AppT</strong>
 
-*A television remote should be something you use — not something you troubleshoot.*
+<em>A television remote should be something you use — not something you troubleshoot.</em>
 
 </div>
