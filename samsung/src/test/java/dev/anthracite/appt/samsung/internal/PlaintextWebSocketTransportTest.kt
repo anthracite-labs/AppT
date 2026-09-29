@@ -1,5 +1,6 @@
 package dev.anthracite.appt.samsung.internal
 
+import dev.anthracite.appt.samsung.TvId
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
