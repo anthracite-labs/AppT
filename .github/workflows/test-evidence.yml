@@ -1,0 +1,63 @@
+# TEMPORARY test evidence — REMOVE BEFORE TERMINAL VERIFICATION.
+#
+# One push-triggered run that reproduces the :samsung unit-test failure and
+# surfaces each failing test's name, message and stack head as check-run
+# annotations, because the diagnose surfacer only carries the Gradle "what went
+# wrong" tail and the report artifacts are not readable from this workspace.
+# Branch-scoped, read-only, never a gate; deleted before the candidate is
+# finished.
+
+name: test-evidence
+
+on:
+  push:
+    branches:
+      - arena/01a0e942-appt
+
+permissions:
+  contents: read
+
+jobs:
+  test-evidence:
+    name: test-evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the branch
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up the Android/JVM toolchain
+        uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          java-version: '17'
+
+      - name: Run :samsung tests and surface every failure
+        run: |
+          set +e
+          ./gradlew :samsung:testDebugUnitTest > /tmp/test.log 2>&1
+          status=$?
+          echo "gradle exit status: $status"
+          shopt -s nullglob
+          for xml in samsung/build/test-results/testDebugUnitTest/*.xml; do
+            python3 - "$xml" <<'PY'
+import sys, xml.etree.ElementTree as ET
+tree = ET.parse(sys.argv[1])
+for suite in tree.iter('testsuite'):
+    for case in suite.iter('testcase'):
+        for failure in list(case.iter('failure')) + list(case.iter('error')):
+            name = f"{suite.get('name')} > {case.get('name')}"
+            msg = (failure.get('message') or '').replace('\n', ' ')[:300]
+            stack_head = (failure.text or '').strip().splitlines()[:6]
+            print(f"::error title=test failure::{name} :: {msg}")
+            for line in stack_head:
+                print(f"::error title=stack::  {line.strip()[:220]}")
+PY
+          done
+          if [ "$status" -ne 0 ]; then
+            echo "::error title=test-evidence:::samsung:testDebugUnitTest exited $status"
+          fi
