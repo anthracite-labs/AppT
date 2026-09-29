@@ -2,9 +2,9 @@ package dev.anthracite.appt.testing
 
 import dev.anthracite.appt.samsung.CommandResult
 import dev.anthracite.appt.samsung.ControlAvailability
-import dev.anthracite.appt.samsung.ForgetResult
 import dev.anthracite.appt.samsung.DiscoveredTv
 import dev.anthracite.appt.samsung.DiscoveryEvent
+import dev.anthracite.appt.samsung.ForgetResult
 import dev.anthracite.appt.samsung.RemoteKey
 import dev.anthracite.appt.samsung.RemoteSession
 import dev.anthracite.appt.samsung.RepairReason
