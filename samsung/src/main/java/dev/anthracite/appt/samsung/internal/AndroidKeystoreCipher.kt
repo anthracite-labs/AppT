@@ -58,8 +58,7 @@ internal class AndroidKeystoreCipher(private val alias: String = KEYSTORE_ALIAS)
             // it as unavailable rather than silently overwriting security material.
             throw SecretStoreException("keystore alias exists but is not a usable secret key")
         }
-        val generator =
-            KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
         try {
             generator.init(spec(strongBox = true))
             return generator.generateKey()
