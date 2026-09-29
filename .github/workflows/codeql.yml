@@ -2,8 +2,7 @@
 #
 # Pull-request iteration is intentionally cheap: ordinary PR synchronization
 # scans GitHub Actions and JavaScript/TypeScript only. Java/Kotlin CodeQL is
-# manual/main/scheduled. PR #76 is the one-time migration exception needed to
-# satisfy the existing branch code-scanning rule before this policy can land.
+# manual/main/scheduled.
 #
 # Temporary Advanced Setup is pinned to CodeQL 2.27.1 while GitHub-managed
 # Default Setup lacks Kotlin 2.4.20 support.
@@ -75,7 +74,7 @@ jobs:
           category: '/language:${{ matrix.language }}'
 
   analyze-kotlin:
-    if: github.event_name != 'pull_request' || github.head_ref == 'ci/manual-full-verification'
+    if: github.event_name != 'pull_request'
     name: Analyze (java-kotlin)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -113,16 +112,6 @@ jobs:
           build-mode: manual
           tools: ${{ env.CODEQL_BUNDLE_URL }}
           queries: security-extended
-
-      - name: Build Java and Kotlin targets for migration PR
-        if: github.event_name == 'pull_request'
-        run: |
-          chmod +x ./gradlew
-          ./gradlew --no-daemon --no-build-cache \
-            -Dorg.gradle.parallel=false \
-            -Pkotlin.compiler.execution.strategy=in-process \
-            --dependency-verification=strict \
-            :app:compileDebugKotlin :samsung:compileDebugKotlin
 
       - name: Build Java and Kotlin targets
         if: github.event_name != 'pull_request'
