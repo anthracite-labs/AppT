@@ -383,9 +383,9 @@ internal class LiveSession(
 
     /**
      * The single publication point for session state. `NeedsRepair` with a null [repairReason] is
-     * the caller-facing `SecretsUnavailable` surface: saved material exists but could not be
-     * used, so pairing again is required. There is no plaintext fallback and no token
-     * transmission on that path.
+     * the caller-facing `SecretsUnavailable` surface: saved material exists but could not be used,
+     * so pairing again is required. There is no plaintext fallback and no token transmission on
+     * that path.
      */
     private fun publish(state: SessionState, repairReason: RepairReason? = null) {
         mutableSnapshot.value = SessionSnapshot(state, TvCapabilities(channelKeys), repairReason)
