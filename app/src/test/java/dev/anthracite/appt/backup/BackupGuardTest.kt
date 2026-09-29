@@ -9,10 +9,10 @@ import org.w3c.dom.Element
 /**
  * The backup guards for the saved pairing (Issue #91, docs/architecture/data.md): a television's
  * saved pairing secret and samsung-private device record are device-local, so nothing under this
- * app's private storage may reach cloud backup or device transfer. The manifest keeps
- * `allowBackup` false, and both the Android-12+ extraction rules and the pre-Android-12 rules stay
- * fail-closed: everything excluded, nothing included, so the samsung secret and device-record
- * directories are covered by omission today and a future slice must argue for any file it adds.
+ * app's private storage may reach cloud backup or device transfer. The manifest keeps `allowBackup`
+ * false, and both the Android-12+ extraction rules and the pre-Android-12 rules stay fail-closed:
+ * everything excluded, nothing included, so the samsung secret and device-record directories are
+ * covered by omission today and a future slice must argue for any file it adds.
  */
 class BackupGuardTest {
     private val manifest = File("src/main/AndroidManifest.xml")
