@@ -232,7 +232,7 @@ class SavedPairingUiTest {
             PreferenceDataStoreFactory.create(
                 scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
                 produceFile = { file },
-            ),
+            )
         )
     }
 }
