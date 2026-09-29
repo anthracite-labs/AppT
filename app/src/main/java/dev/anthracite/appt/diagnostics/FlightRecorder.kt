@@ -79,6 +79,11 @@ internal object FlightRecorder {
     fun install(application: Application) {
         val debuggable =
             (application.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        install(application = application, debuggable = debuggable)
+    }
+
+    /** The install decision, explicit for tests; production callers use [install]. */
+    internal fun install(application: Application, debuggable: Boolean) {
         if (!debuggable) return
         if (Thread.getDefaultUncaughtExceptionHandler() is CrashForwarder) return
         enabled = true
@@ -87,6 +92,16 @@ internal object FlightRecorder {
             CrashForwarder(previous = Thread.getDefaultUncaughtExceptionHandler()),
         )
         record(Phase.AppCreate)
+    }
+
+    /** Test seam: full reset, including unwinding this recorder's crash handler. */
+    internal fun resetForTest() {
+        enabled = false
+        directory = null
+        val handler = Thread.getDefaultUncaughtExceptionHandler()
+        if (handler is CrashForwarder) {
+            Thread.setDefaultUncaughtExceptionHandler(handler.previous)
+        }
     }
 
     /** Test seam: direct configuration. Production code only ever goes through [install]. */
@@ -188,7 +203,7 @@ internal object FlightRecorder {
     }
 
     /** Forwards the crash to this recorder's report, then to the system's own handler. */
-    private class CrashForwarder(private val previous: Thread.UncaughtExceptionHandler?) :
+    private class CrashForwarder(val previous: Thread.UncaughtExceptionHandler?) :
         Thread.UncaughtExceptionHandler {
         override fun uncaughtException(thread: Thread, throwable: Throwable) {
             try {

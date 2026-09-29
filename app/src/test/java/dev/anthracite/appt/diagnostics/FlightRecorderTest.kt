@@ -1,7 +1,6 @@
 package dev.anthracite.appt.diagnostics
 
 import android.app.Application
-import android.content.pm.ApplicationInfo
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
@@ -29,18 +28,15 @@ class FlightRecorderTest {
     val temporaryFolder = TemporaryFolder()
 
     private lateinit var application: Application
-    private var originalHandler: Thread.UncaughtExceptionHandler? = null
 
     @Before
     fun rememberState() {
         application = RuntimeEnvironment.getApplication()
-        originalHandler = Thread.getDefaultUncaughtExceptionHandler()
     }
 
     @After
     fun restoreState() {
-        Thread.setDefaultUncaughtExceptionHandler(originalHandler)
-        FlightRecorder.configure(active = false, storage = null)
+        FlightRecorder.resetForTest()
     }
 
     @Test
@@ -58,12 +54,10 @@ class FlightRecorderTest {
 
     @Test
     fun installWrapsTheHandlerOnceAndRecordsTheAppStart() {
-        application.applicationInfo.flags =
-            application.applicationInfo.flags or ApplicationInfo.FLAG_DEBUGGABLE
-        FlightRecorder.install(application)
-        assertTrue("a debug build records", FlightRecorder.enabled)
+        FlightRecorder.install(application = application, debuggable = true)
+        assertTrue("a diagnostic build records", FlightRecorder.enabled)
         val handler = Thread.getDefaultUncaughtExceptionHandler()
-        FlightRecorder.install(application)
+        FlightRecorder.install(application = application, debuggable = true)
         assertEquals(
             "installing twice never double-wraps",
             handler,
@@ -94,13 +88,16 @@ class FlightRecorderTest {
     fun aFailureRecordCarriesTypesAndApptFramesOnly() {
         FlightRecorder.configure(active = true, storage = temporaryFolder.root)
         val hostile = RuntimeException("token=SECRET-123 host=10.0.0.5 uuid=abc")
+        // A frame of this codebase (this test class stands in) plus a foreign frame: only the
+        // codebase's frame may reach the report. The synthetic class name stays inside the app
+        // package so this source never names another module's internal package.
         hostile.stackTrace =
             arrayOf(
                 StackTraceElement(
-                    "dev.anthracite.appt.samsung.internal.SsdpClient",
-                    "replies",
-                    "SsdpClient.kt",
-                    42,
+                    "dev.anthracite.appt.diagnostics.FlightRecorderTest",
+                    "hostileFrame",
+                    "FlightRecorderTest.kt",
+                    7,
                 ),
                 StackTraceElement("java.lang.Thread", "run", "Thread.java", -2),
             )
@@ -111,9 +108,7 @@ class FlightRecorderTest {
         assertTrue("the exception type is recorded", report.contains("java.lang.RuntimeException"))
         assertTrue(
             "this codebase's frames are recorded",
-            report.contains(
-                "dev.anthracite.appt.samsung.internal.SsdpClient.replies(SsdpClient.kt:42)",
-            ),
+            report.contains("FlightRecorderTest.hostileFrame(FlightRecorderTest.kt:7)"),
         )
         assertFalse("no message is ever written", report.contains("SECRET-123"))
         assertFalse("no address is ever written", report.contains("10.0.0.5"))
@@ -126,9 +121,7 @@ class FlightRecorderTest {
     fun anUncaughtCrashIsRecordedAndThenForwarded() {
         val forwarded = AtomicInteger(0)
         Thread.setDefaultUncaughtExceptionHandler { _, _ -> forwarded.incrementAndGet() }
-        application.applicationInfo.flags =
-            application.applicationInfo.flags or ApplicationInfo.FLAG_DEBUGGABLE
-        FlightRecorder.install(application)
+        FlightRecorder.install(application = application, debuggable = true)
         assertTrue("the diagnostic build records", FlightRecorder.enabled)
 
         val hostile = CancellationException("ssid=HomeWifi host=10.0.0.9")
