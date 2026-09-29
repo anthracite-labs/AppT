@@ -58,6 +58,19 @@ internal object FlightRecorder {
 
     private var directory: File? = null
 
+    private const val DIRECTORY_NAME = "diagnostics"
+    private const val REPORT_NAME = "appt-flight.txt"
+    private const val PARTIAL_SUFFIX = ".partial"
+
+    /** Storage bounds: half a file of history at most, rewritten atomically. */
+    internal const val CAP_BYTES = 48L * 1024L
+    private const val TAIL_BYTES = 24 * 1024
+
+    /** Redaction bounds: appt frames per cause, causes per record. */
+    private const val FRAME_CAP = 10
+    private const val CAUSE_DEPTH = 3
+    private const val APPT_PREFIX = "dev.anthracite."
+
     /**
      * Installs the recorder when the build is debuggable: prepares the app-private directory and
      * wraps the default uncaught-exception handler so the crash record is written before the
@@ -186,18 +199,4 @@ internal object FlightRecorder {
                 previous?.uncaughtException(thread, throwable)
             }
         }
-    }
-
-    private const val DIRECTORY_NAME = "diagnostics"
-    private const val REPORT_NAME = "appt-flight.txt"
-    private const val PARTIAL_SUFFIX = ".partial"
-
-    /** Storage bounds: half a file of history at most, rewritten atomically. */
-    internal const val CAP_BYTES = 48L * 1024L
-    private const val TAIL_BYTES = 24L * 1024L
-
-    /** Redaction bounds: appt frames per cause, causes per record. */
-    private const val FRAME_CAP = 10
-    private const val CAUSE_DEPTH = 3
-    private const val APPT_PREFIX = "dev.anthracite."
-}
+    }}
