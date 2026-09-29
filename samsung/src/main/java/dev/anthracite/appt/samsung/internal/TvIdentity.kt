@@ -46,6 +46,10 @@ internal object TvIdentity {
      * crafted id can never escape its directory.
      */
     fun isValidStoredId(raw: String?): Boolean =
-        raw != null && (CANONICAL_UUID.matches(raw) || (raw.startsWith(MINTED_PREFIX) &&
-            CANONICAL_UUID.matches(raw.removePrefix(MINTED_PREFIX))))
+        raw != null && (hasCanonicalUuid(raw) || hasMintedCanonicalUuid(raw))
+
+    private fun hasCanonicalUuid(text: String): Boolean = CANONICAL_UUID.matches(text)
+
+    private fun hasMintedCanonicalUuid(raw: String): Boolean =
+        raw.startsWith(MINTED_PREFIX) && CANONICAL_UUID.matches(raw.removePrefix(MINTED_PREFIX))
 }
