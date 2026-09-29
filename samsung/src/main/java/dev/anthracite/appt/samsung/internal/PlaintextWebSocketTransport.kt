@@ -365,8 +365,7 @@ private suspend fun fetchPlaintextDeviceUuid(host: String, port: Int): String? {
                     output.flush()
                 }
                 BoundedHttpResponse.readOkBody(socket.inputStream, MAX_DEVICE_INFO_BYTES)
-                    ?.decodeToString()
-                    ?.let(DeviceInfo::parse)
+                    ?.let(DeviceInfoParser::parse)
                     ?.uuid
             }
         }
