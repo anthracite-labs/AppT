@@ -3,7 +3,6 @@ package dev.anthracite.appt.diagnostics
 import android.app.Application
 import android.content.Intent
 import android.content.pm.ApplicationInfo
-import androidx.test.core.app.ApplicationProvider
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
@@ -18,6 +17,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 
 /**
  * The temporary S04 flight recorder's contract (Issue #91 correction cycle): disabled on a release
@@ -34,7 +34,7 @@ class FlightRecorderTest {
 
     @Before
     fun rememberState() {
-        application = ApplicationProvider.getApplicationContext()
+        application = RuntimeEnvironment.getApplication()
         originalHandler = Thread.getDefaultUncaughtExceptionHandler()
     }
 
