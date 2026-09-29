@@ -7,7 +7,6 @@ import android.provider.Settings
 import androidx.room.Room
 import dev.anthracite.appt.data.AppTDatabase
 import dev.anthracite.appt.data.TvProfiles
-import dev.anthracite.appt.diagnostics.FlightRecorder
 import dev.anthracite.appt.gate.LocalNetworkPermissionGate
 import dev.anthracite.appt.gate.PermissionGate
 import dev.anthracite.appt.preferences.PreferenceStore
@@ -34,8 +33,6 @@ import kotlinx.coroutines.SupervisorJob
 class AppTApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        // TEMPORARY S04 diagnostic (Issue #91): debug-only flight recorder; inert in release.
-        FlightRecorder.install(this)
     }
 
     val samsungTvs: SamsungTvs by lazy { SamsungModule.samsungTvs(this) }

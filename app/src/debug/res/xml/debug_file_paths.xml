@@ -1,4 +1,0 @@
-<!-- TEMPORARY S04 diagnostic: only the flight recorder's directory is ever shareable. -->
-<paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <files-path name="diagnostics" path="diagnostics/" />
-</paths>

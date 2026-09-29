@@ -19,7 +19,6 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.anthracite.appt.AppSettingsLauncher
 import dev.anthracite.appt.data.TvProfiles
-import dev.anthracite.appt.diagnostics.FlightRecorder
 import dev.anthracite.appt.discovery.DiscoveryScreen
 import dev.anthracite.appt.discovery.DiscoveryViewModel
 import dev.anthracite.appt.gate.LocalNetworkPhase
@@ -65,11 +64,9 @@ fun AppTNavGraph(
 ) {
     NavHost(navController = navController, startDestination = WelcomeRoute, modifier = modifier) {
         composable<WelcomeRoute> {
-            FlightRecorder.record(FlightRecorder.Phase.RouteWelcome)
             WelcomeScreen(onFindMyTv = { navController.navigate(LocalNetworkRoute) })
         }
         composable<LocalNetworkRoute> {
-            FlightRecorder.record(FlightRecorder.Phase.RouteLocalNetwork)
             LocalNetworkDestination(
                 gate = permissionGate,
                 appSettings = appSettings,
@@ -81,7 +78,6 @@ fun AppTNavGraph(
             )
         }
         composable<DiscoveryRoute> {
-            FlightRecorder.record(FlightRecorder.Phase.RouteDiscovery)
             DiscoveryDestination(
                 samsungTvs = samsungTvs,
                 gate = permissionGate,
@@ -118,7 +114,6 @@ private fun NavGraphBuilder.s03Destinations(
     preferenceStore: PreferenceStore,
 ) {
     composable<PairingRoute> { entry ->
-        FlightRecorder.record(FlightRecorder.Phase.RoutePairing)
         val route = entry.toRoute<PairingRoute>()
         PairingDestination(
             tvId = route.tvId,
@@ -136,7 +131,6 @@ private fun NavGraphBuilder.s03Destinations(
         )
     }
     composable<RemoteRoute> { entry ->
-        FlightRecorder.record(FlightRecorder.Phase.RouteRemote)
         val route = entry.toRoute<RemoteRoute>()
         RemoteDestination(
             tvId = route.tvId,

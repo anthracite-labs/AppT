@@ -12,23 +12,19 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import android.content.Intent
 import androidx.compose.material3.Button
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.tooling.preview.Preview
 import dev.anthracite.appt.R
-import dev.anthracite.appt.diagnostics.FlightRecorder
 import dev.anthracite.appt.tokens.AppTTheme
 import dev.anthracite.appt.tokens.ColorTokens
 import dev.anthracite.appt.tokens.MotionTokens
@@ -106,38 +102,7 @@ fun WelcomeScreen(onFindMyTv: () -> Unit, modifier: Modifier = Modifier) {
                     style = TypeTokens.label,
                 )
             }
-
-            DebugReportExport()
         }
-    }
-}
-
-/**
- * TEMPORARY S04 diagnostic (Issue #91): debug builds surface the saved flight-recorder report
- * here after relaunch; the recorder is inert off the diagnostic build, so release renders
- * nothing extra and behaves exactly as before. Its own composable to keep this screen small.
- */
-@Composable
-private fun DebugReportExport() {
-    // Only when there is something to export: a fresh diagnostic build shows exactly the one
-    // primary action (ui-ux.md#onboarding), and the control appears after a report was saved.
-    if (!FlightRecorder.enabled) return
-    if (FlightRecorder.reportFile() == null) return
-    val context = LocalContext.current
-    // The chooser label resolves through the composition, so it follows the configuration.
-    val exportLabel = stringResource(R.string.debug_export_report)
-    TextButton(
-        onClick = {
-            FlightRecorder.exportIntent(context)?.let { intent ->
-                context.startActivity(Intent.createChooser(intent, exportLabel))
-            }
-        },
-        // The temporary diagnostic affordance stays out of the accessibility semantics tree, so
-        // Welcome keeps exactly one primary action for assistive tech and for the ui-ux count;
-        // the visible, touchable label remains for the physical tester.
-        modifier = Modifier.clearAndSetSemantics {},
-    ) {
-        Text(text = stringResource(R.string.debug_export_report), style = TypeTokens.label)
     }
 }
 
