@@ -112,7 +112,15 @@ private constructor(
             // An id this store could never have written has no file: absent, not a crash
             // (samsung-interface.md#open: an unknown id moves to Unreachable and sends no token).
             val name = existingStoredName(tvId) ?: return@synchronized StoredSecret.Absent
-            val file = File(ensureDirectory(secretsDir), name)
+            val directory =
+                try {
+                    ensureDirectory(secretsDir)
+                } catch (ignored: SecretStoreException) {
+                    // A store that cannot even present its directory has no readable secret:
+                    // fail closed inside the read-result contract, never out of the read.
+                    return@synchronized StoredSecret.Unavailable
+                }
+            val file = File(directory, name)
             if (!file.exists()) return@synchronized StoredSecret.Absent
             val blob =
                 try {
@@ -166,7 +174,15 @@ private constructor(
     override fun loadDevice(tvId: TvId): SamsungDeviceRecord? =
         synchronized(lock) {
             val name = existingStoredName(tvId) ?: return@synchronized null
-            val file = File(ensureDirectory(devicesDir), name + DEVICE_SUFFIX)
+            val directory =
+                try {
+                    ensureDirectory(devicesDir)
+                } catch (ignored: SecretStoreException) {
+                    // Same containment as the secret read: a store that cannot present its
+                    // directory reads as "no record", which discovery re-creates honestly.
+                    return@synchronized null
+                }
+            val file = File(directory, name + DEVICE_SUFFIX)
             if (!file.exists()) return@synchronized null
             try {
                 DeviceRecordJson.parse(file.readBytes().decodeToString())

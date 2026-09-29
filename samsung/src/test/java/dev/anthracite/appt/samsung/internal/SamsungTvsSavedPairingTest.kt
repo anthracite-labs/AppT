@@ -116,6 +116,35 @@ class SamsungTvsSavedPairingTest {
         advanceUntilIdle()
     }
 
+    @Test
+    fun aFailedRotatedTokenSaveSurfacesSecretsUnavailableInsteadOfConnecting() = runTest {
+        stageSavedPairing()
+        val rotated = "rotated-token-value-injected-by-the-test"
+        val rotatedFrame =
+            """{"event":"ms.channel.connect","data":{"token":"$rotated"}}"""
+        val transport =
+            ScriptedSessionTransport(
+                script(SessionEvent.Frame(0, rotatedFrame)),
+                certificateIdentity = savedPin,
+            )
+        // The staging wrote through the store; from here the store refuses every write.
+        secrets.failWrites = true
+        val session = LiveSession(television, transport, this, secrets)
+
+        advanceUntilIdle()
+
+        assertEquals(SessionState.NeedsRepair, session.snapshot.value.state)
+        assertNull("the secrets surface carries no repair reason", session.snapshot.value.repairReason)
+        assertEquals(
+            "the stored token is unchanged by the failed rotation",
+            savedToken,
+            secrets.savedSecrets.single().second.token,
+        )
+
+        session.close()
+        advanceUntilIdle()
+    }
+
     // --- fail-closed identity ---------------------------------------------------------
 
     @Test
@@ -627,7 +656,12 @@ class SamsungTvsSavedPairingTest {
         val tvs =
             SamsungTvsImpl(
                 newScan = {
-                    DiscoveryScan(FixtureTransport(Fixture.load(caseId)), confirmed, store, readDispatcher = Dispatchers.Unconfined)
+                    DiscoveryScan(
+                        FixtureTransport(Fixture.load(caseId)),
+                        confirmed,
+                        store,
+                        readDispatcher = Dispatchers.Unconfined,
+                    )
                 },
                 confirmed = confirmed,
                 secrets = store,

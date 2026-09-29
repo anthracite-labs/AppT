@@ -144,6 +144,19 @@ class KeystoreSamsungStoreTest {
     }
 
     @Test
+    fun aReadWhenTheStoreDirectoryCannotBeCreatedFailsClosed() {
+        val blockedSecrets = File(temporaryFolder.root, "blocked-secrets")
+        val blockedDevices = File(temporaryFolder.root, "blocked-devices")
+        assertTrue(blockedSecrets.createNewFile())
+        assertTrue(blockedDevices.createNewFile())
+        // A directory path occupied by a file cannot be created: the reads contain the failure.
+        val store =
+            KeystoreSamsungStore.forTesting(blockedSecrets, blockedDevices, LocalAesGcmCipher())
+        assertEquals(StoredSecret.Unavailable, store.loadSecret(tvId))
+        assertNull(store.loadDevice(tvId))
+    }
+
+    @Test
     fun aKeystoreDecryptRuntimeFailureSurfacesUnavailable() {
         val good = newStore()
         good.saveSecret(tvId, secret)

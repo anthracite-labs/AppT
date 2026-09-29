@@ -276,6 +276,12 @@ internal class LiveSession(
                     secrets.saveSecret(television.id, PairingSecret(token = token, pin = saved.pin))
                 }
             } catch (ignored: IOException) {
+                // The session itself is alive, but the replacement could not be stored. Fail
+                // closed explicitly: SecretsUnavailable, not a silent stay in Connecting — the
+                // stored token may be refused next time, and nothing pretends the rotation
+                // happened (data.md#samsung-secret-record).
+                publish(SessionState.NeedsRepair, repairReason = null)
+                endUnansweredAttempt()
                 return
             }
         }
