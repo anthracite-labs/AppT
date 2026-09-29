@@ -60,11 +60,17 @@ class SavedPairingUiTest {
         assertEquals(PairingPhase.Failed(TvFailure.NeedsRepair), denied.phase)
 
         val timedOut =
-            PairingUiState.of("TV", snapshot(SessionState.NeedsRepair, RepairReason.ApprovalTimedOut))
+            PairingUiState.of(
+                "TV",
+                snapshot(SessionState.NeedsRepair, RepairReason.ApprovalTimedOut),
+            )
         assertEquals(PairingPhase.Failed(TvFailure.TimedOut), timedOut.phase)
 
         val changed =
-            PairingUiState.of("TV", snapshot(SessionState.NeedsRepair, RepairReason.IdentityChanged))
+            PairingUiState.of(
+                "TV",
+                snapshot(SessionState.NeedsRepair, RepairReason.IdentityChanged),
+            )
         assertEquals(PairingPhase.Failed(TvFailure.IdentityChanged), changed.phase)
 
         val rejected =
@@ -124,7 +130,12 @@ class SavedPairingUiTest {
     fun theRemoteConfirmsRepairOnTheRetainedSession() = runTest {
         val host = entered()
         val viewModel =
-            RemoteViewModel(livingRoom, host, TvProfiles(FakeTvProfileDao()) { 1L }, preferenceStore())
+            RemoteViewModel(
+                livingRoom,
+                host,
+                TvProfiles(FakeTvProfileDao()) { 1L },
+                preferenceStore(),
+            )
         val session = tvs.sessionFor(livingRoom)!!
         session.publish(SessionState.NeedsRepair, repairReason = RepairReason.IdentityChanged)
         settle()
@@ -173,7 +184,12 @@ class SavedPairingUiTest {
     fun theRemotePairsAgainTheSameWayThroughItsConfirmedRepair() = runTest {
         val host = entered()
         val viewModel =
-            RemoteViewModel(livingRoom, host, TvProfiles(FakeTvProfileDao()) { 1L }, preferenceStore())
+            RemoteViewModel(
+                livingRoom,
+                host,
+                TvProfiles(FakeTvProfileDao()) { 1L },
+                preferenceStore(),
+            )
         val session = tvs.sessionFor(livingRoom)!!
         session.publish(SessionState.NeedsRepair)
         settle()
