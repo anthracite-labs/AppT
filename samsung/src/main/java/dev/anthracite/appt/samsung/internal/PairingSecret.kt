@@ -60,7 +60,8 @@ private fun ByteArray.decodedPayload(): PairingSecret? {
 }
 
 /**
- * The saved pairing credential for one television (docs/architecture/data.md#samsung-secret-record).
+ * The saved pairing credential for one television
+ * (docs/architecture/data.md#samsung-secret-record).
  *
  * The payload is the pairing token and the SHA-256 SPKI pin, and nothing else. MAC, address and
  * UUID deliberately do not share this type: a serializer for the samsung-private device record
