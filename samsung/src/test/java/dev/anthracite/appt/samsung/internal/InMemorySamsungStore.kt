@@ -50,8 +50,7 @@ internal class InMemorySamsungStore(
             tvId in corrupt -> StoredSecret.Unavailable
             else ->
                 secrets[tvId]?.let { secret ->
-                    if (failDecryption) StoredSecret.Unavailable
-                    else StoredSecret.Available(secret)
+                    if (failDecryption) StoredSecret.Unavailable else StoredSecret.Available(secret)
                 } ?: StoredSecret.Absent
         }
 
