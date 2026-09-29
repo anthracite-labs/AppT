@@ -96,8 +96,7 @@ class SamsungTvsSavedPairingTest {
     fun aTokenTheTelevisionReissuesReplacesTheStoredOneAtomically() = runTest {
         stageSavedPairing()
         val rotated = "rotated-token-value-injected-by-the-test"
-        val rotatedFrame =
-            """{"event":"ms.channel.connect","data":{"token":"$rotated"}}"""
+        val rotatedFrame = """{"event":"ms.channel.connect","data":{"token":"$rotated"}}"""
         val transport =
             ScriptedSessionTransport(
                 script(SessionEvent.Frame(0, rotatedFrame)),
@@ -121,8 +120,7 @@ class SamsungTvsSavedPairingTest {
     fun aFailedRotatedTokenSaveSurfacesSecretsUnavailableInsteadOfConnecting() = runTest {
         stageSavedPairing()
         val rotated = "rotated-token-value-injected-by-the-test"
-        val rotatedFrame =
-            """{"event":"ms.channel.connect","data":{"token":"$rotated"}}"""
+        val rotatedFrame = """{"event":"ms.channel.connect","data":{"token":"$rotated"}}"""
         val transport =
             ScriptedSessionTransport(
                 script(SessionEvent.Frame(0, rotatedFrame)),
@@ -139,10 +137,7 @@ class SamsungTvsSavedPairingTest {
             "the secrets surface carries no repair reason",
             session.snapshot.value.repairReason,
         )
-        assertTrue(
-            "the failed rotation stored nothing new",
-            secrets.savedSecrets.isEmpty(),
-        )
+        assertTrue("the failed rotation stored nothing new", secrets.savedSecrets.isEmpty())
         val stored = secrets.loadSecret(tvId)
         assertTrue("the original pairing is still stored", stored is StoredSecret.Available)
         assertEquals(
@@ -284,7 +279,11 @@ class SamsungTvsSavedPairingTest {
         assertEquals(1, secrets.savedDevices.size)
         val (storedId, stored) = secrets.savedSecrets.single()
         assertEquals(tvId, storedId)
-        assertEquals("the approval token is persisted with the pin", "[fixture-token]", stored.token)
+        assertEquals(
+            "the approval token is persisted with the pin",
+            "[fixture-token]",
+            stored.token,
+        )
         assertEquals("the pin persisted is the candidate SPKI", savedPin, stored.pin)
         // The samsung-private device record exists beside the secret and carries no token or pin.
         val record = secrets.loadDevice(tvId)!!

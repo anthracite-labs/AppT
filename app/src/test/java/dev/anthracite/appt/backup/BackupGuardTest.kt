@@ -106,8 +106,9 @@ class BackupGuardTest {
         excludeRules(document.getElementsByTagName("full-backup-content").item(0) as Element)
 
     private fun excludeRules(section: Element): List<Element> =
-        (0 until section.getElementsByTagName("exclude").length)
-            .map { section.getElementsByTagName("exclude").item(it) as Element }
+        (0 until section.getElementsByTagName("exclude").length).map {
+            section.getElementsByTagName("exclude").item(it) as Element
+        }
 
     private fun List<Element>.toDomainSet(): Set<String> = map { it.getAttribute("domain") }.toSet()
 

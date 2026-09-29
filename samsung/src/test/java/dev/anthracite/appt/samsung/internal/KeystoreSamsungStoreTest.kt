@@ -364,10 +364,7 @@ class KeystoreSamsungStoreTest {
 
         private fun key(): Key = KEYS.computeIfAbsent(keyId) { generateNewKey() }
 
-        private fun cipher(
-            mode: Int,
-            iv: ByteArray,
-        ): Cipher =
+        private fun cipher(mode: Int, iv: ByteArray): Cipher =
             Cipher.getInstance("AES/GCM/NoPadding").apply {
                 init(mode, key(), GCMParameterSpec(128, iv))
             }
@@ -379,9 +376,7 @@ class KeystoreSamsungStoreTest {
             private val KEYS = java.util.concurrent.ConcurrentHashMap<String, Key>()
 
             private fun generateNewKey(): Key =
-                KeyGenerator.getInstance("AES")
-                    .apply { init(256, SecureRandom()) }
-                    .generateKey()
+                KeyGenerator.getInstance("AES").apply { init(256, SecureRandom()) }.generateKey()
         }
     }
 }

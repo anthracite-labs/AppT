@@ -215,11 +215,7 @@ class SavedPairingUiTest {
         viewModel.onPairAgain()
         settle()
 
-        assertEquals(
-            "the forget was attempted",
-            listOf(livingRoom),
-            tvs.forgottenIds,
-        )
+        assertEquals("the forget was attempted", listOf(livingRoom), tvs.forgottenIds)
         assertTrue(
             "no fresh session opens while the relationship remains",
             tvs.sessionFor(livingRoom) === session,

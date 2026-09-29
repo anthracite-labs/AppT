@@ -89,7 +89,14 @@ class SamsungTvsSessionTest {
     ): SamsungTvs {
         val confirmed = ConfirmedTelevisions()
         return SamsungTvsImpl(
-            newScan = { DiscoveryScan(FixtureTransport(Fixture.load(caseId)), confirmed, secrets, readDispatcher = Dispatchers.Unconfined) },
+            newScan = {
+                DiscoveryScan(
+                    FixtureTransport(Fixture.load(caseId)),
+                    confirmed,
+                    secrets,
+                    readDispatcher = Dispatchers.Unconfined,
+                )
+            },
             confirmed = confirmed,
             secrets = secrets,
             newSession = newSession,
@@ -456,8 +463,7 @@ class SamsungTvsSessionTest {
 
         // The only path that ever persists a token or a pin is the typed secret store; no
         // production source may smuggle one through Room, DataStore or shared preferences.
-        val forbiddenStores =
-            Regex("""\b(RoomDatabase|DataStore|SharedPreferences)\b""")
+        val forbiddenStores = Regex("""\b(RoomDatabase|DataStore|SharedPreferences)\b""")
         val offenders = productionSources().flatMap { linesMatching(it, forbiddenStores) }
         assertEquals(emptyList<String>(), offenders)
 
@@ -502,7 +508,10 @@ class SamsungTvsSessionTest {
     @Test
     fun openOnAnUnknownIdIsUnreachableAndOpensNoSocket() = runTest {
         val tvs =
-            SamsungTvsImpl(newScan = { error("an unknown id must not start a scan") }, secrets = secrets)
+            SamsungTvsImpl(
+                newScan = { error("an unknown id must not start a scan") },
+                secrets = secrets,
+            )
         val session = tvs.open(TvId("never-discovered"), this)
         advanceUntilIdle()
 

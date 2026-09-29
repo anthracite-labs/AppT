@@ -6,28 +6,31 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Module-level guard tests for the S04 secret-store surface
- * (docs/architecture/testing.md named contracts and data.md): samsung code produces no log output,
- * and the pairing-secret types are structurally invisible outside this module, so no Room, DataStore
- * or diagnostics code can grow a dependency on them.
+ * Module-level guard tests for the S04 secret-store surface (docs/architecture/testing.md named
+ * contracts and data.md): samsung code produces no log output, and the pairing-secret types are
+ * structurally invisible outside this module, so no Room, DataStore or diagnostics code can grow a
+ * dependency on them.
  */
 class SamsungModuleGuardTest {
     private fun productionSources(): List<File> {
         val root = File("src/main")
-        assertTrue("expected to run from the samsung module, ran from ${root.absolutePath}", root.isDirectory)
+        assertTrue(
+            "expected to run from the samsung module, ran from ${root.absolutePath}",
+            root.isDirectory,
+        )
         return root.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
     }
 
     private fun appSources(): List<File> {
         val root = File("../app/src/main")
-        assertTrue("expected to run from the samsung module, ran from ${root.absolutePath}", root.isDirectory)
+        assertTrue(
+            "expected to run from the samsung module, ran from ${root.absolutePath}",
+            root.isDirectory,
+        )
         return root.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
     }
 
-    private fun linesMatching(
-        source: File,
-        pattern: Regex,
-    ): List<String> =
+    private fun linesMatching(source: File, pattern: Regex): List<String> =
         source
             .readLines()
             .mapIndexed { index, line -> "${source.path}:${index + 1}" to line }
@@ -55,7 +58,7 @@ class SamsungModuleGuardTest {
         // secret structurally unavailable to Room, DataStore, diagnostics and logs.
         val secretTypes =
             Regex(
-                """\b(PairingSecret|SamsungSecretStore|SamsungDeviceRecord|StoredSecret|SecretStoreException)\b""",
+                """\b(PairingSecret|SamsungSecretStore|SamsungDeviceRecord|StoredSecret|SecretStoreException)\b"""
             )
         val offenders = appSources().flatMap { linesMatching(it, secretTypes) }
         assertEquals(emptyList<String>(), offenders)

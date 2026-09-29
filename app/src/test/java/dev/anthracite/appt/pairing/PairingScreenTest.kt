@@ -143,9 +143,7 @@ class PairingScreenTest {
         // The confirmed act: the button opens the dialog; only the dialog's confirm pairs again.
         composeRule.onNodeWithTag(PairingTestTags.PAIR_AGAIN).performClick()
         assertEquals(0, pairAgains)
-        composeRule
-            .onNodeWithTag(PairingTestTags.PAIR_AGAIN_CONFIRM)
-            .assertTextEquals("Pair again")
+        composeRule.onNodeWithTag(PairingTestTags.PAIR_AGAIN_CONFIRM).assertTextEquals("Pair again")
         composeRule.onNodeWithTag(PairingTestTags.PAIR_AGAIN_CONFIRM).performClick()
         assertEquals(1, pairAgains)
         composeRule.onNodeWithTag(PairingTestTags.RETRY).assertDoesNotExist()

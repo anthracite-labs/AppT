@@ -113,8 +113,8 @@ class PlaintextWebSocketTransportTest {
         val transport =
             PlaintextWebSocketTransport(
                 keepalive = 1.hours,
-                fetchCurrentUuid = {
-                    _, _ -> throw AssertionError("first contact has no saved identity")
+                fetchCurrentUuid = { _, _ ->
+                    throw AssertionError("first contact has no saved identity")
                 },
             )
         assertEquals(
