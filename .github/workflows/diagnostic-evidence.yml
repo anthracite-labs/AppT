@@ -1,0 +1,84 @@
+# TEMPORARY diagnostic evidence — REMOVE BEFORE ANY CANDIDATE REPORT.
+#
+# One push-triggered run that reproduces the failing app-unit tests and the
+# failing :app:detekt analysis and surfaces each concrete finding as check-run
+# annotations: the diagnose surfacer only carries the Gradle "what went wrong"
+# tail and report artifacts are not readable from this workspace. This is the
+# smallest evidence pass the debugging skill allows before editing.
+# Branch-scoped, read-only source, never a gate; deleted immediately after use.
+
+name: diagnostic-evidence
+
+on:
+  push:
+    branches:
+      - arena/01a0e942-appt
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic-evidence:
+    name: diagnostic-evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the branch
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up the Android/JVM toolchain
+        uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          java-version: '17'
+
+      - name: Run the app unit tests and detekt
+        run: |
+          set +e
+          ./gradlew :app:testDebugUnitTest :app:detekt > /tmp/evidence.log 2>&1
+          echo "gradle exit status: $?"
+          exit 0
+
+      - name: Surface failing tests
+        if: always()
+        shell: python
+        run: |
+          import glob
+          import xml.etree.ElementTree as ET
+
+          paths = glob.glob("app/build/test-results/testDebugUnitTest/*.xml")
+          if not paths:
+              print("::error title=evidence::no app test result XML was produced")
+          for path in paths:
+              tree = ET.parse(path)
+              for suite in tree.iter("testsuite"):
+                  for case in suite.iter("testcase"):
+                      failures = list(case.iter("failure")) + list(case.iter("error"))
+                      for failure in failures:
+                          name = "{} > {}".format(suite.get("name"), case.get("name"))
+                          message = (failure.get("message") or "").replace("\n", " ")[:300]
+                          print("::error title=test failure::{} :: {}".format(name, message))
+                          text = (failure.text or "").strip().splitlines()[:6]
+                          for line in text:
+                              print("::error title=stack::  {}".format(line.strip()[:220]))
+
+      - name: Surface detekt findings
+        if: always()
+        shell: python
+        run: |
+          import re
+
+          log = open("/tmp/evidence.log", errors="replace").read()
+          findings = [
+              line.strip()
+              for line in log.splitlines()
+              if re.search(r"\.kt:[0-9]+:[0-9]+", line) and "[" in line
+          ]
+          if not findings:
+              print("::notice title=evidence::no detekt finding lines matched")
+          for line in findings[:20]:
+              print("::error title=detekt::{}".format(line[:400]))
