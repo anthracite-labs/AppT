@@ -3,6 +3,7 @@ package dev.anthracite.appt.backup
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.w3c.dom.Element
 
@@ -56,6 +57,14 @@ class BackupGuardTest {
         val transfer = extraction.getElementsByTagName("device-transfer").item(0) as Element
         assertEquals(EXCLUDED_DOMAINS, excludes(cloud))
         assertEquals(EXCLUDED_DOMAINS, excludes(transfer))
+        // The extraction surface never restricts an exclusion with a path attribute: an excluded
+        // domain stands for the whole of it, at any depth.
+        extractionExcludes(extraction).forEach { rule ->
+            assertTrue(
+                "the extraction rule for domain=${rule.getAttribute("domain")} must not carry a path",
+                !rule.hasAttribute("path"),
+            )
+        }
 
         val legacy = document(backupRules)
         assertEquals(
@@ -74,16 +83,33 @@ class BackupGuardTest {
                 .map { it.getAttribute("domain") }
                 .toSet()
         assertEquals(EXCLUDED_DOMAINS, legacyExcludes)
+        // The legacy surface pins every exclusion to the root explicitly.
+        legacyExcludes(legacy).forEach { rule ->
+            assertEquals(
+                "the full-backup rule for domain=${rule.getAttribute("domain")} must exclude the root",
+                ".",
+                rule.getAttribute("path"),
+            )
+        }
     }
 
     private fun document(file: File) =
         DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(file)
 
-    private fun excludes(section: Element): Set<String> =
+    private fun excludes(section: Element): Set<String> = excludeRules(section).toDomainSet()
+
+    private fun extractionExcludes(document: org.w3c.dom.Document): List<Element> =
+        excludeRules(document.getElementsByTagName("cloud-backup").item(0) as Element) +
+            excludeRules(document.getElementsByTagName("device-transfer").item(0) as Element)
+
+    private fun legacyExcludes(document: org.w3c.dom.Document): List<Element> =
+        excludeRules(document.getElementsByTagName("full-backup-content").item(0) as Element)
+
+    private fun excludeRules(section: Element): List<Element> =
         (0 until section.getElementsByTagName("exclude").length)
             .map { section.getElementsByTagName("exclude").item(it) as Element }
-            .map { it.getAttribute("domain") }
-            .toSet()
+
+    private fun List<Element>.toDomainSet(): Set<String> = map { it.getAttribute("domain") }.toSet()
 
     private companion object {
         /** Every private-storage domain: excluded means nothing of this app can leave the */
