@@ -27,7 +27,8 @@ internal interface SecretCipher {
     fun decrypt(blob: ByteArray): ByteArray
 }
 
-internal fun SecretCipher.encode(secret: PairingSecret): ByteArray = encrypt(secret.encodedPayload())
+internal fun SecretCipher.encode(secret: PairingSecret): ByteArray =
+    encrypt(secret.encodedPayload())
 
 internal fun SecretCipher.decode(blob: ByteArray): PairingSecret? = decrypt(blob).decodedPayload()
 
