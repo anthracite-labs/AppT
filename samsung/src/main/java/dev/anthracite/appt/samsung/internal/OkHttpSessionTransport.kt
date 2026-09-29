@@ -170,7 +170,7 @@ internal class OkHttpSessionTransport(private val ioDispatcher: CoroutineContext
             return ConnectionAttempt.Unreachable
         }
         return ConnectionAttempt.Opened(
-            OkHttpSessionConnection(socket, inbound, trustManager, client),
+            OkHttpSessionConnection(socket, inbound, trustManager, client)
         )
     }
 
