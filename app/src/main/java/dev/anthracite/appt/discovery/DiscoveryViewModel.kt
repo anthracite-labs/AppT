@@ -11,7 +11,6 @@ import dev.anthracite.appt.samsung.DiscoveryEvent
 import dev.anthracite.appt.samsung.SamsungTvs
 import dev.anthracite.appt.samsung.TvFailure
 import dev.anthracite.appt.samsung.TvId
-import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -135,14 +134,8 @@ class DiscoveryViewModel(
         resumeOnStart = false
         scan?.cancel()
         mutableState.value = DiscoveryUiState.Initial
-        // The temporary diagnostic observes an operation failure without changing this class's
-        // behavior: the exception still propagates exactly as it did before the recorder existed.
-        val observeFailure = CoroutineExceptionHandler { _, failed ->
-            FlightRecorder.recordFailure(failed)
-            FlightRecorder.record(Phase.ScanFailed)
-        }
         scan =
-            viewModelScope.launch(observeFailure) {
+            viewModelScope.launch {
                 samsungTvs.discover().collect { event ->
                     if (event is DiscoveryEvent.Found) discovered[event.tv.id] = event.tv
                     mutableState.update { it.reduce(event) }
