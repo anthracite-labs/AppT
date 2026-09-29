@@ -36,28 +36,32 @@ jobs:
         with:
           java-version: '17'
 
-      - name: Run :samsung tests and surface every failure
+      - name: Run :samsung tests
         run: |
           set +e
           ./gradlew :samsung:testDebugUnitTest > /tmp/test.log 2>&1
-          status=$?
-          echo "gradle exit status: $status"
-          shopt -s nullglob
-          for xml in samsung/build/test-results/testDebugUnitTest/*.xml; do
-            python3 - "$xml" <<'PY'
-import sys, xml.etree.ElementTree as ET
-tree = ET.parse(sys.argv[1])
-for suite in tree.iter('testsuite'):
-    for case in suite.iter('testcase'):
-        for failure in list(case.iter('failure')) + list(case.iter('error')):
-            name = f"{suite.get('name')} > {case.get('name')}"
-            msg = (failure.get('message') or '').replace('\n', ' ')[:300]
-            stack_head = (failure.text or '').strip().splitlines()[:6]
-            print(f"::error title=test failure::{name} :: {msg}")
-            for line in stack_head:
-                print(f"::error title=stack::  {line.strip()[:220]}")
-PY
-          done
-          if [ "$status" -ne 0 ]; then
-            echo "::error title=test-evidence:::samsung:testDebugUnitTest exited $status"
-          fi
+          echo "gradle exit status: $?"
+          exit 0
+
+      - name: Surface every failing test
+        if: always()
+        shell: python
+        run: |
+          import glob
+          import xml.etree.ElementTree as ET
+
+          paths = glob.glob("samsung/build/test-results/testDebugUnitTest/*.xml")
+          if not paths:
+              print("::error title=test-evidence::no test result XML was produced")
+          for path in paths:
+              tree = ET.parse(path)
+              for suite in tree.iter("testsuite"):
+                  for case in suite.iter("testcase"):
+                      failures = list(case.iter("failure")) + list(case.iter("error"))
+                      for failure in failures:
+                          name = "{} > {}".format(suite.get("name"), case.get("name"))
+                          message = (failure.get("message") or "").replace("\n", " ")[:300]
+                          print("::error title=test failure::{} :: {}".format(name, message))
+                          text = (failure.text or "").strip().splitlines()[:6]
+                          for line in text:
+                              print("::error title=stack::  {}".format(line.strip()[:220]))
