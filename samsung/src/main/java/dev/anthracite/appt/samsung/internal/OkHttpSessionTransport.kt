@@ -292,7 +292,6 @@ internal class SavedIdentityMismatchException :
  *
  * The television presents a self-signed certificate, so the system trust store cannot be the
  * decision: the SPKI is. Two modes share one shape:
- *
  * * **Candidate mode** (`beginHandshake()`): first contact has no saved pin, so one certificate is
  *   accepted as a candidate to speak the handshake and kept in memory for that session only. A
  *   second, different certificate on the same connection is rejected. Persisting the candidate
