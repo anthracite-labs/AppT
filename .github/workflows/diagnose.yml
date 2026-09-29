@@ -783,6 +783,17 @@ jobs:
           sudo udevadm trigger --name-match=kvm
           ls -la /dev/kvm
 
+      - name: Provision the managed-device system images
+        # The hosted runner image preinstalls google_apis-flavored system images only;
+        # the aosp ("default") flavors the managed devices declare are not guaranteed
+        # to be present, and the setup task fails its existence check instead of
+        # downloading them. Install the exact packages the device jobs run against
+        # before any target-controlled Gradle task executes.
+        run: |
+          yes | "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager" \
+            "system-images;android-29;default;x86" \
+            "system-images;android-35;default;x86_64"
+
       - name: Run Gradle Managed Device Acceptance Test (API 29)
         run: |
           set -o pipefail
