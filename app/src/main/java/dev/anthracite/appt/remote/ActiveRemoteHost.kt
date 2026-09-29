@@ -122,8 +122,7 @@ class ActiveRemoteHost(
         // relationship in place, so pairing anew now would build a second relationship on top of
         // an unreadable one (samsung-interface.md#forget: Failed means retry before treating the
         // television as forgotten). The confirmed control simply stays available to try again.
-        if (samsungTvs.forget(tvId) != ForgetResult.Forgotten) return
-        enter(tvId)
+        if (samsungTvs.forget(tvId) == ForgetResult.Forgotten) enter(tvId)
     }
 
     /** Takes an interest in the held session. Idempotent for the same [owner]. */
