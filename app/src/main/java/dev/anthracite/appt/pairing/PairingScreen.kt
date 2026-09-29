@@ -10,12 +10,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -206,11 +212,14 @@ private fun PairingFailed(
                 Text(text = stringResource(R.string.pairing_retry), style = TypeTokens.label)
             }
         }
-        // Saved material that cannot be read is never silently reset: pairing again is the user's
-        // explicit act, and it is the only repair this surface offers.
+        // Saved material is never silently reset: pairing again is the user's explicit,
+        // confirmed act — the dialog says what is removed and what comes next — and it is the
+        // only repair this surface offers. Retry stays reserved for denied and timed-out
+        // approvals; SecretsUnavailable and the identity failures go through here, never Retry.
         if (failure == TvFailure.SecretsUnavailable || failure == TvFailure.IdentityChanged) {
+            var confirming by rememberSaveable { mutableStateOf(false) }
             Button(
-                onClick = onPairAgain,
+                onClick = { confirming = true },
                 modifier =
                     Modifier.fillMaxWidth()
                         .defaultMinSize(minHeight = SizeTokens.primaryControl)
@@ -218,8 +227,40 @@ private fun PairingFailed(
             ) {
                 Text(text = stringResource(R.string.pairing_pair_again), style = TypeTokens.label)
             }
+            if (confirming) {
+                PairAgainConfirmationDialog(
+                    onDismiss = { confirming = false },
+                    onConfirm = onPairAgain,
+                )
+            }
         }
     }
+}
+
+/**
+ * The explicit confirmation the pair again owes the user (presentation.md): the dialog says what
+ * is removed and what comes next, so the destructive act is never a single tap.
+ */
+@Composable
+private fun PairAgainConfirmationDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.pairing_pair_again_confirm_title)) },
+        text = { Text(text = stringResource(R.string.pairing_pair_again_confirm_body)) },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                modifier = Modifier.testTag(PairingTestTags.PAIR_AGAIN_CONFIRM),
+            ) {
+                Text(text = stringResource(R.string.pairing_pair_again_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.pairing_pair_again_cancel))
+            }
+        },
+    )
 }
 
 @Composable

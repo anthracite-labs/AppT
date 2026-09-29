@@ -67,6 +67,10 @@
     <string name="pairing_retry">Try again</string>
     <string name="pairing_failed_secrets_unavailable">AppT can\'t read the saved connection for this television. Pair again to continue.</string>
     <string name="pairing_pair_again">Pair again</string>
+    <string name="pairing_pair_again_confirm_title">Pair this television again?</string>
+    <string name="pairing_pair_again_confirm_body">This removes the saved connection for this television and starts a new one. You will need to approve AppT on the television again.</string>
+    <string name="pairing_pair_again_confirm">Pair again</string>
+    <string name="pairing_pair_again_cancel">Cancel</string>
     <string name="pairing_failed_identity_changed">This television no longer matches your saved connection. Pair again to continue.</string>
 
     <!-- Remote (docs/architecture/presentation.md#remote). The S03 minimal control set. -->

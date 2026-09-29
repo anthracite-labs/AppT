@@ -11,6 +11,7 @@ import dev.anthracite.appt.remote.ActiveRemoteHost
 import dev.anthracite.appt.remote.ConnectionUi
 import dev.anthracite.appt.remote.RemoteUiState
 import dev.anthracite.appt.remote.RemoteViewModel
+import dev.anthracite.appt.samsung.ForgetResult
 import dev.anthracite.appt.samsung.RepairReason
 import dev.anthracite.appt.samsung.SessionSnapshot
 import dev.anthracite.appt.samsung.SessionState
@@ -200,6 +201,34 @@ class SavedPairingUiTest {
         assertEquals(listOf(livingRoom), tvs.forgottenIds)
         assertEquals(0, session.confirmRepairs)
         assertTrue(tvs.sessionFor(livingRoom) !== session)
+    }
+
+    @Test
+    fun aFailedForgetKeepsTheConfirmedControlAvailableAndStartsNothingFresh() = runTest {
+        val host = entered()
+        val viewModel = PairingViewModel(livingRoom, host, TvProfiles(FakeTvProfileDao()) { 1L })
+        val session = tvs.sessionFor(livingRoom)!!
+        session.publish(SessionState.NeedsRepair)
+        settle()
+        tvs.nextForgetResult = ForgetResult.Failed
+
+        viewModel.onPairAgain()
+        settle()
+
+        assertEquals(
+            "the forget was attempted",
+            listOf(livingRoom),
+            tvs.forgottenIds,
+        )
+        assertTrue(
+            "no fresh session opens while the relationship remains",
+            tvs.sessionFor(livingRoom) === session,
+        )
+        assertEquals(
+            "and the session's confirmRepair is not the secrets path",
+            0,
+            session.confirmRepairs,
+        )
     }
 
     @Test

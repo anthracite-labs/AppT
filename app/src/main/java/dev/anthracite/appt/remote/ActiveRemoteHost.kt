@@ -1,5 +1,6 @@
 package dev.anthracite.appt.remote
 
+import dev.anthracite.appt.samsung.ForgetResult
 import dev.anthracite.appt.samsung.RemoteSession
 import dev.anthracite.appt.samsung.SamsungTvs
 import dev.anthracite.appt.samsung.SessionSnapshot
@@ -117,9 +118,11 @@ class ActiveRemoteHost(
         // The retained NeedsRepair session is live by `isLive`, so `enter` alone would reuse it;
         // close it first. Keeping the owners: the user is retrying the same visible television.
         closeSession(clearOwners = false)
-        // A Failed forget leaves the relationship in place; re-entering then honestly re-reaches
-        // SecretsUnavailable and offers the confirmed pair again again (fail-closed, no fake).
-        samsungTvs.forget(tvId)
+        // Forget must succeed before anything fresh begins: a Failed forget leaves the Samsung
+        // relationship in place, so pairing anew now would build a second relationship on top of
+        // an unreadable one (samsung-interface.md#forget: Failed means retry before treating the
+        // television as forgotten). The confirmed control simply stays available to try again.
+        if (samsungTvs.forget(tvId) != ForgetResult.Forgotten) return
         enter(tvId)
     }
 
