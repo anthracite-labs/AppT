@@ -136,7 +136,7 @@ class PlaintextWebSocketTransportTest {
                 server.accept().use { socket ->
                     val request = readRequest(socket.getInputStream())
                     hostHeader = request.lines().first { it.startsWith("Host:", ignoreCase = true) }
-                    val document = """{"device":{"id":"probe-uuid-6"}}"""
+                    val document = """{"device":{"id":"7c9e6679-7425-40de-944b-e07fc1f90ae7"}}"""
                     val response =
                         "HTTP/1.1 200 OK\r\n" +
                             "Content-Type: application/json\r\n" +
@@ -147,7 +147,7 @@ class PlaintextWebSocketTransportTest {
                     socket.getOutputStream().flush()
                 }
             }
-            val television = plaintextTelevision("probe-uuid-6").copy(host = "::1")
+            val television = plaintextTelevision("7c9e6679-7425-40de-944b-e07fc1f90ae7").copy(host = "::1")
             val attempt =
                 PlaintextWebSocketTransport(keepalive = 1.hours)
                     .connect(television, PairingSecret(token = "resume-token", pin = null))
