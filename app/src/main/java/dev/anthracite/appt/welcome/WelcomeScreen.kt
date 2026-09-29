@@ -119,7 +119,10 @@ fun WelcomeScreen(onFindMyTv: () -> Unit, modifier: Modifier = Modifier) {
  */
 @Composable
 private fun DebugReportExport() {
+    // Only when there is something to export: a fresh diagnostic build shows exactly the one
+    // primary action (ui-ux.md#onboarding), and the control appears after a report was saved.
     if (!FlightRecorder.enabled) return
+    if (FlightRecorder.reportFile() == null) return
     val context = LocalContext.current
     TextButton(
         onClick = {
