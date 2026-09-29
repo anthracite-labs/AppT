@@ -124,15 +124,12 @@ private fun DebugReportExport() {
     if (!FlightRecorder.enabled) return
     if (FlightRecorder.reportFile() == null) return
     val context = LocalContext.current
+    // The chooser label resolves through the composition, so it follows the configuration.
+    val exportLabel = stringResource(R.string.debug_export_report)
     TextButton(
         onClick = {
             FlightRecorder.exportIntent(context)?.let { intent ->
-                context.startActivity(
-                    Intent.createChooser(
-                        intent,
-                        context.getString(R.string.debug_export_report),
-                    ),
-                )
+                context.startActivity(Intent.createChooser(intent, exportLabel))
             }
         },
         // The temporary diagnostic affordance stays out of the accessibility semantics tree, so
