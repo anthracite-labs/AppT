@@ -141,8 +141,8 @@ class FlightRecorderTest {
         val report = FlightRecorder.reportFile()!!.readText()
         assertTrue("the crash record is present", report.contains("C "))
         assertTrue(
-            "the crash type is recorded",
-            report.contains("kotlinx.coroutines.CancellationException"),
+            "the crash type is recorded (the kotlinx alias erases to the JDK class)",
+            report.contains("java.util.concurrent.CancellationException"),
         )
         assertTrue(
             "the crash frame is recorded",

@@ -85,9 +85,15 @@ jobs:
                   what_wrong = True
               if what_wrong and line.strip():
                   print("::error title=gradle::{}".format(line.strip()[:250]))
-          for report in glob.glob("app/build/reports/lint-results*.txt"):
-              for line in open(report, errors="replace").read().splitlines():
-                  if line.startswith("Error:") or ": Error:" in line:
-                      print("::error title=lint::{}".format(line.strip()[:400]))
-          if not glob.glob("app/build/reports/lint-results*.txt"):
-              print("::notice title=evidence::no lint text report was produced")
+          for line in log.splitlines():
+              if ": Error:" in line or line.strip().startswith("Error:"):
+                  print("::error title=lint console::{}".format(line.strip()[:400]))
+          reports = glob.glob("**/lint-results*.txt", recursive=True) + glob.glob(
+              "**/lint-results*.xml", recursive=True
+          )
+          if not reports:
+              print("::notice title=evidence::no lint report file was produced")
+          for report in reports[:2]:
+              head = open(report, errors="replace").read().splitlines()[:25]
+              for line in head:
+                  print("::error title=lint report {}::{}".format(report, line.strip()[:300]))
