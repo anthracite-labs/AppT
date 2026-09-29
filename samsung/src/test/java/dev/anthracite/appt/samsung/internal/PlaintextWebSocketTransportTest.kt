@@ -180,8 +180,7 @@ class PlaintextWebSocketTransportTest {
             server.soTimeout = 30_000
             val peer = thread {
                 server.accept().use { socket ->
-                    val response =
-                        "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n"
+                    val response = "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n"
                     socket.getOutputStream().write(response.encodeToByteArray())
                     socket.getOutputStream().flush()
                 }
