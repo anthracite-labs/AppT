@@ -46,7 +46,9 @@ internal class AndroidKeystoreCipher(private val alias: String = KEYSTORE_ALIAS)
 
     private fun key(): SecretKey {
         val keystore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
-        (keystore.getKey(alias, null) as? SecretKey)?.let { return it }
+        (keystore.getKey(alias, null) as? SecretKey)?.let {
+            return it
+        }
         return generateKey(keystore)
     }
 
