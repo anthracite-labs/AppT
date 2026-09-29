@@ -300,8 +300,8 @@ class KeystoreSamsungStoreTest {
             System.setErr(stderr)
         }
         assertEquals(
-            "samsung module code never calls android.util.Log or prints: the planted token and pin "
-                + "must be absent from anything a captured log could show",
+            "samsung module code never calls android.util.Log or prints: the planted token and pin " +
+                "must be absent from anything a captured log could show",
             "",
             captured.toString().trim(),
         )
