@@ -88,8 +88,9 @@ internal object DeviceRecordJson {
  *   device transfer by the platform (`getNoBackupFilesDir`) and again by the app's fail-closed
  *   backup rules (data.md#backup-and-device-transfer).
  * * Keystore alias `appt.samsung.v1`, AES-GCM, non-exportable,
- *   `setUserAuthenticationRequired(false)` so reopening never demands a biometric prompt, randomized
- *   encryption, StrongBox when available with TEE fallback (data.md#samsung-secret-record).
+ *   `setUserAuthenticationRequired(false)` so reopening never demands a biometric prompt,
+ *   randomized encryption, StrongBox when available with TEE fallback
+ *   (data.md#samsung-secret-record).
  * * File layout: magic `APS1`, one format-version byte, the GCM IV, the GCM body.
  * * Write: encrypt, temporary file in the same directory, fsync, rename. A crash mid-write leaves
  *   the previous secret, and plaintext is never staged in `cacheDir` or anywhere else.
