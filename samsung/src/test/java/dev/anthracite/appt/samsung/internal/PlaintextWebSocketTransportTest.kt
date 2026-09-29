@@ -158,8 +158,16 @@ class PlaintextWebSocketTransportTest {
                     .connect(television, PairingSecret(token = "resume-token", pin = null))
             peer.join()
 
-            assertEquals(ConnectionAttempt.Unreachable, attempt)
-            assertEquals("Host: [::1]:${server.localPort}", hostHeader)
+            assertEquals(
+                "the probe's Host header must bracket the IPv6 literal (got: $hostHeader)",
+                "Host: [::1]:${server.localPort}",
+                hostHeader,
+            )
+            assertEquals(
+                "the served identity should have passed the gate (attempt: $attempt)",
+                ConnectionAttempt.Unreachable,
+                attempt,
+            )
         }
     }
 
