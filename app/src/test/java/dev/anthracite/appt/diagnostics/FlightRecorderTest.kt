@@ -40,7 +40,7 @@ class FlightRecorderTest {
     @After
     fun restoreState() {
         Thread.setDefaultUncaughtExceptionHandler(originalHandler)
-        FlightRecorder.configure(enabled = false, directory = null)
+        FlightRecorder.configure(active = false, storage = null)
     }
 
     @Test
