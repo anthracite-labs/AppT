@@ -146,6 +146,8 @@ class PairingScreenTest {
         composeRule.onNodeWithTag(PairingTestTags.PAIR_AGAIN_CONFIRM).assertTextEquals("Pair again")
         composeRule.onNodeWithTag(PairingTestTags.PAIR_AGAIN_CONFIRM).performClick()
         assertEquals(1, pairAgains)
+        // Confirming dismisses the dialog before the repair runs: it never outlives the act.
+        composeRule.onNodeWithTag(PairingTestTags.PAIR_AGAIN_CONFIRM).assertDoesNotExist()
         composeRule.onNodeWithTag(PairingTestTags.RETRY).assertDoesNotExist()
     }
 

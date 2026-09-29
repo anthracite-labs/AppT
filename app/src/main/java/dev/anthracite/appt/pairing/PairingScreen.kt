@@ -236,13 +236,21 @@ private fun PairAgainRepairControl(onPairAgain: () -> Unit) {
         Text(text = stringResource(R.string.pairing_pair_again), style = TypeTokens.label)
     }
     if (confirming) {
-        PairAgainConfirmationDialog(onDismiss = { confirming = false }, onConfirm = onPairAgain)
+        PairAgainConfirmationDialog(
+            onDismiss = { confirming = false },
+            onConfirm = {
+                // The dialog is dismissed first, so it never outlives the act it confirmed.
+                confirming = false
+                onPairAgain()
+            },
+        )
     }
 }
 
 /**
  * The explicit confirmation the pair again owes the user (presentation.md): the dialog says what is
- * removed and what comes next, so the destructive act is never a single tap.
+ * removed and what comes next, so the destructive act is never a single tap. Confirm dismisses the
+ * dialog before the repair runs; the dialog never outlives the act it confirmed.
  */
 @Composable
 private fun PairAgainConfirmationDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
