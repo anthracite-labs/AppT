@@ -129,7 +129,11 @@ class PairingScreenTest {
     @Test
     fun unreadableSavedMaterialOffersPairAgainAndNeverARetry() {
         setPairing(
-            PairingUiState("Living Room TV", PairingPhase.Failed(TvFailure.SecretsUnavailable), false)
+            PairingUiState(
+                "Living Room TV",
+                PairingPhase.Failed(TvFailure.SecretsUnavailable),
+                false,
+            )
         )
         composeRule
             .onNodeWithTag(PairingTestTags.FAILURE_MESSAGE)
