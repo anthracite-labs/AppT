@@ -29,10 +29,10 @@ import kotlinx.coroutines.launch
  * One socket, one television, one command path. The state paths:
  * * First contact (S03): `Connecting → AwaitingTvApproval → Ready`, with `NeedsRepair` for a denied
  *   or timed-out approval.
- * * Saved pairing (S04): a saved token resumes only after the saved security identity matched
- *   (TLS SPKI pin on the TLS channel, protocol UUID on the plaintext channel); the token is attached
- *   to the attempted URL only after the TLS pin check has passed. Approval success persists the
- *   token and pin atomically together with the samsung-private device record. `unauthorized` after a
+ * * Saved pairing (S04): a saved token resumes only after the saved security identity matched (TLS
+ *   SPKI pin on the TLS channel, protocol UUID on the plaintext channel); the token is attached to
+ *   the attempted URL only after the TLS pin check has passed. Approval success persists the token
+ *   and pin atomically together with the samsung-private device record. `unauthorized` after a
  *   saved token was sent is `NeedsRepair(TokenRejected)` and stops — no reconnect, no loop.
  *
  * What this class deliberately does not do:
