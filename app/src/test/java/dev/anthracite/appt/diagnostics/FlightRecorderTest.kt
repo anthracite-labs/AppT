@@ -166,7 +166,10 @@ class FlightRecorderTest {
     @Test
     fun theShareIntentRequiresAnExistingReport() {
         FlightRecorder.configure(active = true, storage = temporaryFolder.root)
-        assertNull("nothing to share before the first record", FlightRecorder.exportIntent(application))
+        assertNull(
+            "nothing to share before the first record",
+            FlightRecorder.exportIntent(application),
+        )
         FlightRecorder.record(FlightRecorder.Phase.RouteDiscovery)
         assertTrue(
             "the report exists once events are recorded",
