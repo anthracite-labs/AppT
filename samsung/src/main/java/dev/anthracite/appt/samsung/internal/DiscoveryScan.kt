@@ -129,7 +129,8 @@ internal class DiscoveryScan(
         val remembered = hasRecord || savedSecret != StoredSecret.Absent
         val availability =
             when {
-                info.availability == ControlAvailability.Unsupported -> ControlAvailability.Unsupported
+                info.availability == ControlAvailability.Unsupported ->
+                    ControlAvailability.Unsupported
                 savedSecret is StoredSecret.Available -> ControlAvailability.ReadyToOpen
                 else -> ControlAvailability.NeedsPairing
             }
