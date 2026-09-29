@@ -374,7 +374,14 @@ export function resolveFocus({ mode, focus } = {}) {
     // on the pinned managed device.
     case 'device': {
       kind = 'instrumentation-targeting';
-      command = [...GRADLE_DEVICE, ':app:pixel2api29DebugAndroidTest'];
+      // Both modules' instrumented suites run on the pinned device: :app's acceptance
+      // suite and :samsung's Android-runtime contracts (Issue #91: regexes the JVM
+      // accepts but Android's engine rejects must fail on the device route).
+      command = [
+        ...GRADLE_DEVICE,
+        ':app:pixel2api29DebugAndroidTest',
+        ':samsung:pixel2api29DebugAndroidTest',
+      ];
       if (normalized !== '') {
         const { kind: target, value } = splitKind(
           normalized,
