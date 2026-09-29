@@ -40,6 +40,88 @@ class PlaintextWebSocketTransportTest {
     private val loopback: InetAddress = InetAddress.getLoopbackAddress()
     private val loopbackHost: String = requireNotNull(loopback.hostAddress)
 
+    private fun plaintextTelevision(uuid: String?) =
+        ConfirmedTelevision(
+            id = TvId("3f2d1c0b-8a7e-4b5c-9d6e-1f2a3b4c5d6e"),
+            host = loopbackHost,
+            tls = false,
+            adoptedChannel = true,
+            uuid = uuid,
+        )
+
+    // --- the resumed-pairing identity gate (connection.md#security-identity) ---------------
+
+    @Test
+    fun aResumedPlaintextPairingFailsClosedWhenTheFreshIdentityDiffers() = runBlocking {
+        val transport =
+            PlaintextWebSocketTransport(
+                keepalive = 1.hours,
+                fetchCurrentUuid = { _, _ -> "a-different-current-uuid" },
+            )
+        val saved = PairingSecret(token = "resume-token", pin = null)
+        // IdentityMismatch, not Unreachable: the decision happened before any socket was opened.
+        assertEquals(
+            ConnectionAttempt.IdentityMismatch,
+            transport.connect(plaintextTelevision("saved-uuid"), saved),
+        )
+    }
+
+    @Test
+    fun aResumedPlaintextPairingFailsClosedWhenTheFreshIdentityCannotBeEstablished() = runBlocking {
+        val transport =
+            PlaintextWebSocketTransport(keepalive = 1.hours, fetchCurrentUuid = { _, _ -> null })
+        val saved = PairingSecret(token = "resume-token", pin = null)
+        assertEquals(
+            ConnectionAttempt.IdentityMismatch,
+            transport.connect(plaintextTelevision("saved-uuid"), saved),
+        )
+    }
+
+    @Test
+    fun aResumedPlaintextPairingFailsClosedWithoutASavedUuidToCompare() = runBlocking {
+        val transport =
+            PlaintextWebSocketTransport(
+                keepalive = 1.hours,
+                fetchCurrentUuid = { _, _ -> throw AssertionError("nothing to compare against") },
+            )
+        val saved = PairingSecret(token = "resume-token", pin = null)
+        assertEquals(
+            ConnectionAttempt.IdentityMismatch,
+            transport.connect(plaintextTelevision(uuid = null), saved),
+        )
+    }
+
+    @Test
+    fun aMatchedFreshIdentityProceedsToTheSocket() = runBlocking {
+        val transport =
+            PlaintextWebSocketTransport(
+                keepalive = 1.hours,
+                fetchCurrentUuid = { _, _ -> "saved-uuid" },
+            )
+        val saved = PairingSecret(token = "resume-token", pin = null)
+        // Nothing listens on the plaintext port here, so passing the gate ends in Unreachable —
+        // which is the proof that the gate passed and the socket was attempted.
+        assertEquals(
+            ConnectionAttempt.Unreachable,
+            transport.connect(plaintextTelevision("saved-uuid"), saved),
+        )
+    }
+
+    @Test
+    fun firstContactIsNeverIdentityProbed() = runBlocking {
+        val transport =
+            PlaintextWebSocketTransport(
+                keepalive = 1.hours,
+                fetchCurrentUuid = {
+                    _, _ -> throw AssertionError("first contact has no saved identity")
+                },
+            )
+        assertEquals(
+            ConnectionAttempt.Unreachable,
+            transport.connect(plaintextTelevision("saved-uuid"), saved = null),
+        )
+    }
+
     @Test
     fun handshakeIsATokenFreeUpgradeOnARawSocket() = runBlocking {
         ServerSocket(0, 1, loopback).use { server ->
