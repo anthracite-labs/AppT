@@ -107,29 +107,33 @@ fun WelcomeScreen(onFindMyTv: () -> Unit, modifier: Modifier = Modifier) {
                 )
             }
 
-            // TEMPORARY S04 diagnostic (Issue #91): debug builds surface the saved flight-recorder
-            // report here after relaunch; release builds render nothing extra and behave as before.
-            if (FlightRecorder.enabled) {
-                val context = LocalContext.current
-                TextButton(
-                    onClick = {
-                        FlightRecorder.exportIntent(context)?.let { intent ->
-                            context.startActivity(
-                                Intent.createChooser(
-                                    intent,
-                                    context.getString(R.string.debug_export_report),
-                                ),
-                            )
-                        }
-                    },
-                ) {
-                    Text(
-                        text = stringResource(R.string.debug_export_report),
-                        style = TypeTokens.label,
-                    )
-                }
-            }
+            DebugReportExport()
         }
+    }
+}
+
+/**
+ * TEMPORARY S04 diagnostic (Issue #91): debug builds surface the saved flight-recorder report
+ * here after relaunch; the recorder is inert off the diagnostic build, so release renders
+ * nothing extra and behaves exactly as before. Its own composable to keep this screen small.
+ */
+@Composable
+private fun DebugReportExport() {
+    if (!FlightRecorder.enabled) return
+    val context = LocalContext.current
+    TextButton(
+        onClick = {
+            FlightRecorder.exportIntent(context)?.let { intent ->
+                context.startActivity(
+                    Intent.createChooser(
+                        intent,
+                        context.getString(R.string.debug_export_report),
+                    ),
+                )
+            }
+        },
+    ) {
+        Text(text = stringResource(R.string.debug_export_report), style = TypeTokens.label)
     }
 }
 

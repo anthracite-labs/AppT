@@ -36,11 +36,18 @@ jobs:
         with:
           java-version: '17'
 
-      - name: Run the app unit tests and detekt
+      - name: Run the app unit tests
         run: |
           set +e
-          ./gradlew :app:testDebugUnitTest :app:detekt > /tmp/evidence.log 2>&1
-          echo "gradle exit status: $?"
+          ./gradlew :app:testDebugUnitTest > /tmp/tests.log 2>&1
+          echo "test exit status: $?"
+          exit 0
+
+      - name: Run detekt
+        run: |
+          set +e
+          ./gradlew :app:detekt > /tmp/detekt.log 2>&1
+          echo "detekt exit status: $?"
           exit 0
 
       - name: Surface failing tests
@@ -72,7 +79,7 @@ jobs:
         run: |
           import re
 
-          log = open("/tmp/evidence.log", errors="replace").read()
+          log = open("/tmp/detekt.log", errors="replace").read()
           findings = [
               line.strip()
               for line in log.splitlines()
