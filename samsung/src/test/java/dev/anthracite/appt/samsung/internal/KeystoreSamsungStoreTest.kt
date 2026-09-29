@@ -130,8 +130,7 @@ class KeystoreSamsungStoreTest {
 
     @Test
     fun aKeystoreEncryptionFailureSurfacesAsTheStoreFailureType() {
-        val store =
-            newStore(FailingKeystoreCipher(GeneralSecurityException("key invalidated")))
+        val store = newStore(FailingKeystoreCipher(GeneralSecurityException("key invalidated")))
         val thrown =
             assertThrows(SecretStoreException::class.java) { store.saveSecret(tvId, secret) }
         assertTrue(thrown.cause is GeneralSecurityException)
