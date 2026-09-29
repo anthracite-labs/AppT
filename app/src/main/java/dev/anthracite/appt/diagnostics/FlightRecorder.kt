@@ -199,4 +199,5 @@ internal object FlightRecorder {
                 previous?.uncaughtException(thread, throwable)
             }
         }
-    }}
+    }
+}
