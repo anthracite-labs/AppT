@@ -109,10 +109,10 @@ fun WelcomeScreen(onFindMyTv: () -> Unit, modifier: Modifier = Modifier) {
 /**
  * The decorative brand mark.
  *
- * Its own composable rather than inline in [WelcomeScreen]: it is self-contained presentation
- * with its own animation state, and inlining it pushed the screen composable past the LongMethod
- * threshold. Nothing about behaviour changes — the node keeps its test tag, keeps its motion
- * token, and stays hidden from the semantics tree.
+ * Its own composable rather than inline in [WelcomeScreen]: it is self-contained presentation with
+ * its own animation state, and inlining it pushed the screen composable past the LongMethod
+ * threshold. Nothing about behaviour changes — the node keeps its test tag, keeps its motion token,
+ * and stays hidden from the semantics tree.
  *
  * Restrained brand personality. It is decorative: it carries no meaning, so it is hidden from the
  * semantics tree entirely (presentation.md: decorative nodes are marked decorative).

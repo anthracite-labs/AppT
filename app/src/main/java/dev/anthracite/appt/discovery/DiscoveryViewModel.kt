@@ -83,9 +83,7 @@ class DiscoveryViewModel(
 
     /** The Discovery screen is visible again (lifecycle ON_START). */
     fun onStarted() {
-        if (resumeOnStart) {
-            startScan()
-        }
+        if (resumeOnStart) startScan()
     }
 
     /**
@@ -133,9 +131,8 @@ class DiscoveryViewModel(
                 samsungTvs.discover().collect { event ->
                     if (event is DiscoveryEvent.Found) discovered[event.tv.id] = event.tv
                     mutableState.update { it.reduce(event) }
-                    if (event == DiscoveryEvent.Failed(TvFailure.LocalNetworkDenied)) {
+                    if (event == DiscoveryEvent.Failed(TvFailure.LocalNetworkDenied))
                         gate.reportDenied()
-                    }
                 }
             }
     }

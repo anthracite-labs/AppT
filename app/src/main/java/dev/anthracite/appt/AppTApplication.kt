@@ -31,10 +31,6 @@ import kotlinx.coroutines.SupervisorJob
  * scope outlives every Activity.
  */
 class AppTApplication : Application() {
-    override fun onCreate() {
-        super.onCreate()
-    }
-
     val samsungTvs: SamsungTvs by lazy { SamsungModule.samsungTvs(this) }
 
     val permissionGate: PermissionGate by lazy {
