@@ -14,4 +14,6 @@ object PairingTestTags {
     const val STATUS = "pairing:status"
     const val CANCEL = "pairing:cancel"
     const val RETRY = "pairing:retry"
+    const val PAIR_AGAIN = "pairing:pair-again"
+    const val PAIR_AGAIN_CONFIRM = "pairing:pair-again-confirm"
 }

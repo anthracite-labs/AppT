@@ -1,0 +1,9 @@
+{
+  "caseId": "token-resume",
+  "captured": "2026-09-28",
+  "generation": "tizen-websocket-tls",
+  "sourceRole": "synthetic",
+  "source": "Authored for S04 (Issue #91) from the token-handling rules in docs/architecture/connection.md#approval-and-token and the saved-token URL shape in docs/architecture/protocol.md#endpoints. Not captured from a physical television.",
+  "redaction": "Contains no address, MAC, Wi-Fi name, certificate, serial, account or personal identifier. The approval token is the placeholder [fixture-token]; the test injects the saved token value it pre-staged so it can prove the token was or was not placed on the wire. No host, port or URL appears in any frame.",
+  "notes": "Second connection on the adopted TLS remote channel with a saved pairing. The saved security identity matches, so the saved token is presented on the connect URL and the television accepts the session directly: no unauthorized event, no approval prompt, and the session reaches Ready. Proves the S04 token-resume contract: force-stopping and reopening the same television does not prompt again."
+}

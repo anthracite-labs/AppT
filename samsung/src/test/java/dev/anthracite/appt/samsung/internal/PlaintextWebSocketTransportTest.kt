@@ -1,5 +1,6 @@
 package dev.anthracite.appt.samsung.internal
 
+import dev.anthracite.appt.samsung.TvId
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -39,6 +40,160 @@ class PlaintextWebSocketTransportTest {
 
     private val loopback: InetAddress = InetAddress.getLoopbackAddress()
     private val loopbackHost: String = requireNotNull(loopback.hostAddress)
+
+    private fun plaintextTelevision(uuid: String?) =
+        ConfirmedTelevision(
+            id = TvId("3f2d1c0b-8a7e-4b5c-9d6e-1f2a3b4c5d6e"),
+            host = loopbackHost,
+            tls = false,
+            adoptedChannel = true,
+            uuid = uuid,
+        )
+
+    // --- the resumed-pairing identity gate (connection.md#security-identity) ---------------
+
+    @Test
+    fun aResumedPlaintextPairingFailsClosedWhenTheFreshIdentityDiffers() = runBlocking {
+        val transport =
+            PlaintextWebSocketTransport(
+                keepalive = 1.hours,
+                fetchCurrentUuid = { _, _ -> "a-different-current-uuid" },
+            )
+        val saved = PairingSecret(token = "resume-token", pin = null)
+        // IdentityMismatch, not Unreachable: the decision happened before any socket was opened.
+        assertEquals(
+            ConnectionAttempt.IdentityMismatch,
+            transport.connect(plaintextTelevision("saved-uuid"), saved),
+        )
+    }
+
+    @Test
+    fun aResumedPlaintextPairingFailsClosedWhenTheFreshIdentityCannotBeEstablished() = runBlocking {
+        val transport =
+            PlaintextWebSocketTransport(keepalive = 1.hours, fetchCurrentUuid = { _, _ -> null })
+        val saved = PairingSecret(token = "resume-token", pin = null)
+        assertEquals(
+            ConnectionAttempt.IdentityMismatch,
+            transport.connect(plaintextTelevision("saved-uuid"), saved),
+        )
+    }
+
+    @Test
+    fun aResumedPlaintextPairingFailsClosedWithoutASavedUuidToCompare() = runBlocking {
+        val transport =
+            PlaintextWebSocketTransport(
+                keepalive = 1.hours,
+                fetchCurrentUuid = { _, _ -> throw AssertionError("nothing to compare against") },
+            )
+        val saved = PairingSecret(token = "resume-token", pin = null)
+        assertEquals(
+            ConnectionAttempt.IdentityMismatch,
+            transport.connect(plaintextTelevision(uuid = null), saved),
+        )
+    }
+
+    @Test
+    fun aMatchedFreshIdentityProceedsToTheSocket() = runBlocking {
+        val transport =
+            PlaintextWebSocketTransport(
+                keepalive = 1.hours,
+                fetchCurrentUuid = { _, _ -> "saved-uuid" },
+            )
+        val saved = PairingSecret(token = "resume-token", pin = null)
+        // Nothing listens on the plaintext port here, so passing the gate ends in Unreachable —
+        // which is the proof that the gate passed and the socket was attempted.
+        assertEquals(
+            ConnectionAttempt.Unreachable,
+            transport.connect(plaintextTelevision("saved-uuid"), saved),
+        )
+    }
+
+    @Test
+    fun firstContactIsNeverIdentityProbed() = runBlocking {
+        val transport =
+            PlaintextWebSocketTransport(
+                keepalive = 1.hours,
+                fetchCurrentUuid = { _, _ ->
+                    throw AssertionError("first contact has no saved identity")
+                },
+            )
+        assertEquals(
+            ConnectionAttempt.Unreachable,
+            transport.connect(plaintextTelevision("saved-uuid"), saved = null),
+        )
+    }
+
+    @Test
+    fun theRealProbeFormatsABareIpv6LiteralAsABracketedAuthority() = runBlocking {
+        // The probe's fresh device-info request must carry a valid authority: a bare IPv6 literal
+        // is bracketed exactly as the upgrade request brackets it. The probe reaches a matched
+        // identity here, so passing the gate ends in Unreachable (nothing serves the remote
+        // channel: the second connection is accepted by nobody, the upgrade read stalls past
+        // its bound, and open fails normally), which is the proof the probe ran and returned
+        // the document's UUID.
+        val ipv6Loopback = InetAddress.getByName("::1")
+        // The probe dials the television's derived plaintext remote port, so the stub serves there.
+        ServerSocket(ConfirmedTelevision.PLAINTEXT_REMOTE_PORT, 1, ipv6Loopback).use { server ->
+            server.soTimeout = 30_000
+            var hostHeader: String? = null
+            val peer = thread {
+                server.accept().use { socket ->
+                    val request = readRequest(socket.getInputStream())
+                    hostHeader = request.lines().first { it.startsWith("Host:", ignoreCase = true) }
+                    val document = """{"device":{"id":"7c9e6679-7425-40de-944b-e07fc1f90ae7"}}"""
+                    val response =
+                        "HTTP/1.1 200 OK\r\n" +
+                            "Content-Type: application/json\r\n" +
+                            "Content-Length: ${document.encodeToByteArray().size}\r\n" +
+                            "\r\n" +
+                            document
+                    socket.getOutputStream().write(response.encodeToByteArray())
+                    socket.getOutputStream().flush()
+                }
+            }
+            val television =
+                plaintextTelevision("7c9e6679-7425-40de-944b-e07fc1f90ae7").copy(host = "::1")
+            val attempt =
+                PlaintextWebSocketTransport(keepalive = 1.hours)
+                    .connect(television, PairingSecret(token = "resume-token", pin = null))
+            peer.join()
+
+            assertEquals(
+                "the probe's Host header must bracket the IPv6 literal (got: $hostHeader)",
+                "Host: [::1]:${server.localPort}",
+                hostHeader,
+            )
+            assertEquals(
+                "the served identity should have passed the gate (attempt: $attempt)",
+                ConnectionAttempt.Unreachable,
+                attempt,
+            )
+        }
+    }
+
+    @Test
+    fun theRealProbeFailsClosedOnAnUnreadableDocument() = runBlocking {
+        // The default probe returns null for a non-200 document, and a resumed pairing with no
+        // establishable current identity is IdentityMismatch — no remote socket, no token.
+        // The probe dials the television's derived plaintext remote port, so the stub serves there.
+        ServerSocket(ConfirmedTelevision.PLAINTEXT_REMOTE_PORT, 1, loopback).use { server ->
+            server.soTimeout = 30_000
+            val peer = thread {
+                server.accept().use { socket ->
+                    val response = "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n"
+                    socket.getOutputStream().write(response.encodeToByteArray())
+                    socket.getOutputStream().flush()
+                }
+            }
+            val saved = PairingSecret(token = "resume-token", pin = null)
+            val attempt =
+                PlaintextWebSocketTransport(keepalive = 1.hours)
+                    .connect(plaintextTelevision("saved-uuid"), saved)
+            peer.join()
+
+            assertEquals(ConnectionAttempt.IdentityMismatch, attempt)
+        }
+    }
 
     @Test
     fun handshakeIsATokenFreeUpgradeOnARawSocket() = runBlocking {

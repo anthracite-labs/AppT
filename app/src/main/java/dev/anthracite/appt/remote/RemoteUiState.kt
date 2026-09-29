@@ -75,8 +75,11 @@ sealed interface ConnectionUi {
                 SessionState.NeedsRepair ->
                     NeedsRepair(
                         when (reason) {
+                            null -> TvFailure.SecretsUnavailable
+                            RepairReason.ApprovalDenied -> TvFailure.NeedsRepair
                             RepairReason.ApprovalTimedOut -> TvFailure.TimedOut
-                            else -> TvFailure.NeedsRepair
+                            RepairReason.TokenRejected,
+                            RepairReason.IdentityChanged -> TvFailure.IdentityChanged
                         }
                     )
                 SessionState.Unreachable -> Unavailable(TvFailure.Unreachable)

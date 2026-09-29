@@ -67,6 +67,16 @@ class RemoteViewModel(
         activeRemoteHost.enter(tvId)
     }
 
+    /**
+     * The confirmed re-pair, offered only from the explicit confirmation dialog. The host routes
+     * it: the session re-pairs for the saved-identity failures, and an unreadable saved connection
+     * (`SecretsUnavailable`) is forgotten and paired as new (data.md: "pair again writes a new
+     * file"). Both are ignored from any state the confirmed re-pair does not apply to.
+     */
+    fun onConfirmRepair() {
+        viewModelScope.launch { activeRemoteHost.confirmedPairAgain(tvId) }
+    }
+
     private companion object {
         /** presentation.md: one `StateFlow<UiState>` per route, shared for five seconds. */
         const val SUBSCRIPTION_TIMEOUT = 5_000L

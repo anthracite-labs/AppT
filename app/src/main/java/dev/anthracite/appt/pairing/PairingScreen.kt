@@ -10,12 +10,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -49,6 +55,7 @@ fun PairingScreen(
     onCancel: () -> Unit,
     onRetryApproval: () -> Unit,
     modifier: Modifier = Modifier,
+    onPairAgain: () -> Unit = {},
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = ColorTokens.surface) {
         Column(
@@ -69,14 +76,19 @@ fun PairingScreen(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 contentAlignment = Alignment.Center,
             ) {
-                PairingBody(state, onCancel, onRetryApproval)
+                PairingBody(state, onCancel, onRetryApproval, onPairAgain)
             }
         }
     }
 }
 
 @Composable
-private fun PairingBody(state: PairingUiState, onCancel: () -> Unit, onRetryApproval: () -> Unit) {
+private fun PairingBody(
+    state: PairingUiState,
+    onCancel: () -> Unit,
+    onRetryApproval: () -> Unit,
+    onPairAgain: () -> Unit,
+) {
     val television = state.tvName.ifBlank { stringResource(R.string.pairing_tv_unnamed) }
     Column(
         modifier = Modifier.fillMaxWidth().testTag(PairingTestTags.BODY),
@@ -88,7 +100,7 @@ private fun PairingBody(state: PairingUiState, onCancel: () -> Unit, onRetryAppr
             PairingPhase.WaitingForApproval ->
                 PairingWaiting(television = television, recallHintVisible = state.recallHintVisible)
             PairingPhase.Succeeded -> PairingSucceeded(television)
-            is PairingPhase.Failed -> PairingFailed(phase.failure, onRetryApproval)
+            is PairingPhase.Failed -> PairingFailed(phase.failure, onRetryApproval, onPairAgain)
         }
         // Cancel is always available: leaving a pairing attempt must never be a trap.
         OutlinedButton(
@@ -161,12 +173,18 @@ private fun PairingSucceeded(television: String) {
 }
 
 @Composable
-private fun PairingFailed(failure: TvFailure, onRetryApproval: () -> Unit) {
+private fun PairingFailed(
+    failure: TvFailure,
+    onRetryApproval: () -> Unit,
+    onPairAgain: () -> Unit,
+) {
     val message =
         when (failure) {
             TvFailure.NeedsRepair -> R.string.pairing_failed_needs_repair
             TvFailure.Unreachable -> R.string.pairing_failed_unreachable
             TvFailure.Unsupported -> R.string.pairing_failed_unsupported
+            TvFailure.SecretsUnavailable -> R.string.pairing_failed_secrets_unavailable
+            TvFailure.IdentityChanged -> R.string.pairing_failed_identity_changed
             else -> R.string.pairing_failed_unavailable
         }
     Column(
@@ -183,7 +201,7 @@ private fun PairingFailed(failure: TvFailure, onRetryApproval: () -> Unit) {
                     .testTag(PairingTestTags.FAILURE_MESSAGE),
         )
         // Only a denied or timed-out approval can be retried; the reason is already in the copy.
-        if (failure == TvFailure.NeedsRepair) {
+        if (failure == TvFailure.NeedsRepair || failure == TvFailure.TimedOut) {
             Button(
                 onClick = onRetryApproval,
                 modifier =
@@ -194,7 +212,66 @@ private fun PairingFailed(failure: TvFailure, onRetryApproval: () -> Unit) {
                 Text(text = stringResource(R.string.pairing_retry), style = TypeTokens.label)
             }
         }
+        // Saved material is never silently reset: pairing again is the user's explicit,
+        // confirmed act — the dialog says what is removed and what comes next — and it is the
+        // only repair this surface offers. Retry stays reserved for denied and timed-out
+        // approvals; SecretsUnavailable and the identity failures go through here, never Retry.
+        if (failure == TvFailure.SecretsUnavailable || failure == TvFailure.IdentityChanged) {
+            PairAgainRepairControl(onPairAgain = onPairAgain)
+        }
     }
+}
+
+/** The confirmed pair-again repair: the button opens the dialog, the dialog does the act. */
+@Composable
+private fun PairAgainRepairControl(onPairAgain: () -> Unit) {
+    var confirming by rememberSaveable { mutableStateOf(false) }
+    Button(
+        onClick = { confirming = true },
+        modifier =
+            Modifier.fillMaxWidth()
+                .defaultMinSize(minHeight = SizeTokens.primaryControl)
+                .testTag(PairingTestTags.PAIR_AGAIN),
+    ) {
+        Text(text = stringResource(R.string.pairing_pair_again), style = TypeTokens.label)
+    }
+    if (confirming) {
+        PairAgainConfirmationDialog(
+            onDismiss = { confirming = false },
+            onConfirm = {
+                // The dialog is dismissed first, so it never outlives the act it confirmed.
+                confirming = false
+                onPairAgain()
+            },
+        )
+    }
+}
+
+/**
+ * The explicit confirmation the pair again owes the user (presentation.md): the dialog says what is
+ * removed and what comes next, so the destructive act is never a single tap. Confirm dismisses the
+ * dialog before the repair runs; the dialog never outlives the act it confirmed.
+ */
+@Composable
+private fun PairAgainConfirmationDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.pairing_pair_again_confirm_title)) },
+        text = { Text(text = stringResource(R.string.pairing_pair_again_confirm_body)) },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                modifier = Modifier.testTag(PairingTestTags.PAIR_AGAIN_CONFIRM),
+            ) {
+                Text(text = stringResource(R.string.pairing_pair_again_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.pairing_pair_again_cancel))
+            }
+        },
+    )
 }
 
 @Composable

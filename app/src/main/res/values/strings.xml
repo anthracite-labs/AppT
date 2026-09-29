@@ -65,6 +65,13 @@
     <string name="pairing_tv_unnamed">your television</string>
     <string name="pairing_cancel">Cancel</string>
     <string name="pairing_retry">Try again</string>
+    <string name="pairing_failed_secrets_unavailable">AppT can\'t read the saved connection for this television. Pair again to continue.</string>
+    <string name="pairing_pair_again">Pair again</string>
+    <string name="pairing_pair_again_confirm_title">Pair this television again?</string>
+    <string name="pairing_pair_again_confirm_body">This removes the saved connection for this television and starts a new one. You will need to approve AppT on the television again.</string>
+    <string name="pairing_pair_again_confirm">Pair again</string>
+    <string name="pairing_pair_again_cancel">Cancel</string>
+    <string name="pairing_failed_identity_changed">This television no longer matches your saved connection. Pair again to continue.</string>
 
     <!-- Remote (docs/architecture/presentation.md#remote). The S03 minimal control set. -->
     <string name="remote_tv_unnamed">Your television</string>
@@ -76,6 +83,12 @@
     <string name="remote_unsupported">AppT can\'t control this television yet.</string>
     <string name="remote_unavailable">AppT isn\'t connected to this television right now.</string>
     <string name="remote_retry">Try again</string>
+    <string name="remote_identity_changed">This television no longer matches your saved connection. Re-pair to use your phone as its remote.</string>
+    <string name="remote_repair">Re-pair</string>
+    <string name="remote_repair_confirm_title">Re-pair this television?</string>
+    <string name="remote_repair_confirm_body">This removes the saved connection for this television and starts a new one. You will need to approve AppT on the television again.</string>
+    <string name="remote_repair_confirm">Re-pair</string>
+    <string name="remote_repair_cancel">Cancel</string>
     <string name="remote_volume_up">Volume up</string>
     <string name="remote_volume_down">Volume down</string>
     <string name="remote_mute">Mute</string>

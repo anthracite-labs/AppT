@@ -87,13 +87,21 @@ internal object RemoteChannel {
     }
 
     /**
-     * The remote-channel URL for [television]. First contact attaches no token: S03 holds no saved
-     * pairing material, so the query carries the encoded client name only. The TLS adapter passes
-     * this to OkHttp; the plaintext adapter uses [remoteRequestTarget] on a raw socket instead.
+     * The remote-channel URL for [television].
+     *
+     * [token] is attached only when the caller has already established the television's security
+     * identity on this connection (connection.md#ordering-relative-to-secrets): a saved TLS pin
+     * that matched, on the TLS channel. First contact and every plaintext connection carry no
+     * token, so a saved token is structurally absent from the attempted URL until the identity
+     * check has passed. The value is URL-encoded and never logged
+     * (protocol.md#logging-from-this-layer).
      */
-    fun remoteUrl(television: ConfirmedTelevision): String {
+    fun remoteUrl(television: ConfirmedTelevision, token: String? = null): String {
         val scheme = if (television.tls) "wss" else "ws"
-        return "$scheme://${authority(television)}${remoteRequestTarget()}"
+        val target = remoteRequestTarget()
+        if (token == null) return "$scheme://${authority(television)}$target"
+        val encodedToken = URLEncoder.encode(token, Charsets.UTF_8.name())
+        return "$scheme://${authority(television)}$target&token=$encodedToken"
     }
 
     /** The outbound frame for one key tap, in the documented `ms.remote.control` shape. */

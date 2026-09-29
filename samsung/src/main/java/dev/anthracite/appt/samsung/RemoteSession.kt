@@ -34,10 +34,23 @@ interface RemoteSession {
      * retryable [RepairReason] (the user denied, or the prompt timed out); elsewhere the snapshot
      * is unchanged. It does not throw.
      *
-     * The re-pair path for a rejected token or a changed security identity is `confirmRepair`,
-     * which belongs to S04 with durable saved pairing; S03 has no saved secret to discard.
+     * The re-pair path for a rejected token or a changed security identity is [confirmRepair].
      */
     suspend fun retryApproval()
+
+    /**
+     * The explicit re-pair. Applies only from [SessionState.NeedsRepair] with
+     * [RepairReason.TokenRejected] or [RepairReason.IdentityChanged]: the saved approval material
+     * is discarded first, then the session pairs as new television contact — no saved token, no
+     * saved pin. Anywhere else the snapshot is unchanged; a healthy session is never dropped by
+     * this call. It does not throw.
+     *
+     * The caller owes the confirmation: `app` must not call this without an explicit user
+     * confirmation, because it replaces a saved security relationship
+     * (docs/architecture/samsung-interface.md#retryapproval-and-confirmrepair). There is no way to
+     * reach this effect from `app` without it, and no "ignore security errors" alternative exists.
+     */
+    suspend fun confirmRepair()
 
     /**
      * Releases the socket and discards transient first-contact material. Idempotent. This is not

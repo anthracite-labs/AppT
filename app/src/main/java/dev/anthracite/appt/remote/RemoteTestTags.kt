@@ -9,6 +9,9 @@ object RemoteTestTags {
     const val CONTROLS = "remote:controls"
     const val RECOVERY = "remote:recovery"
     const val RETRY = "remote:retry"
+    const val REPAIR = "remote:repair"
+    const val REPAIR_CONFIRM = "remote:repair-confirm"
+    const val REPAIR_CANCEL = "remote:repair-cancel"
 
     /** The tag for one key's control, so a test can press a key it knows is rendered. */
     fun key(key: RemoteKey): String = "remote:key:" + key.name

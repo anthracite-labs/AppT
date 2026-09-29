@@ -14,7 +14,9 @@ internal object TvIdentity {
         Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
     private const val UUID_PREFIX = "uuid:"
     private const val NIL_UUID = "00000000-0000-0000-0000-000000000000"
-    private const val MINTED_PREFIX = "local-"
+
+    /** Visible for the store's file-layout tests, which mint ids of the same shape. */
+    internal const val MINTED_PREFIX = "local-"
 
     /**
      * Strips a leading `uuid:`, lowercases, and requires a canonical UUID. Returns null for
@@ -37,4 +39,17 @@ internal object TvIdentity {
      * information about the television, so it cannot leak one.
      */
     fun mint(): String = MINTED_PREFIX + UUID.randomUUID()
+
+    /**
+     * True when [raw] is exactly the shape this module produces for a stored id: a normalized
+     * protocol UUID, or an id minted on this phone. Storage keys are validated against this, so a
+     * crafted id can never escape its directory.
+     */
+    fun isValidStoredId(raw: String?): Boolean =
+        raw != null && (hasCanonicalUuid(raw) || hasMintedCanonicalUuid(raw))
+
+    private fun hasCanonicalUuid(text: String): Boolean = CANONICAL_UUID.matches(text)
+
+    private fun hasMintedCanonicalUuid(raw: String): Boolean =
+        raw.startsWith(MINTED_PREFIX) && CANONICAL_UUID.matches(raw.removePrefix(MINTED_PREFIX))
 }

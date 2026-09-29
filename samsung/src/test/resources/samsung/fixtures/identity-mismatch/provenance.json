@@ -1,0 +1,9 @@
+{
+  "caseId": "identity-mismatch",
+  "captured": "2026-09-28",
+  "generation": "tizen-websocket-tls",
+  "sourceRole": "synthetic",
+  "source": "Authored for S04 (Issue #91) from the fail-closed identity rule in docs/architecture/connection.md#security-identity: a saved SPKI pin is compared before the token is placed on the wire, and a changed television identity closes the connection. Not captured from a physical television.",
+  "redaction": "Contains no address, MAC, Wi-Fi name, certificate, serial, account or personal identifier, and no token value of any kind: the case is precisely that no token may be sent when the identity does not match. The handshake is refused before any frame is spoken.",
+  "notes": "Second connection on the adopted TLS remote channel with a saved pairing, but the television now presents a different SubjectPublicKeyInfo. The saved-pin check fails the handshake, the session reports NeedsRepair with IdentityChanged, and the recorded connection attempt carries no saved token. Proves identityMismatchDoesNotSendToken and the fail-closed identity rule."
+}

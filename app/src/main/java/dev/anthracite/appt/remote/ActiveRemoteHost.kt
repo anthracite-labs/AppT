@@ -1,5 +1,6 @@
 package dev.anthracite.appt.remote
 
+import dev.anthracite.appt.samsung.ForgetResult
 import dev.anthracite.appt.samsung.RemoteSession
 import dev.anthracite.appt.samsung.SamsungTvs
 import dev.anthracite.appt.samsung.SessionSnapshot
@@ -94,6 +95,34 @@ class ActiveRemoteHost(
         val session = samsungTvs.open(tvId, scope)
         heldSession = session
         observe(tvId, session)
+    }
+
+    /**
+     * The user-confirmed re-pair for the retained session of [tvId].
+     *
+     * For the saved-identity failures (`TokenRejected`, `IdentityChanged`) the session performs the
+     * re-pair itself: `confirmRepair` discards the saved approval and pairs as new
+     * (samsung-interface.md). For `SecretsUnavailable` the saved material is unreadable and the
+     * session's `confirmRepair` is contractually ignored, so the app-level pair again removes this
+     * phone's Samsung relationship with the `forget` primitive and opens fresh; the fresh approval
+     * then writes a new secret (data.md: "pair again writes a new file"). Both routes reach this
+     * only behind the screens' explicit confirmation dialog.
+     */
+    suspend fun confirmedPairAgain(tvId: TvId) {
+        val held = mutableCurrent.value?.takeIf { it.tvId == tvId } ?: return
+        if (held.snapshot.state != SessionState.NeedsRepair) return
+        if (held.snapshot.repairReason != null) {
+            held.session.confirmRepair()
+            return
+        }
+        // The retained NeedsRepair session is live by `isLive`, so `enter` alone would reuse it;
+        // close it first. Keeping the owners: the user is retrying the same visible television.
+        closeSession(clearOwners = false)
+        // Forget must succeed before anything fresh begins: a Failed forget leaves the Samsung
+        // relationship in place, so pairing anew now would build a second relationship on top of
+        // an unreadable one (samsung-interface.md#forget: Failed means retry before treating the
+        // television as forgotten). The confirmed control simply stays available to try again.
+        if (samsungTvs.forget(tvId) == ForgetResult.Forgotten) enter(tvId)
     }
 
     /** Takes an interest in the held session. Idempotent for the same [owner]. */

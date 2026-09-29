@@ -43,10 +43,38 @@ internal class PlaintextWebSocketTransport(
     private val connectTimeout: Duration = CONNECT_TIMEOUT,
     private val keepalive: Duration = KEEPALIVE_INTERVAL,
     private val writeTimeout: Duration = COMMAND_WRITE_TIMEOUT,
+    private val fetchCurrentUuid: suspend (String, Int) -> String? = { host, port ->
+        fetchPlaintextDeviceUuid(host, port)
+    },
 ) : SessionTransport {
 
-    override suspend fun connect(television: ConfirmedTelevision): SessionConnection? =
-        open(television.host, television.remotePort)
+    /**
+     * Opens the plaintext channel. The saved pairing never changes what is written here
+     * (protocol.md#endpoints): the plaintext remote-channel URL carries the encoded client name and
+     * never a token, so a saved token is structurally absent from this channel — including for a
+     * television that previously completed TLS pairing (connection.md#security-identity).
+     *
+     * A resumed plaintext pairing re-establishes identity here, at the socket seam: the current
+     * protocol UUID is read from fresh device-info and compared against the saved one before any
+     * remote-channel socket is opened. A record-resolved television carries the saved UUID as its
+     * own, so the record alone is not evidence — the comparison needs current facts
+     * (connection.md#security-identity). A changed UUID, or one that cannot be established, is
+     * [ConnectionAttempt.IdentityMismatch]: fail closed, no socket, no token.
+     */
+    override suspend fun connect(
+        television: ConfirmedTelevision,
+        saved: PairingSecret?,
+    ): ConnectionAttempt {
+        if (saved != null) {
+            val expected = television.uuid ?: return ConnectionAttempt.IdentityMismatch
+            val current = fetchCurrentUuid(television.host, television.remotePort)
+            if (current == null || current != expected) {
+                return ConnectionAttempt.IdentityMismatch
+            }
+        }
+        return open(television.host, television.remotePort)?.let(ConnectionAttempt::Opened)
+            ?: ConnectionAttempt.Unreachable
+    }
 
     /**
      * Opens the plaintext channel at [host]:[port]. Production always uses port 8001; tests may
@@ -245,6 +273,52 @@ internal class PlaintextWebSocketTransport(
 
         private fun unbracketed(host: String): String = host.removePrefix("[").removeSuffix("]")
 
+        /**
+         * The television's current protocol UUID, read from a fresh bounded device-info request to
+         * the same host and port the plaintext channel would open
+         * (connection.md#security-identity). Null when the document is unreachable, over-limit, or
+         * carries no UUID — the caller fails closed on null. The socket pattern mirrors [open]:
+         * raw, bounded, and never bound to a scan's LAN context, with no URL, address or port
+         * recorded anywhere.
+         */
+        private suspend fun fetchPlaintextDeviceUuid(host: String, port: Int): String? {
+            val socket = Socket()
+            return try {
+                socket.use {
+                    blockingIo(dispatcher = Dispatchers.IO, onCancel = socket::close) {
+                        socket.soTimeout = DEVICE_INFO_READ_TIMEOUT_MILLIS
+                        socket.connect(
+                            InetSocketAddress(InetAddress.getByName(unbracketed(host)), port),
+                            DEVICE_INFO_CONNECT_TIMEOUT_MILLIS,
+                        )
+                        val request =
+                            "GET ${DeviceInfoHttp.DEVICE_INFO_PATH} HTTP/1.1\r\n" +
+                                "Host: ${handshakeAuthority(host, port)}\r\n" +
+                                "Accept: application/json\r\n" +
+                                "Connection: close\r\n" +
+                                "\r\n"
+                        // Write without closing the stream: closing a socket's output stream
+                        // closes the socket, and the response is still to be read.
+                        val output = socket.getOutputStream()
+                        output.write(request.encodeToByteArray())
+                        output.flush()
+                        BoundedHttpResponse.readOkBody(socket.inputStream, MAX_DEVICE_INFO_BYTES)
+                            ?.let(DeviceInfoParser::parse)
+                            ?.uuid
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                socket.closeQuietly()
+                throw cancelled
+            } catch (ignored: IOException) {
+                socket.closeQuietly()
+                null
+            } catch (ignored: SecurityException) {
+                socket.closeQuietly()
+                null
+            }
+        }
+
         private fun websocketKey(): String {
             val bytes = ByteArray(WEBSOCKET_KEY_BYTES)
             SecureRandom().nextBytes(bytes)
@@ -307,3 +381,7 @@ private fun Socket.closeQuietly() {
         // Already closed, or the peer reset. The holder is releasing either way.
     }
 }
+
+private const val DEVICE_INFO_CONNECT_TIMEOUT_MILLIS = 5_000
+
+private const val DEVICE_INFO_READ_TIMEOUT_MILLIS = 3_000

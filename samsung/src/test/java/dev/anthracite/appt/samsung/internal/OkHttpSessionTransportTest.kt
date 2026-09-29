@@ -130,6 +130,31 @@ class OkHttpSessionTransportTest {
         assertEquals(0, trustManager.getAcceptedIssuers().size)
     }
 
+    // Required mode: a saved pin admits only that identity, and nothing about a mismatch is
+    // recorded — this is the check that runs before any token-bearing byte can be written.
+    @Test
+    fun requiredModeAcceptsOnlyTheSavedIdentity() {
+        val trustManager = SpkiTrustManager()
+        trustManager.beginHandshake(TELEVISION_ONE_PIN)
+
+        trustManager.checkServerTrusted(arrayOf(certificate(TELEVISION_ONE)), AUTH_TYPE)
+
+        assertEquals(TELEVISION_ONE_PIN, trustManager.candidate())
+    }
+
+    @Test
+    fun requiredModeRejectsADifferentIdentityBeforeAnythingIsRecorded() {
+        val trustManager = SpkiTrustManager()
+        trustManager.beginHandshake(TELEVISION_ONE_PIN)
+
+        assertThrows(SavedIdentityMismatchException::class.java) {
+            trustManager.checkServerTrusted(arrayOf(certificate(TELEVISION_TWO)), AUTH_TYPE)
+        }
+
+        assertFalse(trustManager.hasCheckedCertificate())
+        assertNull(trustManager.candidate())
+    }
+
     // SessionTransport.connect: "Returns null when the socket cannot be opened at all...
     // Containment is the adapter's job: nothing about a socket, TLS or parser failure crosses the
     // seam as a thrown exception." The peer owns the adopted TLS port on loopback and drops every
@@ -147,11 +172,11 @@ class OkHttpSessionTransportTest {
                 ConfirmedTelevision(TvId("tv"), loopbackHost, tls = true, adoptedChannel = true)
             val transport = OkHttpSessionTransport()
 
-            val connection = withTimeout(CONNECT_BOUND) { transport.connect(television) }
+            val attempt = withTimeout(CONNECT_BOUND) { transport.connect(television, saved = null) }
 
             server.close()
             peer.join()
-            assertNull(connection)
+            assertEquals(ConnectionAttempt.Unreachable, attempt)
         }
     }
 

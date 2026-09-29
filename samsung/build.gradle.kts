@@ -23,11 +23,35 @@ android {
     // Matches :app's compileSdk (Issue #54 toolchain bump); minSdk stays 29.
     compileSdk = 37
 
-    defaultConfig { minSdk = 29 }
+    defaultConfig {
+        minSdk = 29
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        managedDevices {
+            localDevices {
+                // The API-29 image :app's device diagnostic pins, plus a current-API image:
+                // the physical failure (an ExceptionInInitializerError from this module's
+                // regex initializer) reproduces only on newer Android runtime engines, so
+                // the Android-runtime contract is proven on both.
+                create("pixel2api29") {
+                    device = "Pixel 2"
+                    apiLevel = 29
+                    systemImageSource = "aosp"
+                }
+                create("pixel2api35") {
+                    device = "Pixel 2"
+                    apiLevel = 35
+                    systemImageSource = "aosp"
+                }
+            }
+        }
     }
 
     lint {
@@ -90,6 +114,10 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
+
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.annotation.jvm)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

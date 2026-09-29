@@ -49,7 +49,7 @@ internal object NameScrubber {
             Regex("""(?i)\bport\s*\d{1,5}\b"""),
         )
 
-    private val EMPTY_BRACKETS = Regex("""\(\s*\)|\[\s*]|\{\s*}|<\s*>""")
+    private val EMPTY_BRACKETS = Regex("""\(\s*\)|\[\s*\]|\{\s*\}|<\s*>""")
     private val REPEATED_SPACE = Regex("""\s{2,}""")
     private val EDGE_SEPARATORS = Regex("""^[\s\-_:;,.@/|]+|[\s\-_:;,.@/|]+$""")
 

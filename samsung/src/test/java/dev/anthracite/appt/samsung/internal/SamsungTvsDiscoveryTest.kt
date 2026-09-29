@@ -6,6 +6,7 @@ import dev.anthracite.appt.samsung.DiscoveryEvent
 import dev.anthracite.appt.samsung.SamsungTvs
 import dev.anthracite.appt.samsung.TvFailure
 import dev.anthracite.appt.samsung.TvId
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.toList
@@ -36,13 +37,23 @@ class SamsungTvsDiscoveryTest {
 
     private var minted = 0
 
-    private fun tvs(transport: FixtureTransport): SamsungTvs {
+    private fun tvs(
+        transport: FixtureTransport,
+        secrets: SamsungSecretStore = InMemorySamsungStore(),
+    ): SamsungTvs {
         val confirmed = ConfirmedTelevisions()
         return SamsungTvsImpl(
             newScan = {
-                DiscoveryScan(transport, confirmed, mintId = { "local-test-" + ++minted })
+                DiscoveryScan(
+                    transport,
+                    confirmed,
+                    secrets,
+                    mintId = { "local-test-" + ++minted },
+                    readDispatcher = Dispatchers.Unconfined,
+                )
             },
             confirmed = confirmed,
+            secrets = secrets,
         )
     }
 
