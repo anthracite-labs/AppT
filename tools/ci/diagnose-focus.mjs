@@ -381,6 +381,7 @@ export function resolveFocus({ mode, focus } = {}) {
         ...GRADLE_DEVICE,
         ':app:pixel2api29DebugAndroidTest',
         ':samsung:pixel2api29DebugAndroidTest',
+        ':samsung:pixel2api35DebugAndroidTest',
       ];
       if (normalized !== '') {
         const { kind: target, value } = splitKind(
