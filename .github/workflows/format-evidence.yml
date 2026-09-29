@@ -61,13 +61,26 @@ jobs:
               print("no format diff was produced")
               raise SystemExit(0)
           diff = open("/tmp/format.diff").read()
+          print(
+              "::error title=format-evidence files::{}".format(
+                  " | ".join(re.findall(r"^diff --git a/(\S+) b/(\S+)$", diff, flags=re.M) and [a for a, b in re.findall(r"^diff --git a/(\S+) b/(\S+)$", diff, flags=re.M)])
+              )
+          )
           chunks = re.split(r"^(diff --git .*)$", diff, flags=re.M)
           for i in range(1, len(chunks), 2):
               header = chunks[i]
               body = chunks[i + 1] if i + 1 < len(chunks) else ""
               path = re.search(r" b/(.+)$", header.strip()).group(1)
-              text = (header + body).replace("\n", " ⏎ ")
-              for part in range(0, len(text), 1800):
-                  piece = text[part : part + 1800]
-                  suffix = " part{}".format(part // 1800 + 1) if part else ""
+              pieces = re.split(r"^(@@ .*)$", body, flags=re.M)
+              groups = []
+              cur = header.replace("\n", " ⏎ ")
+              for j in range(1, len(pieces), 2):
+                  hunk = (pieces[j] + pieces[j + 1]).replace("\n", " ⏎ ")
+                  if len(cur) + len(hunk) > 3400:
+                      groups.append(cur)
+                      cur = ""
+                  cur += hunk
+              groups.append(cur)
+              for part, piece in enumerate(groups):
+                  suffix = " part{}".format(part + 1) if part else ""
                   print("::error title=format diff {}{}::{}".format(path, suffix, piece))
