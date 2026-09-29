@@ -222,7 +222,10 @@ private fun RemoteRepairConfirmationDialog(onDismiss: () -> Unit, onConfirm: () 
                 },
                 modifier = Modifier.testTag(RemoteTestTags.REPAIR_CONFIRM),
             ) {
-                Text(text = stringResource(R.string.remote_repair_confirm), style = TypeTokens.label)
+                Text(
+                    text = stringResource(R.string.remote_repair_confirm),
+                    style = TypeTokens.label,
+                )
             }
         },
         dismissButton = {
