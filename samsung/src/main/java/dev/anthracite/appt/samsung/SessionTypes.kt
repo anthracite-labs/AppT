@@ -60,8 +60,8 @@ enum class RepairReason {
     ApprovalTimedOut,
 
     /**
-     * The television refused the saved token after it was legitimately sent to a matching
-     * security identity. `retryApproval` never fixes this; only the confirmed re-pair does.
+     * The television refused the saved token after it was legitimately sent to a matching security
+     * identity. `retryApproval` never fixes this; only the confirmed re-pair does.
      */
     TokenRejected,
 
