@@ -57,9 +57,6 @@ class FakeSamsungTvs : SamsungTvs {
         /** Every command sent, in order. */
         val commands = mutableListOf<TvCommand>()
 
-        /** The corresponding result for each command, including the fake's Ready-state rejection. */
-        val commandResults = mutableListOf<CommandResult>()
-
         var retryApprovals = 0
             private set
 
@@ -95,7 +92,6 @@ class FakeSamsungTvs : SamsungTvs {
             val result =
                 if (current.state == SessionState.Ready) nextResult
                 else CommandResult.Rejected(TvFailure.Unavailable)
-            commandResults += result
             if (command is TvCommand.Tap) {
                 when (result) {
                     is CommandResult.Rejected ->

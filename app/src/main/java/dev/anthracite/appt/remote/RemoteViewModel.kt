@@ -7,7 +7,6 @@ import androidx.lifecycle.viewModelScope
 import dev.anthracite.appt.data.TvProfiles
 import dev.anthracite.appt.diagnostics.AppDiagnosticName
 import dev.anthracite.appt.diagnostics.LocalDiagnostics
-import dev.anthracite.appt.preferences.FirstControlWriteProbeEvent
 import dev.anthracite.appt.preferences.NavigationMode
 import dev.anthracite.appt.preferences.PreferenceStore
 import dev.anthracite.appt.samsung.CommandResult
@@ -63,12 +62,7 @@ class RemoteViewModel(
                 val result = held.session.command(command)
                 endCommandTrace(traceCookie)
                 traceEnded = true
-                if (result == CommandResult.Accepted) {
-                    preferenceStore.reportFirstControlWriteProbe(
-                        FirstControlWriteProbeEvent.AcceptedCommandResult
-                    )
-                    preferenceStore.setFirstControlAchieved()
-                }
+                if (result == CommandResult.Accepted) preferenceStore.setFirstControlAchieved()
             } finally {
                 if (!traceEnded) endCommandTrace(traceCookie)
             }
