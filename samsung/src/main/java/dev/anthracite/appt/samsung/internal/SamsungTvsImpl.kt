@@ -50,7 +50,8 @@ internal class SamsungTvsImpl(
     private val confirmed: ConfirmedTelevisions = ConfirmedTelevisions(),
     private val secrets: SamsungSecretStore,
     private val diagnostics: SamsungDiagnosticRecorder = SamsungDiagnosticRecorder(),
-    private val newSession: ((ConfirmedTelevision, CoroutineScope, SessionGeneration) -> RemoteSession)? =
+    private val newSession:
+        ((ConfirmedTelevision, CoroutineScope, SessionGeneration) -> RemoteSession)? =
         null,
 ) : SamsungTvs {
     private val activeScan = AtomicReference<Job?>(null)

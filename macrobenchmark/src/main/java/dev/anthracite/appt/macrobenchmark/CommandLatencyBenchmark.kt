@@ -27,7 +27,7 @@ class CommandLatencyBenchmark {
             metrics = listOf(TraceSectionMetric(COMMAND_LATENCY_TRACE)),
             iterations = MEASURED_RUNS,
             setupBlock = {
-                RemoteJourney.openReadyRemote()
+                with(RemoteJourney) { openReadyRemote() }
                 warmUpCommand()
             },
         ) {

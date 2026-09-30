@@ -13,7 +13,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** One Settings route state, composed by the ViewModel from device-local preferences and TV evidence. */
+/**
+ * One Settings route state, composed by the ViewModel from device-local preferences and TV
+ * evidence.
+ */
 data class SettingsUiState(
     val interaction: InteractionPreferences,
     val pointerAvailable: Boolean,

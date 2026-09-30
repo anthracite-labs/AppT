@@ -15,7 +15,7 @@ class RemoteBaselineProfileGenerator {
     @Test
     fun remoteJourney() =
         baselineProfileRule.collect(packageName = RemoteJourney.PACKAGE_NAME) {
-            RemoteJourney.openReadyRemote()
+            with(RemoteJourney) { openReadyRemote() }
             checkNotNull(device.findObject(By.text(RemoteJourney.COMMAND_LABEL))).click()
             device.waitForIdle()
         }

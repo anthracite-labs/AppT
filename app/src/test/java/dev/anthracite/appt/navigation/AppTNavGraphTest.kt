@@ -26,12 +26,12 @@ import dev.anthracite.appt.pairing.PairingTestTags
 import dev.anthracite.appt.preferences.PreferenceStore
 import dev.anthracite.appt.remote.ActiveRemoteHost
 import dev.anthracite.appt.remote.RemoteTestTags
-import dev.anthracite.appt.settings.SettingsTestTags
 import dev.anthracite.appt.samsung.CommandResult
 import dev.anthracite.appt.samsung.DiscoveryEvent
 import dev.anthracite.appt.samsung.RemoteKey
 import dev.anthracite.appt.samsung.TvFailure
 import dev.anthracite.appt.samsung.TvId
+import dev.anthracite.appt.settings.SettingsTestTags
 import dev.anthracite.appt.testing.FakePermissionGate
 import dev.anthracite.appt.testing.FakeSamsungTvs
 import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME

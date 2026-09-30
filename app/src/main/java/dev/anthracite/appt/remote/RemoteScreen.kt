@@ -85,7 +85,10 @@ fun RemoteScreen(
             ) {
                 RemoteHeader(
                     state = state,
-                    onOpenSettings = { haptic(); onOpenSettings() },
+                    onOpenSettings = {
+                        haptic()
+                        onOpenSettings()
+                    },
                     onPower = {
                         haptic()
                         onCommand(TvCommand.Tap(RemoteKey.Power))
@@ -96,7 +99,10 @@ fun RemoteScreen(
                         RemoteControlZones(
                             state = state,
                             onCommand = onCommand,
-                            onToggleNavigationMode = { haptic(); onToggleNavigationMode() },
+                            onToggleNavigationMode = {
+                                haptic()
+                                onToggleNavigationMode()
+                            },
                             haptic = haptic,
                         )
                     ConnectionUi.Connecting,
@@ -109,7 +115,8 @@ fun RemoteScreen(
                         } else {
                             RemoteRecovery(connection.statusText(), onRetry, haptic)
                         }
-                    is ConnectionUi.Unavailable -> RemoteRecovery(connection.statusText(), onRetry, haptic)
+                    is ConnectionUi.Unavailable ->
+                        RemoteRecovery(connection.statusText(), onRetry, haptic)
                     ConnectionUi.Unsupported -> RemoteStatus(connection.statusText(), "⊘")
                 }
             }
@@ -212,10 +219,7 @@ private fun RemoteControlZones(
                 )
             }
         }
-        Box(
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            contentAlignment = Alignment.Center,
-        ) {
+        Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
             if (state.navigationMode == NavigationMode.Pointer && state.pointerAvailable) {
                 Touchpad(onCommand = onCommand, haptic = haptic, modifier = Modifier.fillMaxWidth())
             } else {
@@ -224,7 +228,8 @@ private fun RemoteControlZones(
         }
         Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(SpaceTokens.xs, Alignment.CenterHorizontally),
+            horizontalArrangement =
+                Arrangement.spacedBy(SpaceTokens.xs, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             HIGH_FREQUENCY_KEYS.forEach { key ->
@@ -261,10 +266,16 @@ private fun RemoteRecovery(message: String, onRetry: () -> Unit, haptic: () -> U
         Text("!", style = TypeTokens.title, color = ColorTokens.feedbackWarning)
         Text(message, style = TypeTokens.body, color = ColorTokens.contentPrimary)
         Button(
-            onClick = { haptic(); onRetry() },
+            onClick = {
+                haptic()
+                onRetry()
+            },
             modifier =
                 Modifier.padding(top = SpaceTokens.md)
-                    .defaultMinSize(minWidth = SizeTokens.primaryControl, minHeight = SizeTokens.primaryControl)
+                    .defaultMinSize(
+                        minWidth = SizeTokens.primaryControl,
+                        minHeight = SizeTokens.primaryControl,
+                    )
                     .testTag(RemoteTestTags.RETRY),
         ) {
             Text(text = stringResource(R.string.remote_retry), style = TypeTokens.label)
@@ -284,8 +295,15 @@ private fun RemoteRepair(statusText: String, onConfirmRepair: () -> Unit, haptic
         Text("!", style = TypeTokens.title, color = ColorTokens.feedbackWarning)
         Text(statusText, style = TypeTokens.body, color = ColorTokens.contentPrimary)
         Button(
-            onClick = { haptic(); confirming = true },
-            modifier = Modifier.defaultMinSize(minWidth = SizeTokens.primaryControl, minHeight = SizeTokens.primaryControl),
+            onClick = {
+                haptic()
+                confirming = true
+            },
+            modifier =
+                Modifier.defaultMinSize(
+                    minWidth = SizeTokens.primaryControl,
+                    minHeight = SizeTokens.primaryControl,
+                ),
         ) {
             Text(text = stringResource(R.string.remote_repair), style = TypeTokens.label)
         }
@@ -303,13 +321,17 @@ private fun RemoteRepair(statusText: String, onConfirmRepair: () -> Unit, haptic
                         onConfirmRepair()
                     },
                     modifier = Modifier.testTag(RemoteTestTags.REPAIR_CONFIRM),
-                ) { Text(stringResource(R.string.remote_repair_confirm)) }
+                ) {
+                    Text(stringResource(R.string.remote_repair_confirm))
+                }
             },
             dismissButton = {
                 OutlinedButton(
                     onClick = { confirming = false },
                     modifier = Modifier.testTag(RemoteTestTags.REPAIR_CANCEL),
-                ) { Text(stringResource(R.string.remote_repair_cancel)) }
+                ) {
+                    Text(stringResource(R.string.remote_repair_cancel))
+                }
             },
         )
     }
@@ -345,7 +367,8 @@ private fun Touchpad(
 ) {
     Surface(
         modifier =
-            modifier.heightIn(min = 240.dp)
+            modifier
+                .heightIn(min = 240.dp)
                 .semantics {
                     role = Role.Button
                     contentDescription = "Television touchpad"
@@ -469,13 +492,7 @@ private fun RemoteReadyPreview() {
 }
 
 private val HIGH_FREQUENCY_KEYS =
-    listOf(
-        RemoteKey.Back,
-        RemoteKey.Home,
-        RemoteKey.VolumeDown,
-        RemoteKey.Mute,
-        RemoteKey.VolumeUp,
-    )
+    listOf(RemoteKey.Back, RemoteKey.Home, RemoteKey.VolumeDown, RemoteKey.Mute, RemoteKey.VolumeUp)
 
 /** Stable everyday-control order, filtered by live capability evidence before composition. */
 val MINIMAL_REMOTE_KEYS =

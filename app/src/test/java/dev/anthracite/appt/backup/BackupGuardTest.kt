@@ -21,8 +21,7 @@ class BackupGuardTest {
     private val extractionRules = File("src/main/res/xml/data_extraction_rules.xml")
     private val backupRules = File("src/main/res/xml/backup_rules.xml")
 
-    @Test
-    fun backupExcludesAllTvState() = assertBackupRules()
+    @Test fun backupExcludesAllTvState() = assertBackupRules()
 
     private fun assertBackupRules() {
         // The manifest opt-out is the primary control.
@@ -98,7 +97,11 @@ class BackupGuardTest {
 
     @Test
     fun diagnosticFileIsExcludedFromBackup() {
-        assertEquals("diagnostics live under noBackupFilesDir", "diagnostics/v1", LocalDiagnostics.DIAGNOSTICS_DIRECTORY)
+        assertEquals(
+            "diagnostics live under noBackupFilesDir",
+            "diagnostics/v1",
+            LocalDiagnostics.DIAGNOSTICS_DIRECTORY,
+        )
         assertBackupRules()
     }
 

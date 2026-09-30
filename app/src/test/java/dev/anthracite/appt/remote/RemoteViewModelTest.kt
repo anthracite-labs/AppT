@@ -23,9 +23,9 @@ import dev.anthracite.appt.testing.settle
 import dev.anthracite.appt.testing.subscribeTo
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -112,7 +112,9 @@ class RemoteViewModelTest {
             assertEquals(emptyList<RemoteKey>(), viewModel.state.value.keys)
             assertEquals(
                 ConnectionUi.WaitingForApproval,
-                viewModel.state.first { it.connection == ConnectionUi.WaitingForApproval }.connection,
+                viewModel.state
+                    .first { it.connection == ConnectionUi.WaitingForApproval }
+                    .connection,
             )
         }
 
@@ -133,7 +135,10 @@ class RemoteViewModelTest {
             subscribeTo(viewModel.state)
             settle()
 
-            assertEquals("Living Room TV", viewModel.state.first { it.tvName == "Living Room TV" }.tvName)
+            assertEquals(
+                "Living Room TV",
+                viewModel.state.first { it.tvName == "Living Room TV" }.tvName,
+            )
         }
 
     @Test
@@ -265,9 +270,7 @@ class RemoteViewModelTest {
             session.nextResult = CommandResult.Accepted
             settle()
 
-            assertTrue(
-                viewModel.onHardwareVolumeKey(RemoteKey.VolumeUp, KeyEvent.ACTION_DOWN, 0)
-            )
+            assertTrue(viewModel.onHardwareVolumeKey(RemoteKey.VolumeUp, KeyEvent.ACTION_DOWN, 0))
             assertTrue(viewModel.onHardwareVolumeKey(RemoteKey.VolumeUp, KeyEvent.ACTION_UP, 0))
             assertTrue(viewModel.onHardwareVolumeKey(RemoteKey.VolumeUp, KeyEvent.ACTION_DOWN, 1))
             settle()
@@ -278,7 +281,9 @@ class RemoteViewModelTest {
             assertFalse(viewModel.onHardwareVolumeKey(RemoteKey.VolumeUp, KeyEvent.ACTION_DOWN, 0))
             store.setVolumeButtonsControlTv(true)
             settle()
-            assertFalse(viewModel.onHardwareVolumeKey(RemoteKey.VolumeDown, KeyEvent.ACTION_DOWN, 0))
+            assertFalse(
+                viewModel.onHardwareVolumeKey(RemoteKey.VolumeDown, KeyEvent.ACTION_DOWN, 0)
+            )
 
             session.publish(SessionState.Unreachable)
             settle()
@@ -297,7 +302,9 @@ class RemoteViewModelTest {
                     diagnosticDispatcher,
                 )
             repeat(LocalDiagnostics.MAX_EVENTS) { index ->
-                assertTrue(diagnostics.recordApp(AppDiagnosticName.RemoteInteraction, index.toLong()))
+                assertTrue(
+                    diagnostics.recordApp(AppDiagnosticName.RemoteInteraction, index.toLong())
+                )
             }
             val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store, diagnostics)
             subscribeTo(viewModel.state)

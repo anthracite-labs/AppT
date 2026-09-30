@@ -3,12 +3,13 @@ package dev.anthracite.appt.diagnostics
 import dev.anthracite.appt.samsung.SessionSnapshot
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption.ATOMIC_MOVE
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +19,6 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -28,11 +28,15 @@ enum class AppDiagnosticName {
     SettingsOpened,
 }
 
-private enum class RecordSource { app, samsung }
+private enum class RecordSource(val wireName: String) {
+    APP("app"),
+    SAMSUNG("samsung"),
+}
 
 /** In-memory representation is itself restricted to the accepted event schema. */
 @ConsistentCopyVisibility
-data class LocalDiagnosticEvent internal constructor(
+data class LocalDiagnosticEvent
+internal constructor(
     val elapsedMs: Long,
     val source: String,
     val name: String,
@@ -66,63 +70,76 @@ class LocalDiagnostics(
             for (queuedEvent in queue) {
                 val event = redact(queuedEvent)
                 when (event.source) {
-                    RecordSource.app.name -> mutableAppEvents.value = boundedAppend(mutableAppEvents.value, event)
-                    RecordSource.samsung.name ->
-                        mutableSamsungEvents.value = boundedAppend(mutableSamsungEvents.value, event)
+                    RecordSource.APP.wireName ->
+                        mutableAppEvents.value = boundedAppend(mutableAppEvents.value, event)
+                    RecordSource.SAMSUNG.wireName ->
+                        mutableSamsungEvents.value =
+                            boundedAppend(mutableSamsungEvents.value, event)
                 }
-                mutableDurableEvents.value = fitDurable(boundedAppend(mutableDurableEvents.value, event))
-                replaceFile(mutableDurableEvents.value)
+                mutableDurableEvents.value =
+                    fitDurable(boundedAppend(mutableDurableEvents.value, event))
+                if (replaceFile(mutableDurableEvents.value).isFailure) continue
             }
         }
     }
 
     /** Synchronous, non-suspending offer. The allowlisted schema has no free-text argument. */
     fun recordApp(name: AppDiagnosticName, elapsedMs: Long): Boolean =
-        queue.trySend(
-            LocalDiagnosticEvent(
-                elapsedMs = elapsedMs.coerceAtLeast(0),
-                source = RecordSource.app.name,
-                name = name.name,
-                fields = emptyMap(),
+        queue
+            .trySend(
+                LocalDiagnosticEvent(
+                    elapsedMs = elapsedMs.coerceAtLeast(0),
+                    source = RecordSource.APP.wireName,
+                    name = name.name,
+                    fields = emptyMap(),
+                )
             )
-        ).isSuccess
+            .isSuccess
 
     /** Records only typed session enums and capability names, never identifiers or payloads. */
     fun recordSamsung(snapshot: SessionSnapshot, elapsedMs: Long): Boolean {
         val capabilities =
             buildList {
-                if (snapshot.capabilities.pointer) add("pointer")
-                if (snapshot.capabilities.textInput) add("textInput")
-                if (snapshot.capabilities.apps) add("apps")
-                if (snapshot.capabilities.powerOff) add("powerOff")
-                if (snapshot.capabilities.powerOn == dev.anthracite.appt.samsung.PowerOn.Attemptable) {
-                    add("powerOn")
+                    if (snapshot.capabilities.pointer) add("pointer")
+                    if (snapshot.capabilities.textInput) add("textInput")
+                    if (snapshot.capabilities.apps) add("apps")
+                    if (snapshot.capabilities.powerOff) add("powerOff")
+                    if (
+                        snapshot.capabilities.powerOn ==
+                            dev.anthracite.appt.samsung.PowerOn.Attemptable
+                    ) {
+                        add("powerOn")
+                    }
+                    if (snapshot.capabilities.keys.isNotEmpty()) add("keys")
                 }
-                if (snapshot.capabilities.keys.isNotEmpty()) add("keys")
-            }.sorted()
-        val fields =
-            buildMap {
-                put("state", snapshot.state::class.simpleName.orEmpty())
-                snapshot.repairReason?.let { put("repairReason", it.name) }
-                put("capabilities", capabilities.joinToString(","))
-            }
-        return queue.trySend(
-            LocalDiagnosticEvent(
-                elapsedMs = elapsedMs.coerceAtLeast(0),
-                source = RecordSource.samsung.name,
-                name = "SessionSnapshot",
-                fields = fields,
+                .sorted()
+        val fields = buildMap {
+            put("state", snapshot.state::class.simpleName.orEmpty())
+            snapshot.repairReason?.let { put("repairReason", it.name) }
+            put("capabilities", capabilities.joinToString(","))
+        }
+        return queue
+            .trySend(
+                LocalDiagnosticEvent(
+                    elapsedMs = elapsedMs.coerceAtLeast(0),
+                    source = RecordSource.SAMSUNG.wireName,
+                    name = "SessionSnapshot",
+                    fields = fields,
+                )
             )
-        ).isSuccess
+            .isSuccess
     }
 
-    /** Redaction and field allowlisting happen at the consumer boundary before either ring stores it. */
+    /**
+     * Redaction and field allowlisting happen at the consumer boundary before either ring stores
+     * it.
+     */
     private fun redact(event: LocalDiagnosticEvent): LocalDiagnosticEvent =
         event.copy(
             fields =
-                event.fields.mapNotNull { (field, value) ->
-                    DiagnosticRedactor.safeField(field, value)
-                }.toMap()
+                event.fields
+                    .mapNotNull { (field, value) -> DiagnosticRedactor.safeField(field, value) }
+                    .toMap()
         )
 
     private fun boundedAppend(current: List<LocalDiagnosticEvent>, event: LocalDiagnosticEvent) =
@@ -136,9 +153,11 @@ class LocalDiagnostics(
         return events
     }
 
-    private fun replaceFile(events: List<LocalDiagnosticEvent>) {
+    private fun replaceFile(events: List<LocalDiagnosticEvent>): Result<Unit> {
         try {
-            if (!directory.exists() && !directory.mkdirs()) return
+            if (!directory.exists() && !directory.mkdirs()) {
+                return Result.failure(IOException("Unable to create diagnostics directory"))
+            }
             val destination = File(directory, RECORD_FILE)
             val temporary = File(directory, "$RECORD_FILE.tmp")
             FileOutputStream(temporary).use { output ->
@@ -148,27 +167,34 @@ class LocalDiagnostics(
             try {
                 Files.move(temporary.toPath(), destination.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
             } catch (unsupported: AtomicMoveNotSupportedException) {
-                if (!temporary.renameTo(destination)) temporary.delete()
+                if (!temporary.renameTo(destination)) {
+                    temporary.delete()
+                    return Result.failure(unsupported)
+                }
             }
-        } catch (ignored: Exception) {
-            // Diagnostic persistence is best-effort and never reaches a TV/command caller.
+            return Result.success(Unit)
+        } catch (failure: Exception) {
+            return Result.failure(failure)
         }
     }
 
     private fun encode(events: List<LocalDiagnosticEvent>): String =
         JsonArray(
-            events.map { event ->
-                buildJsonObject {
-                    put("elapsedMs", event.elapsedMs)
-                    put("source", event.source)
-                    put("event", event.name)
-                    put(
-                        "fields",
-                        JsonObject(event.fields.mapValues { (_, value) -> JsonPrimitive(value) }),
-                    )
+                events.map { event ->
+                    buildJsonObject {
+                        put("elapsedMs", event.elapsedMs)
+                        put("source", event.source)
+                        put("event", event.name)
+                        put(
+                            "fields",
+                            JsonObject(
+                                event.fields.mapValues { (_, value) -> JsonPrimitive(value) }
+                            ),
+                        )
+                    }
                 }
-            }
-        ).toString()
+            )
+            .toString()
 
     companion object {
         const val MAX_EVENTS = 200
@@ -182,11 +208,32 @@ class LocalDiagnostics(
 object DiagnosticRedactor {
     private val forbiddenFields =
         setOf(
-            "token", "pairingToken", "secret", "pin", "password", "certificate", "spki", "proof",
-            "mac", "wifiMac", "ip", "address", "host", "ssid", "wifi", "command", "commandText", "text",
-            "tvId", "friendlyName", "uid", "email", "username",
+            "token",
+            "pairingToken",
+            "secret",
+            "pin",
+            "password",
+            "certificate",
+            "spki",
+            "proof",
+            "mac",
+            "wifiMac",
+            "ip",
+            "address",
+            "host",
+            "ssid",
+            "wifi",
+            "command",
+            "commandText",
+            "text",
+            "tvId",
+            "friendlyName",
+            "uid",
+            "email",
+            "username",
         )
-    private val allowedFields = setOf("elapsedMs", "event", "source", "state", "failure", "repairReason", "capabilities")
+    private val allowedFields =
+        setOf("elapsedMs", "event", "source", "state", "failure", "repairReason", "capabilities")
     private val url = Regex("(?i)\\b(?:https?|wss?)://[^\\s\\\"]+")
     private val ipv4 = Regex("\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b")
     private val ipv6 = Regex("(?i)(?<![\\w])(?:[0-9a-f]{0,4}:){2,}[0-9a-f:]{0,4}(?![\\w])")
@@ -194,7 +241,11 @@ object DiagnosticRedactor {
     private val email = Regex("(?i)\\b[\\w.+-]+@[\\w.-]+\\.[a-z]{2,}\\b")
     private val uuid = Regex("(?i)\\b[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\\b")
 
-    fun safeField(field: String, value: String, secretValues: Set<String> = emptySet()): Pair<String, String>? {
+    fun safeField(
+        field: String,
+        value: String,
+        secretValues: Set<String> = emptySet(),
+    ): Pair<String, String>? {
         if (field in forbiddenFields || field !in allowedFields) return null
         var redacted = value.replace(url, "[url]")
         redacted = redacted.replace(ipv4, "[ip]").replace(ipv6, "[ip]")

@@ -91,7 +91,9 @@ internal class ScriptedSessionTransport(
                 sent,
                 cancellationBarrier,
                 commandResult = {
-                    nextCommandWriteResult.also { nextCommandWriteResult = CommandWriteResult.Written }
+                    nextCommandWriteResult.also {
+                        nextCommandWriteResult = CommandWriteResult.Written
+                    }
                 },
             )
         sockets += connection

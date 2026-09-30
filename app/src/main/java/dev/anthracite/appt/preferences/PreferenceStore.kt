@@ -42,7 +42,9 @@ class PreferenceStore(private val store: DataStore<Preferences>) {
     constructor(context: Context) : this(context.appPreferences)
 
     private val preferences: Flow<Preferences> =
-        store.data.catch { cause -> if (cause is IOException) emit(emptyPreferences()) else throw cause }
+        store.data.catch { cause ->
+            if (cause is IOException) emit(emptyPreferences()) else throw cause
+        }
 
     val firstControlAchieved: Flow<Boolean> =
         preferences.map { it[FIRST_CONTROL_ACHIEVED] ?: false }
@@ -53,9 +55,9 @@ class PreferenceStore(private val store: DataStore<Preferences>) {
                 hapticsEnabled = values[HAPTICS_ENABLED] ?: true,
                 volumeButtonsControlTv = values[VOLUME_BUTTONS_CONTROL_TV] ?: true,
                 navigationMode =
-                    values[NAVIGATION_MODE]
-                        ?.let { saved -> NavigationMode.entries.firstOrNull { it.name == saved } }
-                        ?: NavigationMode.Directional,
+                    values[NAVIGATION_MODE]?.let { saved ->
+                        NavigationMode.entries.firstOrNull { it.name == saved }
+                    } ?: NavigationMode.Directional,
             )
         }
 
@@ -69,17 +71,20 @@ class PreferenceStore(private val store: DataStore<Preferences>) {
 
     suspend fun setHapticsEnabled(enabled: Boolean) = update { it[HAPTICS_ENABLED] = enabled }
 
-    suspend fun setVolumeButtonsControlTv(enabled: Boolean) =
-        update { it[VOLUME_BUTTONS_CONTROL_TV] = enabled }
+    suspend fun setVolumeButtonsControlTv(enabled: Boolean) = update {
+        it[VOLUME_BUTTONS_CONTROL_TV] = enabled
+    }
 
-    suspend fun setNavigationMode(mode: NavigationMode) =
-        update { it[NAVIGATION_MODE] = mode.name }
+    suspend fun setNavigationMode(mode: NavigationMode) = update { it[NAVIGATION_MODE] = mode.name }
 
-    private suspend fun update(change: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
+    private suspend fun update(
+        change: (androidx.datastore.preferences.core.MutablePreferences) -> Unit
+    ) {
         try {
             store.edit(change)
         } catch (ignored: IOException) {
-            // Preferences are best-effort local interaction state; a failed write is not a TV fault.
+            // Preferences are best-effort local interaction state; a failed write is not a TV
+            // fault.
         }
     }
 

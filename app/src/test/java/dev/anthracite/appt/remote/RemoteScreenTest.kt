@@ -99,7 +99,11 @@ class RemoteScreenTest {
         composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.VolumeUp)).assertIsDisplayed()
         composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.VolumeDown)).assertDoesNotExist()
         composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.Up)).assertDoesNotExist()
-        assertEquals("only two live keys and Settings are interactive", 3, composeRule.clickableNodes().size)
+        assertEquals(
+            "only two live keys and Settings are interactive",
+            3,
+            composeRule.clickableNodes().size,
+        )
     }
 
     @Test
@@ -114,7 +118,9 @@ class RemoteScreenTest {
         setRemote(state)
         composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.Power)).assertDoesNotExist()
 
-        composeRule.runOnIdle { state.value = ready(listOf(RemoteKey.Power)).copy(powerOffAvailable = true) }
+        composeRule.runOnIdle {
+            state.value = ready(listOf(RemoteKey.Power)).copy(powerOffAvailable = true)
+        }
         composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.Power)).assertIsDisplayed()
     }
 
@@ -132,7 +138,11 @@ class RemoteScreenTest {
                 .onAllNodesWithText("Approve AppT on your television to continue")
                 .fetchSemanticsNodes()
         assertEquals("the status is repeated beside the empty pad", 2, shown.size)
-        assertEquals("Settings remains reachable in the Remote chrome", 1, composeRule.clickableNodes().size)
+        assertEquals(
+            "Settings remains reachable in the Remote chrome",
+            1,
+            composeRule.clickableNodes().size,
+        )
     }
 
     @Test
@@ -174,10 +184,11 @@ class RemoteScreenTest {
 
         composeRule.runOnIdle {
             state.value =
-                ready().copy(
-                    pointerAvailable = true,
-                    navigationMode = dev.anthracite.appt.preferences.NavigationMode.Pointer,
-                )
+                ready()
+                    .copy(
+                        pointerAvailable = true,
+                        navigationMode = dev.anthracite.appt.preferences.NavigationMode.Pointer,
+                    )
         }
         composeRule.onNodeWithTag(RemoteTestTags.NAVIGATION_MODE).assertIsDisplayed()
         composeRule.onNodeWithTag(RemoteTestTags.TOUCHPAD).assertIsDisplayed()

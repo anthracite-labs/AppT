@@ -20,12 +20,11 @@ internal object RemoteJourney {
 
         val tvCard = device.wait(Until.findObject(By.clickable(true)), SCREEN_TIMEOUT_MS)
         checkNotNull(tvCard) {
-            "No controllable television card appeared. Keep the target Samsung TV on the same network."
-        }.click()
+                "No controllable television card appeared. Keep the target Samsung TV on the same network."
+            }
+            .click()
 
-        check(
-            device.wait(Until.hasObject(By.text(COMMAND_LABEL)), TV_APPROVAL_TIMEOUT_MS)
-        ) {
+        check(device.wait(Until.hasObject(By.text(COMMAND_LABEL)), TV_APPROVAL_TIMEOUT_MS)) {
             "Remote did not reach Ready. Approve AppT on the television and retry the benchmark."
         }
         device.waitForIdle()

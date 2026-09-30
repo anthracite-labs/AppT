@@ -1,7 +1,7 @@
 package dev.anthracite.appt.navigation
 
-import androidx.activity.compose.BackHandler
 import android.view.KeyEvent
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -34,12 +34,12 @@ import dev.anthracite.appt.preferences.PreferenceStore
 import dev.anthracite.appt.remote.ActiveRemoteHost
 import dev.anthracite.appt.remote.RemoteScreen
 import dev.anthracite.appt.remote.RemoteViewModel
-import dev.anthracite.appt.settings.SettingsScreen
-import dev.anthracite.appt.settings.SettingsViewModel
 import dev.anthracite.appt.samsung.RemoteKey
 import dev.anthracite.appt.samsung.SamsungTvs
 import dev.anthracite.appt.samsung.SessionState
 import dev.anthracite.appt.samsung.TvId
+import dev.anthracite.appt.settings.SettingsScreen
+import dev.anthracite.appt.settings.SettingsViewModel
 import dev.anthracite.appt.welcome.WelcomeScreen
 
 /**
@@ -104,7 +104,6 @@ fun AppTNavGraph(
             activeRemoteHost = activeRemoteHost,
             tvProfiles = tvProfiles,
             preferenceStore = preferenceStore,
-            appVersion = appVersion,
             diagnostics = diagnostics,
         )
         composable<SettingsRoute> {
@@ -136,7 +135,6 @@ private fun NavGraphBuilder.s03Destinations(
     activeRemoteHost: ActiveRemoteHost,
     tvProfiles: TvProfiles,
     preferenceStore: PreferenceStore,
-    appVersion: String,
     diagnostics: LocalDiagnostics?,
 ) {
     composable<PairingRoute> { entry ->

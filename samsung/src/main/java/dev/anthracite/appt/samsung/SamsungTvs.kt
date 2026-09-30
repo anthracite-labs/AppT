@@ -9,8 +9,8 @@ import kotlinx.coroutines.flow.Flow
  * S02 realizes [discover] only. S03 adds the first live control session: [open] plus
  * [RemoteSession] and the command path. The canonical contract also lists `wake`, `forget`,
  * `rememberedIds` and `redactedDiagnostics`; each arrives in the slice that makes it observable:
- * S04 secrets/forget, S05 bounded diagnostics, and S12 wake. These methods are live implementations,
- * not placeholder stubs.
+ * S04 secrets/forget, S05 bounded diagnostics, and S12 wake. These methods are live
+ * implementations, not placeholder stubs.
  *
  * Two adapters cross this seam: the production `SamsungTvsImpl` (internal to this module, created
  * through [SamsungModule]) and the scripted fake that `app` tests use.

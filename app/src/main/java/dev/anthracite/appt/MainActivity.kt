@@ -23,14 +23,21 @@ class MainActivity : ComponentActivity() {
     /** Installed only while the Remote destination is lifecycle-started. */
     internal var remoteVolumeKeyHandler: ((KeyEvent) -> Boolean)? = null
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (
-            event.keyCode == KeyEvent.KEYCODE_VOLUME_UP ||
-                event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
-        ) {
-            if (remoteVolumeKeyHandler?.invoke(event) == true) return true
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (dispatchRemoteVolumeKeyEvent(keyCode, event)) return true
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (dispatchRemoteVolumeKeyEvent(keyCode, event)) return true
+        return super.onKeyUp(keyCode, event)
+    }
+
+    private fun dispatchRemoteVolumeKeyEvent(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode != KeyEvent.KEYCODE_VOLUME_UP && keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) {
+            return false
         }
-        return super.dispatchKeyEvent(event)
+        return remoteVolumeKeyHandler?.invoke(event) == true
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,7 +75,10 @@ class MainActivity : ComponentActivity() {
     private fun currentVersionName(): String =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             packageManager
-                .getPackageInfo(packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+                .getPackageInfo(
+                    packageName,
+                    android.content.pm.PackageManager.PackageInfoFlags.of(0),
+                )
                 .versionName
                 .orEmpty()
         } else {

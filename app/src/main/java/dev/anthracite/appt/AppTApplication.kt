@@ -6,15 +6,15 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.room.Room
 import dev.anthracite.appt.data.AppTDatabase
-import dev.anthracite.appt.diagnostics.LocalDiagnostics
-import java.io.File
 import dev.anthracite.appt.data.TvProfiles
+import dev.anthracite.appt.diagnostics.LocalDiagnostics
 import dev.anthracite.appt.gate.LocalNetworkPermissionGate
 import dev.anthracite.appt.gate.PermissionGate
 import dev.anthracite.appt.preferences.PreferenceStore
 import dev.anthracite.appt.remote.ActiveRemoteHost
 import dev.anthracite.appt.samsung.SamsungModule
 import dev.anthracite.appt.samsung.SamsungTvs
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

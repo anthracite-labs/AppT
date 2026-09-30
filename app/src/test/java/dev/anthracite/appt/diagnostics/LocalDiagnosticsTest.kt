@@ -30,7 +30,11 @@ class LocalDiagnosticsTest {
             assertTrue(diagnostics.recordApp(AppDiagnosticName.RemoteInteraction, index.toLong()))
         }
         assertEquals(LocalDiagnostics.MAX_EVENTS, diagnostics.appEvents.value.size)
-        assertEquals("oldest app events are dropped", 50L, diagnostics.appEvents.value.first().elapsedMs)
+        assertEquals(
+            "oldest app events are dropped",
+            50L,
+            diagnostics.appEvents.value.first().elapsedMs,
+        )
         val record = File(noBackupRoot, "diagnostics/v1/${LocalDiagnostics.RECORD_FILE}")
         assertTrue(record.isFile)
         assertTrue(record.length() <= LocalDiagnostics.MAX_FILE_BYTES)
@@ -76,13 +80,19 @@ class LocalDiagnosticsTest {
             diagnostics.recordSamsung(
                 dev.anthracite.appt.samsung.SessionSnapshot(
                     dev.anthracite.appt.samsung.SessionState.Ready,
-                    dev.anthracite.appt.samsung.TvCapabilities(setOf(dev.anthracite.appt.samsung.RemoteKey.Home)),
+                    dev.anthracite.appt.samsung.TvCapabilities(
+                        setOf(dev.anthracite.appt.samsung.RemoteKey.Home)
+                    ),
                 ),
                 index.toLong(),
             )
         }
         assertEquals(LocalDiagnostics.MAX_EVENTS, diagnostics.samsungEvents.value.size)
         assertEquals(5L, diagnostics.samsungEvents.value.first().elapsedMs)
-        assertTrue(diagnostics.samsungEvents.value.all { it.fields.keys.all { key -> key in setOf("state", "repairReason", "capabilities") } })
+        assertTrue(
+            diagnostics.samsungEvents.value.all {
+                it.fields.keys.all { key -> key in setOf("state", "repairReason", "capabilities") }
+            }
+        )
     }
 }

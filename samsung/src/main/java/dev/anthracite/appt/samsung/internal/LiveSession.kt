@@ -450,7 +450,8 @@ internal class LiveSession(
      * that path.
      */
     private fun publish(state: SessionState, repairReason: RepairReason? = null) {
-        val keys = if (channelConnected) STANDARD_REMOTE_KEYS - rejectedKeyEvidence.get() else emptySet()
+        val keys =
+            if (channelConnected) STANDARD_REMOTE_KEYS - rejectedKeyEvidence.get() else emptySet()
         val snapshot = SessionSnapshot(state, TvCapabilities(keys), repairReason)
         mutableSnapshot.value = snapshot
         diagnostics.session(snapshot)

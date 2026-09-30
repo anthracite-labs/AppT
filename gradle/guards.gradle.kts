@@ -278,6 +278,14 @@ tasks.register("noProductionModuleDependsOnBenchmark") {
             productionProject.configurations.forEach { configuration ->
                 configuration.dependencies
                     .filterIsInstance<ProjectDependency>()
+                    // The baseline-profile plugin requires this non-runtime edge so :app can
+                    // consume generated profiles. It is not a production dependency; keep the
+                    // guard strict for every actual app/samsung compile or runtime configuration.
+                    .filterNot {
+                        path == ":app" &&
+                            configuration.name == "baselineProfile" &&
+                            it.path == ":macrobenchmark"
+                    }
                     .filter { it.path == ":macrobenchmark" }
                     .forEach {
                         offenders += "$path:${configuration.name} depends on :macrobenchmark"

@@ -58,11 +58,17 @@ data class RemoteUiState(
 /** How the session presents on the remote surface. */
 sealed interface ConnectionUi {
     data object Connecting : ConnectionUi
+
     data object WaitingForApproval : ConnectionUi
+
     data object Ready : ConnectionUi
+
     data object Reconnecting : ConnectionUi
+
     data class NeedsRepair(val failure: TvFailure) : ConnectionUi
+
     data class Unavailable(val failure: TvFailure) : ConnectionUi
+
     data object Unsupported : ConnectionUi
 
     companion object {
@@ -92,6 +98,7 @@ sealed interface ConnectionUi {
 /** The outcome of one command on the remote surface. */
 sealed interface CommandOutcome {
     data object Written : CommandOutcome
+
     data class NotWritten(val failure: TvFailure) : CommandOutcome
 
     companion object {

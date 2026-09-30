@@ -5,9 +5,9 @@ import dev.anthracite.appt.samsung.ControlAvailability
 import dev.anthracite.appt.samsung.DiscoveredTv
 import dev.anthracite.appt.samsung.DiscoveryEvent
 import dev.anthracite.appt.samsung.ForgetResult
+import dev.anthracite.appt.samsung.RedactedDiagnosticReport
 import dev.anthracite.appt.samsung.RemoteKey
 import dev.anthracite.appt.samsung.RemoteSession
-import dev.anthracite.appt.samsung.RedactedDiagnosticReport
 import dev.anthracite.appt.samsung.RepairReason
 import dev.anthracite.appt.samsung.SamsungTvs
 import dev.anthracite.appt.samsung.SessionSnapshot
@@ -76,7 +76,8 @@ class FakeSamsungTvs : SamsungTvs {
             repairReason: RepairReason? = null,
             pointer: Boolean = false,
         ) {
-            mutableSnapshot.value = SessionSnapshot(state, TvCapabilities(keys, pointer = pointer), repairReason)
+            mutableSnapshot.value =
+                SessionSnapshot(state, TvCapabilities(keys, pointer = pointer), repairReason)
         }
 
         /** Publishes `Ready` with the standard remote keys, as a real session does on approval. */
@@ -189,7 +190,8 @@ class FakeSamsungTvs : SamsungTvs {
 
     override fun rememberedIds(): Set<TvId> = remembered.toSet()
 
-    override fun redactedDiagnostics(): RedactedDiagnosticReport = RedactedDiagnosticReport(emptyList())
+    override fun redactedDiagnostics(): RedactedDiagnosticReport =
+        RedactedDiagnosticReport(emptyList())
 
     /** Primes the remembered set, as the durable store would report it after a pairing. */
     fun remember(ids: Set<TvId>) {

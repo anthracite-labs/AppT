@@ -18,7 +18,8 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class RejectedKeyEvidenceTest {
     private val tvId = TvId("3f2d1c0b-8a7e-4b5c-9d6e-1f2a3b4c5d6e")
-    private val television = ConfirmedTelevision(tvId, "[fixture-host]", tls = true, adoptedChannel = true)
+    private val television =
+        ConfirmedTelevision(tvId, "[fixture-host]", tls = true, adoptedChannel = true)
     private val store = InMemorySamsungStore()
 
     @Test
@@ -60,7 +61,10 @@ class RejectedKeyEvidenceTest {
         assertEquals(SessionState.Ready, reopened.snapshot.value.state)
         assertFalse(RemoteKey.VolumeUp in reopened.snapshot.value.capabilities.keys)
         assertEquals(CommandResult.Accepted, reopened.command(TvCommand.Tap(RemoteKey.VolumeUp)))
-        assertFalse("a local socket write is not positive TV evidence", RemoteKey.VolumeUp in reopened.snapshot.value.capabilities.keys)
+        assertFalse(
+            "a local socket write is not positive TV evidence",
+            RemoteKey.VolumeUp in reopened.snapshot.value.capabilities.keys,
+        )
         assertEquals(setOf(RemoteKey.VolumeUp), store.loadDevice(tvId)?.rejectedKeys)
         reopened.close()
         advanceUntilIdle()

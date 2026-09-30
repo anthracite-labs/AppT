@@ -1,7 +1,6 @@
 package dev.anthracite.appt.settings
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
-import dev.anthracite.appt.data.FakeTvProfileDao
 import dev.anthracite.appt.preferences.NavigationMode
 import dev.anthracite.appt.preferences.PreferenceStore
 import dev.anthracite.appt.remote.ActiveRemoteHost
@@ -58,9 +57,8 @@ class SettingsViewModelTest {
             viewModel.onPhoneVolumeButtons(false)
             viewModel.onNavigationMode(NavigationMode.Pointer)
             settle()
-            val saved = preferences.interaction.first {
-                !it.hapticsEnabled && !it.volumeButtonsControlTv
-            }
+            val saved =
+                preferences.interaction.first { !it.hapticsEnabled && !it.volumeButtonsControlTv }
             assertFalse(saved.hapticsEnabled)
             assertFalse(saved.volumeButtonsControlTv)
             assertEquals(NavigationMode.Directional, saved.navigationMode)
@@ -72,7 +70,9 @@ class SettingsViewModelTest {
             settle()
             assertEquals(
                 NavigationMode.Pointer,
-                preferences.interaction.first { it.navigationMode == NavigationMode.Pointer }.navigationMode,
+                preferences.interaction
+                    .first { it.navigationMode == NavigationMode.Pointer }
+                    .navigationMode,
             )
 
             tvs.sessionFor(id)!!.publish(SessionState.Reconnecting, pointer = true)

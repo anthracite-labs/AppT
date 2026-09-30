@@ -7,7 +7,8 @@ package dev.anthracite.appt.samsung
 // Caller-visible types arrive with the slice that makes them observable:
 //   * SessionState.Reconnecting arrives with supervised reconnect in S06.
 //   * TvCapabilities.keys and pointer/power flags support S05 live-evidence rendering; production
-//     pointer remains false until an accepted exact fixture establishes the wire behavior. Text/apps
+//     pointer remains false until an accepted exact fixture establishes the wire behavior.
+// Text/apps
 //     become live with their later surfaces.
 //   * TvCommand.Tap is the adopted control channel. Pointer, text and app commands remain typed but
 //     unavailable until their accepted protocol behavior exists.
@@ -95,11 +96,7 @@ sealed interface ForgetResult {
  */
 data class RedactedDiagnosticReport(val events: List<RedactedEvent>)
 
-data class RedactedEvent(
-    val elapsedMs: Long,
-    val name: String,
-    val fields: Map<String, String>,
-)
+data class RedactedEvent(val elapsedMs: Long, val name: String, val fields: Map<String, String>)
 
 data class TvCapabilities(
     val keys: Set<RemoteKey>,
@@ -110,7 +107,10 @@ data class TvCapabilities(
     val powerOff: Boolean = RemoteKey.Power in keys,
 )
 
-enum class PowerOn { Attemptable, Unavailable }
+enum class PowerOn {
+    Attemptable,
+    Unavailable,
+}
 
 /** The opaque remote keys the adopted remote channel accepts. Callers do not send wire strings. */
 enum class RemoteKey {
@@ -132,10 +132,14 @@ sealed interface TvCommand {
     /** One press of [key] on the adopted remote channel. */
     data class Tap(val key: RemoteKey) : TvCommand
 
-    /** Typed pointer movement. Production remains unavailable until an accepted wire fixture exists. */
+    /**
+     * Typed pointer movement. Production remains unavailable until an accepted wire fixture exists.
+     */
     data class PointerMove(val dx: Int, val dy: Int) : TvCommand
 
-    /** Typed pointer click. Production remains unavailable until an accepted wire fixture exists. */
+    /**
+     * Typed pointer click. Production remains unavailable until an accepted wire fixture exists.
+     */
     data object PointerClick : TvCommand
 }
 

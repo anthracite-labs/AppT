@@ -175,9 +175,7 @@ class PairingToFirstControlFlowTest {
         val firstControlObserver =
             observations.launch {
                 store.firstControlAchieved
-                    .onEach { achieved ->
-                        if (!achieved) firstControlObserverStarted.set(true)
-                    }
+                    .onEach { achieved -> if (!achieved) firstControlObserverStarted.set(true) }
                     .first { it }
                 firstControlAchieved.set(true)
             }

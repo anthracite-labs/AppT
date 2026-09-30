@@ -37,7 +37,8 @@ class RemoteViewModel(
     }
 
     val state: StateFlow<RemoteUiState> =
-        combine(activeRemoteHost.current, name, preferenceStore.interaction) { current, label, prefs ->
+        combine(activeRemoteHost.current, name, preferenceStore.interaction) { current, label, prefs
+                ->
                 val held = current?.takeIf { it.tvId == tvId }
                 RemoteUiState.of(label.orEmpty(), held?.snapshot, prefs)
             }
@@ -58,7 +59,8 @@ class RemoteViewModel(
         viewModelScope.launch {
             var traceEnded = false
             try {
-                val held = activeRemoteHost.current.value?.takeIf { it.tvId == tvId } ?: return@launch
+                val held =
+                    activeRemoteHost.current.value?.takeIf { it.tvId == tvId } ?: return@launch
                 val result = held.session.command(command)
                 endCommandTrace(traceCookie)
                 traceEnded = true
@@ -69,21 +71,26 @@ class RemoteViewModel(
         }
     }
 
-    /** Tracing is optional instrumentation; a missing platform implementation must not block input. */
+    /**
+     * Tracing is optional instrumentation; a missing platform implementation must not block input.
+     */
     private inline fun traceSafely(block: () -> Unit) {
         try {
             block()
-        } catch (failure: Throwable) {
-            if (failure is VirtualMachineError || failure is ThreadDeath) throw failure
+        } catch (_: RuntimeException) {
             // Optional instrumentation must not prevent an accepted command from being recorded.
+        } catch (_: LinkageError) {
+            // Older platform implementations may not provide the tracing entry point.
         }
     }
 
-    private fun beginCommandTrace(cookie: Int) =
-        traceSafely { Trace.beginAsyncSection(COMMAND_LATENCY_TRACE, cookie) }
+    private fun beginCommandTrace(cookie: Int) = traceSafely {
+        Trace.beginAsyncSection(COMMAND_LATENCY_TRACE, cookie)
+    }
 
-    private fun endCommandTrace(cookie: Int) =
-        traceSafely { Trace.endAsyncSection(COMMAND_LATENCY_TRACE, cookie) }
+    private fun endCommandTrace(cookie: Int) = traceSafely {
+        Trace.endAsyncSection(COMMAND_LATENCY_TRACE, cookie)
+    }
 
     /**
      * Handles one Android hardware-volume event. The caller installs this only while Remote is
@@ -92,10 +99,11 @@ class RemoteViewModel(
      */
     fun onHardwareVolumeKey(key: RemoteKey, action: Int, repeatCount: Int): Boolean {
         val current = activeRemoteHost.current.value?.takeIf { it.tvId == tvId } ?: return false
-        if (!state.value.volumeButtonsControlTv) return false
-        if (current.snapshot.state != SessionState.Ready || key !in current.snapshot.capabilities.keys) {
-            return false
-        }
+        val canControl =
+            state.value.volumeButtonsControlTv &&
+                current.snapshot.state == SessionState.Ready &&
+                key in current.snapshot.capabilities.keys
+        if (!canControl) return false
         if (action == KeyEvent.ACTION_DOWN && repeatCount == 0) onCommand(TvCommand.Tap(key))
         return true
     }
