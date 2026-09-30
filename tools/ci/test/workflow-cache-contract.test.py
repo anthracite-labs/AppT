@@ -19,6 +19,13 @@ WORKFLOWS = Path(__file__).resolve().parents[3] / ".github" / "workflows"
 TARGET_WORKFLOWS = {"verify.yml", "diagnose.yml"}
 VALID_MODES = {"read", "none", "write", "write-only"}
 READ_ONLY_MODES = {"read", "none"}
+GRADLE_DIAGNOSTIC_JOBS = {
+    "app-unit",
+    "samsung-unit",
+    "android-static",
+    "android-build",
+    "device",
+}
 
 
 def validate_cache_contract(workflow, *, executes_target):
@@ -123,6 +130,58 @@ class WorkflowCacheContractTests(unittest.TestCase):
                     AssertionError, "literal provider-supported value"
                 ):
                     validate_cache_contract(workflow, executes_target=True)
+
+
+    def test_pr_local_gradle_warm_state_never_grants_cache_write(self):
+        diagnose_path = WORKFLOWS / "diagnose.yml"
+        verify_path = WORKFLOWS / "verify.yml"
+        diagnose = yaml.safe_load(diagnose_path.read_text())
+        verify_text = verify_path.read_text()
+
+        self.assertEqual(diagnose["cache-mode"], "read")
+        self.assertNotIn("appt-gradle-local-cache-pr-", verify_text)
+
+        for job_id in sorted(GRADLE_DIAGNOSTIC_JOBS):
+            with self.subTest(job=job_id):
+                job = diagnose["jobs"][job_id]
+                self.assertEqual(job["permissions"], {"actions": "read", "contents": "read"})
+                steps = {step.get("name"): step for step in job["steps"]}
+
+                find = steps["Find previous PR-local Gradle warm state"]
+                self.assertIn("steps.assert-target.outputs.pr-number", find["if"])
+                self.assertIn('artifact_name="appt-gradle-local-cache-pr-${PR_NUMBER}"', find["run"])
+                self.assertIn('.github/workflows/diagnose.yml', find["run"])
+
+                download = steps["Download previous PR-local Gradle warm state"]
+                self.assertIn("actions/download-artifact@", download["uses"])
+                self.assertEqual(
+                    download["with"]["name"],
+                    "${{ steps.gradle-warm.outputs.artifact-name }}",
+                )
+                self.assertEqual(
+                    download["with"]["run-id"],
+                    "${{ steps.gradle-warm.outputs.run-id }}",
+                )
+
+                restore = steps["Restore PR-local Gradle build cache"]["run"]
+                self.assertIn("build-cache-1", restore)
+                self.assertIn('path.parts[0] == "build-cache-1"', restore)
+                self.assertIn("member.isfile() or member.isdir()", restore)
+                self.assertIn("536870912", restore)
+                self.assertNotIn("extractall(destination)", restore)
+
+                package = steps["Package PR-local Gradle warm state"]["run"]
+                self.assertIn('cache_dir="$HOME/.gradle/caches/build-cache-1"', package)
+                self.assertIn("524288", package)
+                self.assertIn("536870912", package)
+
+                upload = steps["Upload PR-local Gradle warm state"]
+                self.assertEqual(upload["with"]["retention-days"], 1)
+                self.assertEqual(upload["with"]["compression-level"], 0)
+                self.assertEqual(
+                    upload["with"]["name"],
+                    "appt-gradle-local-cache-pr-${{ steps.assert-target.outputs.pr-number }}",
+                )
 
     def test_future_target_workflows_are_discovered(self):
         workflow = yaml.safe_load("""
