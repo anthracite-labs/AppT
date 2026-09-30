@@ -29,8 +29,8 @@ import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 import dev.anthracite.appt.tokens.AppTTheme
 import dev.anthracite.appt.welcome.WelcomeTestTags
 import java.io.File
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -92,9 +92,9 @@ class PairingToFirstControlFlowTest {
     private val livingRoom = TvId(FakeSamsungTvs.LIVING_ROOM_ID)
 
     // The command milestone is a suspending DataStore write. Collect it off the UI dispatcher,
-    // then wait on the test thread so the UI dispatcher remains free to resume the write.
+    // while the test idles the UI looper so the write can resume there.
     private val observations = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val firstControlAchieved = CountDownLatch(1)
+    private val firstControlAchieved = AtomicBoolean(false)
 
     private fun setGraph() {
         composeRule.setContent {
@@ -128,12 +128,15 @@ class PairingToFirstControlFlowTest {
     private fun awaitFirstControlAchieved(timeoutMillis: Long = 10_000L) {
         observations.launch {
             store.firstControlAchieved.first { it }
-            firstControlAchieved.countDown()
+            firstControlAchieved.set(true)
         }
-        assertTrue(
-            "the first accepted command is recorded",
-            firstControlAchieved.await(timeoutMillis, TimeUnit.MILLISECONDS),
-        )
+        // Keep idling the UI looper while the DataStore actor completes and resumes the
+        // viewModelScope write, but collect on IO so observation itself does not need the looper.
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
+        while (!firstControlAchieved.get() && System.nanoTime() < deadline) {
+            composeRule.waitForIdle()
+        }
+        assertTrue("the first accepted command is recorded", firstControlAchieved.get())
     }
 
     @Test
