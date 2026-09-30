@@ -108,6 +108,7 @@ class PreferenceStore(private val store: DataStore<Preferences>) {
                     FirstControlWriteProbeEvent.StoreReadBackFalse
                 }
             )
+            firstControlAchieved.first()
         } catch (cancelled: CancellationException) {
             reportFirstControlWriteProbe(FirstControlWriteProbeEvent.WriteCancelled)
             throw cancelled

@@ -131,7 +131,7 @@ class PairingToFirstControlFlowTest {
     }
 
     private fun awaitFirstControlAchieved(timeoutMillis: Long = 10_000L) {
-        observations.launch {
+        val observer = observations.launch {
             store.firstControlAchieved.collect { achieved ->
                 if (achieved) firstControlAchieved.set(true)
             }
@@ -143,7 +143,8 @@ class PairingToFirstControlFlowTest {
             composeRule.waitForIdle()
         }
         assertTrue(
-            "the first accepted command is recorded; observed events=$firstControlEvents",
+            "the first accepted command is recorded; observerActive=${observer.isActive}; " +
+                "observed events=$firstControlEvents",
             firstControlAchieved.get(),
         )
     }
