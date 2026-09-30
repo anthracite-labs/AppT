@@ -52,6 +52,7 @@ internal enum class FirstControlWriteProbeEvent {
     StoreReadBackTrue,
     FlowEmittedFalse,
     FlowEmittedTrue,
+    ObserverReceivedTrue,
 }
 
 class PreferenceStore(private val store: DataStore<Preferences>) {
