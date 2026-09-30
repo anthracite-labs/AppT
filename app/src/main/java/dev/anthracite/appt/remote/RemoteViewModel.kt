@@ -73,8 +73,9 @@ class RemoteViewModel(
     private inline fun traceSafely(block: () -> Unit) {
         try {
             block()
-        } catch (ignored: RuntimeException) {
-            // JVM unit tests have no Android trace service; real-device traces remain enabled.
+        } catch (failure: Throwable) {
+            if (failure is VirtualMachineError || failure is ThreadDeath) throw failure
+            // Optional instrumentation must not prevent an accepted command from being recorded.
         }
     }
 
