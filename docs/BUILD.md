@@ -314,8 +314,23 @@ and `diagnose.yml` additionally declare workflow-level `cache-mode: read`: GitHu
 scopes the cache token so target code can restore, but cannot save caches into
 the default branch's scope. Repository-token permissions alone do not enforce
 this boundary. This applies to every job and event in those two workflows;
-cache writes are intentionally sacrificed even for trusted-only runs. Fork pull requests cannot be dispatched at all and
-fail closed. The logic lives in `tools/ci/dispatch-workflow.mjs`, proven by
+provider cache writes are intentionally unavailable even for trusted-only runs.
+
+For bridge-dispatched **Gradle-backed diagnostics only**, `diagnose.yml` may
+reuse the previous run's local Gradle build cache through a one-day workflow
+artifact named from the **validated pull-request number** published by
+`assert-dispatch-target`. This is deliberately not a GitHub Actions cache
+write: the target job remains `cache-mode: read`. The artifact contains only
+`~/.gradle/caches/build-cache-1`, is capped at 512 MiB, and is restored only
+when its producer is `diagnose.yml` for the same validated PR namespace.
+Archive traversal, links/devices, unexpected paths, missing state, and oversize
+state are rejected and the diagnostic continues without that PR-local layer.
+The refreshed artifact is uploaded even after a red diagnostic so the next
+bounded fix/retest can reuse completed Gradle task outputs. Terminal `verify`
+and CodeQL never restore this artifact, so acceptance evidence remains
+independent of PR-local warm state.
+
+Fork pull requests cannot be dispatched at all and fail closed. The logic lives in `tools/ci/dispatch-workflow.mjs`, proven by
 `tools/ci/test/dispatch-workflow.test.mjs`; the tests reject a commit SHA used
 directly as `workflow_dispatch.ref` and reject the earlier mutable-ref shape
 outright, because `targetRef` is required and `ref` may never equal it. The
