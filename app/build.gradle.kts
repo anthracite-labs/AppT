@@ -151,6 +151,11 @@ ksp {
     arg("room.generateKotlin", "false")
 }
 
+baselineProfile {
+    // Retain the generated variant profile in source so it can be reviewed and committed.
+    saveInSrc = true
+}
+
 // ---------------------------------------------------------------------------
 // detekt — the Kotlin static-analysis floor (Issue #36)
 // ---------------------------------------------------------------------------
