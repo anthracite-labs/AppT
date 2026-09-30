@@ -83,10 +83,7 @@ class PairingToFirstControlFlowTest {
                 produceFile = { file },
             )
         ).also { preferenceStore ->
-            preferenceStore.firstControlWriteProbe = { event ->
-                firstControlEvents.add(event)
-                Unit
-            }
+            preferenceStore.firstControlWriteProbe = { event -> firstControlEvents.add(event) }
         }
     }
     // Wired exactly as AppTApplication wires it: the host notices the transition to `Ready` and the
