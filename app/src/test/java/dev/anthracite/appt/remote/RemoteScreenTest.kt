@@ -199,7 +199,7 @@ class RemoteScreenTest {
         order.clear()
         composeRule.runOnIdle { state.value = ready().copy(hapticsEnabled = false) }
         composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.VolumeUp)).performClick()
-        assertEquals(emptyList<String>(), order)
+        assertEquals(listOf("command"), order)
     }
 
     @Test

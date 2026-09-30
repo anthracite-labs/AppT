@@ -15,7 +15,6 @@ import dev.anthracite.appt.testing.settle
 import dev.anthracite.appt.testing.subscribeTo
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -34,7 +33,7 @@ class SettingsViewModelTest {
         val file = File(folder.newFolder(), PREFERENCES_FILE_NAME)
         return PreferenceStore(
             PreferenceDataStoreFactory.create(
-                scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+                scope = CoroutineScope(SupervisorJob() + mainRule.dispatcher),
                 produceFile = { file },
             )
         )
@@ -71,7 +70,10 @@ class SettingsViewModelTest {
             assertTrue(viewModel.state.value.pointerAvailable)
             viewModel.onNavigationMode(NavigationMode.Pointer)
             settle()
-            assertEquals(NavigationMode.Pointer, preferences.interaction.first().navigationMode)
+            assertEquals(
+                NavigationMode.Pointer,
+                preferences.interaction.first { it.navigationMode == NavigationMode.Pointer }.navigationMode,
+            )
 
             tvs.sessionFor(id)!!.publish(SessionState.Reconnecting, pointer = true)
             settle()

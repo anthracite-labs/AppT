@@ -29,12 +29,13 @@ import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 import dev.anthracite.appt.tokens.AppTTheme
 import dev.anthracite.appt.welcome.WelcomeTestTags
 import java.io.File
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -90,13 +91,10 @@ class PairingToFirstControlFlowTest {
         )
     private val livingRoom = TvId(FakeSamsungTvs.LIVING_ROOM_ID)
 
-    // `firstControlAchieved` is written by a suspending DataStore write that DataStore performs
-    // asynchronously and then resumes on this thread, so it is not readable the moment the command
-    // returns. Observing it from a collector on the main looper keeps the wait off the write's
-    // path: reading it from a `runBlocking` here would block the looper the write resumes on, and
-    // the read would wait for a write that can never finish.
-    private val observations = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val firstControlAchieved = AtomicBoolean(false)
+    // The command milestone is a suspending DataStore write. Collect it off the UI dispatcher,
+    // then wait on the test thread so the UI dispatcher remains free to resume the write.
+    private val observations = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val firstControlAchieved = CountDownLatch(1)
 
     private fun setGraph() {
         composeRule.setContent {
@@ -128,16 +126,14 @@ class PairingToFirstControlFlowTest {
     }
 
     private fun awaitFirstControlAchieved(timeoutMillis: Long = 10_000L) {
-        observations.launch { store.firstControlAchieved.collect { firstControlAchieved.set(it) } }
-        // Neither `waitUntil` nor a `runBlocking` read can observe this flag: `waitUntil` sleeps
-        // the calling thread and only advances the Compose clock, and `runBlocking` blocks this
-        // thread outright, so in both cases the pending work on the main looper never runs. Idling
-        // the looper is what runs the write's resumption and the collector that reads it back.
-        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
-        while (!firstControlAchieved.get() && System.nanoTime() < deadline) {
-            composeRule.waitForIdle()
+        observations.launch {
+            store.firstControlAchieved.first { it }
+            firstControlAchieved.countDown()
         }
-        assertTrue("the first accepted command is recorded", firstControlAchieved.get())
+        assertTrue(
+            "the first accepted command is recorded",
+            firstControlAchieved.await(timeoutMillis, TimeUnit.MILLISECONDS),
+        )
     }
 
     @Test

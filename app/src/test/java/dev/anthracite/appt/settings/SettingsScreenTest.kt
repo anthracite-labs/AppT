@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.anthracite.appt.preferences.InteractionPreferences
 import dev.anthracite.appt.preferences.NavigationMode
@@ -53,7 +54,7 @@ class SettingsScreenTest {
         composeRule.onNodeWithText("Navigation mode").assertIsDisplayed()
         composeRule.onNodeWithText("About").assertIsDisplayed()
         composeRule.onNodeWithText("App version").assertIsDisplayed()
-        composeRule.onNodeWithText("0.1.0").assertIsDisplayed()
+        composeRule.onNodeWithText("0.1.0").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Account & License").assertDoesNotExist()
         composeRule.onNodeWithText("TVs").assertDoesNotExist()
         composeRule.onNodeWithText("Privacy & Diagnostics").assertDoesNotExist()

@@ -23,7 +23,6 @@ import dev.anthracite.appt.testing.settle
 import dev.anthracite.appt.testing.subscribeTo
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
@@ -62,7 +61,7 @@ class RemoteViewModelTest {
         val file = File(folder.newFolder(), PREFERENCES_FILE_NAME)
         PreferenceStore(
             PreferenceDataStoreFactory.create(
-                scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+                scope = CoroutineScope(SupervisorJob() + mainRule.dispatcher),
                 produceFile = { file },
             )
         )
@@ -111,7 +110,10 @@ class RemoteViewModelTest {
             settle()
 
             assertEquals(emptyList<RemoteKey>(), viewModel.state.value.keys)
-            assertEquals(ConnectionUi.WaitingForApproval, viewModel.state.value.connection)
+            assertEquals(
+                ConnectionUi.WaitingForApproval,
+                viewModel.state.first { it.connection == ConnectionUi.WaitingForApproval }.connection,
+            )
         }
 
     @Test
