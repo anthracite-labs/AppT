@@ -14,6 +14,9 @@
 // KSP is the only annotation-processing path available (docs/BUILD.md).
 
 import java.util.Locale
+import org.gradle.api.tasks.testing.Test
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import org.gradle.api.tasks.testing.logging.TestLogEvent
 
 plugins {
     alias(libs.plugins.android.application)
@@ -401,4 +404,13 @@ configurations.configureEach {
             else -> emptyList<String>()
         }
     notations.forEach { notation -> project.dependencies.constraints { add(cfg, notation) } }
+}
+
+// Keep failed Robolectric/JUnit assertions actionable in the hosted diagnostic
+// path as well as in the uploaded XML reports.
+tasks.withType<Test>().configureEach {
+    testLogging {
+        events = setOf(TestLogEvent.FAILED)
+        exceptionFormat = TestExceptionFormat.FULL
+    }
 }
