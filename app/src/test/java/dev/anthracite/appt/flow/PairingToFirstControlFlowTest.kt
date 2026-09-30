@@ -133,10 +133,7 @@ class PairingToFirstControlFlowTest {
     private fun awaitFirstControlAchieved(timeoutMillis: Long = 10_000L) {
         observations.launch {
             store.firstControlAchieved.collect { achieved ->
-                if (achieved) {
-                    firstControlEvents.add(FirstControlWriteProbeEvent.FlowEmittedTrue)
-                    firstControlAchieved.set(true)
-                }
+                if (achieved) firstControlAchieved.set(true)
             }
         }
         // Keep idling the UI looper while the DataStore actor completes and resumes the

@@ -46,6 +46,8 @@ internal enum class FirstControlWriteProbeEvent {
     WriteCancelled,
     WriteIOException,
     WriteUnexpectedFailure,
+    PreferencesReadIOException,
+    FlowEmittedFalse,
     FlowEmittedTrue,
 }
 
@@ -60,10 +62,24 @@ class PreferenceStore(private val store: DataStore<Preferences>) {
     }
 
     private val preferences: Flow<Preferences> =
-        store.data.catch { cause -> if (cause is IOException) emit(emptyPreferences()) else throw cause }
+        store.data.catch { cause ->
+            if (cause is IOException) {
+                reportFirstControlWriteProbe(FirstControlWriteProbeEvent.PreferencesReadIOException)
+                emit(emptyPreferences())
+            } else {
+                throw cause
+            }
+        }
 
     val firstControlAchieved: Flow<Boolean> =
-        preferences.map { it[FIRST_CONTROL_ACHIEVED] ?: false }
+        preferences.map { values ->
+            val achieved = values[FIRST_CONTROL_ACHIEVED] ?: false
+            reportFirstControlWriteProbe(
+                if (achieved) FirstControlWriteProbeEvent.FlowEmittedTrue
+                else FirstControlWriteProbeEvent.FlowEmittedFalse
+            )
+            achieved
+        }
 
     val interaction: Flow<InteractionPreferences> =
         preferences.map { values ->
