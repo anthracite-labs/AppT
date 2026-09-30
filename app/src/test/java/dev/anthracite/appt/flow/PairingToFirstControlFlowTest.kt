@@ -15,7 +15,6 @@ import dev.anthracite.appt.discovery.DiscoveryTestTags
 import dev.anthracite.appt.localnetwork.LocalNetworkTestTags
 import dev.anthracite.appt.navigation.AppTNavGraph
 import dev.anthracite.appt.pairing.PairingTestTags
-import dev.anthracite.appt.preferences.FirstControlWriteProbeEvent
 import dev.anthracite.appt.preferences.PreferenceStore
 import dev.anthracite.appt.remote.ActiveRemoteHost
 import dev.anthracite.appt.remote.RemoteTestTags
@@ -30,7 +29,6 @@ import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 import dev.anthracite.appt.tokens.AppTTheme
 import dev.anthracite.appt.welcome.WelcomeTestTags
 import java.io.File
-import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
@@ -70,8 +68,6 @@ class PairingToFirstControlFlowTest {
     private val gate = FakePermissionGate()
     private val dao = FakeTvProfileDao()
     private val profiles = TvProfiles(dao) { 1L }
-    private val firstControlEvents = ConcurrentLinkedQueue<String>()
-    @Volatile private var probeOriginNanos = 0L
     /**
      * Lazy because `TemporaryFolder` only creates its root when the rule runs, which is after the
      * test instance is constructed. The path is resolved once inside it and then handed to every
@@ -84,13 +80,7 @@ class PairingToFirstControlFlowTest {
                 scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
                 produceFile = { file },
             )
-        ).also { preferenceStore ->
-            preferenceStore.firstControlWriteProbe = { event ->
-                val elapsedMillis =
-                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - probeOriginNanos)
-                firstControlEvents.add("${event.name}@${elapsedMillis}ms")
-            }
-        }
+        )
     }
     // Wired exactly as AppTApplication wires it: the host notices the transition to `Ready` and the
     // profile row records when the television was last opened.
@@ -144,26 +134,22 @@ class PairingToFirstControlFlowTest {
         // Keep idling the UI looper while the DataStore actor completes and resumes the
         // viewModelScope write, but collect on IO so observation itself does not need the looper.
         val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
-        while (!firstControlAchieved.get() && System.nanoTime() < deadline) {
+        var persisted = false
+        while (!firstControlAchieved.get() && !persisted && System.nanoTime() < deadline) {
             composeRule.waitForIdle()
+            // Read the current DataStore snapshot as well as observing its live flow. This avoids
+            // missing an already-committed value if the initial observer has not resumed yet.
+            persisted = runBlocking { store.firstControlAchieved.first() }
         }
-        val observerEventsBeforeReadBack = firstControlEvents.toList()
-        val storeReadBack = runBlocking { store.firstControlAchieved.first() }
-        println(
-            "FIRST_CONTROL_OBSERVER_EVENTS=$observerEventsBeforeReadBack; " +
-                "ALL_PROBE_EVENTS=$firstControlEvents; storeReadBack=$storeReadBack",
-        )
         assertTrue(
-            "the first accepted command is recorded; observerEvents=$observerEventsBeforeReadBack; " +
-                "storeReadBack=$storeReadBack",
-            firstControlAchieved.get(),
+            "the first accepted command is recorded",
+            firstControlAchieved.get() || persisted,
         )
     }
 
     @Test
     @Config(qualifiers = "w360dp-h1400dp")
     fun cardToPairingToReadyToRemoteToFirstAcceptedCommand() {
-        probeOriginNanos = System.nanoTime()
         setGraph()
         openDiscovery()
         tvs.latest.send(FakeSamsungTvs.found())
