@@ -90,7 +90,6 @@ internal class LiveSession(
 
     /** A conflated signal makes the IO writer read the newest set without blocking dispatch. */
     private val capabilityUpdates = Channel<Unit>(Channel.CONFLATED)
-    private var capabilityWriter: Job? = null
 
     /** The saved pairing this attempt resumed with, or null on first contact. */
     private var resumedFrom: PairingSecret? = null
@@ -102,20 +101,19 @@ internal class LiveSession(
     private var resumedWithTokenSent = false
 
     init {
-        capabilityWriter =
-            scope.launch(capabilityDispatcher) {
-                while (capabilityUpdates.receiveCatching().isSuccess) {
-                    val record = secrets.loadDevice(television.id) ?: continue
-                    try {
-                        secrets.saveDevice(
-                            television.id,
-                            record.copy(rejectedKeys = rejectedKeyEvidence.get()),
-                        )
-                    } catch (ignored: IOException) {
-                        // Negative evidence remains in the live snapshot; a later update retries.
-                    }
+        scope.launch(capabilityDispatcher) {
+            while (capabilityUpdates.receiveCatching().isSuccess) {
+                val record = secrets.loadDevice(television.id) ?: continue
+                try {
+                    secrets.saveDevice(
+                        television.id,
+                        record.copy(rejectedKeys = rejectedKeyEvidence.get()),
+                    )
+                } catch (ignored: IOException) {
+                    // Negative evidence remains in the live snapshot; a later update retries.
                 }
             }
+        }
         attempt = scope.launch { sessionLoop() }
     }
 
