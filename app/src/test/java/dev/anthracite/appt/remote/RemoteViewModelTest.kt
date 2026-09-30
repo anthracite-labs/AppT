@@ -131,7 +131,7 @@ class RemoteViewModelTest {
             subscribeTo(viewModel.state)
             settle()
 
-            assertEquals("Living Room TV", viewModel.state.value.tvName)
+            assertEquals("Living Room TV", viewModel.state.first { it.tvName == "Living Room TV" }.tvName)
         }
 
     @Test

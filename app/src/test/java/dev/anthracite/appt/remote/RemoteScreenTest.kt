@@ -1,5 +1,7 @@
 package dev.anthracite.appt.remote
 
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -37,6 +39,23 @@ class RemoteScreenTest {
                 RemoteScreen(
                     state = state,
                     onCommand = { commands += it },
+                    onRetry = { retries++ },
+                    onHapticFeedback = onHapticFeedback,
+                )
+            }
+        }
+    }
+
+    private fun setRemote(
+        state: MutableState<RemoteUiState>,
+        onCommand: (TvCommand) -> Unit = { commands += it },
+        onHapticFeedback: () -> Unit = {},
+    ) {
+        composeRule.setContent {
+            AppTTheme {
+                RemoteScreen(
+                    state = state.value,
+                    onCommand = onCommand,
                     onRetry = { retries++ },
                     onHapticFeedback = onHapticFeedback,
                 )
@@ -91,10 +110,11 @@ class RemoteScreenTest {
 
     @Test
     fun powerIsRenderedOnlyWithExplicitPowerOffEvidence() {
-        setRemote(ready(listOf(RemoteKey.Power)))
+        val state = mutableStateOf(ready(listOf(RemoteKey.Power)))
+        setRemote(state)
         composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.Power)).assertDoesNotExist()
 
-        setRemote(ready(listOf(RemoteKey.Power)).copy(powerOffAvailable = true))
+        composeRule.runOnIdle { state.value = ready(listOf(RemoteKey.Power)).copy(powerOffAvailable = true) }
         composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.Power)).assertIsDisplayed()
     }
 
@@ -112,7 +132,7 @@ class RemoteScreenTest {
                 .onAllNodesWithText("Approve AppT on your television to continue")
                 .fetchSemanticsNodes()
         assertEquals("the status is repeated beside the empty pad", 2, shown.size)
-        assertEquals(0, composeRule.clickableNodes().size)
+        assertEquals("Settings remains reachable in the Remote chrome", 1, composeRule.clickableNodes().size)
     }
 
     @Test
@@ -147,16 +167,18 @@ class RemoteScreenTest {
 
     @Test
     fun pointerChoiceIsOnlyVisibleWithPositiveCapabilityEvidence() {
-        setRemote(ready())
+        val state = mutableStateOf(ready())
+        setRemote(state)
         composeRule.onNodeWithTag(RemoteTestTags.NAVIGATION_MODE).assertDoesNotExist()
         composeRule.onNodeWithTag(RemoteTestTags.TOUCHPAD).assertDoesNotExist()
 
-        setRemote(
-            ready().copy(
-                pointerAvailable = true,
-                navigationMode = dev.anthracite.appt.preferences.NavigationMode.Pointer,
-            )
-        )
+        composeRule.runOnIdle {
+            state.value =
+                ready().copy(
+                    pointerAvailable = true,
+                    navigationMode = dev.anthracite.appt.preferences.NavigationMode.Pointer,
+                )
+        }
         composeRule.onNodeWithTag(RemoteTestTags.NAVIGATION_MODE).assertIsDisplayed()
         composeRule.onNodeWithTag(RemoteTestTags.TOUCHPAD).assertIsDisplayed()
         composeRule.onNodeWithTag(RemoteTestTags.DIRECTIONAL_PAD).assertDoesNotExist()
@@ -165,21 +187,17 @@ class RemoteScreenTest {
     @Test
     fun hapticFeedbackIsImmediateAndRespectsThePreference() {
         val order = mutableListOf<String>()
-        composeRule.setContent {
-            AppTTheme {
-                RemoteScreen(
-                    state = ready(),
-                    onCommand = { order += "command" },
-                    onRetry = {},
-                    onHapticFeedback = { order += "haptic" },
-                )
-            }
-        }
+        val state = mutableStateOf(ready())
+        setRemote(
+            state = state,
+            onCommand = { order += "command" },
+            onHapticFeedback = { order += "haptic" },
+        )
         composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.VolumeUp)).performClick()
         assertEquals(listOf("haptic", "command"), order)
 
         order.clear()
-        setRemote(ready().copy(hapticsEnabled = false))
+        composeRule.runOnIdle { state.value = ready().copy(hapticsEnabled = false) }
         composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.VolumeUp)).performClick()
         assertEquals(emptyList<String>(), order)
     }

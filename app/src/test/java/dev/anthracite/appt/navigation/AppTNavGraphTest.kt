@@ -136,15 +136,16 @@ class AppTNavGraphTest {
         }
 
     @Test
-    fun `the graph holds Welcome, LocalNetwork, Discovery, Pairing and Remote and opens on Welcome`() {
+    fun `the graph holds the S05 Settings route and opens on Welcome`() {
         setGraph()
         val destinations = navController.graph.iterator().asSequence().toList()
-        assertEquals(5, destinations.size)
+        assertEquals(6, destinations.size)
         assertTrue(destinations.any { it.hasRoute<WelcomeRoute>() })
         assertTrue(destinations.any { it.hasRoute<LocalNetworkRoute>() })
         assertTrue(destinations.any { it.hasRoute<DiscoveryRoute>() })
         assertTrue(destinations.any { it.hasRoute<PairingRoute>() })
         assertTrue(destinations.any { it.hasRoute<RemoteRoute>() })
+        assertTrue(destinations.any { it.hasRoute<SettingsRoute>() })
         assertTrue(navController.graph.findStartDestination().hasRoute<WelcomeRoute>())
         composeRule.onNodeWithTag(WelcomeTestTags.VALUE_PROPOSITION).assertExists()
         composeRule.onNodeWithTag(WelcomeTestTags.PRIMARY_ACTION).assertExists()

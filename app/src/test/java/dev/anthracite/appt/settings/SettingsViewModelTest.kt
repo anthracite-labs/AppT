@@ -59,7 +59,9 @@ class SettingsViewModelTest {
             viewModel.onPhoneVolumeButtons(false)
             viewModel.onNavigationMode(NavigationMode.Pointer)
             settle()
-            val saved = preferences.interaction.first()
+            val saved = preferences.interaction.first {
+                !it.hapticsEnabled && !it.volumeButtonsControlTv
+            }
             assertFalse(saved.hapticsEnabled)
             assertFalse(saved.volumeButtonsControlTv)
             assertEquals(NavigationMode.Directional, saved.navigationMode)
@@ -73,7 +75,10 @@ class SettingsViewModelTest {
 
             tvs.sessionFor(id)!!.publish(SessionState.Reconnecting, pointer = true)
             settle()
-            assertFalse("stale pointer evidence is hidden while reconnecting", viewModel.state.value.pointerAvailable)
+            assertFalse(
+                "stale pointer evidence is hidden while reconnecting",
+                viewModel.state.value.pointerAvailable,
+            )
             assertEquals(NavigationMode.Directional, viewModel.state.value.effectiveNavigationMode)
         }
 }

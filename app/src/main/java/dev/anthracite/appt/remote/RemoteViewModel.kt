@@ -1,6 +1,5 @@
 package dev.anthracite.appt.remote
 
-import android.os.SystemClock
 import android.os.Trace
 import android.view.KeyEvent
 import androidx.lifecycle.ViewModel
@@ -51,21 +50,39 @@ class RemoteViewModel(
     /** Sends a typed command on the already-retained session. */
     fun onCommand(command: TvCommand) {
         val traceCookie = nextTraceCookie.incrementAndGet()
-        Trace.beginAsyncSection(COMMAND_LATENCY_TRACE, traceCookie)
-        diagnostics?.recordApp(AppDiagnosticName.RemoteInteraction, SystemClock.elapsedRealtime())
+        beginCommandTrace(traceCookie)
+        diagnostics?.recordApp(
+            AppDiagnosticName.RemoteInteraction,
+            (System.nanoTime() / NANOS_PER_MILLI).coerceAtLeast(0),
+        )
         viewModelScope.launch {
             var traceEnded = false
             try {
                 val held = activeRemoteHost.current.value?.takeIf { it.tvId == tvId } ?: return@launch
                 val result = held.session.command(command)
-                Trace.endAsyncSection(COMMAND_LATENCY_TRACE, traceCookie)
+                endCommandTrace(traceCookie)
                 traceEnded = true
                 if (result == CommandResult.Accepted) preferenceStore.setFirstControlAchieved()
             } finally {
-                if (!traceEnded) Trace.endAsyncSection(COMMAND_LATENCY_TRACE, traceCookie)
+                if (!traceEnded) endCommandTrace(traceCookie)
             }
         }
     }
+
+    /** Tracing is optional instrumentation; a missing platform implementation must not block input. */
+    private inline fun traceSafely(block: () -> Unit) {
+        try {
+            block()
+        } catch (ignored: RuntimeException) {
+            // JVM unit tests have no Android trace service; real-device traces remain enabled.
+        }
+    }
+
+    private fun beginCommandTrace(cookie: Int) =
+        traceSafely { Trace.beginAsyncSection(COMMAND_LATENCY_TRACE, cookie) }
+
+    private fun endCommandTrace(cookie: Int) =
+        traceSafely { Trace.endAsyncSection(COMMAND_LATENCY_TRACE, cookie) }
 
     /**
      * Handles one Android hardware-volume event. The caller installs this only while Remote is
@@ -100,6 +117,7 @@ class RemoteViewModel(
 
     private companion object {
         const val SUBSCRIPTION_TIMEOUT = 5_000L
+        const val NANOS_PER_MILLI = 1_000_000L
         const val COMMAND_LATENCY_TRACE = "commandLatencyBudget"
         val nextTraceCookie = AtomicInteger()
     }

@@ -53,7 +53,7 @@ class SettingsScreenTest {
         composeRule.onNodeWithText("Navigation mode").assertIsDisplayed()
         composeRule.onNodeWithText("About").assertIsDisplayed()
         composeRule.onNodeWithText("App version").assertIsDisplayed()
-        composeRule.onNodeWithTag(SettingsTestTags.VERSION).assertIsDisplayed()
+        composeRule.onNodeWithText("0.1.0").assertIsDisplayed()
         composeRule.onNodeWithText("Account & License").assertDoesNotExist()
         composeRule.onNodeWithText("TVs").assertDoesNotExist()
         composeRule.onNodeWithText("Privacy & Diagnostics").assertDoesNotExist()
