@@ -563,9 +563,9 @@ everywhere else.
 workflow defaults plus every job override, including reusable-workflow callers.
 It runs in the mandatory `repo-quality` job and mutation-tests missing
 boundaries, write-capable overrides, aliases, flow mappings, and invalid values.
-This also covers the one provider key the pinned actionlint parser does not yet
-recognize; only that exact unknown top-level-key diagnostic is excluded from
-actionlint, not other syntax, security, or workflow checks.
+This also covers the provider key the pinned actionlint parser does not yet
+recognize at workflow or job level; only those exact unknown-key diagnostics are
+excluded from actionlint, not other syntax, security, or workflow checks.
 
 #### Secret-bearing Sonar boundary
 
