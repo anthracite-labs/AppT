@@ -15,6 +15,7 @@ import dev.anthracite.appt.discovery.DiscoveryTestTags
 import dev.anthracite.appt.localnetwork.LocalNetworkTestTags
 import dev.anthracite.appt.navigation.AppTNavGraph
 import dev.anthracite.appt.pairing.PairingTestTags
+import dev.anthracite.appt.preferences.FirstControlWriteProbeEvent
 import dev.anthracite.appt.preferences.PreferenceStore
 import dev.anthracite.appt.remote.ActiveRemoteHost
 import dev.anthracite.appt.remote.RemoteTestTags
@@ -29,13 +30,14 @@ import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 import dev.anthracite.appt.tokens.AppTTheme
 import dev.anthracite.appt.welcome.WelcomeTestTags
 import java.io.File
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -67,6 +69,7 @@ class PairingToFirstControlFlowTest {
     private val gate = FakePermissionGate()
     private val dao = FakeTvProfileDao()
     private val profiles = TvProfiles(dao) { 1L }
+    private val firstControlEvents = ConcurrentLinkedQueue<FirstControlWriteProbeEvent>()
     /**
      * Lazy because `TemporaryFolder` only creates its root when the rule runs, which is after the
      * test instance is constructed. The path is resolved once inside it and then handed to every
@@ -79,7 +82,12 @@ class PairingToFirstControlFlowTest {
                 scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
                 produceFile = { file },
             )
-        )
+        ).also { preferenceStore ->
+            preferenceStore.firstControlWriteProbe = { event ->
+                firstControlEvents.add(event)
+                Unit
+            }
+        }
     }
     // Wired exactly as AppTApplication wires it: the host notices the transition to `Ready` and the
     // profile row records when the television was last opened.
@@ -127,8 +135,12 @@ class PairingToFirstControlFlowTest {
 
     private fun awaitFirstControlAchieved(timeoutMillis: Long = 10_000L) {
         observations.launch {
-            store.firstControlAchieved.first { it }
-            firstControlAchieved.set(true)
+            store.firstControlAchieved.collect { achieved ->
+                if (achieved) {
+                    firstControlEvents.add(FirstControlWriteProbeEvent.FlowEmittedTrue)
+                    firstControlAchieved.set(true)
+                }
+            }
         }
         // Keep idling the UI looper while the DataStore actor completes and resumes the
         // viewModelScope write, but collect on IO so observation itself does not need the looper.
@@ -136,7 +148,10 @@ class PairingToFirstControlFlowTest {
         while (!firstControlAchieved.get() && System.nanoTime() < deadline) {
             composeRule.waitForIdle()
         }
-        assertTrue("the first accepted command is recorded", firstControlAchieved.get())
+        assertTrue(
+            "the first accepted command is recorded; observed events=$firstControlEvents",
+            firstControlAchieved.get(),
+        )
     }
 
     @Test
@@ -191,6 +206,18 @@ class PairingToFirstControlFlowTest {
         assertEquals(listOf(TvCommand.Tap(RemoteKey.VolumeUp)), session.commands)
         assertEquals(listOf(CommandResult.Accepted), session.commandResults)
         awaitFirstControlAchieved()
+        assertTrue(
+            "accepted command, DataStore edit completion, and same-store flow emission are observed: " +
+                firstControlEvents,
+            firstControlEvents.containsAll(
+                setOf(
+                    FirstControlWriteProbeEvent.AcceptedCommandResult,
+                    FirstControlWriteProbeEvent.WriteStarted,
+                    FirstControlWriteProbeEvent.WriteCompleted,
+                    FirstControlWriteProbeEvent.FlowEmittedTrue,
+                )
+            ),
+        )
         assertEquals("still one session after the command", listOf(livingRoom), tvs.openedIds)
         assertFalse("the session was not closed by the handoff", session.closed)
     }

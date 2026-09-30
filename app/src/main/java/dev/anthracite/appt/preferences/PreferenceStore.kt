@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
@@ -38,8 +39,25 @@ data class InteractionPreferences(
  * Call sites never use raw key strings, and no key in this store holds a television secret, an
  * address, an account identifier, or sync metadata. UI writes remain ViewModel-owned.
  */
+internal enum class FirstControlWriteProbeEvent {
+    AcceptedCommandResult,
+    WriteStarted,
+    WriteCompleted,
+    WriteCancelled,
+    WriteIOException,
+    WriteUnexpectedFailure,
+    FlowEmittedTrue,
+}
+
 class PreferenceStore(private val store: DataStore<Preferences>) {
     constructor(context: Context) : this(context.appPreferences)
+
+    /** Temporary, internal probe for the first-control integration reproducer. */
+    @Volatile internal var firstControlWriteProbe: ((FirstControlWriteProbeEvent) -> Unit)? = null
+
+    internal fun reportFirstControlWriteProbe(event: FirstControlWriteProbeEvent) {
+        firstControlWriteProbe?.invoke(event)
+    }
 
     private val preferences: Flow<Preferences> =
         store.data.catch { cause -> if (cause is IOException) emit(emptyPreferences()) else throw cause }
@@ -60,10 +78,19 @@ class PreferenceStore(private val store: DataStore<Preferences>) {
         }
 
     suspend fun setFirstControlAchieved() {
+        reportFirstControlWriteProbe(FirstControlWriteProbeEvent.WriteStarted)
         try {
             store.edit { it[FIRST_CONTROL_ACHIEVED] = true }
+            reportFirstControlWriteProbe(FirstControlWriteProbeEvent.WriteCompleted)
+        } catch (cancelled: CancellationException) {
+            reportFirstControlWriteProbe(FirstControlWriteProbeEvent.WriteCancelled)
+            throw cancelled
         } catch (ignored: IOException) {
+            reportFirstControlWriteProbe(FirstControlWriteProbeEvent.WriteIOException)
             // A failed local milestone write cannot interrupt a live TV command.
+        } catch (failure: Throwable) {
+            reportFirstControlWriteProbe(FirstControlWriteProbeEvent.WriteUnexpectedFailure)
+            throw failure
         }
     }
 
