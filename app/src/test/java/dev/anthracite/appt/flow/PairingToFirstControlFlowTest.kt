@@ -147,10 +147,14 @@ class PairingToFirstControlFlowTest {
         while (!firstControlAchieved.get() && System.nanoTime() < deadline) {
             composeRule.waitForIdle()
         }
+        val observerEventsBeforeReadBack = firstControlEvents.toList()
         val storeReadBack = runBlocking { store.firstControlAchieved.first() }
-        println("FIRST_CONTROL_PROBE_EVENTS=$firstControlEvents; storeReadBack=$storeReadBack")
+        println(
+            "FIRST_CONTROL_OBSERVER_EVENTS=$observerEventsBeforeReadBack; " +
+                "ALL_PROBE_EVENTS=$firstControlEvents; storeReadBack=$storeReadBack",
+        )
         assertTrue(
-            "the first accepted command is recorded; probes=$firstControlEvents; " +
+            "the first accepted command is recorded; observerEvents=$observerEventsBeforeReadBack; " +
                 "storeReadBack=$storeReadBack",
             firstControlAchieved.get(),
         )
