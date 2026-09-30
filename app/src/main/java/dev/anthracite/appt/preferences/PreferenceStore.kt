@@ -12,6 +12,7 @@ import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 /** The preferences file every typed key lives in (data.md#datastore). */
@@ -47,6 +48,8 @@ internal enum class FirstControlWriteProbeEvent {
     WriteIOException,
     WriteUnexpectedFailure,
     PreferencesReadIOException,
+    StoreReadBackFalse,
+    StoreReadBackTrue,
     FlowEmittedFalse,
     FlowEmittedTrue,
 }
@@ -98,6 +101,13 @@ class PreferenceStore(private val store: DataStore<Preferences>) {
         try {
             store.edit { it[FIRST_CONTROL_ACHIEVED] = true }
             reportFirstControlWriteProbe(FirstControlWriteProbeEvent.WriteCompleted)
+            reportFirstControlWriteProbe(
+                if (store.data.first()[FIRST_CONTROL_ACHIEVED] == true) {
+                    FirstControlWriteProbeEvent.StoreReadBackTrue
+                } else {
+                    FirstControlWriteProbeEvent.StoreReadBackFalse
+                }
+            )
         } catch (cancelled: CancellationException) {
             reportFirstControlWriteProbe(FirstControlWriteProbeEvent.WriteCancelled)
             throw cancelled
