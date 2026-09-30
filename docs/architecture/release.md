@@ -437,9 +437,21 @@ the device task is the `pixel2api29` managed device configured in
 `app/build.gradle.kts`. A focused diagnostic is still implementation feedback
 only; full `verify` is unchanged by any of this.
 
-The label bridge continues to dispatch with an empty focus, because it has no
-safe channel for a value; manual dispatch exposes `focus` directly. No new
-metadata-command parser was added to transport it.
+The label bridge keeps ordinary command labels full-mode by default. When an
+agent that lacks Actions-write permission needs the already-accepted narrow
+`focus`, the pull request may carry exactly one mode-bound marker on a line by
+itself, for example:
+
+`<!-- appt-ci-focus app-unit: PairingToFirstControlFlowTest -->`
+
+Applying the existing matching label (`ci:app-unit` in this example) makes the
+trusted bridge read that marker from the same pull-request metadata snapshot and
+pass only its value as the `focus` workflow input. A marker for another mode is
+ignored; no marker preserves the existing whole-mode dispatch. Duplicate
+matching markers fail closed. The pull-request body remains untrusted: the
+bridge never evaluates marker text as shell or command syntax, and the trusted
+`diagnose-focus.mjs` resolver validates the mode/focus pair before dispatch and
+again inside `diagnose.yml`. `ci:full` never forwards focus.
 
 ### Agent invocation (`agent-control.yml`)
 
@@ -450,7 +462,9 @@ without a human clicking through the Actions UI. Two routes exist:
    `verify` or `diagnose` with `workflow_dispatch`. This is the preferred route.
 2. **Trusted command bridge** — `.github/workflows/agent-control.yml`, for an
    integration that can mutate pull-request metadata but cannot dispatch
-   workflows. Adding one of the command labels (`ci:full`, `ci:app-unit`,
+   workflows. An optional mode-bound `appt-ci-focus` marker in the PR body may
+   narrow a diagnostic label while remaining untrusted data validated by the
+   trusted resolver. Adding one of the command labels (`ci:full`, `ci:app-unit`,
    `ci:samsung-unit`, `ci:android-static`, `ci:android-build`, `ci:backend`,
    `ci:backend-static`, `ci:backend-test`, `ci:device`) to a pull request makes
    the bridge resolve that pull request's exact head SHA and branch, dispatch
