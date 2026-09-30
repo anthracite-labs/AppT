@@ -162,6 +162,24 @@ jobs:
             echo "::notice::${MODE} runs its full mode; no focus was supplied."
           fi
 
+      - name: Restore PR-local Gradle build cache
+        if: steps.assert-target.outputs.pr-number != ''
+        # actions/cache/restore v4.2.4
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809
+        with:
+          path: ~/.gradle/caches/build-cache-1
+          key: appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-
+
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ steps.assert-target.outputs.sha }}
+          persist-credentials: false
+
       - name: Run :app unit and Robolectric tests
         run: |
           set -o pipefail
@@ -289,6 +307,24 @@ jobs:
             echo "::notice::${MODE} runs its full mode; no focus was supplied."
           fi
 
+      - name: Restore PR-local Gradle build cache
+        if: steps.assert-target.outputs.pr-number != ''
+        # actions/cache/restore v4.2.4
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809
+        with:
+          path: ~/.gradle/caches/build-cache-1
+          key: appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-
+
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ steps.assert-target.outputs.sha }}
+          persist-credentials: false
+
       - name: Run :samsung unit tests
         run: |
           set -o pipefail
@@ -415,6 +451,24 @@ jobs:
           else
             echo "::notice::${MODE} runs its full mode; no focus was supplied."
           fi
+
+      - name: Restore PR-local Gradle build cache
+        if: steps.assert-target.outputs.pr-number != ''
+        # actions/cache/restore v4.2.4
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809
+        with:
+          path: ~/.gradle/caches/build-cache-1
+          key: appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-
+
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ steps.assert-target.outputs.sha }}
+          persist-credentials: false
 
       - name: Run Android static and policy verification
         run: |
@@ -544,6 +598,24 @@ jobs:
           else
             echo "::notice::${MODE} runs its full mode; no focus was supplied."
           fi
+
+      - name: Restore PR-local Gradle build cache
+        if: steps.assert-target.outputs.pr-number != ''
+        # actions/cache/restore v4.2.4
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809
+        with:
+          path: ~/.gradle/caches/build-cache-1
+          key: appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-
+
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ steps.assert-target.outputs.sha }}
+          persist-credentials: false
 
       - name: Run Android build
         run: |
@@ -917,6 +989,24 @@ jobs:
           else
             echo "::notice::${MODE} runs its full mode; no focus was supplied."
           fi
+
+      - name: Restore PR-local Gradle build cache
+        if: steps.assert-target.outputs.pr-number != ''
+        # actions/cache/restore v4.2.4
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809
+        with:
+          path: ~/.gradle/caches/build-cache-1
+          key: appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-
+
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ steps.assert-target.outputs.sha }}
+          persist-credentials: false
 
       - name: Run Gradle Managed Device Acceptance Test (API 29)
         run: |
