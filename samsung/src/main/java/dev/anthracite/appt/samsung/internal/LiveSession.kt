@@ -144,7 +144,7 @@ internal class LiveSession(
             }
             CommandWriteResult.TelevisionRejected -> {
                 diagnostics.commandRejected()
-                if (command is TvCommand.Tap) recordRejectedKey(command.key)
+                recordRejectedKey(command.key)
                 CommandResult.Rejected(TvFailure.Rejected)
             }
         }
