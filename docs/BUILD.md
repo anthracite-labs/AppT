@@ -317,18 +317,27 @@ this boundary. This applies to every job and event in those two workflows;
 provider cache writes are intentionally unavailable even for trusted-only runs.
 
 For bridge-dispatched **Gradle-backed diagnostics only**, `diagnose.yml` may
-reuse the previous run's local Gradle build cache through a one-day workflow
-artifact named from the **validated pull-request number** published by
-`assert-dispatch-target`. This is deliberately not a GitHub Actions cache
-write: the target job remains `cache-mode: read`. The artifact contains only
-`~/.gradle/caches/build-cache-1`, is capped at 512 MiB, and is restored only
-when its producer is `diagnose.yml` for the same validated PR namespace.
-Archive traversal, links/devices, unexpected paths, missing state, and oversize
-state are rejected and the diagnostic continues without that PR-local layer.
-The refreshed artifact is uploaded even after a red diagnostic so the next
-bounded fix/retest can reuse completed Gradle task outputs. Terminal `verify`
-and CodeQL never restore this artifact, so acceptance evidence remains
-independent of PR-local warm state.
+reuse the previous run's local Gradle build cache under a PR-scoped provider-cache
+key derived from the **validated pull-request number** published by
+`assert-dispatch-target`. Jobs that execute PR code remain under workflow-level
+`cache-mode: read`: they may restore the matching `appt-pr-gradle-<pr>-`
+prefix, but they cannot save provider caches.
+
+After the exact validated PR head runs, the diagnostic packages only
+`~/.gradle/caches/build-cache-1` into a one-day workflow artifact. A separate
+trusted `publish-gradle-warm-state` job then downloads that current-run artifact
+by its action-produced artifact ID, validates path shape, entry types, expanded
+size and file count, stages only `build-cache-1`, and saves it under the
+PR-number namespace. That publisher is the repository's sole narrow exception:
+it is `cache-mode: write-only`, never checks out PR code, never invokes
+repository-local actions, receives no repository secrets, and cannot read provider
+caches. The parsed-YAML cache contract proves that structure explicitly.
+
+Missing, invalid, or oversize warm state degrades to the ordinary read-only
+diagnostic path. Red diagnostics can still publish bounded task outputs for the
+next fix/retest. `verify.yml`, CodeQL, and release evidence never receive the
+publisher's write capability, so acceptance evidence remains independent of
+PR-local warm state.
 
 Fork pull requests cannot be dispatched at all and fail closed. The logic lives in `tools/ci/dispatch-workflow.mjs`, proven by
 `tools/ci/test/dispatch-workflow.test.mjs`; the tests reject a commit SHA used
