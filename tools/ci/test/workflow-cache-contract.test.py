@@ -19,6 +19,14 @@ WORKFLOWS = Path(__file__).resolve().parents[3] / ".github" / "workflows"
 TARGET_WORKFLOWS = {"verify.yml", "diagnose.yml"}
 VALID_MODES = {"read", "none", "write", "write-only"}
 READ_ONLY_MODES = {"read", "none"}
+TRUSTED_CACHE_PUBLISHER = "publish-gradle-warm-state"
+GRADLE_DIAGNOSTIC_JOBS = {
+    "app-unit",
+    "samsung-unit",
+    "android-static",
+    "android-build",
+    "device",
+}
 
 
 def validate_cache_contract(workflow, *, executes_target):
@@ -39,9 +47,14 @@ def validate_cache_contract(workflow, *, executes_target):
                 f"{job_id}: job cache-mode must be a literal provider-supported value"
             )
         if executes_target:
-            assert effective_mode in READ_ONLY_MODES, (
-                f"{job_id}: target workflow job must not receive cache-write capability"
-            )
+            if job_id == TRUSTED_CACHE_PUBLISHER:
+                assert effective_mode == "write-only", (
+                    f"{job_id}: trusted cache publisher must be write-only"
+                )
+            else:
+                assert effective_mode in READ_ONLY_MODES, (
+                    f"{job_id}: target workflow job must not receive cache-write capability"
+                )
 
 
 def executes_validated_target(workflow):
@@ -95,10 +108,17 @@ class WorkflowCacheContractTests(unittest.TestCase):
                 with self.subTest(workflow=name, mode=mode), self.assertRaises(AssertionError):
                     validate_cache_contract(candidate, executes_target=True)
                 for job_id in workflow["jobs"]:
+                    if job_id == TRUSTED_CACHE_PUBLISHER and mode == "write-only":
+                        continue
                     candidate = deepcopy(workflow)
                     candidate["jobs"][job_id]["cache-mode"] = mode
                     with self.subTest(workflow=name, job=job_id, mode=mode):
-                        with self.assertRaisesRegex(AssertionError, "cache-write capability"):
+                        message = (
+                            "trusted cache publisher must be write-only"
+                            if job_id == TRUSTED_CACHE_PUBLISHER
+                            else "cache-write capability"
+                        )
+                        with self.assertRaisesRegex(AssertionError, message):
                             validate_cache_contract(candidate, executes_target=True)
 
     def test_flow_mapping_and_alias_cannot_hide_a_write_override(self):
@@ -123,6 +143,62 @@ class WorkflowCacheContractTests(unittest.TestCase):
                     AssertionError, "literal provider-supported value"
                 ):
                     validate_cache_contract(workflow, executes_target=True)
+
+
+    def test_pr_local_gradle_cache_has_one_trusted_write_only_publisher(self):
+        diagnose = yaml.safe_load((WORKFLOWS / "diagnose.yml").read_text())
+        verify_text = (WORKFLOWS / "verify.yml").read_text()
+        publisher = diagnose["jobs"][TRUSTED_CACHE_PUBLISHER]
+
+        self.assertEqual(publisher["cache-mode"], "write-only")
+        self.assertEqual(publisher["permissions"], {"contents": "read"})
+        self.assertEqual(set(publisher["needs"]), GRADLE_DIAGNOSTIC_JOBS)
+
+        publisher_uses = [
+            step["uses"]
+            for step in publisher["steps"]
+            if "uses" in step
+        ]
+        self.assertEqual(
+            publisher_uses,
+            [
+                "actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131",
+                "actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809",
+            ],
+        )
+        self.assertFalse(
+            any("checkout" in use or "assert-dispatch-target" in use for use in publisher_uses)
+        )
+
+        publisher_text = yaml.safe_dump(publisher, sort_keys=False)
+        self.assertIn("appt-pr-gradle-${{ env.PR_NUMBER }}-", publisher_text)
+        self.assertNotIn("inputs.target_ref", publisher_text)
+        self.assertNotIn("inputs.focus", publisher_text)
+
+        for job_id in sorted(GRADLE_DIAGNOSTIC_JOBS):
+            job = diagnose["jobs"][job_id]
+            self.assertNotIn("cache-mode", job, f"{job_id} must inherit workflow read-only mode")
+            uses = [step.get("uses", "") for step in job["steps"]]
+            self.assertIn(
+                "actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809",
+                uses,
+                f"{job_id} must restore only through the trusted PR-number key",
+            )
+            self.assertFalse(
+                any(use.startswith("actions/cache/save@") for use in uses),
+                f"{job_id} must never receive a cache save action",
+            )
+            restore = next(
+                step
+                for step in job["steps"]
+                if step.get("uses", "").startswith("actions/cache/restore@")
+            )
+            restore_text = yaml.safe_dump(restore, sort_keys=False)
+            self.assertIn("steps.assert-target.outputs.pr-number", restore_text)
+            self.assertNotIn("inputs.target_ref", restore_text)
+
+        self.assertNotIn("appt-pr-gradle-", verify_text)
+        self.assertNotIn("publish-gradle-warm-state", verify_text)
 
     def test_future_target_workflows_are_discovered(self):
         workflow = yaml.safe_load("""
