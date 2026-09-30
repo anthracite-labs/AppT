@@ -63,6 +63,8 @@
 import { spawn } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
 
+import { resolveFocus as resolveDiagnoseFocus } from './diagnose-focus.mjs';
+
 /**
  * The command-label allowlist. Only these labels do anything; anything else is
  * a hard failure with no API call, so an unrecognised label produces no run.
@@ -108,6 +110,43 @@ export function resolveDispatch(label) {
 }
 
 /**
+ * Read the optional mode-bound focus marker from an untrusted pull-request
+ * body. The marker is data only; this parser never turns it into a command.
+ *
+ * Exact form:
+ *   <!-- appt-ci-focus app-unit: PairingToFirstControlFlowTest -->
+ *
+ * A marker for another mode is ignored. More than one matching marker is
+ * ambiguous and fails closed. The selected value is subsequently validated by
+ * the trusted diagnose-focus resolver before any workflow is dispatched.
+ */
+export function resolvePullRequestFocus({ body, mode }) {
+  if (!mode) return '';
+
+  const text = typeof body === 'string' ? body : '';
+  const marker = /^<!-- appt-ci-focus ([a-z0-9-]+): ([^\r\n]+) -->$/gm;
+  const matches = [];
+
+  for (const match of text.matchAll(marker)) {
+    if (match[1] === mode) matches.push(match[2].trim());
+  }
+
+  if (matches.length > 1) {
+    throw new Error(`multiple appt-ci-focus markers found for mode ${mode}`);
+  }
+  if (matches.length === 0) return '';
+
+  const focus = matches[0];
+  if (focus.length === 0) {
+    throw new Error(`appt-ci-focus marker for mode ${mode} must not be empty`);
+  }
+  if (focus.length > 512) {
+    throw new Error(`appt-ci-focus marker for mode ${mode} exceeds 512 characters`);
+  }
+  return focus;
+}
+
+/**
  * Build the provider-valid dispatch request body.
  *
  * `ref` is the **trusted anchor**: the repository's default branch, whose
@@ -120,7 +159,7 @@ export function resolveDispatch(label) {
  * `ref` cannot carry them: it names the workflow to run, not the code to
  * verify.
  */
-export function buildDispatchBody({ ref, targetRef, mode = '', expectedSha }) {
+export function buildDispatchBody({ ref, targetRef, mode = '', focus = '', expectedSha }) {
   if (typeof ref !== 'string' || ref.length === 0) {
     throw new Error('buildDispatchBody: ref is required');
   }
@@ -154,10 +193,21 @@ export function buildDispatchBody({ ref, targetRef, mode = '', expectedSha }) {
   if (typeof expectedSha !== 'string' || !COMMIT_SHA.test(expectedSha)) {
     throw new Error('buildDispatchBody: expectedSha must be a 40-character commit SHA');
   }
+  if (typeof focus !== 'string') {
+    throw new Error('buildDispatchBody: focus must be a string');
+  }
+  if (focus && !mode) {
+    throw new Error('buildDispatchBody: focus is only valid for a diagnose mode');
+  }
 
   return {
     ref,
-    inputs: { target_ref: targetRef, expected_sha: expectedSha, ...(mode ? { mode } : {}) },
+    inputs: {
+      target_ref: targetRef,
+      expected_sha: expectedSha,
+      ...(mode ? { mode } : {}),
+      ...(focus ? { focus } : {}),
+    },
     // Ask the provider for the run details so the audit-trail comment can link
     // the dispatched run without polling for it.
     return_run_details: true,
@@ -196,7 +246,8 @@ export async function resolvePullRequestHead({ gh, repo, prNumber }) {
   if (typeof ref !== 'string' || ref.length === 0) {
     throw new Error(`could not resolve a pull-request head branch for #${prNumber}`);
   }
-  return { sha, ref, headRepo };
+  const body = typeof pr?.body === 'string' ? pr.body : '';
+  return { sha, ref, headRepo, body };
 }
 
 /**
@@ -216,6 +267,13 @@ export async function dispatchCommand({
   const { workflow, mode } = resolveDispatch(label);
 
   const head = await resolvePullRequestHead({ gh, repo, prNumber });
+
+  // A pull-request body is untrusted metadata. If it asks for a focus, select
+  // only the marker bound to this command's mode and validate that value with
+  // the same trusted resolver diagnose.yml uses. An invalid selector therefore
+  // fails before any workflow dispatch rather than becoming command text.
+  const focus = mode ? resolvePullRequestFocus({ body: head.body, mode }) : '';
+  if (mode) resolveDiagnoseFocus({ mode, focus });
 
   // Trusted assertion logic resolves the target branch inside this repository.
   // Require a known same-repository head, including when a deleted head repo
@@ -242,12 +300,14 @@ export async function dispatchCommand({
     ref: anchor,
     targetRef: head.ref,
     mode,
+    focus,
     expectedSha: head.sha,
   });
 
   log(
     `Dispatching ${workflow} from the trusted default branch ${anchor} for target ` +
-      `ref ${head.ref} (expected ${head.sha})${mode ? ` with mode=${mode}` : ''}.`
+      `ref ${head.ref} (expected ${head.sha})${mode ? ` with mode=${mode}` : ''}` +
+      `${focus ? ` focus=${JSON.stringify(focus)}` : ''}.`
   );
 
   const response = await gh(
@@ -266,6 +326,7 @@ export async function dispatchCommand({
   return {
     workflow,
     mode,
+    focus,
     // The trusted anchor the workflow ran from...
     ref: anchor,
     // ...and the target that workflow was asked to verify.
@@ -383,6 +444,7 @@ async function main() {
           `ref=${result.ref}`,
           `target-ref=${result.targetRef}`,
           `workflow=${result.workflow}`,
+          `focused=${result.focus ? 'true' : 'false'}`,
           `run-url=${result.runUrl}`,
           '',
         ].join('\n')
