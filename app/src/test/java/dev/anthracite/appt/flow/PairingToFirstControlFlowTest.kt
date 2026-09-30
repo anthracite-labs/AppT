@@ -29,15 +29,14 @@ import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 import dev.anthracite.appt.tokens.AppTTheme
 import dev.anthracite.appt.welcome.WelcomeTestTags
 import java.io.File
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -92,9 +91,10 @@ class PairingToFirstControlFlowTest {
         )
     private val livingRoom = TvId(FakeSamsungTvs.LIVING_ROOM_ID)
 
-    // The command milestone is a suspending DataStore write. Collect it off the UI dispatcher,
-    // while the test idles the UI looper so the write can resume there.
+    // Observe the suspending DataStore milestone on real IO, independently of the Compose test
+    // dispatcher used to drive the acceptance flow.
     private val observations = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val firstControlObserverStarted = AtomicBoolean(false)
     private val firstControlAchieved = AtomicBoolean(false)
 
     private fun setGraph() {
@@ -124,27 +124,6 @@ class PairingToFirstControlFlowTest {
     @After
     fun stopObservations() {
         observations.cancel()
-    }
-
-    private fun awaitFirstControlAchieved(timeoutMillis: Long = 10_000L) {
-        observations.launch {
-            store.firstControlAchieved.first { it }
-            firstControlAchieved.set(true)
-        }
-        // Keep idling the UI looper while the DataStore actor completes and resumes the
-        // viewModelScope write, but collect on IO so observation itself does not need the looper.
-        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
-        var persisted = false
-        while (!firstControlAchieved.get() && !persisted && System.nanoTime() < deadline) {
-            composeRule.waitForIdle()
-            // Read the current DataStore snapshot as well as observing its live flow. This avoids
-            // missing an already-committed value if the initial observer has not resumed yet.
-            persisted = runBlocking { store.firstControlAchieved.first() }
-        }
-        assertTrue(
-            "the first accepted command is recorded",
-            firstControlAchieved.get() || persisted,
-        )
     }
 
     @Test
@@ -193,11 +172,35 @@ class PairingToFirstControlFlowTest {
             dao.current().single().lastOpenedAt,
         )
 
-        composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.VolumeUp)).performClick()
-        composeRule.waitForIdle()
+        val firstControlObserver =
+            observations.launch {
+                store.firstControlAchieved
+                    .onEach { achieved ->
+                        if (!achieved) firstControlObserverStarted.set(true)
+                    }
+                    .first { it }
+                firstControlAchieved.set(true)
+            }
+        try {
+            composeRule.waitUntil(
+                conditionDescription = "first-control observer received its initial value",
+                timeoutMillis = 10_000L,
+            ) {
+                firstControlObserverStarted.get()
+            }
+
+            composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.VolumeUp)).performClick()
+            composeRule.waitUntil(
+                conditionDescription = "first accepted command persisted",
+                timeoutMillis = 10_000L,
+            ) {
+                firstControlAchieved.get()
+            }
+        } finally {
+            firstControlObserver.cancel()
+        }
 
         assertEquals(listOf(TvCommand.Tap(RemoteKey.VolumeUp)), session.commands)
-        awaitFirstControlAchieved()
         assertEquals("still one session after the command", listOf(livingRoom), tvs.openedIds)
         assertFalse("the session was not closed by the handoff", session.closed)
     }
