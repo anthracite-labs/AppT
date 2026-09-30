@@ -119,6 +119,8 @@ fun RemoteScreen(
 
 @Composable
 private fun RemoteHeader(state: RemoteUiState, onOpenSettings: () -> Unit, onPower: () -> Unit) {
+    val statusText = state.connection.statusText()
+    val statusGlyph = state.connection.statusGlyph()
     Column(verticalArrangement = Arrangement.spacedBy(SpaceTokens.xs)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -134,12 +136,12 @@ private fun RemoteHeader(state: RemoteUiState, onOpenSettings: () -> Unit, onPow
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(SpaceTokens.xs)) {
                     Text(
-                        text = state.connection.statusGlyph(),
+                        text = statusGlyph,
                         color = ColorTokens.contentSecondary,
-                        modifier = Modifier.semantics { contentDescription = state.connection.statusText() },
+                        modifier = Modifier.semantics { contentDescription = statusText },
                     )
                     Text(
-                        text = state.connection.statusText(),
+                        text = statusText,
                         style = TypeTokens.label,
                         color = ColorTokens.contentSecondary,
                         modifier =
