@@ -356,11 +356,12 @@ python3 tools/ci/test/sonar-boundary.test.py
 
 It checks effective workflow/job modes and rejects missing boundaries or
 write-capable job overrides, including flow mappings and aliases. PyYAML comes
-from the pinned yamllint install. The pinned actionlint parser does not yet
-recognize `cache-mode`; only its exact unknown top-level-key diagnostic is
-excluded, with syntax and effective access validated by this mandatory contract.
-All other actionlint findings remain failures. Remove that narrow compatibility
-exception when the pinned parser supports the provider key.
+from the pinned yamllint install. The pinned actionlint parser does not yet recognize provider `cache-mode`
+syntax at either the workflow or job level; only those two exact unknown-key
+diagnostics are excluded, with syntax and effective access validated by this
+mandatory parsed-YAML contract. All other actionlint findings remain failures.
+Remove that narrow compatibility exception when the pinned parser supports both
+provider placements.
 
 ### Secret-bearing Sonar analysis
 
