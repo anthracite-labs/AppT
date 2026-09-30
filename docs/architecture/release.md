@@ -537,6 +537,21 @@ override this with `write` or `write-only`. The same read-only restriction appli
 to trusted-only runs; performance does not take precedence over isolation.
 See GitHub's cache access reference [1](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching).
 
+Repeated Gradle diagnostics recover some iteration speed without changing that
+cache-token boundary. After the trusted target assertion binds a bridge dispatch
+to an open PR, it also publishes that validated PR number. Gradle-backed
+diagnostic jobs may restore a one-day **workflow artifact** whose name is derived
+from that trusted PR number and whose producer is verified as
+`.github/workflows/diagnose.yml`. The artifact contains only the previous
+diagnostic's local Gradle build cache (`build-cache-1`), capped at 512 MiB.
+It is treated as untrusted PR-local build state: restore accepts only ordinary
+files/directories under that one path and rejects traversal, absolute paths,
+links, devices, malformed archives, and oversize bundles. A miss or rejection
+falls back to the ordinary trusted read-only Gradle cache. Red diagnostics still
+publish the bounded refreshed artifact so the next fix/retest can reuse completed
+task outputs. `verify.yml`, CodeQL, and release evidence never consume this
+PR-local artifact.
+
 `tools/ci/test/workflow-cache-contract.test.py` parses the actual YAML and checks
 workflow defaults plus every job override, including reusable-workflow callers.
 It runs in the mandatory `repo-quality` job and mutation-tests missing
