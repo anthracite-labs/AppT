@@ -190,6 +190,8 @@ class PairingToFirstControlFlowTest {
             }
 
             composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.VolumeUp)).performClick()
+            // Drain the click event; waitUntil below handles the external DataStore IO condition.
+            composeRule.waitForIdle()
             composeRule.waitUntil(
                 conditionDescription = "first accepted command persisted",
                 timeoutMillis = 10_000L,
