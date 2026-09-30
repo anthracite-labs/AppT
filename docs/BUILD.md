@@ -314,8 +314,32 @@ and `diagnose.yml` additionally declare workflow-level `cache-mode: read`: GitHu
 scopes the cache token so target code can restore, but cannot save caches into
 the default branch's scope. Repository-token permissions alone do not enforce
 this boundary. This applies to every job and event in those two workflows;
-cache writes are intentionally sacrificed even for trusted-only runs. Fork pull requests cannot be dispatched at all and
-fail closed. The logic lives in `tools/ci/dispatch-workflow.mjs`, proven by
+provider cache writes are intentionally unavailable even for trusted-only runs.
+
+For bridge-dispatched **Gradle-backed diagnostics only**, `diagnose.yml` may
+reuse the previous run's local Gradle build cache under a PR-scoped provider-cache
+key derived from the **validated pull-request number** published by
+`assert-dispatch-target`. Jobs that execute PR code remain under workflow-level
+`cache-mode: read`: they may restore the matching `appt-pr-gradle-<pr>-`
+prefix, but they cannot save provider caches.
+
+After the exact validated PR head runs, the diagnostic packages only
+`~/.gradle/caches/build-cache-1` into a one-day workflow artifact. A separate
+trusted `publish-gradle-warm-state` job then downloads that current-run artifact
+by its action-produced artifact ID, validates path shape, entry types, expanded
+size and file count, stages only `build-cache-1`, and saves it under the
+PR-number namespace. That publisher is the repository's sole narrow exception:
+it is `cache-mode: write-only`, never checks out PR code, never invokes
+repository-local actions, receives no repository secrets, and cannot read provider
+caches. The parsed-YAML cache contract proves that structure explicitly.
+
+Missing, invalid, or oversize warm state degrades to the ordinary read-only
+diagnostic path. Red diagnostics can still publish bounded task outputs for the
+next fix/retest. `verify.yml`, CodeQL, and release evidence never receive the
+publisher's write capability, so acceptance evidence remains independent of
+PR-local warm state.
+
+Fork pull requests cannot be dispatched at all and fail closed. The logic lives in `tools/ci/dispatch-workflow.mjs`, proven by
 `tools/ci/test/dispatch-workflow.test.mjs`; the tests reject a commit SHA used
 directly as `workflow_dispatch.ref` and reject the earlier mutable-ref shape
 outright, because `targetRef` is required and `ref` may never equal it. The
@@ -332,11 +356,12 @@ python3 tools/ci/test/sonar-boundary.test.py
 
 It checks effective workflow/job modes and rejects missing boundaries or
 write-capable job overrides, including flow mappings and aliases. PyYAML comes
-from the pinned yamllint install. The pinned actionlint parser does not yet
-recognize `cache-mode`; only its exact unknown top-level-key diagnostic is
-excluded, with syntax and effective access validated by this mandatory contract.
-All other actionlint findings remain failures. Remove that narrow compatibility
-exception when the pinned parser supports the provider key.
+from the pinned yamllint install. The pinned actionlint parser does not yet recognize provider `cache-mode`
+syntax at either the workflow or job level; only those two exact unknown-key
+diagnostics are excluded, with syntax and effective access validated by this
+mandatory parsed-YAML contract. All other actionlint findings remain failures.
+Remove that narrow compatibility exception when the pinned parser supports both
+provider placements.
 
 ### Secret-bearing Sonar analysis
 

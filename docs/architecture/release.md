@@ -537,13 +537,35 @@ override this with `write` or `write-only`. The same read-only restriction appli
 to trusted-only runs; performance does not take precedence over isolation.
 See GitHub's cache access reference [1](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching).
 
+Repeated Gradle diagnostics recover iteration speed without giving target code
+cache-write authority. After the trusted target assertion binds a bridge dispatch
+to an open PR, it also publishes that validated PR number. Gradle-backed target
+jobs remain `cache-mode: read` and may restore only the
+`appt-pr-gradle-<validated-pr>-` provider-cache namespace.
+
+After the exact PR head runs, the target job packages only its local
+`build-cache-1` directory into a one-day workflow artifact. That artifact is
+untrusted PR-local data. A separate trusted `publish-gradle-warm-state` job,
+which never checks out or executes PR code, downloads only the current run's
+artifact ID, validates path shape, ordinary-file/directory entry types, expanded
+size and file count, and stages only `build-cache-1`. This one trusted job may
+use `cache-mode: write-only` to save the sanitized state under the validated PR
+number plus trusted run identity; it cannot read provider caches, receives no
+repository secrets, and no target-code job gains write capability.
+
+A miss or rejection falls back to the ordinary read-only diagnostic path.
+`verify.yml`, CodeQL, and release evidence never consume the publisher's write
+token or PR-local cache namespace. The cache-contract self-test structurally
+allows only this named trusted publisher and rejects write-capable overrides
+everywhere else.
+
 `tools/ci/test/workflow-cache-contract.test.py` parses the actual YAML and checks
 workflow defaults plus every job override, including reusable-workflow callers.
 It runs in the mandatory `repo-quality` job and mutation-tests missing
 boundaries, write-capable overrides, aliases, flow mappings, and invalid values.
-This also covers the one provider key the pinned actionlint parser does not yet
-recognize; only that exact unknown top-level-key diagnostic is excluded from
-actionlint, not other syntax, security, or workflow checks.
+This also covers the provider key the pinned actionlint parser does not yet
+recognize at workflow or job level; only those exact unknown-key diagnostics are
+excluded from actionlint, not other syntax, security, or workflow checks.
 
 #### Secret-bearing Sonar boundary
 
