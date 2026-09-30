@@ -313,9 +313,21 @@ trusted workflow under read-only repository-token permissions. Both `verify.yml`
 and `diagnose.yml` additionally declare workflow-level `cache-mode: read`: GitHub
 scopes the cache token so target code can restore, but cannot save caches into
 the default branch's scope. Repository-token permissions alone do not enforce
-this boundary. This applies to every job and event in those two workflows;
-cache writes are intentionally sacrificed even for trusted-only runs. Fork pull requests cannot be dispatched at all and
-fail closed. The logic lives in `tools/ci/dispatch-workflow.mjs`, proven by
+this boundary. Every job that executes or checks out target code inherits that
+read-only cache mode.
+
+`diagnose.yml` has one narrow exception for iteration speed:
+`publish-gradle-warm-state` is a trusted **write-only** cache publisher. It
+never checks out or executes pull-request code. A Gradle diagnostic packages
+only its local `build-cache-1` directory as a one-day intermediate artifact;
+the publisher receives the artifact ID and PR number only from trusted step/job
+outputs, rejects unsafe archive entries and bundles over 512 MiB, and saves the
+sanitized directory under an `appt-pr-gradle-<validated-pr>-...` key. Later
+diagnostics restore only the key prefix derived from the trusted
+`assert-dispatch-target` PR-number output. The target jobs themselves remain
+`cache-mode: read`. `verify.yml` never restores this PR-local key, so terminal
+evidence remains independent of diagnostic warm state. Fork pull requests cannot
+be dispatched at all and fail closed. The logic lives in `tools/ci/dispatch-workflow.mjs`, proven by
 `tools/ci/test/dispatch-workflow.test.mjs`; the tests reject a commit SHA used
 directly as `workflow_dispatch.ref` and reject the earlier mutable-ref shape
 outright, because `targetRef` is required and `ref` may never equal it. The
@@ -331,10 +343,14 @@ python3 tools/ci/test/sonar-boundary.test.py
 ```
 
 It checks effective workflow/job modes and rejects missing boundaries or
-write-capable job overrides, including flow mappings and aliases. PyYAML comes
-from the pinned yamllint install. The pinned actionlint parser does not yet
-recognize `cache-mode`; only its exact unknown top-level-key diagnostic is
-excluded, with syntax and effective access validated by this mandatory contract.
+write-capable target-job overrides, including flow mappings and aliases. It
+also proves the one trusted publisher is exactly `write-only`, has no target
+checkout path, and that Gradle diagnostic consumers have restore-only cache
+actions keyed by the validated PR number. PyYAML comes from the pinned yamllint
+install. The pinned actionlint parser does not yet recognize provider
+`cache-mode` at workflow/job level; only those exact unknown-key diagnostics
+are excluded, with syntax and effective access validated by this mandatory
+contract.
 All other actionlint findings remain failures. Remove that narrow compatibility
 exception when the pinned parser supports the provider key.
 
