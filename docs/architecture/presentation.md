@@ -143,6 +143,26 @@ Each contract below is the interface between the ViewModel and the composables. 
 | Observes | `ActiveRemoteHost.session(tvId)` snapshot, `TvDao`, `FavouriteDao`, `PreferenceStore`, `Licensing` |
 | Rules | No purchase prompt, no account prompt, no trial countdown, and no bottom navigation on this surface. Every control comes from live capability evidence. Power is spatially isolated in the chrome zone. An active session is never interrupted by trial expiry, revocation, purchase processing, or sign-out. |
 
+## Implementation evidence and AppT delta — S05 Remote and Settings
+
+### IMPLEMENTATION EVIDENCE
+
+[`harimoradiya/androidtvremote`](https://github.com/harimoradiya/androidtvremote) at commit `16c68f0bb9d23f929ee8240f105fdb9000262d85`, Apache-2.0.
+
+Relevant implementation paths: `RemoteScreen.kt`, `RemoteControlSettingsScreen.kt`, `SettingComponents.kt`, and `RemoteLayoutDataStore.kt`.
+
+Method: **ADAPT** for bounded native Compose presentation and interaction pieces: responsive phone Remote composition and control sizing; D-pad presentation and pressed-state feedback; immediate local haptic feedback; and grouped Settings/setting-row presentation.
+
+Explicitly rejected: Firebase Analytics or Crashlytics; the upstream web-server/service and TV protocol/session architecture; preference persistence from composable `LaunchedEffect`; upstream touchpad semantics that translate gestures into Android-TV D-pad key repeats; and any upstream capability rule that would replace AppT's live Samsung capability evidence.
+
+### APPT DECISION
+
+AppT adapts only bounded Compose presentation and local interaction techniques from this source. AppT retains `ActiveRemoteHost`, one-`UiState` ViewModel composition, `PreferenceStore`, the Samsung module boundary, and the capability-driven Remote contract.
+
+Settings preference writes remain owned by `SettingsViewModel`, never composable effects. No telemetry or cloud crash-reporting dependency is introduced. Pointer availability remains Samsung capability evidence owned by `samsung`; UI capability does not prove TV capability. The upstream implementation does not alter AppT's protocol, security, privacy, diagnostics, lifecycle, or dependency boundaries.
+
+Validated: 2026-09-30.
+
 `ConnectionUi` maps `SessionState` to the presentation the user sees:
 
 | Session | Presentation | Actions shown |
