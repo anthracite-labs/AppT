@@ -29,7 +29,7 @@ GRADLE_DIAGNOSTIC_JOBS = {
 }
 
 
-def validate_cache_contract(workflow, *, executes_target):
+def validate_cache_contract(workflow, *, executes_target, trusted_publishers=frozenset()):
     """Check provider syntax everywhere and cap target workflows at read-only."""
     workflow_mode = workflow.get("cache-mode")
     if "cache-mode" in workflow:
@@ -47,7 +47,7 @@ def validate_cache_contract(workflow, *, executes_target):
                 f"{job_id}: job cache-mode must be a literal provider-supported value"
             )
         if executes_target:
-            if job_id == TRUSTED_CACHE_PUBLISHER:
+            if job_id in trusted_publishers:
                 assert effective_mode == "write-only", (
                     f"{job_id}: trusted cache publisher must be write-only"
                 )
@@ -78,6 +78,11 @@ class WorkflowCacheContractTests(unittest.TestCase):
                     executes_target=(
                         path.name in TARGET_WORKFLOWS or executes_validated_target(workflow)
                     ),
+                    trusted_publishers=(
+                        {TRUSTED_CACHE_PUBLISHER}
+                        if path.name == "diagnose.yml"
+                        else frozenset()
+                    ),
                 )
 
     def test_every_target_job_inherits_a_safe_mode(self):
@@ -87,7 +92,15 @@ class WorkflowCacheContractTests(unittest.TestCase):
                 with self.subTest(workflow=name, mode=mode):
                     candidate = deepcopy(workflow)
                     candidate["cache-mode"] = mode
-                    validate_cache_contract(candidate, executes_target=True)
+                    validate_cache_contract(
+                            candidate,
+                            executes_target=True,
+                            trusted_publishers=(
+                                {TRUSTED_CACHE_PUBLISHER}
+                                if name == "diagnose.yml"
+                                else frozenset()
+                            ),
+                        )
 
     def test_missing_workflow_boundary_fails_even_with_read_only_repository_token(self):
         for name in sorted(TARGET_WORKFLOWS):
@@ -97,7 +110,15 @@ class WorkflowCacheContractTests(unittest.TestCase):
             with self.subTest(workflow=name), self.assertRaisesRegex(
                 AssertionError, "explicitly cap"
             ):
-                validate_cache_contract(workflow, executes_target=True)
+                validate_cache_contract(
+                    workflow,
+                    executes_target=True,
+                    trusted_publishers=(
+                        {TRUSTED_CACHE_PUBLISHER}
+                        if name == "diagnose.yml"
+                        else frozenset()
+                    ),
+                )
 
     def test_write_capability_fails_at_workflow_and_every_job(self):
         for name in sorted(TARGET_WORKFLOWS):
@@ -106,7 +127,15 @@ class WorkflowCacheContractTests(unittest.TestCase):
                 candidate = deepcopy(workflow)
                 candidate["cache-mode"] = mode
                 with self.subTest(workflow=name, mode=mode), self.assertRaises(AssertionError):
-                    validate_cache_contract(candidate, executes_target=True)
+                    validate_cache_contract(
+                            candidate,
+                            executes_target=True,
+                            trusted_publishers=(
+                                {TRUSTED_CACHE_PUBLISHER}
+                                if name == "diagnose.yml"
+                                else frozenset()
+                            ),
+                        )
                 for job_id in workflow["jobs"]:
                     if job_id == TRUSTED_CACHE_PUBLISHER and mode == "write-only":
                         continue
@@ -119,7 +148,15 @@ class WorkflowCacheContractTests(unittest.TestCase):
                             else "cache-write capability"
                         )
                         with self.assertRaisesRegex(AssertionError, message):
-                            validate_cache_contract(candidate, executes_target=True)
+                            validate_cache_contract(
+                            candidate,
+                            executes_target=True,
+                            trusted_publishers=(
+                                {TRUSTED_CACHE_PUBLISHER}
+                                if name == "diagnose.yml"
+                                else frozenset()
+                            ),
+                        )
 
     def test_flow_mapping_and_alias_cannot_hide_a_write_override(self):
         for jobs in (
@@ -144,6 +181,16 @@ class WorkflowCacheContractTests(unittest.TestCase):
                 ):
                     validate_cache_contract(workflow, executes_target=True)
 
+
+    def test_trusted_publisher_allowance_is_diagnose_only(self):
+        diagnose = yaml.safe_load((WORKFLOWS / "diagnose.yml").read_text())
+        validate_cache_contract(
+            diagnose,
+            executes_target=True,
+            trusted_publishers={TRUSTED_CACHE_PUBLISHER},
+        )
+        with self.assertRaisesRegex(AssertionError, "cache-write capability"):
+            validate_cache_contract(diagnose, executes_target=True)
 
     def test_pr_local_gradle_cache_has_one_trusted_write_only_publisher(self):
         diagnose = yaml.safe_load((WORKFLOWS / "diagnose.yml").read_text())
