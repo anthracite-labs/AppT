@@ -39,6 +39,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -69,7 +70,8 @@ class PairingToFirstControlFlowTest {
     private val gate = FakePermissionGate()
     private val dao = FakeTvProfileDao()
     private val profiles = TvProfiles(dao) { 1L }
-    private val firstControlEvents = ConcurrentLinkedQueue<FirstControlWriteProbeEvent>()
+    private val firstControlEvents = ConcurrentLinkedQueue<String>()
+    @Volatile private var probeOriginNanos = 0L
     /**
      * Lazy because `TemporaryFolder` only creates its root when the rule runs, which is after the
      * test instance is constructed. The path is resolved once inside it and then handed to every
@@ -83,7 +85,11 @@ class PairingToFirstControlFlowTest {
                 produceFile = { file },
             )
         ).also { preferenceStore ->
-            preferenceStore.firstControlWriteProbe = { event -> firstControlEvents.add(event) }
+            preferenceStore.firstControlWriteProbe = { event ->
+                val elapsedMillis =
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - probeOriginNanos)
+                firstControlEvents.add("${event.name}@${elapsedMillis}ms")
+            }
         }
     }
     // Wired exactly as AppTApplication wires it: the host notices the transition to `Ready` and the
@@ -141,9 +147,11 @@ class PairingToFirstControlFlowTest {
         while (!firstControlAchieved.get() && System.nanoTime() < deadline) {
             composeRule.waitForIdle()
         }
-        println("FIRST_CONTROL_PROBE_EVENTS=$firstControlEvents")
+        val storeReadBack = runBlocking { store.firstControlAchieved.first() }
+        println("FIRST_CONTROL_PROBE_EVENTS=$firstControlEvents; storeReadBack=$storeReadBack")
         assertTrue(
-            "the first accepted command is recorded; probes=$firstControlEvents",
+            "the first accepted command is recorded; probes=$firstControlEvents; " +
+                "storeReadBack=$storeReadBack",
             firstControlAchieved.get(),
         )
     }
@@ -151,6 +159,7 @@ class PairingToFirstControlFlowTest {
     @Test
     @Config(qualifiers = "w360dp-h1400dp")
     fun cardToPairingToReadyToRemoteToFirstAcceptedCommand() {
+        probeOriginNanos = System.nanoTime()
         setGraph()
         openDiscovery()
         tvs.latest.send(FakeSamsungTvs.found())
