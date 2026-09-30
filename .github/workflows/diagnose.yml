@@ -159,7 +159,8 @@ jobs:
             echo "::notice::${MODE} runs its full mode; no focus was supplied."
           fi
 
-      - name: Find previous PR-local Gradle warm state
+      - &gradle-warm-find
+        name: Find previous PR-local Gradle warm state
         id: gradle-warm
         if: steps.assert-target.outputs.pr-number != ''
         env:
@@ -196,7 +197,8 @@ jobs:
             echo "::notice title=PR-local Gradle warm state::No previous diagnose artifact exists for PR #${PR_NUMBER}; this run starts with only the trusted read-only Gradle cache."
           fi
 
-      - name: Download previous PR-local Gradle warm state
+      - &gradle-warm-download
+        name: Download previous PR-local Gradle warm state
         if: steps.gradle-warm.outputs.found == 'true'
         # actions/download-artifact v7.0.0
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
@@ -220,7 +222,8 @@ jobs:
           ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
-      - name: Restore PR-local Gradle build cache
+      - &gradle-warm-restore
+        name: Restore PR-local Gradle build cache
         if: steps.gradle-warm.outputs.found == 'true'
         env:
           ARCHIVE: ${{ runner.temp }}/appt-gradle-warm/gradle-local-build-cache.tar
@@ -287,7 +290,8 @@ jobs:
               exit 1
           }
 
-      - name: Package PR-local Gradle warm state
+      - &gradle-warm-package
+        name: Package PR-local Gradle warm state
         id: gradle-warm-pack
         if: always() && steps.assert-target.outputs.pr-number != ''
         run: |
@@ -322,7 +326,8 @@ jobs:
           echo "available=true" >> "$GITHUB_OUTPUT"
           echo "::notice title=PR-local Gradle warm state::Prepared a bounded build-cache artifact for the next diagnostic run."
 
-      - name: Upload PR-local Gradle warm state
+      - &gradle-warm-upload
+        name: Upload PR-local Gradle warm state
         if: always() && steps.gradle-warm-pack.outputs.available == 'true'
         # actions/upload-artifact v7.0.1
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -400,53 +405,9 @@ jobs:
             echo "::notice::${MODE} runs its full mode; no focus was supplied."
           fi
 
-      - name: Find previous PR-local Gradle warm state
-        id: gradle-warm
-        if: steps.assert-target.outputs.pr-number != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ steps.assert-target.outputs.pr-number }}
-        run: |
-          set -euo pipefail
+      - *gradle-warm-find
 
-          artifact_name="appt-gradle-local-cache-pr-${PR_NUMBER}"
-          echo "artifact-name=${artifact_name}" >> "$GITHUB_OUTPUT"
-
-          run_ids="$(
-            gh api "repos/${REPOSITORY}/actions/artifacts?name=${artifact_name}&per_page=100" \
-              --jq '.artifacts | map(select(.expired == false)) | sort_by(.created_at) | reverse | .[].workflow_run.id' \
-              2>/dev/null || true
-          )"
-
-          found=''
-          for run_id in ${run_ids}; do
-            run_path="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}" --jq '.path' 2>/dev/null || true)"
-            if [ "$run_path" = ".github/workflows/diagnose.yml" ]; then
-              found="$run_id"
-              break
-            fi
-          done
-
-          if [ -n "$found" ]; then
-            echo "found=true" >> "$GITHUB_OUTPUT"
-            echo "run-id=${found}" >> "$GITHUB_OUTPUT"
-            echo "::notice title=PR-local Gradle warm state::Restoring the newest diagnose artifact for PR #${PR_NUMBER}."
-          else
-            echo "found=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=PR-local Gradle warm state::No previous diagnose artifact exists for PR #${PR_NUMBER}; this run starts with only the trusted read-only Gradle cache."
-          fi
-
-      - name: Download previous PR-local Gradle warm state
-        if: steps.gradle-warm.outputs.found == 'true'
-        # actions/download-artifact v7.0.0
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
-        with:
-          name: ${{ steps.gradle-warm.outputs.artifact-name }}
-          path: ${{ runner.temp }}/appt-gradle-warm
-          github-token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          run-id: ${{ steps.gradle-warm.outputs.run-id }}
+      - *gradle-warm-download
 
       - name: Check out the exact expected SHA
         if: inputs.expected_sha != ''
@@ -461,62 +422,7 @@ jobs:
           ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
-      - name: Restore PR-local Gradle build cache
-        if: steps.gradle-warm.outputs.found == 'true'
-        env:
-          ARCHIVE: ${{ runner.temp }}/appt-gradle-warm/gradle-local-build-cache.tar
-        run: |
-          set -euo pipefail
-
-          if [ ! -f "$ARCHIVE" ]; then
-            echo "::warning title=PR-local Gradle warm state::The selected artifact did not contain the expected archive; continuing without PR-local warm state."
-            exit 0
-          fi
-
-          archive_bytes="$(stat -c '%s' "$ARCHIVE")"
-          if [ "$archive_bytes" -gt 536870912 ]; then
-            echo "::warning title=PR-local Gradle warm state::The restored archive exceeds the 512 MiB safety bound; ignoring it."
-            exit 0
-          fi
-
-          python3 - "$ARCHIVE" "$HOME/.gradle/caches" <<'PY'
-          from pathlib import Path, PurePosixPath
-          import sys
-          import tarfile
-
-          archive = Path(sys.argv[1])
-          destination = Path(sys.argv[2])
-
-          try:
-              with tarfile.open(archive, "r:") as bundle:
-                  members = bundle.getmembers()
-                  for member in members:
-                      path = PurePosixPath(member.name)
-                      allowed = (
-                          not path.is_absolute()
-                          and ".." not in path.parts
-                          and len(path.parts) > 0
-                          and path.parts[0] == "build-cache-1"
-                          and (member.isfile() or member.isdir())
-                      )
-                      if not allowed:
-                          print(
-                              f"::warning title=PR-local Gradle warm state::"
-                              f"Rejected unsafe archive entry {member.name!r}; continuing cold."
-                          )
-                          raise SystemExit(0)
-                  destination.mkdir(parents=True, exist_ok=True)
-                  bundle.extractall(destination, members=members, filter="data")
-          except (tarfile.TarError, OSError) as error:
-              print(
-                  f"::warning title=PR-local Gradle warm state::"
-                  f"Could not restore the artifact ({error}); continuing cold."
-              )
-              raise SystemExit(0)
-
-          print("PR-local Gradle build cache restored.")
-          PY
-
+      - *gradle-warm-restore
 
       - name: Run :samsung unit tests
         run: |
@@ -528,51 +434,9 @@ jobs:
               exit 1
           }
 
-      - name: Package PR-local Gradle warm state
-        id: gradle-warm-pack
-        if: always() && steps.assert-target.outputs.pr-number != ''
-        run: |
-          set -euo pipefail
+      - *gradle-warm-package
 
-          cache_dir="$HOME/.gradle/caches/build-cache-1"
-          archive="${RUNNER_TEMP}/gradle-local-build-cache.tar"
-          rm -f "$archive"
-
-          if [ ! -d "$cache_dir" ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=PR-local Gradle warm state::No local Gradle build cache was produced."
-            exit 0
-          fi
-
-          cache_kib="$(du -sk "$cache_dir" | awk '{print $1}')"
-          if [ "$cache_kib" -gt 524288 ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Local Gradle build cache exceeds 512 MiB; skipping warm-state upload."
-            exit 0
-          fi
-
-          /usr/bin/tar -cf "$archive" -C "$HOME/.gradle/caches" build-cache-1
-          archive_bytes="$(stat -c '%s' "$archive")"
-          if [ "$archive_bytes" -gt 536870912 ]; then
-            rm -f "$archive"
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Packaged Gradle build cache exceeds 512 MiB; skipping upload."
-            exit 0
-          fi
-
-          echo "available=true" >> "$GITHUB_OUTPUT"
-          echo "::notice title=PR-local Gradle warm state::Prepared a bounded build-cache artifact for the next diagnostic run."
-
-      - name: Upload PR-local Gradle warm state
-        if: always() && steps.gradle-warm-pack.outputs.available == 'true'
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: appt-gradle-local-cache-pr-${{ steps.assert-target.outputs.pr-number }}
-          path: ${{ runner.temp }}/gradle-local-build-cache.tar
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 0
+      - *gradle-warm-upload
 
       - name: Upload Samsung unit-test reports
         if: always()
@@ -641,53 +505,9 @@ jobs:
             echo "::notice::${MODE} runs its full mode; no focus was supplied."
           fi
 
-      - name: Find previous PR-local Gradle warm state
-        id: gradle-warm
-        if: steps.assert-target.outputs.pr-number != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ steps.assert-target.outputs.pr-number }}
-        run: |
-          set -euo pipefail
+      - *gradle-warm-find
 
-          artifact_name="appt-gradle-local-cache-pr-${PR_NUMBER}"
-          echo "artifact-name=${artifact_name}" >> "$GITHUB_OUTPUT"
-
-          run_ids="$(
-            gh api "repos/${REPOSITORY}/actions/artifacts?name=${artifact_name}&per_page=100" \
-              --jq '.artifacts | map(select(.expired == false)) | sort_by(.created_at) | reverse | .[].workflow_run.id' \
-              2>/dev/null || true
-          )"
-
-          found=''
-          for run_id in ${run_ids}; do
-            run_path="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}" --jq '.path' 2>/dev/null || true)"
-            if [ "$run_path" = ".github/workflows/diagnose.yml" ]; then
-              found="$run_id"
-              break
-            fi
-          done
-
-          if [ -n "$found" ]; then
-            echo "found=true" >> "$GITHUB_OUTPUT"
-            echo "run-id=${found}" >> "$GITHUB_OUTPUT"
-            echo "::notice title=PR-local Gradle warm state::Restoring the newest diagnose artifact for PR #${PR_NUMBER}."
-          else
-            echo "found=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=PR-local Gradle warm state::No previous diagnose artifact exists for PR #${PR_NUMBER}; this run starts with only the trusted read-only Gradle cache."
-          fi
-
-      - name: Download previous PR-local Gradle warm state
-        if: steps.gradle-warm.outputs.found == 'true'
-        # actions/download-artifact v7.0.0
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
-        with:
-          name: ${{ steps.gradle-warm.outputs.artifact-name }}
-          path: ${{ runner.temp }}/appt-gradle-warm
-          github-token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          run-id: ${{ steps.gradle-warm.outputs.run-id }}
+      - *gradle-warm-download
 
       - name: Check out the exact expected SHA
         if: inputs.expected_sha != ''
@@ -702,62 +522,7 @@ jobs:
           ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
-      - name: Restore PR-local Gradle build cache
-        if: steps.gradle-warm.outputs.found == 'true'
-        env:
-          ARCHIVE: ${{ runner.temp }}/appt-gradle-warm/gradle-local-build-cache.tar
-        run: |
-          set -euo pipefail
-
-          if [ ! -f "$ARCHIVE" ]; then
-            echo "::warning title=PR-local Gradle warm state::The selected artifact did not contain the expected archive; continuing without PR-local warm state."
-            exit 0
-          fi
-
-          archive_bytes="$(stat -c '%s' "$ARCHIVE")"
-          if [ "$archive_bytes" -gt 536870912 ]; then
-            echo "::warning title=PR-local Gradle warm state::The restored archive exceeds the 512 MiB safety bound; ignoring it."
-            exit 0
-          fi
-
-          python3 - "$ARCHIVE" "$HOME/.gradle/caches" <<'PY'
-          from pathlib import Path, PurePosixPath
-          import sys
-          import tarfile
-
-          archive = Path(sys.argv[1])
-          destination = Path(sys.argv[2])
-
-          try:
-              with tarfile.open(archive, "r:") as bundle:
-                  members = bundle.getmembers()
-                  for member in members:
-                      path = PurePosixPath(member.name)
-                      allowed = (
-                          not path.is_absolute()
-                          and ".." not in path.parts
-                          and len(path.parts) > 0
-                          and path.parts[0] == "build-cache-1"
-                          and (member.isfile() or member.isdir())
-                      )
-                      if not allowed:
-                          print(
-                              f"::warning title=PR-local Gradle warm state::"
-                              f"Rejected unsafe archive entry {member.name!r}; continuing cold."
-                          )
-                          raise SystemExit(0)
-                  destination.mkdir(parents=True, exist_ok=True)
-                  bundle.extractall(destination, members=members, filter="data")
-          except (tarfile.TarError, OSError) as error:
-              print(
-                  f"::warning title=PR-local Gradle warm state::"
-                  f"Could not restore the artifact ({error}); continuing cold."
-              )
-              raise SystemExit(0)
-
-          print("PR-local Gradle build cache restored.")
-          PY
-
+      - *gradle-warm-restore
 
       - name: Run Android static and policy verification
         run: |
@@ -769,51 +534,9 @@ jobs:
               exit 1
           }
 
-      - name: Package PR-local Gradle warm state
-        id: gradle-warm-pack
-        if: always() && steps.assert-target.outputs.pr-number != ''
-        run: |
-          set -euo pipefail
+      - *gradle-warm-package
 
-          cache_dir="$HOME/.gradle/caches/build-cache-1"
-          archive="${RUNNER_TEMP}/gradle-local-build-cache.tar"
-          rm -f "$archive"
-
-          if [ ! -d "$cache_dir" ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=PR-local Gradle warm state::No local Gradle build cache was produced."
-            exit 0
-          fi
-
-          cache_kib="$(du -sk "$cache_dir" | awk '{print $1}')"
-          if [ "$cache_kib" -gt 524288 ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Local Gradle build cache exceeds 512 MiB; skipping warm-state upload."
-            exit 0
-          fi
-
-          /usr/bin/tar -cf "$archive" -C "$HOME/.gradle/caches" build-cache-1
-          archive_bytes="$(stat -c '%s' "$archive")"
-          if [ "$archive_bytes" -gt 536870912 ]; then
-            rm -f "$archive"
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Packaged Gradle build cache exceeds 512 MiB; skipping upload."
-            exit 0
-          fi
-
-          echo "available=true" >> "$GITHUB_OUTPUT"
-          echo "::notice title=PR-local Gradle warm state::Prepared a bounded build-cache artifact for the next diagnostic run."
-
-      - name: Upload PR-local Gradle warm state
-        if: always() && steps.gradle-warm-pack.outputs.available == 'true'
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: appt-gradle-local-cache-pr-${{ steps.assert-target.outputs.pr-number }}
-          path: ${{ runner.temp }}/gradle-local-build-cache.tar
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 0
+      - *gradle-warm-upload
 
       - name: Upload Lint and detekt reports
         if: always()
@@ -884,53 +607,9 @@ jobs:
             echo "::notice::${MODE} runs its full mode; no focus was supplied."
           fi
 
-      - name: Find previous PR-local Gradle warm state
-        id: gradle-warm
-        if: steps.assert-target.outputs.pr-number != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ steps.assert-target.outputs.pr-number }}
-        run: |
-          set -euo pipefail
+      - *gradle-warm-find
 
-          artifact_name="appt-gradle-local-cache-pr-${PR_NUMBER}"
-          echo "artifact-name=${artifact_name}" >> "$GITHUB_OUTPUT"
-
-          run_ids="$(
-            gh api "repos/${REPOSITORY}/actions/artifacts?name=${artifact_name}&per_page=100" \
-              --jq '.artifacts | map(select(.expired == false)) | sort_by(.created_at) | reverse | .[].workflow_run.id' \
-              2>/dev/null || true
-          )"
-
-          found=''
-          for run_id in ${run_ids}; do
-            run_path="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}" --jq '.path' 2>/dev/null || true)"
-            if [ "$run_path" = ".github/workflows/diagnose.yml" ]; then
-              found="$run_id"
-              break
-            fi
-          done
-
-          if [ -n "$found" ]; then
-            echo "found=true" >> "$GITHUB_OUTPUT"
-            echo "run-id=${found}" >> "$GITHUB_OUTPUT"
-            echo "::notice title=PR-local Gradle warm state::Restoring the newest diagnose artifact for PR #${PR_NUMBER}."
-          else
-            echo "found=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=PR-local Gradle warm state::No previous diagnose artifact exists for PR #${PR_NUMBER}; this run starts with only the trusted read-only Gradle cache."
-          fi
-
-      - name: Download previous PR-local Gradle warm state
-        if: steps.gradle-warm.outputs.found == 'true'
-        # actions/download-artifact v7.0.0
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
-        with:
-          name: ${{ steps.gradle-warm.outputs.artifact-name }}
-          path: ${{ runner.temp }}/appt-gradle-warm
-          github-token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          run-id: ${{ steps.gradle-warm.outputs.run-id }}
+      - *gradle-warm-download
 
       - name: Check out the exact expected SHA
         if: inputs.expected_sha != ''
@@ -945,62 +624,7 @@ jobs:
           ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
-      - name: Restore PR-local Gradle build cache
-        if: steps.gradle-warm.outputs.found == 'true'
-        env:
-          ARCHIVE: ${{ runner.temp }}/appt-gradle-warm/gradle-local-build-cache.tar
-        run: |
-          set -euo pipefail
-
-          if [ ! -f "$ARCHIVE" ]; then
-            echo "::warning title=PR-local Gradle warm state::The selected artifact did not contain the expected archive; continuing without PR-local warm state."
-            exit 0
-          fi
-
-          archive_bytes="$(stat -c '%s' "$ARCHIVE")"
-          if [ "$archive_bytes" -gt 536870912 ]; then
-            echo "::warning title=PR-local Gradle warm state::The restored archive exceeds the 512 MiB safety bound; ignoring it."
-            exit 0
-          fi
-
-          python3 - "$ARCHIVE" "$HOME/.gradle/caches" <<'PY'
-          from pathlib import Path, PurePosixPath
-          import sys
-          import tarfile
-
-          archive = Path(sys.argv[1])
-          destination = Path(sys.argv[2])
-
-          try:
-              with tarfile.open(archive, "r:") as bundle:
-                  members = bundle.getmembers()
-                  for member in members:
-                      path = PurePosixPath(member.name)
-                      allowed = (
-                          not path.is_absolute()
-                          and ".." not in path.parts
-                          and len(path.parts) > 0
-                          and path.parts[0] == "build-cache-1"
-                          and (member.isfile() or member.isdir())
-                      )
-                      if not allowed:
-                          print(
-                              f"::warning title=PR-local Gradle warm state::"
-                              f"Rejected unsafe archive entry {member.name!r}; continuing cold."
-                          )
-                          raise SystemExit(0)
-                  destination.mkdir(parents=True, exist_ok=True)
-                  bundle.extractall(destination, members=members, filter="data")
-          except (tarfile.TarError, OSError) as error:
-              print(
-                  f"::warning title=PR-local Gradle warm state::"
-                  f"Could not restore the artifact ({error}); continuing cold."
-              )
-              raise SystemExit(0)
-
-          print("PR-local Gradle build cache restored.")
-          PY
-
+      - *gradle-warm-restore
 
       - name: Run Android build
         run: |
@@ -1012,51 +636,9 @@ jobs:
               exit 1
           }
 
-      - name: Package PR-local Gradle warm state
-        id: gradle-warm-pack
-        if: always() && steps.assert-target.outputs.pr-number != ''
-        run: |
-          set -euo pipefail
+      - *gradle-warm-package
 
-          cache_dir="$HOME/.gradle/caches/build-cache-1"
-          archive="${RUNNER_TEMP}/gradle-local-build-cache.tar"
-          rm -f "$archive"
-
-          if [ ! -d "$cache_dir" ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=PR-local Gradle warm state::No local Gradle build cache was produced."
-            exit 0
-          fi
-
-          cache_kib="$(du -sk "$cache_dir" | awk '{print $1}')"
-          if [ "$cache_kib" -gt 524288 ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Local Gradle build cache exceeds 512 MiB; skipping warm-state upload."
-            exit 0
-          fi
-
-          /usr/bin/tar -cf "$archive" -C "$HOME/.gradle/caches" build-cache-1
-          archive_bytes="$(stat -c '%s' "$archive")"
-          if [ "$archive_bytes" -gt 536870912 ]; then
-            rm -f "$archive"
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Packaged Gradle build cache exceeds 512 MiB; skipping upload."
-            exit 0
-          fi
-
-          echo "available=true" >> "$GITHUB_OUTPUT"
-          echo "::notice title=PR-local Gradle warm state::Prepared a bounded build-cache artifact for the next diagnostic run."
-
-      - name: Upload PR-local Gradle warm state
-        if: always() && steps.gradle-warm-pack.outputs.available == 'true'
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: appt-gradle-local-cache-pr-${{ steps.assert-target.outputs.pr-number }}
-          path: ${{ runner.temp }}/gradle-local-build-cache.tar
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 0
+      - *gradle-warm-upload
 
       - name: Upload debug APK
         if: success()
@@ -1371,53 +953,9 @@ jobs:
             echo "::notice::${MODE} runs its full mode; no focus was supplied."
           fi
 
-      - name: Find previous PR-local Gradle warm state
-        id: gradle-warm
-        if: steps.assert-target.outputs.pr-number != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ steps.assert-target.outputs.pr-number }}
-        run: |
-          set -euo pipefail
+      - *gradle-warm-find
 
-          artifact_name="appt-gradle-local-cache-pr-${PR_NUMBER}"
-          echo "artifact-name=${artifact_name}" >> "$GITHUB_OUTPUT"
-
-          run_ids="$(
-            gh api "repos/${REPOSITORY}/actions/artifacts?name=${artifact_name}&per_page=100" \
-              --jq '.artifacts | map(select(.expired == false)) | sort_by(.created_at) | reverse | .[].workflow_run.id' \
-              2>/dev/null || true
-          )"
-
-          found=''
-          for run_id in ${run_ids}; do
-            run_path="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}" --jq '.path' 2>/dev/null || true)"
-            if [ "$run_path" = ".github/workflows/diagnose.yml" ]; then
-              found="$run_id"
-              break
-            fi
-          done
-
-          if [ -n "$found" ]; then
-            echo "found=true" >> "$GITHUB_OUTPUT"
-            echo "run-id=${found}" >> "$GITHUB_OUTPUT"
-            echo "::notice title=PR-local Gradle warm state::Restoring the newest diagnose artifact for PR #${PR_NUMBER}."
-          else
-            echo "found=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=PR-local Gradle warm state::No previous diagnose artifact exists for PR #${PR_NUMBER}; this run starts with only the trusted read-only Gradle cache."
-          fi
-
-      - name: Download previous PR-local Gradle warm state
-        if: steps.gradle-warm.outputs.found == 'true'
-        # actions/download-artifact v7.0.0
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
-        with:
-          name: ${{ steps.gradle-warm.outputs.artifact-name }}
-          path: ${{ runner.temp }}/appt-gradle-warm
-          github-token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          run-id: ${{ steps.gradle-warm.outputs.run-id }}
+      - *gradle-warm-download
 
       - name: Check out the exact expected SHA
         if: inputs.expected_sha != ''
@@ -1432,62 +970,7 @@ jobs:
           ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
-      - name: Restore PR-local Gradle build cache
-        if: steps.gradle-warm.outputs.found == 'true'
-        env:
-          ARCHIVE: ${{ runner.temp }}/appt-gradle-warm/gradle-local-build-cache.tar
-        run: |
-          set -euo pipefail
-
-          if [ ! -f "$ARCHIVE" ]; then
-            echo "::warning title=PR-local Gradle warm state::The selected artifact did not contain the expected archive; continuing without PR-local warm state."
-            exit 0
-          fi
-
-          archive_bytes="$(stat -c '%s' "$ARCHIVE")"
-          if [ "$archive_bytes" -gt 536870912 ]; then
-            echo "::warning title=PR-local Gradle warm state::The restored archive exceeds the 512 MiB safety bound; ignoring it."
-            exit 0
-          fi
-
-          python3 - "$ARCHIVE" "$HOME/.gradle/caches" <<'PY'
-          from pathlib import Path, PurePosixPath
-          import sys
-          import tarfile
-
-          archive = Path(sys.argv[1])
-          destination = Path(sys.argv[2])
-
-          try:
-              with tarfile.open(archive, "r:") as bundle:
-                  members = bundle.getmembers()
-                  for member in members:
-                      path = PurePosixPath(member.name)
-                      allowed = (
-                          not path.is_absolute()
-                          and ".." not in path.parts
-                          and len(path.parts) > 0
-                          and path.parts[0] == "build-cache-1"
-                          and (member.isfile() or member.isdir())
-                      )
-                      if not allowed:
-                          print(
-                              f"::warning title=PR-local Gradle warm state::"
-                              f"Rejected unsafe archive entry {member.name!r}; continuing cold."
-                          )
-                          raise SystemExit(0)
-                  destination.mkdir(parents=True, exist_ok=True)
-                  bundle.extractall(destination, members=members, filter="data")
-          except (tarfile.TarError, OSError) as error:
-              print(
-                  f"::warning title=PR-local Gradle warm state::"
-                  f"Could not restore the artifact ({error}); continuing cold."
-              )
-              raise SystemExit(0)
-
-          print("PR-local Gradle build cache restored.")
-          PY
-
+      - *gradle-warm-restore
 
       - name: Enable KVM
         run: |
@@ -1524,51 +1007,9 @@ jobs:
             exit 1
           }
 
-      - name: Package PR-local Gradle warm state
-        id: gradle-warm-pack
-        if: always() && steps.assert-target.outputs.pr-number != ''
-        run: |
-          set -euo pipefail
+      - *gradle-warm-package
 
-          cache_dir="$HOME/.gradle/caches/build-cache-1"
-          archive="${RUNNER_TEMP}/gradle-local-build-cache.tar"
-          rm -f "$archive"
-
-          if [ ! -d "$cache_dir" ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=PR-local Gradle warm state::No local Gradle build cache was produced."
-            exit 0
-          fi
-
-          cache_kib="$(du -sk "$cache_dir" | awk '{print $1}')"
-          if [ "$cache_kib" -gt 524288 ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Local Gradle build cache exceeds 512 MiB; skipping warm-state upload."
-            exit 0
-          fi
-
-          /usr/bin/tar -cf "$archive" -C "$HOME/.gradle/caches" build-cache-1
-          archive_bytes="$(stat -c '%s' "$archive")"
-          if [ "$archive_bytes" -gt 536870912 ]; then
-            rm -f "$archive"
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Packaged Gradle build cache exceeds 512 MiB; skipping upload."
-            exit 0
-          fi
-
-          echo "available=true" >> "$GITHUB_OUTPUT"
-          echo "::notice title=PR-local Gradle warm state::Prepared a bounded build-cache artifact for the next diagnostic run."
-
-      - name: Upload PR-local Gradle warm state
-        if: always() && steps.gradle-warm-pack.outputs.available == 'true'
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: appt-gradle-local-cache-pr-${{ steps.assert-target.outputs.pr-number }}
-          path: ${{ runner.temp }}/gradle-local-build-cache.tar
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 0
+      - *gradle-warm-upload
 
       - name: Upload managed device reports
         if: always()
