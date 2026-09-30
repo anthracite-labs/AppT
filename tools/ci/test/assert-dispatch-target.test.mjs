@@ -65,7 +65,7 @@ const RUN_SCRIPT = extractRunScript();
  */
 function createSandbox({
   refSha = HEAD_SHA,
-  openHeads = [HEAD_SHA],
+  openPulls = [{ number: 89, sha: HEAD_SHA }],
   refUnresolvable = false,
   pullsError = false,
 } = {}) {
@@ -83,8 +83,9 @@ case "$2" in
     printf '%s\\n' "\${REF_SHA}"
     ;;
   */pulls*)
+    [ "$3" = "--jq" ] && [ "$4" = ".[] | [.number, .head.sha] | @tsv" ] || exit 1
     if [ "\${PULLS_ERROR:-0}" = "1" ]; then exit 1; fi
-    for sha in \${OPEN_HEADS}; do printf '%s\\n' "$sha"; done
+    printf '%b' "\${OPEN_PULLS}"
     ;;
   *) echo "unexpected gh call: $*" >&2; exit 1 ;;
 esac
@@ -95,7 +96,7 @@ esac
     join(dir, 'env.sh'),
     [
       `export REF_SHA='${refSha}'`,
-      `export OPEN_HEADS='${openHeads.join(' ')}'`,
+      `export OPEN_PULLS='${openPulls.map(({ number, sha }) => `${number}\\t${sha}\\n`).join('')}'`,
       `export REF_UNRESOLVABLE='${refUnresolvable ? 1 : 0}'`,
       `export PULLS_ERROR='${pullsError ? 1 : 0}'`,
       '',
@@ -162,7 +163,7 @@ function runAssertionExpectingFailure(sandbox, inputs) {
 function assertRequestTransport(calls, targetRef) {
   assert.equal(calls.length, 2);
   const endpoints = calls.map((call, index) => {
-    const projection = index === 0 ? '.object.sha' : '.[].head.sha';
+    const projection = index === 0 ? '.object.sha' : '.[] | [.number, .head.sha] | @tsv';
     const suffix = ` --jq ${projection}`;
     assert.ok(call.startsWith('api '));
     assert.ok(call.endsWith(suffix));
@@ -197,7 +198,7 @@ describe('transport assertions are independent of optional URI escaping', () => 
   const targetRef = "feature/#frag&state=closed!$({IFS})'";
   const callsWith = (encode) => [
     `api repos/${REPO}/git/ref/heads/${targetRef.split('/').map(encode).join('/')} --jq .object.sha`,
-    `api repos/${REPO}/pulls?head=${encode(`${OWNER}:${targetRef}`)}&state=open --jq .[].head.sha`,
+    `api repos/${REPO}/pulls?head=${encode(`${OWNER}:${targetRef}`)}&state=open --jq .[] | [.number, .head.sha] | @tsv`,
   ];
 
   it('accepts both literal and escaped parentheses/quotes while preserving the same data', () => {
@@ -268,8 +269,8 @@ describe('a bridge dispatch', () => {
       // The run's own commit is the default branch, not the target.
       actualSha: OTHER_SHA,
     });
-    assert.match(result.stdout, /open pull-request head resolving to/);
-    assert.equal(result.output.trim(), `sha=${HEAD_SHA}`);
+    assert.match(result.stdout, /open pull request #89 resolving to/);
+    assert.equal(result.output.trim(), `sha=${HEAD_SHA}\npr-number=89`);
   });
 
   it('refuses a target ref that moved', () => {
@@ -296,7 +297,7 @@ describe('a bridge dispatch', () => {
   // is settable by anyone who can dispatch, so an arbitrary commit must not pass
   // just because some branch resolves to it.
   it('refuses a commit that is not the head of any open pull request', () => {
-    const sandbox = createSandbox({ refSha: HEAD_SHA, openHeads: [OTHER_SHA] });
+    const sandbox = createSandbox({ refSha: HEAD_SHA, openPulls: [{ number: 89, sha: OTHER_SHA }] });
     const { stderr } = runAssertionExpectingFailure(sandbox, {
       expectedSha: HEAD_SHA,
       targetRef: HEAD_REF,
@@ -305,7 +306,7 @@ describe('a bridge dispatch', () => {
   });
 
   it('refuses a commit that is the head of a closed pull request', () => {
-    const sandbox = createSandbox({ refSha: HEAD_SHA, openHeads: [] });
+    const sandbox = createSandbox({ refSha: HEAD_SHA, openPulls: [] });
     const { stderr } = runAssertionExpectingFailure(sandbox, {
       expectedSha: HEAD_SHA,
       targetRef: HEAD_REF,
@@ -323,12 +324,19 @@ describe('a bridge dispatch', () => {
   });
 
   it('accepts when several open pull requests share the head ref', () => {
-    const sandbox = createSandbox({ refSha: HEAD_SHA, openHeads: [OTHER_SHA, HEAD_SHA] });
+    const sandbox = createSandbox({
+      refSha: HEAD_SHA,
+      openPulls: [
+        { number: 90, sha: OTHER_SHA },
+        { number: 91, sha: HEAD_SHA },
+        { number: 89, sha: HEAD_SHA },
+      ],
+    });
     const result = runAssertion(sandbox, {
       expectedSha: HEAD_SHA,
       targetRef: HEAD_REF,
     });
-    assert.equal(result.output.trim(), `sha=${HEAD_SHA}`);
+    assert.equal(result.output.trim(), `sha=${HEAD_SHA}\npr-number=89`);
   });
 
   it('refuses Git-forbidden branch names before making any API call', () => {
@@ -382,7 +390,7 @@ describe('a bridge dispatch', () => {
     for (const targetRef of legal) {
       const sandbox = createSandbox();
       const result = runAssertion(sandbox, { expectedSha: HEAD_SHA, targetRef });
-      assert.equal(result.output.trim(), `sha=${HEAD_SHA}`, targetRef);
+      assert.equal(result.output.trim(), `sha=${HEAD_SHA}\npr-number=89`, targetRef);
       const calls = readFileSync(sandbox.log, 'utf8').trim().split('\n');
       assertRequestTransport(calls, targetRef);
     }
@@ -392,7 +400,7 @@ describe('a bridge dispatch', () => {
     for (const targetRef of ['main', 'arena/01a0e487-appt', 'feature_x.y-1', 'release/1.2']) {
       const sandbox = createSandbox();
       const result = runAssertion(sandbox, { expectedSha: HEAD_SHA, targetRef });
-      assert.equal(result.output.trim(), `sha=${HEAD_SHA}`, targetRef);
+      assert.equal(result.output.trim(), `sha=${HEAD_SHA}\npr-number=89`, targetRef);
     }
   });
 
@@ -406,6 +414,6 @@ describe('a bridge dispatch', () => {
     // The published value is the proven commit. It is deliberately the same
     // string as the input here -- what matters is that it is only ever published
     // after the checks above have passed.
-    assert.equal(result.output.trim(), `sha=${HEAD_SHA}`);
+    assert.equal(result.output.trim(), `sha=${HEAD_SHA}\npr-number=89`);
   });
 });

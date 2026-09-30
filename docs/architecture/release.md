@@ -437,9 +437,21 @@ the device task is the `pixel2api29` managed device configured in
 `app/build.gradle.kts`. A focused diagnostic is still implementation feedback
 only; full `verify` is unchanged by any of this.
 
-The label bridge continues to dispatch with an empty focus, because it has no
-safe channel for a value; manual dispatch exposes `focus` directly. No new
-metadata-command parser was added to transport it.
+The label bridge keeps ordinary command labels full-mode by default. When an
+agent that lacks Actions-write permission needs the already-accepted narrow
+`focus`, the pull request may carry exactly one mode-bound marker on a line by
+itself, for example:
+
+`<!-- appt-ci-focus app-unit: PairingToFirstControlFlowTest -->`
+
+Applying the existing matching label (`ci:app-unit` in this example) makes the
+trusted bridge read that marker from the same pull-request metadata snapshot and
+pass only its value as the `focus` workflow input. A marker for another mode is
+ignored; no marker preserves the existing whole-mode dispatch. Duplicate
+matching markers fail closed. The pull-request body remains untrusted: the
+bridge never evaluates marker text as shell or command syntax, and the trusted
+`diagnose-focus.mjs` resolver validates the mode/focus pair before dispatch and
+again inside `diagnose.yml`. `ci:full` never forwards focus.
 
 ### Agent invocation (`agent-control.yml`)
 
@@ -450,7 +462,9 @@ without a human clicking through the Actions UI. Two routes exist:
    `verify` or `diagnose` with `workflow_dispatch`. This is the preferred route.
 2. **Trusted command bridge** — `.github/workflows/agent-control.yml`, for an
    integration that can mutate pull-request metadata but cannot dispatch
-   workflows. Adding one of the command labels (`ci:full`, `ci:app-unit`,
+   workflows. An optional mode-bound `appt-ci-focus` marker in the PR body may
+   narrow a diagnostic label while remaining untrusted data validated by the
+   trusted resolver. Adding one of the command labels (`ci:full`, `ci:app-unit`,
    `ci:samsung-unit`, `ci:android-static`, `ci:android-build`, `ci:backend`,
    `ci:backend-static`, `ci:backend-test`, `ci:device`) to a pull request makes
    the bridge resolve that pull request's exact head SHA and branch, dispatch
@@ -523,13 +537,35 @@ override this with `write` or `write-only`. The same read-only restriction appli
 to trusted-only runs; performance does not take precedence over isolation.
 See GitHub's cache access reference [1](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching).
 
+Repeated Gradle diagnostics recover iteration speed without giving target code
+cache-write authority. After the trusted target assertion binds a bridge dispatch
+to an open PR, it also publishes that validated PR number. Gradle-backed target
+jobs remain `cache-mode: read` and may restore only the
+`appt-pr-gradle-<validated-pr>-` provider-cache namespace.
+
+After the exact PR head runs, the target job packages only its local
+`build-cache-1` directory into a one-day workflow artifact. That artifact is
+untrusted PR-local data. A separate trusted `publish-gradle-warm-state` job,
+which never checks out or executes PR code, downloads only the current run's
+artifact ID, validates path shape, ordinary-file/directory entry types, expanded
+size and file count, and stages only `build-cache-1`. This one trusted job may
+use `cache-mode: write-only` to save the sanitized state under the validated PR
+number plus trusted run identity; it cannot read provider caches, receives no
+repository secrets, and no target-code job gains write capability.
+
+A miss or rejection falls back to the ordinary read-only diagnostic path.
+`verify.yml`, CodeQL, and release evidence never consume the publisher's write
+token or PR-local cache namespace. The cache-contract self-test structurally
+allows only this named trusted publisher and rejects write-capable overrides
+everywhere else.
+
 `tools/ci/test/workflow-cache-contract.test.py` parses the actual YAML and checks
 workflow defaults plus every job override, including reusable-workflow callers.
 It runs in the mandatory `repo-quality` job and mutation-tests missing
 boundaries, write-capable overrides, aliases, flow mappings, and invalid values.
-This also covers the one provider key the pinned actionlint parser does not yet
-recognize; only that exact unknown top-level-key diagnostic is excluded from
-actionlint, not other syntax, security, or workflow checks.
+This also covers the provider key the pinned actionlint parser does not yet
+recognize at workflow or job level; only those exact unknown-key diagnostics are
+excluded from actionlint, not other syntax, security, or workflow checks.
 
 #### Secret-bearing Sonar boundary
 

@@ -161,6 +161,7 @@ jobs:
           SHA: ${{ steps.dispatch.outputs.sha }}
           REF: ${{ steps.dispatch.outputs.ref }}
           TARGET_REF: ${{ steps.dispatch.outputs.target-ref }}
+          FOCUSED: ${{ steps.dispatch.outputs.focused }}
           RUN_URL: ${{ steps.dispatch.outputs.run-url }}
           ACTOR: ${{ github.actor }}
         run: |
@@ -175,12 +176,17 @@ jobs:
             run_link="$(printf '\n\nRun: %s' "$RUN_URL")"
           fi
 
+          focus_note=''
+          if [ "$FOCUSED" = 'true' ]; then
+            focus_note=$'\n\nA mode-bound PR-body focus marker was transported as untrusted data; the trusted diagnose resolver validates the effective selector before target code runs.'
+          fi
+
           # No backticks or expansions inside the single-quoted format string:
           # they are literal in single quotes, which ShellCheck reports as
           # SC2016. The values arrive as arguments instead.
           body="$(
-            printf 'Requested by @%s via the %s command label.\n\nDispatched from the trusted default branch %s for target branch %s, expected commit %s.%s\n\nThe dispatched run resolves the target branch with trusted logic, requires it still to resolve to that commit, and only then checks it out — so this is evidence about exactly the head the command was issued against.\n\nThis is implementation feedback only; terminal verification of a finished candidate is a full verify run (verify / gate).' \
-              "$ACTOR" "$LABEL" "$REF" "$TARGET_REF" "$SHA" "$run_link"
+            printf 'Requested by @%s via the %s command label.\n\nDispatched from the trusted default branch %s for target branch %s, expected commit %s.%s%s\n\nThe dispatched run resolves the target branch with trusted logic, requires it still to resolve to that commit, and only then checks it out — so this is evidence about exactly the head the command was issued against.\n\nThis is implementation feedback only; terminal verification of a finished candidate is a full verify run (verify / gate).' \
+              "$ACTOR" "$LABEL" "$REF" "$TARGET_REF" "$SHA" "$focus_note" "$run_link"
           )"
 
           gh api --method POST "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" \
