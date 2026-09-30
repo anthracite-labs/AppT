@@ -240,10 +240,11 @@ jobs:
           tar -xzf "${archive}" actionlint
           sudo install -m 0755 actionlint /usr/local/bin/actionlint
           set -o pipefail
-          # The pinned parser predates provider cache-mode syntax. Only this
-          # exact unknown top-level key is delegated to the parsed-YAML cache
-          # contract above; every other actionlint diagnostic still fails CI.
-          actionlint -ignore '^unexpected key "cache-mode" for "workflow" section\.' \
+          # The pinned parser predates provider cache-mode syntax. Only the
+          # provider's workflow/job cache-mode keys are delegated to the
+          # parsed-YAML cache contract above; every other actionlint diagnostic
+          # still fails CI.
+          actionlint -ignore '^unexpected key "cache-mode" for "(workflow|job)" section\.' \
             2>&1 | tee /tmp/actionlint.log || {
             echo "::error title=actionlint Failure::$(head -n 20 /tmp/actionlint.log | tr '\n' ' ')"
             exit 1
