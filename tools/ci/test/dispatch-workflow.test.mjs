@@ -37,6 +37,7 @@ import {
   dispatchCommand,
   resolveDefaultBranch,
   resolveDispatch,
+  resolvePullRequestFocus,
   resolvePullRequestHead,
 } from '../dispatch-workflow.mjs';
 
@@ -56,7 +57,7 @@ function readWorkflow(name) {
 
 /** A fake `gh api` implementation that records every call, including stdin. */
 function createFakeApi({
-  pr = { head: { sha: HEAD_SHA, ref: HEAD_REF, repo: { full_name: REPO } } },
+  pr = { head: { sha: HEAD_SHA, ref: HEAD_REF, repo: { full_name: REPO } }, body: '' },
   defaultBranch = DEFAULT_BRANCH,
   dispatchResponse = `https://github.com/${REPO}/actions/runs/1`,
 } = {}) {
@@ -126,6 +127,48 @@ describe('resolveDispatch', () => {
   });
 });
 
+
+
+describe('resolvePullRequestFocus', () => {
+  it('returns the exact focus bound to the requested mode', () => {
+    const body = [
+      '<!-- appt-ci-focus samsung-unit: SamsungStoreTest -->',
+      '<!-- appt-ci-focus app-unit: PairingToFirstControlFlowTest -->',
+    ].join('\n');
+    assert.equal(
+      resolvePullRequestFocus({ body, mode: 'app-unit' }),
+      'PairingToFirstControlFlowTest'
+    );
+  });
+
+  it('ignores markers for another mode and preserves ordinary full-mode behavior', () => {
+    const body = '<!-- appt-ci-focus samsung-unit: SamsungStoreTest -->';
+    assert.equal(resolvePullRequestFocus({ body, mode: 'app-unit' }), '');
+    assert.equal(resolvePullRequestFocus({ body, mode: '' }), '');
+  });
+
+  it('fails closed on duplicate markers for the same mode', () => {
+    const body = [
+      '<!-- appt-ci-focus app-unit: FirstTest -->',
+      '<!-- appt-ci-focus app-unit: SecondTest -->',
+    ].join('\n');
+    assert.throws(
+      () => resolvePullRequestFocus({ body, mode: 'app-unit' }),
+      /multiple appt-ci-focus markers/
+    );
+  });
+
+  it('does not interpret malformed marker text', () => {
+    for (const body of [
+      'appt-ci-focus app-unit: FooTest',
+      '<!-- appt-ci-focus app-unit FooTest -->',
+      ' <!-- appt-ci-focus app-unit: FooTest -->',
+    ]) {
+      assert.equal(resolvePullRequestFocus({ body, mode: 'app-unit' }), '');
+    }
+  });
+});
+
 describe('buildDispatchBody', () => {
   it('dispatches from the trusted anchor and carries the target as inputs', () => {
     const body = buildDispatchBody({
@@ -138,7 +181,32 @@ describe('buildDispatchBody', () => {
     assert.equal(body.inputs.target_ref, HEAD_REF);
     assert.equal(body.inputs.expected_sha, HEAD_SHA);
     assert.equal(body.inputs.mode, 'app-unit');
+    assert.equal('focus' in body.inputs, false);
     assert.equal(body.return_run_details, true);
+  });
+
+
+  it('carries a diagnose focus as data and refuses focus on verify', () => {
+    const body = buildDispatchBody({
+      ref: DEFAULT_BRANCH,
+      targetRef: HEAD_REF,
+      mode: 'app-unit',
+      focus: 'PairingToFirstControlFlowTest',
+      expectedSha: HEAD_SHA,
+    });
+    assert.equal(body.inputs.focus, 'PairingToFirstControlFlowTest');
+
+    assert.throws(
+      () =>
+        buildDispatchBody({
+          ref: DEFAULT_BRANCH,
+          targetRef: HEAD_REF,
+          mode: '',
+          focus: 'PairingToFirstControlFlowTest',
+          expectedSha: HEAD_SHA,
+        }),
+      /focus is only valid for a diagnose mode/
+    );
   });
 
   it('omits mode for a verify dispatch but keeps the target inputs', () => {
@@ -244,6 +312,7 @@ describe('resolvePullRequestHead', () => {
     assert.equal(head.sha, HEAD_SHA);
     assert.equal(head.ref, HEAD_REF);
     assert.equal(head.headRepo, REPO);
+    assert.equal(head.body, '');
   });
 
   it('refuses an unusable head SHA', async () => {
@@ -271,6 +340,90 @@ describe('resolvePullRequestHead', () => {
 });
 
 describe('dispatchCommand', () => {
+
+  it('transports a valid mode-bound focus from PR metadata', async () => {
+    const api = createFakeApi({
+      pr: {
+        head: { sha: HEAD_SHA, ref: HEAD_REF, repo: { full_name: REPO } },
+        body: '<!-- appt-ci-focus app-unit: PairingToFirstControlFlowTest -->',
+      },
+    });
+    const result = await dispatchCommand({
+      label: 'ci:app-unit',
+      gh: api.gh,
+      repo: REPO,
+      prNumber: PR_NUMBER,
+      log: () => {},
+    });
+
+    assert.equal(result.focus, 'PairingToFirstControlFlowTest');
+    const body = JSON.parse(api.bodies[0]);
+    assert.equal(body.inputs.mode, 'app-unit');
+    assert.equal(body.inputs.focus, 'PairingToFirstControlFlowTest');
+  });
+
+  it('ignores a focus marker for another mode', async () => {
+    const api = createFakeApi({
+      pr: {
+        head: { sha: HEAD_SHA, ref: HEAD_REF, repo: { full_name: REPO } },
+        body: '<!-- appt-ci-focus samsung-unit: SamsungStoreTest -->',
+      },
+    });
+    const result = await dispatchCommand({
+      label: 'ci:app-unit',
+      gh: api.gh,
+      repo: REPO,
+      prNumber: PR_NUMBER,
+      log: () => {},
+    });
+
+    assert.equal(result.focus, '');
+    const body = JSON.parse(api.bodies[0]);
+    assert.equal('focus' in body.inputs, false);
+  });
+
+  it('rejects invalid focus grammar before dispatch', async () => {
+    const api = createFakeApi({
+      pr: {
+        head: { sha: HEAD_SHA, ref: HEAD_REF, repo: { full_name: REPO } },
+        body: '<!-- appt-ci-focus app-unit: --not-a-test -->',
+      },
+    });
+
+    await assert.rejects(
+      dispatchCommand({
+        label: 'ci:app-unit',
+        gh: api.gh,
+        repo: REPO,
+        prNumber: PR_NUMBER,
+        log: () => {},
+      }),
+      /focus must not start with/
+    );
+    assert.ok(!api.calls.some((call) => call.includes('/dispatches')));
+  });
+
+  it('never forwards focus through ci:full', async () => {
+    const api = createFakeApi({
+      pr: {
+        head: { sha: HEAD_SHA, ref: HEAD_REF, repo: { full_name: REPO } },
+        body: '<!-- appt-ci-focus app-unit: PairingToFirstControlFlowTest -->',
+      },
+    });
+    const result = await dispatchCommand({
+      label: 'ci:full',
+      gh: api.gh,
+      repo: REPO,
+      prNumber: PR_NUMBER,
+      log: () => {},
+    });
+
+    assert.equal(result.focus, '');
+    const body = JSON.parse(api.bodies[0]);
+    assert.equal('mode' in body.inputs, false);
+    assert.equal('focus' in body.inputs, false);
+  });
+
   it('dispatches every allowlisted label from the trusted anchor', async () => {
     for (const label of COMMAND_LABEL_NAMES) {
       const api = createFakeApi();
@@ -307,6 +460,7 @@ describe('dispatchCommand', () => {
       const mode = resolveDispatch(label).mode;
       if (mode) assert.equal(body.inputs.mode, mode, `${label}: mode`);
       else assert.equal('mode' in body.inputs, false, `${label}: no mode`);
+      assert.equal('focus' in body.inputs, false, `${label}: no focus without marker`);
     }
   });
 
