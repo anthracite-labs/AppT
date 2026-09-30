@@ -31,6 +31,7 @@ enum class AppDiagnosticName {
 private enum class RecordSource { app, samsung }
 
 /** In-memory representation is itself restricted to the accepted event schema. */
+@ConsistentCopyVisibility
 data class LocalDiagnosticEvent internal constructor(
     val elapsedMs: Long,
     val source: String,
