@@ -270,6 +270,19 @@ Invoking diagnostics without clicking through the Actions UI:
   the repository's default branch, removes the label, and records what it
   dispatched.
 
+To narrow a diagnostic through that metadata-only bridge, put exactly one
+mode-bound marker on a line by itself in the pull-request body before applying
+the matching command label:
+
+`<!-- appt-ci-focus app-unit: PairingToFirstControlFlowTest -->`
+
+The marker is optional and does not change ordinary label behavior: no matching
+marker runs the whole mode, and a marker for another mode is ignored. Duplicate
+matching markers fail closed. The PR body is untrusted data; the bridge passes
+the selected value only as the `focus` workflow input, and the trusted
+`diagnose-focus.mjs` resolver validates it before dispatch and again before
+target code is checked out. `ci:full` ignores focus markers.
+
 The bridge dispatches the **default branch**, not the pull request's head branch,
 and that is the load-bearing part of the trust model. GitHub runs a workflow as
 its dispatch ref defines it, so dispatching the head branch would let the pull
