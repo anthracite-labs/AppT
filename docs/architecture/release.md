@@ -531,10 +531,26 @@ The dispatched workflow then does the rest, in this order, in every job:
 
 Both `verify.yml` and `diagnose.yml` declare workflow-level **`cache-mode: read`**.
 GitHub enforces this with scoped cache tokens, independently of `GITHUB_TOKEN`
-permissions. The default-branch dispatch can restore caches but cannot write
-PR-controlled data into the default branch's cache scope. No target job may
-override this with `write` or `write-only`. The same read-only restriction applies
-to trusted-only runs; performance does not take precedence over isolation.
+permissions. The default-branch dispatch can restore caches but target jobs
+cannot write PR-controlled data into the default branch's cache scope. No job
+that checks out or executes target code may override this with `write` or
+`write-only`.
+
+For repeated Gradle diagnostics, `diagnose.yml` contains one separately proven
+trusted publisher job with **`cache-mode: write-only`**. The publisher never
+checks out or executes target code. The selected Gradle target job, still
+cache-read-only, packages only `~/.gradle/caches/build-cache-1` after execution
+and uploads it as a one-day intermediate artifact. The publisher receives the
+artifact ID plus PR number from trusted step/job outputs, validates that the tar
+contains only ordinary files/directories beneath `build-cache-1`, enforces
+expanded/file-count and 512 MiB bounds, then saves the sanitized directory under
+a cache key derived from the PR number proven by
+`assert-dispatch-target`. A later diagnostic can restore only the prefix
+derived from its own validated PR number. `verify.yml`, CodeQL, and release
+evidence never consume this PR-local diagnostic cache.
+
+This preserves the provider cache-poisoning boundary while allowing iterative
+Arena diagnostics to reuse completed Gradle task outputs.
 See GitHub's cache access reference [1](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching).
 
 `tools/ci/test/workflow-cache-contract.test.py` parses the actual YAML and checks
