@@ -7,6 +7,7 @@ import dev.anthracite.appt.samsung.DiscoveryEvent
 import dev.anthracite.appt.samsung.ForgetResult
 import dev.anthracite.appt.samsung.RemoteKey
 import dev.anthracite.appt.samsung.RemoteSession
+import dev.anthracite.appt.samsung.RedactedDiagnosticReport
 import dev.anthracite.appt.samsung.RepairReason
 import dev.anthracite.appt.samsung.SamsungTvs
 import dev.anthracite.appt.samsung.SessionSnapshot
@@ -73,22 +74,39 @@ class FakeSamsungTvs : SamsungTvs {
             state: SessionState,
             keys: Set<RemoteKey> = emptySet(),
             repairReason: RepairReason? = null,
+            pointer: Boolean = false,
         ) {
-            mutableSnapshot.value = SessionSnapshot(state, TvCapabilities(keys), repairReason)
+            mutableSnapshot.value = SessionSnapshot(state, TvCapabilities(keys, pointer = pointer), repairReason)
         }
 
         /** Publishes `Ready` with the standard remote keys, as a real session does on approval. */
-        fun ready(keys: Set<RemoteKey> = RemoteKey.entries.toSet()) {
-            publish(SessionState.Ready, keys)
+        fun ready(keys: Set<RemoteKey> = RemoteKey.entries.toSet(), pointer: Boolean = false) {
+            publish(SessionState.Ready, keys, pointer = pointer)
         }
 
         override suspend fun command(command: TvCommand): CommandResult {
             commands += command
             // A real session writes only while it is Ready and rejects anything else, so the fake
             // models that: the caller's behaviour is tested against the documented contract.
-            val state = mutableSnapshot.value.state
-            return if (state == SessionState.Ready) nextResult
-            else CommandResult.Rejected(TvFailure.Unavailable)
+            val current = mutableSnapshot.value
+            if (current.state != SessionState.Ready) return CommandResult.Rejected(TvFailure.Unavailable)
+            val result = nextResult
+            if (command is TvCommand.Tap) {
+                when (result) {
+                    is CommandResult.Rejected ->
+                        if (result.failure == TvFailure.Rejected) {
+                            mutableSnapshot.value =
+                                current.copy(
+                                    capabilities =
+                                        current.capabilities.copy(
+                                            keys = current.capabilities.keys - command.key
+                                        )
+                                )
+                        }
+                    CommandResult.Accepted -> Unit
+                }
+            }
+            return result
         }
 
         override suspend fun retryApproval() {
@@ -169,6 +187,8 @@ class FakeSamsungTvs : SamsungTvs {
     }
 
     override fun rememberedIds(): Set<TvId> = remembered.toSet()
+
+    override fun redactedDiagnostics(): RedactedDiagnosticReport = RedactedDiagnosticReport(emptyList())
 
     /** Primes the remembered set, as the durable store would report it after a pairing. */
     fun remember(ids: Set<TvId>) {

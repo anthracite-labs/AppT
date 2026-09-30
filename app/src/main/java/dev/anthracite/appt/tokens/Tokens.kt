@@ -140,6 +140,9 @@ object SizeTokens {
     /** Primary controls exceed the floor where the architecture requires it. */
     val primaryControl: Dp = 56.dp
 
+    /** Comfortable minimum height for two-line preference rows in Settings. */
+    val settingsRow: Dp = 64.dp
+
     val iconSmall: Dp = 20.dp
     val iconMedium: Dp = 24.dp
 

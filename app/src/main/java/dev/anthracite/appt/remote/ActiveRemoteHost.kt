@@ -1,5 +1,7 @@
 package dev.anthracite.appt.remote
 
+import android.os.SystemClock
+import dev.anthracite.appt.diagnostics.LocalDiagnostics
 import dev.anthracite.appt.samsung.ForgetResult
 import dev.anthracite.appt.samsung.RemoteSession
 import dev.anthracite.appt.samsung.SamsungTvs
@@ -57,6 +59,7 @@ class ActiveRemoteHost(
      * without a surface re-reading a snapshot it has already seen.
      */
     private val onSessionReady: suspend (TvId) -> Unit = {},
+    private val diagnostics: LocalDiagnostics? = null,
 ) {
     private val mutableCurrent = MutableStateFlow<ActiveRemoteSnapshot?>(null)
     val current: StateFlow<ActiveRemoteSnapshot?> = mutableCurrent.asStateFlow()
@@ -168,6 +171,7 @@ class ActiveRemoteHost(
                 var reachedReady = false
                 session.snapshot.collect { snapshot ->
                     mutableCurrent.value = ActiveRemoteSnapshot(tvId, session, snapshot)
+                    diagnostics?.recordSamsung(snapshot, SystemClock.elapsedRealtime())
                     if (snapshot.state == SessionState.Ready && !reachedReady) {
                         reachedReady = true
                         try {

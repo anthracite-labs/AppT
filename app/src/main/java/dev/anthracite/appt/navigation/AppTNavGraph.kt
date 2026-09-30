@@ -1,6 +1,7 @@
 package dev.anthracite.appt.navigation
 
 import androidx.activity.compose.BackHandler
+import android.view.KeyEvent
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -18,7 +19,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.anthracite.appt.AppSettingsLauncher
+import dev.anthracite.appt.MainActivity
 import dev.anthracite.appt.data.TvProfiles
+import dev.anthracite.appt.diagnostics.LocalDiagnostics
 import dev.anthracite.appt.discovery.DiscoveryScreen
 import dev.anthracite.appt.discovery.DiscoveryViewModel
 import dev.anthracite.appt.gate.LocalNetworkPhase
@@ -31,6 +34,9 @@ import dev.anthracite.appt.preferences.PreferenceStore
 import dev.anthracite.appt.remote.ActiveRemoteHost
 import dev.anthracite.appt.remote.RemoteScreen
 import dev.anthracite.appt.remote.RemoteViewModel
+import dev.anthracite.appt.settings.SettingsScreen
+import dev.anthracite.appt.settings.SettingsViewModel
+import dev.anthracite.appt.samsung.RemoteKey
 import dev.anthracite.appt.samsung.SamsungTvs
 import dev.anthracite.appt.samsung.SessionState
 import dev.anthracite.appt.samsung.TvId
@@ -59,6 +65,8 @@ fun AppTNavGraph(
     activeRemoteHost: ActiveRemoteHost,
     tvProfiles: TvProfiles,
     preferenceStore: PreferenceStore,
+    appVersion: String = "0.1.0",
+    diagnostics: LocalDiagnostics? = null,
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
 ) {
@@ -96,7 +104,23 @@ fun AppTNavGraph(
             activeRemoteHost = activeRemoteHost,
             tvProfiles = tvProfiles,
             preferenceStore = preferenceStore,
+            appVersion = appVersion,
+            diagnostics = diagnostics,
         )
+        composable<SettingsRoute> {
+            val viewModel = viewModel {
+                SettingsViewModel(preferenceStore, activeRemoteHost, appVersion)
+            }
+            val state by viewModel.state.collectAsStateWithLifecycle()
+            BackHandler { navController.popBackStack() }
+            SettingsScreen(
+                state = state,
+                onBack = { navController.popBackStack() },
+                onHaptics = viewModel::onHaptics,
+                onPhoneVolumeButtons = viewModel::onPhoneVolumeButtons,
+                onNavigationMode = viewModel::onNavigationMode,
+            )
+        }
     }
 }
 
@@ -112,6 +136,8 @@ private fun NavGraphBuilder.s03Destinations(
     activeRemoteHost: ActiveRemoteHost,
     tvProfiles: TvProfiles,
     preferenceStore: PreferenceStore,
+    appVersion: String,
+    diagnostics: LocalDiagnostics?,
 ) {
     composable<PairingRoute> { entry ->
         val route = entry.toRoute<PairingRoute>()
@@ -137,6 +163,8 @@ private fun NavGraphBuilder.s03Destinations(
             activeRemoteHost = activeRemoteHost,
             tvProfiles = tvProfiles,
             preferenceStore = preferenceStore,
+            diagnostics = diagnostics,
+            onOpenSettings = { navController.navigate(SettingsRoute) },
             onBack = {
                 // lifecycle.md: Back leaves the television immediately; grace is for a temporary
                 // loss of surface ownership, not an explicit navigation exit.
@@ -254,13 +282,31 @@ private fun RemoteDestination(
     activeRemoteHost: ActiveRemoteHost,
     tvProfiles: TvProfiles,
     preferenceStore: PreferenceStore,
+    diagnostics: LocalDiagnostics?,
+    onOpenSettings: () -> Unit,
     onBack: () -> Unit,
 ) {
     BackHandler(onBack = onBack)
     val viewModel = viewModel {
-        RemoteViewModel(TvId(tvId), activeRemoteHost, tvProfiles, preferenceStore)
+        RemoteViewModel(TvId(tvId), activeRemoteHost, tvProfiles, preferenceStore, diagnostics)
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val activity = LocalActivity.current as? MainActivity
+    LifecycleStartEffect(viewModel, activity) {
+        val handler: (KeyEvent) -> Boolean = { event ->
+            val key =
+                when (event.keyCode) {
+                    KeyEvent.KEYCODE_VOLUME_UP -> RemoteKey.VolumeUp
+                    KeyEvent.KEYCODE_VOLUME_DOWN -> RemoteKey.VolumeDown
+                    else -> null
+                }
+            key?.let { viewModel.onHardwareVolumeKey(it, event.action, event.repeatCount) } ?: false
+        }
+        activity?.remoteVolumeKeyHandler = handler
+        onStopOrDispose {
+            if (activity?.remoteVolumeKeyHandler === handler) activity.remoteVolumeKeyHandler = null
+        }
+    }
     // The same interest Pairing held, taken over by the surface the session handed off to.
     DisposableEffect(activeRemoteHost) {
         activeRemoteHost.retain(REMOTE)
@@ -271,6 +317,8 @@ private fun RemoteDestination(
         onCommand = viewModel::onCommand,
         onRetry = viewModel::onRetry,
         onConfirmRepair = viewModel::onConfirmRepair,
+        onOpenSettings = onOpenSettings,
+        onToggleNavigationMode = viewModel::onToggleNavigationMode,
     )
 }
 

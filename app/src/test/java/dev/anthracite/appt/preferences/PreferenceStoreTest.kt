@@ -33,6 +33,36 @@ class PreferenceStoreTest {
     }
 
     @Test
+    fun interactionPreferencesDefaultAndPersistLocally() = runTest {
+        val store = store()
+        assertEquals(
+            InteractionPreferences(
+                hapticsEnabled = true,
+                volumeButtonsControlTv = true,
+                navigationMode = NavigationMode.Directional,
+            ),
+            store.interaction.first(),
+        )
+
+        store.setHapticsEnabled(false)
+        store.setVolumeButtonsControlTv(false)
+        store.setNavigationMode(NavigationMode.Pointer)
+
+        assertEquals(
+            InteractionPreferences(false, false, NavigationMode.Pointer),
+            store.interaction.first(),
+        )
+    }
+
+    @Test
+    fun invalidStoredNavigationModeFallsBackToDirectional() = runTest {
+        val preferenceStore = store()
+        preferenceStore.setNavigationMode(NavigationMode.Pointer)
+        preferenceStore.setNavigationMode(NavigationMode.Directional)
+        assertEquals(NavigationMode.Directional, preferenceStore.interaction.first().navigationMode)
+    }
+
+    @Test
     fun settingFirstControlAchievedIsIdempotent() = runTest {
         val store = store()
         store.setFirstControlAchieved()

@@ -27,3 +27,6 @@ import kotlinx.serialization.Serializable
 
 /** The remote surface for one television, reached from Pairing once the session is `Ready`. */
 @Serializable data class RemoteRoute(val tvId: String)
+
+/** S05 device-local Interaction preferences and app About information. */
+@Serializable data object SettingsRoute

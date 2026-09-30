@@ -26,6 +26,7 @@ import dev.anthracite.appt.pairing.PairingTestTags
 import dev.anthracite.appt.preferences.PreferenceStore
 import dev.anthracite.appt.remote.ActiveRemoteHost
 import dev.anthracite.appt.remote.RemoteTestTags
+import dev.anthracite.appt.settings.SettingsTestTags
 import dev.anthracite.appt.samsung.CommandResult
 import dev.anthracite.appt.samsung.DiscoveryEvent
 import dev.anthracite.appt.samsung.RemoteKey
@@ -308,6 +309,31 @@ class AppTNavGraphTest {
         )
         assertEquals(listOf("Welcome", "Discovery"), backStackRoutes())
         composeRule.onNodeWithTag(DiscoveryTestTags.TITLE).assertExists()
+    }
+
+    @Test
+    fun `Remote chrome reaches Settings and returns without reopening the session`() {
+        setGraph()
+        openDiscovery()
+        tvs.latest.send(FakeSamsungTvs.found())
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Living Room TV").performClick()
+        composeRule.waitForIdle()
+        val id = TvId(FakeSamsungTvs.LIVING_ROOM_ID)
+        val session = tvs.sessionFor(id)!!
+        session.ready(setOf(RemoteKey.VolumeUp))
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(RemoteTestTags.SETTINGS).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Interaction").assertExists()
+        composeRule.onNodeWithText("App version").assertExists()
+        composeRule.onNodeWithTag(SettingsTestTags.BACK).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(RemoteTestTags.TV_NAME).assertExists()
+        assertEquals(listOf(id), tvs.openedIds)
+        assertFalse(session.closed)
     }
 
     @Test

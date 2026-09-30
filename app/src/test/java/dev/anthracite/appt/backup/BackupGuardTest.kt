@@ -1,5 +1,6 @@
 package dev.anthracite.appt.backup
 
+import dev.anthracite.appt.diagnostics.LocalDiagnostics
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.Assert.assertEquals
@@ -21,7 +22,9 @@ class BackupGuardTest {
     private val backupRules = File("src/main/res/xml/backup_rules.xml")
 
     @Test
-    fun backupExcludesAllTvState() {
+    fun backupExcludesAllTvState() = assertBackupRules()
+
+    private fun assertBackupRules() {
         // The manifest opt-out is the primary control.
         val application = document(manifest).getElementsByTagName("application").item(0) as Element
         assertEquals(
@@ -91,6 +94,12 @@ class BackupGuardTest {
                 rule.getAttribute("path"),
             )
         }
+    }
+
+    @Test
+    fun diagnosticFileIsExcludedFromBackup() {
+        assertEquals("diagnostics live under noBackupFilesDir", "diagnostics/v1", LocalDiagnostics.DIAGNOSTICS_DIRECTORY)
+        assertBackupRules()
     }
 
     private fun document(file: File) =

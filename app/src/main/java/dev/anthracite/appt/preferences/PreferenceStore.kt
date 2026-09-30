@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
@@ -18,48 +19,74 @@ private const val PREFERENCES_NAME = "appt"
 private val Context.appPreferences: DataStore<Preferences> by
     preferencesDataStore(name = PREFERENCES_NAME)
 
+/** Device-local navigation preference. Pointer can be selected only with live pointer evidence. */
+enum class NavigationMode {
+    Directional,
+    Pointer,
+}
+
+/** The interaction settings consumed as one immutable Remote/ViewModel input. */
+data class InteractionPreferences(
+    val hapticsEnabled: Boolean = true,
+    val volumeButtonsControlTv: Boolean = true,
+    val navigationMode: NavigationMode = NavigationMode.Directional,
+)
+
 /**
  * Typed preference keys (data.md#datastore).
  *
- * Call sites never use a raw key string, and no key in this store holds a television secret, an
- * address, an account identifier, or sync metadata.
- *
- * The [DataStore] is a constructor parameter so a test can build the store over its own file, which
- * is what makes the "set only on an accepted command" rule observable without a shared flag.
+ * Call sites never use raw key strings, and no key in this store holds a television secret, an
+ * address, an account identifier, or sync metadata. UI writes remain ViewModel-owned.
  */
 class PreferenceStore(private val store: DataStore<Preferences>) {
-
-    /** Production: the application's own preferences file. */
     constructor(context: Context) : this(context.appPreferences)
 
-    /**
-     * True once a command has returned `Accepted` on a television (data.md).
-     *
-     * This is a socket-write proxy, not visible television action.
-     * account-entitlement.md#remote-entry-gate reads it to decide whether the exempt first session
-     * has been used; setting it never shows account UI and never interrupts the session that earned
-     * it.
-     */
-    val firstControlAchieved: Flow<Boolean> =
-        store.data
-            .catch { cause -> if (cause is IOException) emit(emptyPreferences()) else throw cause }
-            .map { preferences -> preferences[FIRST_CONTROL_ACHIEVED] ?: false }
+    private val preferences: Flow<Preferences> =
+        store.data.catch { cause -> if (cause is IOException) emit(emptyPreferences()) else throw cause }
 
-    /**
-     * Records the first accepted command. Idempotent: a later accepted command writes the same
-     * value, and nothing else in the app can set or clear it.
-     */
+    val firstControlAchieved: Flow<Boolean> =
+        preferences.map { it[FIRST_CONTROL_ACHIEVED] ?: false }
+
+    val interaction: Flow<InteractionPreferences> =
+        preferences.map { values ->
+            InteractionPreferences(
+                hapticsEnabled = values[HAPTICS_ENABLED] ?: true,
+                volumeButtonsControlTv = values[VOLUME_BUTTONS_CONTROL_TV] ?: true,
+                navigationMode =
+                    values[NAVIGATION_MODE]
+                        ?.let { saved -> NavigationMode.entries.firstOrNull { it.name == saved } }
+                        ?: NavigationMode.Directional,
+            )
+        }
+
     suspend fun setFirstControlAchieved() {
         try {
-            store.edit { preferences -> preferences[FIRST_CONTROL_ACHIEVED] = true }
+            store.edit { it[FIRST_CONTROL_ACHIEVED] = true }
         } catch (ignored: IOException) {
-            // A failed write must not interrupt the session that earned the command, and it must
-            // not reach the caller as a crash. A later accepted command writes the same value
-            // again, so the flag is retried rather than lost.
+            // A failed local milestone write cannot interrupt a live TV command.
+        }
+    }
+
+    suspend fun setHapticsEnabled(enabled: Boolean) = update { it[HAPTICS_ENABLED] = enabled }
+
+    suspend fun setVolumeButtonsControlTv(enabled: Boolean) =
+        update { it[VOLUME_BUTTONS_CONTROL_TV] = enabled }
+
+    suspend fun setNavigationMode(mode: NavigationMode) =
+        update { it[NAVIGATION_MODE] = mode.name }
+
+    private suspend fun update(change: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
+        try {
+            store.edit(change)
+        } catch (ignored: IOException) {
+            // Preferences are best-effort local interaction state; a failed write is not a TV fault.
         }
     }
 
     private companion object {
         val FIRST_CONTROL_ACHIEVED = booleanPreferencesKey("firstControlAchieved")
+        val HAPTICS_ENABLED = booleanPreferencesKey("hapticsEnabled")
+        val VOLUME_BUTTONS_CONTROL_TV = booleanPreferencesKey("volumeButtonsControlTv")
+        val NAVIGATION_MODE = stringPreferencesKey("navigationMode")
     }
 }

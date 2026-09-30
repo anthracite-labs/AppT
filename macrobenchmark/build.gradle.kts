@@ -12,6 +12,7 @@
 
 plugins {
     alias(libs.plugins.android.test)
+    alias(libs.plugins.androidx.baselineprofile)
     // No kotlin-android plugin: AGP 9's built-in Kotlin compiles this
     // module's Kotlin sources (docs/BUILD.md, Issue #54).
 }

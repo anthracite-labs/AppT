@@ -1,5 +1,7 @@
 package dev.anthracite.appt.remote
 
+import dev.anthracite.appt.preferences.InteractionPreferences
+import dev.anthracite.appt.preferences.NavigationMode
 import dev.anthracite.appt.samsung.CommandResult
 import dev.anthracite.appt.samsung.RemoteKey
 import dev.anthracite.appt.samsung.RepairReason
@@ -7,63 +9,60 @@ import dev.anthracite.appt.samsung.SessionSnapshot
 import dev.anthracite.appt.samsung.SessionState
 import dev.anthracite.appt.samsung.TvFailure
 
-/**
- * The minimal S03 remote (presentation.md#remote).
- *
- * S03 is the first live control surface, not the S05 full layout: a volume row and a directional
- * set, both driven by live capability evidence. Power, the favourite shelf, secondary controls, the
- * switch sheet and edit mode arrive with the slices that make them real.
- *
- * @property tvName the television's friendly name, blank when it reported none.
- * @property connection how the session presents (presentation.md's `ConnectionUi` table).
- * @property keys the keys the television currently accepts, in render order.
- */
+/** Immutable state for the phone-native Remote, composed from live TV evidence and preferences. */
 data class RemoteUiState(
     val tvName: String,
     val connection: ConnectionUi,
     val keys: List<RemoteKey>,
+    val pointerAvailable: Boolean = false,
+    val navigationMode: NavigationMode = NavigationMode.Directional,
+    val hapticsEnabled: Boolean = true,
+    val volumeButtonsControlTv: Boolean = true,
+    val powerOffAvailable: Boolean = false,
 ) {
     companion object {
-        val Initial: RemoteUiState =
-            RemoteUiState(tvName = "", connection = ConnectionUi.Connecting, keys = emptyList())
+        val Initial = RemoteUiState("", ConnectionUi.Connecting, emptyList())
 
-        /**
-         * Maps a live session snapshot onto the remote presentation. Pure, so it is a unit test.
-         */
-        fun of(tvName: String, session: SessionSnapshot?): RemoteUiState {
+        fun of(
+            tvName: String,
+            session: SessionSnapshot?,
+            interaction: InteractionPreferences = InteractionPreferences(),
+        ): RemoteUiState {
             val state = session?.state ?: SessionState.Connecting
+            val capabilities = session?.capabilities
+            val pointerAvailable = state == SessionState.Ready && capabilities?.pointer == true
             return RemoteUiState(
                 tvName = tvName,
                 connection = ConnectionUi.of(state, session?.repairReason),
                 keys =
                     if (state == SessionState.Ready) {
-                        session?.capabilities?.keys.orEmpty().sortedBy(RemoteKey::ordinal)
+                        capabilities?.keys.orEmpty().sortedBy(RemoteKey::ordinal)
                     } else {
                         emptyList()
                     },
+                pointerAvailable = pointerAvailable,
+                navigationMode =
+                    if (pointerAvailable) interaction.navigationMode
+                    else NavigationMode.Directional,
+                hapticsEnabled = interaction.hapticsEnabled,
+                volumeButtonsControlTv = interaction.volumeButtonsControlTv,
+                powerOffAvailable =
+                    state == SessionState.Ready &&
+                        capabilities?.powerOff == true &&
+                        RemoteKey.Power in capabilities.keys,
             )
         }
     }
 }
 
-/** How the session presents on the remote surface (presentation.md#remote's `ConnectionUi`). */
+/** How the session presents on the remote surface. */
 sealed interface ConnectionUi {
-    /** Opening the session. Not an error; nothing to act on. */
     data object Connecting : ConnectionUi
-
-    /** The television is asking whether to allow AppT. */
     data object WaitingForApproval : ConnectionUi
-
-    /** Commands write immediately. */
     data object Ready : ConnectionUi
-
-    /** User action is required, with the reason in ordinary language. */
+    data object Reconnecting : ConnectionUi
     data class NeedsRepair(val failure: TvFailure) : ConnectionUi
-
-    /** The television cannot be reached, or the session is gone. */
     data class Unavailable(val failure: TvFailure) : ConnectionUi
-
-    /** No adopted control path. */
     data object Unsupported : ConnectionUi
 
     companion object {
@@ -72,6 +71,7 @@ sealed interface ConnectionUi {
                 SessionState.Connecting -> Connecting
                 SessionState.AwaitingTvApproval -> WaitingForApproval
                 SessionState.Ready -> Ready
+                SessionState.Reconnecting -> Reconnecting
                 SessionState.NeedsRepair ->
                     NeedsRepair(
                         when (reason) {
@@ -91,10 +91,7 @@ sealed interface ConnectionUi {
 
 /** The outcome of one command on the remote surface. */
 sealed interface CommandOutcome {
-    /** The command frame was written to the live session. */
     data object Written : CommandOutcome
-
-    /** The command was not written. */
     data class NotWritten(val failure: TvFailure) : CommandOutcome
 
     companion object {
@@ -106,23 +103,18 @@ sealed interface CommandOutcome {
     }
 }
 
-/**
- * The keys the minimal remote renders, in the order the layout shows them (presentation.md#remote:
- * "Every control comes from live capability evidence").
- *
- * Power is deliberately absent: this surface is a volume and directional set, and power control
- * arrives with the chrome zone that isolates it.
- */
-val MINIMAL_REMOTE_KEYS: List<RemoteKey> =
+/** Product-priority order only; every item is still filtered through live [RemoteUiState.keys]. */
+val REMOTE_PRIMARY_KEYS: List<RemoteKey> =
     listOf(
+        RemoteKey.Power,
+        RemoteKey.Up,
+        RemoteKey.Down,
+        RemoteKey.Left,
+        RemoteKey.Right,
+        RemoteKey.Enter,
+        RemoteKey.Back,
+        RemoteKey.Home,
         RemoteKey.VolumeUp,
         RemoteKey.VolumeDown,
         RemoteKey.Mute,
-        RemoteKey.Up,
-        RemoteKey.Left,
-        RemoteKey.Enter,
-        RemoteKey.Right,
-        RemoteKey.Down,
-        RemoteKey.Back,
-        RemoteKey.Home,
     )

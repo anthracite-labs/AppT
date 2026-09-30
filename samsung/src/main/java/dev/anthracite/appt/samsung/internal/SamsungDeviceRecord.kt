@@ -1,5 +1,6 @@
 package dev.anthracite.appt.samsung.internal
 
+import dev.anthracite.appt.samsung.RemoteKey
 import dev.anthracite.appt.samsung.TvId
 
 /**
@@ -12,11 +13,10 @@ import dev.anthracite.appt.samsung.TvId
  * ignored on read and missing ones fall back to safe defaults
  * (data.md#samsung-private-file-migration).
  *
- * The capability evidence this slice can honestly write is the adopted control path itself: the TLS
- * flag, the adopted-channel flag, and whether the television exposes a stable identity. The rest of
- * the record's documented members — rejected keys, wake-failure count, model, firmware, MAC — are
- * written by the slices that produce and read that evidence (S11, S12, S13); the format version and
- * `ignoreUnknownKeys` are exactly what lets those members arrive without a migration.
+ * S05 now records only explicit per-key television rejection beside the adopted-channel evidence.
+ * Later fields such as wake-failure count, model, firmware and MAC still arrive with their owning
+ * slices; the format version and `ignoreUnknownKeys` let these additive members arrive without a
+ * migration.
  *
  * @property uuid the television's normalized protocol UUID, or null when it exposes none. The
  *   plaintext channel's saved security identity (connection.md#security-identity).
@@ -34,6 +34,7 @@ internal data class SamsungDeviceRecord(
     val adoptedChannel: Boolean,
     val displayName: String?,
     val stableIdentity: Boolean,
+    val rejectedKeys: Set<RemoteKey> = emptySet(),
     val version: Int = DEVICE_RECORD_VERSION,
 ) {
     companion object {

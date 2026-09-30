@@ -6,6 +6,8 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.room.Room
 import dev.anthracite.appt.data.AppTDatabase
+import dev.anthracite.appt.diagnostics.LocalDiagnostics
+import java.io.File
 import dev.anthracite.appt.data.TvProfiles
 import dev.anthracite.appt.gate.LocalNetworkPermissionGate
 import dev.anthracite.appt.gate.PermissionGate
@@ -61,6 +63,16 @@ class AppTApplication : Application() {
     /** The typed preference keys (data.md#datastore). */
     val preferenceStore: PreferenceStore by lazy { PreferenceStore(this) }
 
+    private val diagnosticsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** Local-only, redacted, bounded record under the platform no-backup directory. */
+    val localDiagnostics: LocalDiagnostics by lazy {
+        LocalDiagnostics(
+            directory = File(noBackupFilesDir, LocalDiagnostics.DIAGNOSTICS_DIRECTORY),
+            scope = diagnosticsScope,
+        )
+    }
+
     /** The single Active Remote (lifecycle.md). Owns the one live session. */
     val activeRemoteHost: ActiveRemoteHost by lazy {
         ActiveRemoteHost(
@@ -69,6 +81,7 @@ class AppTApplication : Application() {
             // data.md: `lastOpenedAt` is written when the session reaches `Ready`, which is the
             // host's transition to notice rather than a surface's.
             onSessionReady = { tvId -> tvProfiles.markOpened(tvId) },
+            diagnostics = localDiagnostics,
         )
     }
 

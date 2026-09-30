@@ -49,11 +49,9 @@ internal class SamsungTvsImpl(
     private val newScan: () -> DiscoveryScan,
     private val confirmed: ConfirmedTelevisions = ConfirmedTelevisions(),
     private val secrets: SamsungSecretStore,
-    private val newSession:
-        (ConfirmedTelevision, CoroutineScope, SessionGeneration) -> RemoteSession =
-        { television, scope, generation ->
-            LiveSession(television, ProductionSessionTransport(), scope, secrets, generation)
-        },
+    private val diagnostics: SamsungDiagnosticRecorder = SamsungDiagnosticRecorder(),
+    private val newSession: ((ConfirmedTelevision, CoroutineScope, SessionGeneration) -> RemoteSession)? =
+        null,
 ) : SamsungTvs {
     private val activeScan = AtomicReference<Job?>(null)
 
@@ -78,7 +76,16 @@ internal class SamsungTvsImpl(
         if (!television.adoptedChannel) {
             return UnavailableSession(SessionState.Unsupported)
         }
-        return newSession(television, scope, beginGeneration(id))
+        val generation = beginGeneration(id)
+        return newSession?.invoke(television, scope, generation)
+            ?: LiveSession(
+                television,
+                ProductionSessionTransport(),
+                scope,
+                secrets,
+                generation,
+                diagnostics = diagnostics,
+            )
     }
 
     /**
@@ -100,6 +107,8 @@ internal class SamsungTvsImpl(
 
     /** The ids that have samsung-private records. Not a UI list and not an account concept. */
     override fun rememberedIds(): Set<TvId> = secrets.rememberedIds()
+
+    override fun redactedDiagnostics() = diagnostics.report()
 
     /** The newest generation for [id], which invalidates every older session's effects. */
     private fun beginGeneration(id: TvId): SessionGeneration {

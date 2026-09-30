@@ -1,6 +1,7 @@
 package dev.anthracite.appt.samsung.internal
 
 import android.content.Context
+import dev.anthracite.appt.samsung.RemoteKey
 import dev.anthracite.appt.samsung.TvId
 import java.io.File
 import java.io.FileOutputStream
@@ -8,8 +9,10 @@ import java.io.IOException
 import java.security.GeneralSecurityException
 import java.security.ProviderException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -45,6 +48,10 @@ internal object DeviceRecordJson {
                 put("adoptedChannel", record.adoptedChannel)
                 record.displayName?.let { put("displayName", it) }
                 put("stableIdentity", record.stableIdentity)
+                put(
+                    "rejectedKeys",
+                    buildJsonArray { record.rejectedKeys.sortedBy(RemoteKey::ordinal).forEach { add(it.name) } },
+                )
             }
             .toString()
 
@@ -68,6 +75,15 @@ internal object DeviceRecordJson {
             adoptedChannel = root.boolean("adoptedChannel") ?: true,
             displayName = root.textOrNull("displayName"),
             stableIdentity = root.boolean("stableIdentity") ?: false,
+            rejectedKeys =
+                (root["rejectedKeys"] as? JsonArray)
+                    .orEmpty()
+                    .mapNotNull { value ->
+                        (value as? JsonPrimitive)?.contentOrNull?.let { name ->
+                            RemoteKey.entries.firstOrNull { it.name == name }
+                        }
+                    }
+                    .toSet(),
         )
     }
 
