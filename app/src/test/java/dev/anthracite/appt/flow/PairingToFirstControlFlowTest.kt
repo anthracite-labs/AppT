@@ -186,6 +186,7 @@ class PairingToFirstControlFlowTest {
         composeRule.waitForIdle()
 
         assertEquals(listOf(TvCommand.Tap(RemoteKey.VolumeUp)), session.commands)
+        assertEquals(listOf(CommandResult.Accepted), session.commandResults)
         awaitFirstControlAchieved()
         assertEquals("still one session after the command", listOf(livingRoom), tvs.openedIds)
         assertFalse("the session was not closed by the handoff", session.closed)

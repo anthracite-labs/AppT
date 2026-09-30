@@ -57,6 +57,9 @@ class FakeSamsungTvs : SamsungTvs {
         /** Every command sent, in order. */
         val commands = mutableListOf<TvCommand>()
 
+        /** The corresponding result for each command, including the fake's Ready-state rejection. */
+        val commandResults = mutableListOf<CommandResult>()
+
         var retryApprovals = 0
             private set
 
@@ -89,8 +92,10 @@ class FakeSamsungTvs : SamsungTvs {
             // A real session writes only while it is Ready and rejects anything else, so the fake
             // models that: the caller's behaviour is tested against the documented contract.
             val current = mutableSnapshot.value
-            if (current.state != SessionState.Ready) return CommandResult.Rejected(TvFailure.Unavailable)
-            val result = nextResult
+            val result =
+                if (current.state == SessionState.Ready) nextResult
+                else CommandResult.Rejected(TvFailure.Unavailable)
+            commandResults += result
             if (command is TvCommand.Tap) {
                 when (result) {
                     is CommandResult.Rejected ->
