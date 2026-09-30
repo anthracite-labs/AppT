@@ -50,7 +50,9 @@ internal object DeviceRecordJson {
                 put("stableIdentity", record.stableIdentity)
                 put(
                     "rejectedKeys",
-                    buildJsonArray { record.rejectedKeys.sortedBy(RemoteKey::ordinal).forEach { add(it.name) } },
+                    buildJsonArray {
+                        record.rejectedKeys.sortedBy(RemoteKey::ordinal).forEach { add(JsonPrimitive(it.name)) }
+                    },
                 )
             }
             .toString()
