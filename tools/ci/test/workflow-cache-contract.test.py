@@ -26,10 +26,60 @@ GRADLE_DIAGNOSTIC_JOBS = {
     "android-build",
     "device",
 }
+TRUSTED_CACHE_WRITER_JOB = "publish-gradle-warm-state"
 
 
-def validate_cache_contract(workflow, *, executes_target):
-    """Check provider syntax everywhere and cap target workflows at read-only."""
+def validate_trusted_cache_writer(job_id, job):
+    """Prove the one cache writer is trusted-only and cannot execute target code."""
+    assert job_id == TRUSTED_CACHE_WRITER_JOB
+    assert job.get("cache-mode") == "write-only", (
+        "trusted cache publisher must be write-only, never read/write"
+    )
+    assert job.get("permissions") == {"contents": "read"}, (
+        "trusted cache publisher must not gain repository write permissions"
+    )
+
+    rendered = yaml.safe_dump(job)
+    assert "actions/checkout@" not in rendered, (
+        "trusted cache publisher must never check out target code"
+    )
+    assert "./.github/actions/" not in rendered, (
+        "trusted cache publisher must not execute repository-local actions"
+    )
+    assert "${{ secrets." not in rendered, (
+        "trusted cache publisher must not receive repository secrets"
+    )
+
+    steps = {step.get("name"): step for step in job.get("steps", [])}
+    self_contained = {
+        "Download current diagnostic warm-state artifact",
+        "Validate and stage PR-local Gradle build cache",
+        "Save trusted PR-local Gradle build cache",
+    }
+    assert set(steps) == self_contained, (
+        "trusted cache publisher must stay limited to download, validation, and cache save"
+    )
+
+    download = steps["Download current diagnostic warm-state artifact"]
+    assert "actions/download-artifact@" in download["uses"]
+    assert download["with"]["artifact-ids"] == "${{ env.ARTIFACT_ID }}"
+
+    validate = steps["Validate and stage PR-local Gradle build cache"]["run"]
+    assert 'path.parts[0] != "build-cache-1"' in validate
+    assert "member.isfile() or member.isdir()" in validate
+    assert "max_bytes = 512 * 1024 * 1024" in validate
+    assert "max_files = 100_000" in validate
+    assert "filter=\"data\"" in validate
+
+    save = steps["Save trusted PR-local Gradle build cache"]
+    assert "actions/cache/save@" in save["uses"]
+    assert save["with"]["path"] == "~/.gradle/caches/build-cache-1"
+    assert "${{ env.PR_NUMBER }}" in save["with"]["key"]
+    assert "${{ github.run_id }}" in save["with"]["key"]
+
+
+def validate_cache_contract(workflow, *, executes_target, trusted_cache_writer_jobs=frozenset()):
+    """Cap target-code jobs at read-only; allow only structurally proven trusted writers."""
     workflow_mode = workflow.get("cache-mode")
     if "cache-mode" in workflow:
         assert isinstance(workflow_mode, str) and workflow_mode in VALID_MODES, (
@@ -39,16 +89,21 @@ def validate_cache_contract(workflow, *, executes_target):
         assert workflow_mode in READ_ONLY_MODES, (
             "target workflow must explicitly cap provider cache access at read/none"
         )
+
     for job_id, job in workflow["jobs"].items():
         effective_mode = job.get("cache-mode", workflow_mode)
         if "cache-mode" in job:
             assert isinstance(effective_mode, str) and effective_mode in VALID_MODES, (
                 f"{job_id}: job cache-mode must be a literal provider-supported value"
             )
-        if executes_target:
-            assert effective_mode in READ_ONLY_MODES, (
-                f"{job_id}: target workflow job must not receive cache-write capability"
-            )
+
+        if not executes_target or effective_mode in READ_ONLY_MODES:
+            continue
+
+        assert job_id in trusted_cache_writer_jobs, (
+            f"{job_id}: target workflow job must not receive cache-write capability"
+        )
+        validate_trusted_cache_writer(job_id, job)
 
 
 def executes_validated_target(workflow):
@@ -61,6 +116,10 @@ def executes_validated_target(workflow):
 
 
 class WorkflowCacheContractTests(unittest.TestCase):
+    @staticmethod
+    def trusted_writers(name):
+        return {TRUSTED_CACHE_WRITER_JOB} if name == "diagnose.yml" else set()
+
     def test_repository_workflows(self):
         paths = sorted(WORKFLOWS.glob("*.yml")) + sorted(WORKFLOWS.glob("*.yaml"))
         self.assertTrue(TARGET_WORKFLOWS <= {path.name for path in paths})
@@ -72,6 +131,7 @@ class WorkflowCacheContractTests(unittest.TestCase):
                     executes_target=(
                         path.name in TARGET_WORKFLOWS or executes_validated_target(workflow)
                     ),
+                    trusted_cache_writer_jobs=self.trusted_writers(path.name),
                 )
 
     def test_every_target_job_inherits_a_safe_mode(self):
@@ -81,7 +141,11 @@ class WorkflowCacheContractTests(unittest.TestCase):
                 with self.subTest(workflow=name, mode=mode):
                     candidate = deepcopy(workflow)
                     candidate["cache-mode"] = mode
-                    validate_cache_contract(candidate, executes_target=True)
+                    validate_cache_contract(
+                        candidate,
+                        executes_target=True,
+                        trusted_cache_writer_jobs=self.trusted_writers(name),
+                    )
 
     def test_missing_workflow_boundary_fails_even_with_read_only_repository_token(self):
         for name in sorted(TARGET_WORKFLOWS):
@@ -91,22 +155,50 @@ class WorkflowCacheContractTests(unittest.TestCase):
             with self.subTest(workflow=name), self.assertRaisesRegex(
                 AssertionError, "explicitly cap"
             ):
-                validate_cache_contract(workflow, executes_target=True)
+                validate_cache_contract(
+                    workflow,
+                    executes_target=True,
+                    trusted_cache_writer_jobs=self.trusted_writers(name),
+                )
 
-    def test_write_capability_fails_at_workflow_and_every_job(self):
+    def test_write_capability_fails_at_workflow_and_untrusted_jobs(self):
         for name in sorted(TARGET_WORKFLOWS):
             workflow = yaml.safe_load((WORKFLOWS / name).read_text())
+            trusted = self.trusted_writers(name)
+
             for mode in ("write", "write-only"):
                 candidate = deepcopy(workflow)
                 candidate["cache-mode"] = mode
                 with self.subTest(workflow=name, mode=mode), self.assertRaises(AssertionError):
-                    validate_cache_contract(candidate, executes_target=True)
-                for job_id in workflow["jobs"]:
+                    validate_cache_contract(
+                        candidate,
+                        executes_target=True,
+                        trusted_cache_writer_jobs=trusted,
+                    )
+
+            for job_id in workflow["jobs"]:
+                for mode in ("write", "write-only"):
                     candidate = deepcopy(workflow)
                     candidate["jobs"][job_id]["cache-mode"] = mode
+
+                    if job_id == TRUSTED_CACHE_WRITER_JOB and mode == "write-only":
+                        validate_cache_contract(
+                            candidate,
+                            executes_target=True,
+                            trusted_cache_writer_jobs=trusted,
+                        )
+                        continue
+
                     with self.subTest(workflow=name, job=job_id, mode=mode):
-                        with self.assertRaisesRegex(AssertionError, "cache-write capability"):
-                            validate_cache_contract(candidate, executes_target=True)
+                        with self.assertRaisesRegex(
+                            AssertionError,
+                            "cache-write capability|write-only",
+                        ):
+                            validate_cache_contract(
+                                candidate,
+                                executes_target=True,
+                                trusted_cache_writer_jobs=trusted,
+                            )
 
     def test_flow_mapping_and_alias_cannot_hide_a_write_override(self):
         for jobs in (
@@ -131,57 +223,74 @@ class WorkflowCacheContractTests(unittest.TestCase):
                 ):
                     validate_cache_contract(workflow, executes_target=True)
 
-
-    def test_pr_local_gradle_warm_state_never_grants_cache_write(self):
-        diagnose_path = WORKFLOWS / "diagnose.yml"
-        verify_path = WORKFLOWS / "verify.yml"
-        diagnose = yaml.safe_load(diagnose_path.read_text())
-        verify_text = verify_path.read_text()
+    def test_pr_local_gradle_warm_state_is_pr_bound_and_terminally_isolated(self):
+        diagnose = yaml.safe_load((WORKFLOWS / "diagnose.yml").read_text())
+        verify_text = (WORKFLOWS / "verify.yml").read_text()
 
         self.assertEqual(diagnose["cache-mode"], "read")
-        self.assertNotIn("appt-gradle-local-cache-pr-", verify_text)
+        self.assertNotIn("appt-pr-gradle-", verify_text)
+        self.assertNotIn("publish-gradle-warm-state", verify_text)
+
+        publisher = diagnose["jobs"][TRUSTED_CACHE_WRITER_JOB]
+        validate_trusted_cache_writer(TRUSTED_CACHE_WRITER_JOB, publisher)
+        self.assertEqual(set(publisher["needs"]), GRADLE_DIAGNOSTIC_JOBS)
 
         for job_id in sorted(GRADLE_DIAGNOSTIC_JOBS):
             with self.subTest(job=job_id):
                 job = diagnose["jobs"][job_id]
-                self.assertEqual(job["permissions"], {"actions": "read", "contents": "read"})
-                steps = {step.get("name"): step for step in job["steps"]}
-
-                find = steps["Find previous PR-local Gradle warm state"]
-                self.assertIn("steps.assert-target.outputs.pr-number", find["if"])
-                self.assertIn('artifact_name="appt-gradle-local-cache-pr-${PR_NUMBER}"', find["run"])
-                self.assertIn('.github/workflows/diagnose.yml', find["run"])
-
-                download = steps["Download previous PR-local Gradle warm state"]
-                self.assertIn("actions/download-artifact@", download["uses"])
+                self.assertNotIn("cache-mode", job)
                 self.assertEqual(
-                    download["with"]["name"],
-                    "${{ steps.gradle-warm.outputs.artifact-name }}",
+                    job["permissions"],
+                    {"actions": "read", "contents": "read"},
                 )
+                steps = job["steps"]
+                by_name = {step.get("name"): step for step in steps}
+
+                restore = by_name["Restore PR-local Gradle build cache"]
+                self.assertIn("actions/cache/restore@", restore["uses"])
+                self.assertIn("steps.assert-target.outputs.pr-number", restore["if"])
                 self.assertEqual(
-                    download["with"]["run-id"],
-                    "${{ steps.gradle-warm.outputs.run-id }}",
+                    restore["with"]["path"],
+                    "~/.gradle/caches/build-cache-1",
+                )
+                self.assertIn(
+                    "${{ steps.assert-target.outputs.pr-number }}",
+                    restore["with"]["key"],
+                )
+                self.assertIn(
+                    "appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-",
+                    restore["with"]["restore-keys"],
                 )
 
-                restore = steps["Restore PR-local Gradle build cache"]["run"]
-                self.assertIn("build-cache-1", restore)
-                self.assertIn('path.parts[0] == "build-cache-1"', restore)
-                self.assertIn("member.isfile() or member.isdir()", restore)
-                self.assertIn("536870912", restore)
-                self.assertNotIn("extractall(destination)", restore)
+                exact_checkout = by_name["Check out the exact expected SHA"]
+                self.assertIn("actions/checkout@", exact_checkout["uses"])
+                self.assertEqual(
+                    exact_checkout["with"]["ref"],
+                    "${{ steps.assert-target.outputs.sha }}",
+                )
 
-                package = steps["Package PR-local Gradle warm state"]["run"]
-                self.assertIn('cache_dir="$HOME/.gradle/caches/build-cache-1"', package)
+                names = [step.get("name") for step in steps]
+                self.assertLess(
+                    names.index("Restore PR-local Gradle build cache"),
+                    names.index("Check out the exact expected SHA"),
+                )
+
+                package = by_name["Package PR-local Gradle warm state"]["run"]
+                self.assertIn(
+                    'cache_dir="$HOME/.gradle/caches/build-cache-1"',
+                    package,
+                )
                 self.assertIn("524288", package)
                 self.assertIn("536870912", package)
 
-                upload = steps["Upload PR-local Gradle warm state"]
+                upload = by_name["Upload PR-local Gradle warm state"]
                 self.assertEqual(upload["with"]["retention-days"], 1)
                 self.assertEqual(upload["with"]["compression-level"], 0)
-                self.assertEqual(
+                self.assertIn(
+                    "${{ steps.assert-target.outputs.pr-number }}",
                     upload["with"]["name"],
-                    "appt-gradle-local-cache-pr-${{ steps.assert-target.outputs.pr-number }}",
                 )
+                self.assertIn("${{ github.run_id }}", upload["with"]["name"])
 
     def test_future_target_workflows_are_discovered(self):
         workflow = yaml.safe_load("""
@@ -193,7 +302,10 @@ jobs:
 """)
         self.assertTrue(executes_validated_target(workflow))
         with self.assertRaisesRegex(AssertionError, "explicitly cap"):
-            validate_cache_contract(workflow, executes_target=executes_validated_target(workflow))
+            validate_cache_contract(
+                workflow,
+                executes_target=executes_validated_target(workflow),
+            )
 
 
 if __name__ == "__main__":
