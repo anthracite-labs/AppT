@@ -65,9 +65,9 @@ fun AppTNavGraph(
     activeRemoteHost: ActiveRemoteHost,
     tvProfiles: TvProfiles,
     preferenceStore: PreferenceStore,
+    modifier: Modifier = Modifier,
     appVersion: String = "0.1.0",
     diagnostics: LocalDiagnostics? = null,
-    modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
 ) {
     NavHost(navController = navController, startDestination = WelcomeRoute, modifier = modifier) {

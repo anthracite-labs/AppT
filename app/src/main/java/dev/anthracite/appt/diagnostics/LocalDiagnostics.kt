@@ -153,30 +153,39 @@ class LocalDiagnostics(
         return events
     }
 
-    private fun replaceFile(events: List<LocalDiagnosticEvent>): Result<Unit> {
+    private fun replaceFile(events: List<LocalDiagnosticEvent>): Result<Unit> =
         try {
             if (!directory.exists() && !directory.mkdirs()) {
-                return Result.failure(IOException("Unable to create diagnostics directory"))
-            }
-            val destination = File(directory, RECORD_FILE)
-            val temporary = File(directory, "$RECORD_FILE.tmp")
-            FileOutputStream(temporary).use { output ->
-                output.write(encode(events).encodeToByteArray())
-                output.fd.sync()
-            }
-            try {
-                Files.move(temporary.toPath(), destination.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
-            } catch (unsupported: AtomicMoveNotSupportedException) {
-                if (!temporary.renameTo(destination)) {
-                    temporary.delete()
-                    return Result.failure(unsupported)
+                Result.failure(IOException("Unable to create diagnostics directory"))
+            } else {
+                val destination = File(directory, RECORD_FILE)
+                val temporary = File(directory, "$RECORD_FILE.tmp")
+                FileOutputStream(temporary).use { output ->
+                    output.write(encode(events).encodeToByteArray())
+                    output.fd.sync()
+                }
+                try {
+                    Files.move(
+                        temporary.toPath(),
+                        destination.toPath(),
+                        ATOMIC_MOVE,
+                        REPLACE_EXISTING,
+                    )
+                    Result.success(Unit)
+                } catch (unsupported: AtomicMoveNotSupportedException) {
+                    if (temporary.renameTo(destination)) {
+                        Result.success(Unit)
+                    } else {
+                        temporary.delete()
+                        Result.failure(unsupported)
+                    }
                 }
             }
-            return Result.success(Unit)
-        } catch (failure: Exception) {
-            return Result.failure(failure)
+        } catch (failure: IOException) {
+            Result.failure(failure)
+        } catch (failure: SecurityException) {
+            Result.failure(failure)
         }
-    }
 
     private fun encode(events: List<LocalDiagnosticEvent>): String =
         JsonArray(
