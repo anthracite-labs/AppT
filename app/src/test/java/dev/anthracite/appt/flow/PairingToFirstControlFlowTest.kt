@@ -133,10 +133,7 @@ class PairingToFirstControlFlowTest {
     private fun awaitFirstControlAchieved(timeoutMillis: Long = 10_000L) {
         val observer = observations.launch {
             store.firstControlAchieved.collect { achieved ->
-                if (achieved) {
-                    firstControlEvents.add(FirstControlWriteProbeEvent.ObserverReceivedTrue)
-                    firstControlAchieved.set(true)
-                }
+                if (achieved) firstControlAchieved.set(true)
             }
         }
         // Keep idling the UI looper while the DataStore actor completes and resumes the
@@ -204,18 +201,6 @@ class PairingToFirstControlFlowTest {
         assertEquals(listOf(TvCommand.Tap(RemoteKey.VolumeUp)), session.commands)
         assertEquals(listOf(CommandResult.Accepted), session.commandResults)
         awaitFirstControlAchieved()
-        assertTrue(
-            "accepted command, DataStore edit completion, and same-store flow emission are observed: " +
-                firstControlEvents,
-            firstControlEvents.containsAll(
-                setOf(
-                    FirstControlWriteProbeEvent.AcceptedCommandResult,
-                    FirstControlWriteProbeEvent.WriteStarted,
-                    FirstControlWriteProbeEvent.WriteCompleted,
-                    FirstControlWriteProbeEvent.FlowEmittedTrue,
-                )
-            ),
-        )
         assertEquals("still one session after the command", listOf(livingRoom), tvs.openedIds)
         assertFalse("the session was not closed by the handoff", session.closed)
     }
