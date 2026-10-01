@@ -59,7 +59,7 @@ GRADLE_STRICT_FLAGS=(
   -Pkotlin.compiler.execution.strategy=in-process
   --dependency-verification=strict
 )
-GRADLE_BUILD_TASKS=(assembleDebug :macrobenchmark:assembleBenchmark)
+GRADLE_BUILD_TASKS=(assembleDebug)
 
 log() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 info() { printf '    %s\n' "$*"; }
