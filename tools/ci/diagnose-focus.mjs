@@ -46,6 +46,7 @@ export const DIAGNOSE_MODES = Object.freeze([
   'backend-static',
   'backend-test',
   'backend',
+  'dependency-state',
   'device',
 ]);
 
@@ -59,6 +60,15 @@ const GRADLE_CONTINUE = [
   '--no-daemon',
   '--dependency-verification=strict',
   '--continue',
+];
+
+/** Dependency-state regeneration is a single reviewed Gradle task and never accepts focus. */
+const GRADLE_DEPENDENCY_STATE = [
+  './gradlew',
+  '--no-daemon',
+  '--dependency-verification=strict',
+  'resolveAndLockAll',
+  '--write-locks',
 ];
 
 /** The device mode deliberately does not use `--continue`. */
@@ -368,6 +378,16 @@ export function resolveFocus({ mode, focus } = {}) {
           command = [...npm('verify:test'), '--', child];
         }
       }
+      break;
+    }
+
+    // Reviewed dependency-state regeneration. This mode is deliberately not
+    // focusable: narrowing a state-generation command would create partial lock state.
+    case 'dependency-state': {
+      if (normalized !== '') {
+        throw new Error('focus is not supported for dependency-state');
+      }
+      command = [...GRADLE_DEPENDENCY_STATE];
       break;
     }
 
