@@ -57,7 +57,7 @@ over exactly the same work, in one invocation:
 # Root Android/Kotlin verification lifecycle interface aggregating strict
 # compiler diagnostics (-Werror), Spotless + ktfmt, debug assembly, unit/Robolectric
 # tests, Android Lint, detekt, Kover coverage verification, dependency locks,
-# appTGuards, and macrobenchmark compilation:
+# appTGuards and release-boundary checks:
 ./gradlew --no-daemon --dependency-verification=strict ciCheck
 
 # The CI-owned failure domains, one at a time:
@@ -70,10 +70,6 @@ over exactly the same work, in one invocation:
 ./gradlew spotlessApply
 ./gradlew spotlessCheck
 
-# Installed-app runtime acceptance on Gradle Managed Device (API 29):
-./gradlew --no-daemon --dependency-verification=strict \
-  -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
-  :app:pixel2api29DebugAndroidTest
 ```
 
 `androidUnit` runs `:app:testDebugUnitTest` **and** `:samsung:test` plus Kover
@@ -184,8 +180,10 @@ when safe, and escalate only the blocked operation.
    install/download), escalate only that blocked operation. The hosted fallback
    for Android/JVM implementation feedback is a `workflow_dispatch` of
    `.github/workflows/diagnose.yml` with the narrowest mode that answers the
-   question: `app-unit`, `samsung-unit`, `android-static`, `android-build`, or
-   `device`. A diagnostic run is implementation feedback only. It is not terminal
+   question: `app-unit`, `samsung-unit`, `android-static`, `android-build`, `dependency-state`, or
+   `device`. Use `dependency-state` only after a reviewed Gradle dependency/configuration
+   change requires `resolveAndLockAll --write-locks`; it uploads bounded generated lockfiles
+   and never writes the target branch. A diagnostic run is implementation feedback only. It is not terminal
    repository verification and does not satisfy `verify / gate` for a finished
    candidate. Do not dispatch a full `verify` run merely to discover the next
    compile, format, or unit-test error.
@@ -208,9 +206,6 @@ yamllint, markdownlint, and ShellCheck run locally when those tools are present:
 - `yamllint -c .yamllint.yml .`
 - `tools/security/run.sh`
 
-Installed-app acceptance executes on GitHub Actions via Gradle Managed Devices
-(API 29) with KVM acceleration.
-
 ## Verification cadence
 
 Pull-request synchronization is intentionally cheap. `.github/workflows/verify.yml`
@@ -219,7 +214,7 @@ policy (whitespace/diff validation, repository security-policy self-tests, secre
 scanning, tooling constraint checks) and repository quality (yamllint,
 markdownlint, ShellCheck, shfmt, actionlint, zizmor) — plus change detection and
 dependency review when the candidate changed dependency inputs. It does not build
-Android, run backend verification, start a managed device, run SonarQube,
+Android, run backend verification, run SonarQube,
 regenerate dependency state, or execute `ciCheck` or any of its narrower domains.
 
 The gate requires change detection to have succeeded in its own right, because
@@ -265,7 +260,7 @@ Invoking diagnostics without clicking through the Actions UI:
 - an integration that can only mutate pull-request metadata adds one of the
   command labels (`ci:app-unit`, `ci:samsung-unit`, `ci:android-static`,
   `ci:android-build`, `ci:backend`, `ci:backend-static`, `ci:backend-test`,
-  `ci:device`, `ci:full`) to the pull request, and `agent-control.yml` resolves
+  `ci:full`) to the pull request, and `agent-control.yml` resolves
   that pull request's head SHA and branch, dispatches the matching workflow from
   the repository's default branch, removes the label, and records what it
   dispatched.
@@ -451,7 +446,6 @@ gh workflow run diagnose.yml -f mode=app-unit
 gh workflow run diagnose.yml -f mode=app-unit -f focus=com.example.FooTest
 gh workflow run diagnose.yml -f mode=android-static -f focus=lint
 gh workflow run diagnose.yml -f mode=backend-test -f focus=name:handles a retry
-gh workflow run diagnose.yml -f mode=device -f focus=class:dev.anthracite.appt.SmokeTest
 ```
 
 `tools/ci/diagnose-focus.mjs` owns the per-mode grammar and returns the exact
@@ -504,7 +498,7 @@ Because GitHub-managed Default Setup uses CodeQL bundle 2.27.0 which does not
 support Kotlin 2.4.20 (supported starting in CodeQL CLI / bundle 2.27.1), AppT
 temporarily uses an Advanced Setup workflow pinned to CodeQL Action `v4.38.2`
 and bundle `2.27.1`. The workflow analyzes `java-kotlin` (built manually under
-strict dependency verification via `./gradlew ... assembleDebug :macrobenchmark:assembleBenchmark`),
+strict dependency verification via `./gradlew ... assembleDebug`),
 `javascript-typescript`, and `actions` using the `security-extended` query suite.
 
 Local reproduction of the deterministic Kotlin extraction build:

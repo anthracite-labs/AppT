@@ -44,7 +44,7 @@ Project-owned commands and environment facts live in `../../docs/BUILD.md`, proj
 
 When Android/JVM verification is required, probe the live session first. Missing preinstalled JDK, Android SDK, or network is not automatically unavailable tooling; install disposable local tooling when that is safe. Escalate only a proven blocked operation.
 
-The project-owned hosted fallback for that blocked Android/JVM feedback is documented in `../../docs/BUILD.md`: a `workflow_dispatch` of `.github/workflows/diagnose.yml` in the narrowest mode that answers the question (`app-unit`, `samsung-unit`, `android-static`, `android-build`, `device`), not a full terminal suite and not a new workflow file. A diagnostic run is implementation feedback only and never satisfies `verify / gate`.
+The project-owned hosted fallback for that blocked Android/JVM feedback is documented in `../../docs/BUILD.md`: a `workflow_dispatch` of `.github/workflows/diagnose.yml` in the narrowest mode that answers the question (`app-unit`, `samsung-unit`, `android-static`, `android-build`), not a full terminal suite and not a new workflow file. A diagnostic run is implementation feedback only and never satisfies `verify / gate`.
 
 Within that chosen mode, follow the diagnostic-breadth behavior owned by `../../docs/BUILD.md` and the reviewed resolver/reporting path. Narrow scope and rich evidence are complementary: choose the smallest relevant domain, then harvest its practical failure set before correction.
 

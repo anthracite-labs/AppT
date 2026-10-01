@@ -9,7 +9,6 @@
 // build speak the same language:
 //   noTelemetryDependency
 //   adIdAbsentFromManifest
-//   noProductionModuleDependsOnBenchmark
 //
 // Issue #88 removed the duplicated work behind two of these names without
 // removing a guarantee:
@@ -259,63 +258,6 @@ tasks.register("samsungGraphExcludesFirebase") {
 }
 
 // ---------------------------------------------------------------------------
-// noProductionModuleDependsOnBenchmark
-// ---------------------------------------------------------------------------
-
-// Declaration-level checks only (configuration.dependencies and plugin
-// registration): no configuration is resolved, so this guard stays at the
-// repository root under Gradle 9's resolution rule above.
-tasks.register("noProductionModuleDependsOnBenchmark") {
-    group = "verification"
-    description =
-        "Fails if a production module depends on :macrobenchmark, or if benchmark " +
-            "code could reach a shipped artifact."
-    doLast {
-        val offenders = mutableListOf<String>()
-
-        listOf(":app", ":samsung").forEach { path ->
-            val productionProject = project(path)
-            productionProject.configurations.forEach { configuration ->
-                configuration.dependencies
-                    .filterIsInstance<ProjectDependency>()
-                    // The baseline-profile plugin requires this non-runtime edge so :app can
-                    // consume generated profiles. It is not a production dependency; keep the
-                    // guard strict for every actual app/samsung compile or runtime configuration.
-                    .filterNot {
-                        path == ":app" &&
-                            configuration.name == "baselineProfile" &&
-                            it.path == ":macrobenchmark"
-                    }
-                    .filter { it.path == ":macrobenchmark" }
-                    .forEach {
-                        offenders += "$path:${configuration.name} depends on :macrobenchmark"
-                    }
-            }
-        }
-
-        // The benchmark module must remain a com.android.test module: such a
-        // module produces no publishable/shippable artifact and is never a
-        // dependency of an application or library module.
-        val benchmark = project(":macrobenchmark")
-        if (!benchmark.plugins.hasPlugin("com.android.test")) {
-            offenders += ":macrobenchmark must apply com.android.test so it cannot be shipped"
-        }
-
-        if (offenders.isNotEmpty()) {
-            throw GradleException(
-                "noProductionModuleDependsOnBenchmark failed " +
-                    "(docs/architecture/modules.md#shape).\n" +
-                    offenders.joinToString("\n") { "  $it" }
-            )
-        }
-        logger.lifecycle(
-            "noProductionModuleDependsOnBenchmark: OK — :macrobenchmark is test-only and unreferenced " +
-                "by production modules."
-        )
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Source-level guards
 // ---------------------------------------------------------------------------
 
@@ -506,7 +448,6 @@ tasks.register("appTGuards") {
         tasks.named("noFirestoreClientInApp"),
         tasks.named("samsungDependencyBoundary"),
         tasks.named("samsungGraphExcludesFirebase"),
-        tasks.named("noProductionModuleDependsOnBenchmark"),
         tasks.named("noLogInSamsungSource"),
         tasks.named("noSyncRecordInProductionSource"),
     )

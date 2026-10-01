@@ -61,16 +61,12 @@ const UNFOCUSED_COMMANDS = {
   'backend-static': ['npm', 'run', 'verify:static', '--prefix', 'backend'],
   'backend-test': ['npm', 'run', 'verify:test', '--prefix', 'backend'],
   backend: ['npm', 'run', 'verify', '--prefix', 'backend'],
-  device: [
+  'dependency-state': [
     './gradlew',
     '--no-daemon',
     '--dependency-verification=strict',
-    '-Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect',
-    ':app:pixel2api29DebugAndroidTest',
-    ':samsung:pixel2api29DebugAndroidTest',
-    ':samsung:pixel2api35DebugAndroidTest',
-    ':app:generateReleaseBaselineProfile',
-    ':macrobenchmark:connectedCheck',
+    'resolveAndLockAll',
+    '--write-locks',
   ],
 };
 
@@ -86,12 +82,7 @@ const INVOCATION_PREFIX = {
   'backend-static': ['npm', 'run'],
   'backend-test': ['npm', 'run'],
   backend: ['npm', 'run'],
-  device: [
-    './gradlew',
-    '--no-daemon',
-    '--dependency-verification=strict',
-    '-Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect',
-  ],
+  'dependency-state': ['./gradlew', '--no-daemon', '--dependency-verification=strict'],
 };
 
 /**
@@ -113,14 +104,6 @@ const OWNED_GRADLE_TASKS = {
   'android-build': [
     ':app:assembleDebug',
     ':app:verifyReleaseS05Boundaries',
-    ':macrobenchmark:assembleBenchmark',
-  ],
-  device: [
-    ':app:pixel2api29DebugAndroidTest',
-    ':samsung:pixel2api29DebugAndroidTest',
-    ':samsung:pixel2api35DebugAndroidTest',
-    ':app:generateReleaseBaselineProfile',
-    ':macrobenchmark:connectedCheck',
   ],
 };
 
@@ -252,25 +235,6 @@ describe('a valid focus narrows within its mode', () => {
     ['backend', 'static:knip', ['knip', '--prefix', 'backend']],
     ['backend', 'test:src/foo.test.ts', ['verify:test', '--prefix', 'backend', '--', 'src/foo.test.ts']],
 
-    // Instrumentation targeting on the pinned managed device.
-    ['device', 'class:dev.anthracite.appt.SmokeTest', [
-      ':app:pixel2api29DebugAndroidTest',
-    ':samsung:pixel2api29DebugAndroidTest',
-    ':samsung:pixel2api35DebugAndroidTest',
-      '-Pandroid.testInstrumentationRunnerArguments.class=dev.anthracite.appt.SmokeTest',
-    ]],
-    ['device', 'package:dev.anthracite.appt', [
-      ':app:pixel2api29DebugAndroidTest',
-    ':samsung:pixel2api29DebugAndroidTest',
-    ':samsung:pixel2api35DebugAndroidTest',
-      '-Pandroid.testInstrumentationRunnerArguments.package=dev.anthracite.appt',
-    ]],
-    ['device', 'method:dev.anthracite.appt.SmokeTest#launches', [
-      ':app:pixel2api29DebugAndroidTest',
-    ':samsung:pixel2api29DebugAndroidTest',
-    ':samsung:pixel2api35DebugAndroidTest',
-      '-Pandroid.testInstrumentationRunnerArguments.method=dev.anthracite.appt.SmokeTest#launches',
-    ]],
   ];
 
   for (const [mode, focus, expectedTail] of cases) {
@@ -347,17 +311,12 @@ describe('invalid and cross-mode focus fails closed', () => {
     ['backend', 'test:'],
     ['backend', 'static:nope'],
     ['backend', 'test:--coverage'],
-    ['device', 'lint'],
-    ['device', 'class:9bad'],
-    ['device', 'method:Foo'],
-    ['device', 'package:a..b'],
-    ['device', 'class:-x'],
+    ['dependency-state', 'anything'],
 
     // A value that would be read as a flag rather than as a selector.
     ['app-unit', '--tests'],
     ['app-unit', '-x'],
     ['backend-test', '-x'],
-    ['device', '-x'],
   ];
 
   for (const [mode, focus] of rejections) {
@@ -370,6 +329,15 @@ describe('invalid and cross-mode focus fails closed', () => {
       assert.notEqual(result.status, 0);
     });
   }
+
+  it('dependency-state rejects every non-empty focus', () => {
+    for (const focus of ['locks', 'app', 'other', 'anything']) {
+      assert.throws(
+        () => resolveFocus({ mode: 'dependency-state', focus }),
+        /focus is not supported for dependency-state/
+      );
+    }
+  });
 
   it('rejects an unknown mode', () => {
     assert.throws(() => resolveFocus({ mode: 'not-a-mode' }), /unknown diagnose mode/);

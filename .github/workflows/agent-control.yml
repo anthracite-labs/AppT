@@ -37,8 +37,7 @@
 #     **inputs** instead: `target_ref` is the pull request's head branch and
 #     `expected_sha` is the exact commit it resolved to. The dispatched workflow
 #     resolves `target_ref` with trusted logic, requires it still to point at
-#     `expected_sha`, and only then checks that SHA out for Gradle, npm and
-#     device work (`.github/actions/assert-dispatch-target`). That is what
+#     `expected_sha`, and only then checks that SHA out for Gradle and npm work (`.github/actions/assert-dispatch-target`). That is what
 #     preserves the exact-PR-head guarantee the command was issued against.
 #   * The token permissions are the narrowest set that can do the job:
 #     `contents: read` to resolve the pull request, `actions: write` to
@@ -90,7 +89,7 @@ jobs:
           "ci:backend",
           "ci:backend-static",
           "ci:backend-test",
-          "ci:device"
+          "ci:dependency-state"
         ]'),
         github.event.label.name
       )

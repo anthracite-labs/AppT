@@ -15,7 +15,7 @@
   graph once against google() and mavenCentral():
 
       ./gradlew [dash][dash]write-verification-metadata sha256 \
-        assembleDebug testDebugUnitTest lintDebug :macrobenchmark:assembleBenchmark
+        assembleDebug testDebugUnitTest lintDebug
 
   (XML comments cannot contain a double hyphen, so the flag is written above
   with [dash][dash] standing in for the two leading hyphens.)

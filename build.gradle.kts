@@ -57,16 +57,12 @@ buildscript {
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false
-    alias(libs.plugins.android.test) apply false
-    alias(libs.plugins.androidx.baselineprofile) apply false
     // No kotlin-android plugin: AGP 9's built-in Kotlin compiles Kotlin in
     // every module that applies AGP (docs/BUILD.md, Issue #54).
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.kotlin.serialization) apply false
     // Declared at the root so the version comes from the catalog exactly once,
     // and applied only in the production Kotlin modules (:app, :samsung).
-    // :macrobenchmark is a test-only com.android.test module, not production
-    // Kotlin, so Issue #36's detekt scope does not reach it.
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.spotless)
     alias(libs.plugins.kover)
@@ -178,13 +174,8 @@ tasks.register("androidStatic") {
 
 tasks.register("androidBuild") {
     group = "verification"
-    description =
-        "Android build: debug APK assembly, release S05 exclusion/profile-packaging guard, and macrobenchmark compilation."
-    dependsOn(
-        ":app:assembleDebug",
-        ":app:verifyReleaseS05Boundaries",
-        ":macrobenchmark:assembleBenchmark",
-    )
+    description = "Android build: debug APK assembly and release S05 exclusion guard."
+    dependsOn(":app:assembleDebug", ":app:verifyReleaseS05Boundaries")
 }
 
 // Samsung unit tests are authoritative verification evidence, not diagnostics:

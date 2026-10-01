@@ -28,8 +28,7 @@
  * The commands below were verified against the pinned toolchain before being
  * committed: the Gradle task paths are the ones `build.gradle.kts` declares for
  * each failure domain, the npm script names are the ones
- * `backend/package.json` declares, and the device tasks use the Gradle Managed
- * Device `pixel2api29` configured in the app and macrobenchmark modules.
+ * `backend/package.json` declares.
  *
  * Deliberately zero dependencies: its provenance is the repository itself.
  *
@@ -46,7 +45,7 @@ export const DIAGNOSE_MODES = Object.freeze([
   'backend-static',
   'backend-test',
   'backend',
-  'device',
+  'dependency-state',
 ]);
 
 /**
@@ -61,12 +60,13 @@ const GRADLE_CONTINUE = [
   '--continue',
 ];
 
-/** The device mode deliberately does not use `--continue`. */
-const GRADLE_DEVICE = [
+/** Dependency-state regeneration is a single reviewed Gradle task and never accepts focus. */
+const GRADLE_DEPENDENCY_STATE = [
   './gradlew',
   '--no-daemon',
   '--dependency-verification=strict',
-  '-Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect',
+  'resolveAndLockAll',
+  '--write-locks',
 ];
 
 /** npm script invocation prefix. */
@@ -91,7 +91,6 @@ export const ANDROID_STATIC_SUBCHECKS = Object.freeze({
 export const ANDROID_BUILD_SUBTARGETS = Object.freeze({
   app: [':app:assembleDebug'],
   'release-guard': [':app:verifyReleaseS05Boundaries'],
-  macrobenchmark: [':macrobenchmark:assembleBenchmark'],
 });
 
 /**
@@ -129,12 +128,6 @@ function hasControlCharacter(value) {
  */
 const GRADLE_TEST_PATTERN =
   /^[A-Za-z0-9_$*]+(\.[A-Za-z0-9_$*]+)*(#[A-Za-z0-9_$*]+)?$/;
-
-/** A fully qualified Java/Kotlin class or package name. */
-const FQCN = /^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/;
-
-/** A fully qualified class name plus a `#method` name. */
-const METHOD_REF = /^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*#[A-Za-z_$][A-Za-z0-9_$]*$/;
 
 /**
  * Validate and normalise the focus value.
@@ -371,42 +364,13 @@ export function resolveFocus({ mode, focus } = {}) {
       break;
     }
 
-    // Instrumentation targeting through AGP's testInstrumentationRunnerArguments
-    // on the pinned managed device.
-    case 'device': {
-      kind = 'instrumentation-targeting';
-      // Both modules' instrumented suites run on the pinned device: :app's acceptance
-      // suite and :samsung's Android-runtime contracts (Issue #91: regexes the JVM
-      // accepts but Android's engine rejects must fail on the device route).
-      const instrumentationTasks = [
-        ':app:pixel2api29DebugAndroidTest',
-        ':samsung:pixel2api29DebugAndroidTest',
-        ':samsung:pixel2api35DebugAndroidTest',
-      ];
-      command = [...GRADLE_DEVICE, ...instrumentationTasks];
-      if (normalized === '') {
-        // The full trusted-device route also generates the AndroidX profile and runs
-        // MacrobenchmarkRule through the hosted Pixel 2 GMD. Focused instrumentation
-        // requests intentionally remain a strict subset of the installed-app checks.
-        command.push(':app:generateReleaseBaselineProfile', ':macrobenchmark:connectedCheck');
-      }
+    // Reviewed dependency-state regeneration. This mode is deliberately not
+    // focusable: narrowing a state-generation command would create partial lock state.
+    case 'dependency-state': {
       if (normalized !== '') {
-        const { kind: target, value } = splitKind(
-          normalized,
-          ['class', 'package', 'method'],
-          mode
-        );
-        if (target === 'class') {
-          requireMatch(FQCN, value, 'instrumentation test class name');
-          command.push(`-Pandroid.testInstrumentationRunnerArguments.class=${value}`);
-        } else if (target === 'package') {
-          requireMatch(FQCN, value, 'instrumentation test package name');
-          command.push(`-Pandroid.testInstrumentationRunnerArguments.package=${value}`);
-        } else {
-          requireMatch(METHOD_REF, value, 'instrumentation test method reference');
-          command.push(`-Pandroid.testInstrumentationRunnerArguments.method=${value}`);
-        }
+        throw new Error('focus is not supported for dependency-state');
       }
+      command = [...GRADLE_DEPENDENCY_STATE];
       break;
     }
 

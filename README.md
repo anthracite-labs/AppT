@@ -142,7 +142,6 @@ Run the Android verification interface:
 ```text
 app/              Android application
 samsung/          Samsung discovery, pairing and control
-macrobenchmark/   Android performance and acceptance tooling
 backend/          Entitlement backend
 docs/             Product and architecture documentation
 ```
