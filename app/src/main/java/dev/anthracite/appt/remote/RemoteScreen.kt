@@ -122,10 +122,7 @@ fun RemoteScreen(
 }
 
 @Composable
-private fun remoteHaptic(
-    enabled: Boolean,
-    onHapticFeedback: () -> Unit,
-): () -> Unit {
+private fun remoteHaptic(enabled: Boolean, onHapticFeedback: () -> Unit): () -> Unit {
     val view = LocalView.current
     return {
         if (enabled && view.isHapticFeedbackEnabled) {
