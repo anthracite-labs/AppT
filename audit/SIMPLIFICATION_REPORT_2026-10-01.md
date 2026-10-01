@@ -1,149 +1,113 @@
-# AppT simplification report — 2026-10-01
+# AppT simplification & consolidation — implementation report
 
-Branch `arena/01a0f840-appt`, final head `9f31088` (commits `28369eb`,
-`d6a8f05`, `705a513`, `9f31088`), base `origin/main` at `754f6e23`.
+**Branch:** `arena/01a0f840-appt`
+**Base:** `origin/main` at `754f6e23ed24447fa131722b242b671258b0308c`
+**Implementation head before this report update:** `1f86aed`
+**Scope:** repository simplification only. No product source or product test was edited. `.project-ai/skills/**` is unchanged; `PROJECT_STATE.md` is left for post-acceptance reconciliation.
 
-Execution record for the complexity audit
-(`audit/COMPLEXITY_AUDIT_2026-10-01_main_754f6e2.md`): remove what a
-boring, conventional, secure, maintainable AppT would not deliberately build,
-keep every genuine product and security guarantee, and leave the repository
-in a state where the simplified architecture itself proves the work.
+This implements the two accepted audits (`REPO_AUDIT_2026-10-01_main_754f6e2.md` and `COMPLEXITY_AUDIT_2026-10-01_main_754f6e2.md`) against the live repository and open PRs. It deliberately leaves S05-owned product, device, benchmark and generated-state edits to draft PR #118. PRs #123 and #128 were closed as superseded; see their closure comments. The cache and Sonar decisions below were revised after checking actual GitHub workflow history rather than applying audit conclusions mechanically.
 
-Superseded PRs closed with rationale comments: #123 (PR-local warm Gradle
-cache — the machinery is deleted here) and #128 (trusted hosted Gradle lock
-refresh — locking is retired here). PR #118 (draft S05) is untouched.
+## Before / after
 
-## 1. Before / after
+**Counting rules:** tracked main/test source is product; support is every other tracked text file except `audit/**`, generated state, and the hard-excluded `.project-ai/skills/**`. Generated state includes dependency lockfiles, `gradle/verification-metadata.xml`, `backend/package-lock.json`, and Room schema JSON. Binary wrapper JAR has no LOC. These are broad, reproducible repository counts, not estimates of engineering effort.
 
-| Metric | main @ 754f6e2 | This branch | Delta |
+| Measure | `main` @ 754f6e2 | This branch | Change |
+|---|---:|---:|---:|
+| Project tracked files (excluding audit deliverables) | 301 | 292 | −9 |
+| Tracked files including this branch's 3 audit reports | 301 | 295 | −6 |
+| Hand-authored support LOC (excluding product/tests, generated state, audits and skills) | 20,049 | 16,946 | **−3,103** |
+| Generated support LOC | 12,797 | 12,767 | −30 |
+| Hand-authored + generated support LOC | 32,846 | 29,713 | **−3,133** |
+| Production source LOC (`app` + `samsung` Kotlin and backend TS) | 7,543 | 7,543 | 0 |
+| Product test LOC | 9,015 | 9,015 | 0 |
+| Workflows | 5 | 4 | −1 |
+| Workflow YAML LOC | 2,703 | 1,842 | −861 (−32%) |
+| CI jobs | 26 | 20 | −6 |
+| Custom CI/security scripts + local composite actions | 22 files / 6,539 LOC | 18 files / 4,646 LOC | −4 files / −1,893 LOC |
+| `docs/**` plus root documentation LOC | 6,946 | 6,727 | −219 |
+| `.project-ai/**` LOC | 4,191 | 4,191 | 0 (skills are 3,279 LOC and were excluded from this work) |
+| Distinct registered Gradle check/guard task names | 18 | 16 | −2 |
+| Markdownlint configuration owners | 3 | 1 | −2 |
+| Gradle lockfiles in tree | 5 | 3 | −2; remaining files are inactive, pending S05 ownership |
+
+Current workflow jobs: `verify` 11, `diagnose` 6, `codeql` 2, `agent-control` 1.
+Current generated lock state: legacy `app/gradle.lockfile`, `samsung/gradle.lockfile`, and `macrobenchmark/gradle.lockfile`; the build no longer enables dependency locking or checks/refreshes these files. Strict dependency verification remains active. The verification-metadata template also remains because active PR #118 edits it; see Deferred.
+
+The hand-authored support reduction includes docs, CI, tools and non-skill support. The 3,279 LOC under `.project-ai/skills/**` contributes zero to this comparison and was not touched. Product architecture, fixtures and product tests are preserved.
+
+## Implemented simplifications
+
+### Configuration ownership
+
+- Consolidated `.markdownlint.jsonc`, `.markdownlint-cli2.jsonc`, and `.markdownlintignore` into `.markdownlint-cli2.jsonc`. All intentional rule exclusions and ignore patterns are preserved. CI/editor uses one canonical owner; markdownlint reports 0 issues across 29 Markdown files.
+- Consolidated backend full verification to one `backend` job running `npm run verify --prefix backend`; the package still owns its narrow local `verify:static` / `verify:test` entrypoints.
+- Consolidated dependency vulnerability enforcement in the standard `actions/dependency-review-action` with `fail-on-severity: low`. Removed the custom policy script/tests and its obsolete jgit exception: the root constraint resolves jgit to patched `6.10.1.202505221210-r`, which is present in verification metadata.
+
+### Gradle dependency and coverage stack
+
+- Removed global `lockAllConfigurations`, `resolveAndLockAll`, `dependencyLockCheck`, lock-specific CI/change-detection wiring, and the trusted `dependency-state` diagnose mode/label. No dynamic, range, or SNAPSHOT versions exist in the version catalog; exact versions remain protected by `versionCatalogPinned`.
+- Deleted the root and settings lockfiles. The remaining app, Samsung and benchmark lockfiles are no longer consumed by the build and are intentionally left for PR #118's S05-generated-state changes; no lock refresh command remains.
+- `gradle/verification-metadata.xml` remains the single active artifact-integrity state under `--dependency-verification=strict`. The template is temporarily retained because PR #118 modifies it; it is not used by the active verification path.
+- Retained Kover **product coverage reporting** because Sonar consumes its XML. Removed the 80% Kover threshold on build/CI implementation and all `koverVerify` wiring. Unit tests still run; no test was removed.
+
+### CI, diagnostics and security platform
+
+- Removed `maintenance.yml`, `tools/ci/purge-actions.mjs`, and the purge tests. The sole historical purge run does not justify a repository-owned destructive Actions workflow; normal GitHub retention/admin handles cleanup. `actions: write` is no longer granted for cache/run deletion.
+- Reduced `diagnose.yml` to five modes (`app-unit`, `samsung-unit`, `android-static`, `android-build`, `backend`) plus the non-terminal feedback job. In a 46-run history sample, active modes were: app-unit 21, android-build 8, android-static 3, samsung-unit 2, dependency-state 2, and legacy device 10; neither backend-static nor backend-test was used. Removed the two unused backend peer modes and dependency-state; the combined backend mode still supports focused static/test selectors. The device workflow mode was already absent from current main and is not reintroduced (S05 Rev 5 owns its retirement).
+- Removed the PR-local warm-state publisher, per-job cache upload/restore plumbing and sanitizer. Actual history showed this *was used*: **35 successful publishers in 46 recent diagnose runs sampled** (two skipped; earlier runs predated it). It materially sped repeated S05 iterations. Removal is a conscious simplicity/trust-surface tradeoff, not an “unused code” claim: the benefit lost is warm reruns; the surviving `cache-mode: read` boundary is stricter, so target code cannot save any provider cache. A small PyYAML contract test keeps `verify.yml` and `diagnose.yml` read-only and rejects job-level overrides, replacing the larger cache-writer contract suite.
+- Right-sized CodeQL Advanced Setup: removed separate bundle URL pin and duplicate Gradle version declaration; the CodeQL action owns its bundle, and `tools/security/run.sh build` is the one local/CI Kotlin extraction command. GitHub Default Setup remains the preferred destination, but its settings API returned `403 Resource not accessible by integration`; switching setup is an owner action.
+- Kept the agent-control bridge, exact-head/open-PR assertion, immutable action pins, least-privilege tokens, dependency review, secret scanner, CodeQL, detekt, Android Lint, CodeRabbit and AppT product guards. Actual recent history supports keeping the bridge: 56 agent-control runs were observed (55 successful).
+
+### Sonar decision — retained after current-state research
+
+Sonar was initially removed under the audit's duplication finding, then **restored before completion** after checking actual main history. Main verification run `36881699523` executed the Sonar scan successfully; its `quality-platform` job was a required `verify / gate` dependency. The configuration imports Kover/Jest coverage and waits for Sonar's quality gate. This is live, consumed signal, not an inert file. Its cross-language new-code coverage, duplication, maintainability and reliability signals are not supplied by Android Lint, detekt, CodeQL or ordinary tests, so removing it would violate the user's “remove only if no unique, used signal” criterion.
+
+The secret-bearing boundary is therefore retained: the candidate is checked out as inert analysis data, trusted scanner settings remain at the anchor, `tools/ci/validate-sonar-inputs.py` rejects unsafe inputs, `SONAR_TOKEN` is scoped to the token check/scanner, and `tools/ci/test/sonar-boundary.test.py` covers the boundary. Sonar is not run on ordinary PR synchronization; it remains a full-verification gate.
+
+## Mechanism disposition and guarantees
+
+| Mechanism | Decision | Previous guarantee | Current owner / effect |
 |---|---|---|---|
-| Workflows | 5 (verify, diagnose, codeql, maintenance, agent-control) | 4 (maintenance deleted) | −1 |
-| CI jobs | 26 (verify 12, diagnose 9, codeql 2, maintenance 1, agent-control 1, quality-platform inside verify) | 19 (verify 10, diagnose 6, codeql 2, agent-control 1) | −7 |
-| Workflow YAML LOC | 2,703 | 1,711 | −992 (−37%) |
-| verify.yml | 1,046 lines / 12 jobs | 846 lines / 10 jobs | −19% |
-| diagnose.yml | 1,222 lines / 9 jobs | 546 lines / 6 jobs | −55% |
-| Custom CI/security scripts + tests (`tools/`, `.github/actions/`) | 6,539 LOC | 4,293 LOC | −2,246 (−34%) |
-| Guard task registrations | 18 | 12 | −6 |
-| Gradle lockfiles | 5 (root, settings, app, samsung, macrobenchmark) | 1 (macrobenchmark, owned by PR #118) | −4 |
-| Dependency integrity states | 2 (lockfiles + verification metadata) | 1 (verification metadata) | −1 concept |
-| Support LOC total (hand-authored + generated, excluding prod/tests/audits) | ~31,860 | ~18,900 | ~−13,000 |
-| Docs LOC | 6,946 | 6,365 | −581 |
-| `.project-ai` files / LOC | 30 / 4,191 | 30 / 4,191 | unchanged (mostly off-limits) |
-| Net diff vs main | — | 40 files, +1,941 / −4,911 | net −2,970 |
+| Exact Gradle versions + `versionCatalogPinned` | Keep | No dynamic/range drift | Version catalog + guard |
+| Gradle locking configuration and refresh tasks | Remove | Locked resolution graph | Exact pins + strict dependency verification; no dynamic declarations to lock |
+| Root/settings lockfiles | Remove | Generated resolved graph | Removed; no consumer |
+| App/Samsung/benchmark lockfiles | Defer physical deletion to PR #118 | Generated graph snapshots | No longer consumed; files left untouched while S05 updates them |
+| Strict verification metadata | Keep | Detect changed/tampered artifacts | Single active committed integrity state |
+| Verification metadata template | Defer deletion to PR #118 | Reviewable bootstrap policy header | Not consumed by CI/build; active S05 edits the file |
+| Custom dependency-policy enforcer | Remove | Fail PR on vulnerable introduced package; allowed patched jgit exception | Standard dependency-review action fails on low+; exception obsolete at patched jgit version |
+| Dependabot | Keep | Reviewed version proposals | Standard GitHub feature |
+| Sonar + Kover reports | Keep | Cross-language new-code quality/coverage/duplication gate | Actual required successful main-run evidence; Kover floor on build code removed |
+| Secret scanner | Keep | Catch AppT credential files/material outside provider token formats | 341 LOC, custom AppT patterns; platform scanner owns provider formats |
+| CodeQL | Keep, simplify | Security SAST | Advanced workflow remains because Default Setup cannot be toggled here; local build has one command owner |
+| Backend CI | Consolidate | Separate static and test status checks | One full backend verification job; skeleton remains non-deployable |
+| Maintenance purge | Remove | Delete Actions caches/runs on demand | GitHub retention/admin; no repo-held destructive token |
+| Warm-state cache publisher | Remove after usage review | PR-local warm Gradle state, with untrusted-cache sanitization | Read-only caches only; lose warm rerun speed; **35 successful uses acknowledged** |
+| Exact-head trusted agent bridge | Keep | Workflow from default branch, exact open-PR head proven before checkout | 55/56 successful recent invocations; no PR code runs with write authority |
+| Markdownlint config | Consolidate | Same rule/ignore policy | `.markdownlint-cli2.jsonc` only |
 
-Production code (7,782 LOC) and product tests (9,015 LOC) are untouched —
-every deleted line is machinery, not product.
+Security invariant for deleted cache writer: the old publisher prevented PR-controlled code from writing a poisoned cache into a trusted scope. Removing it leaves **no writer exception at all**: verify/diagnose are provider-enforced `cache-mode: read`, and the new structural test verifies that. No cache trust boundary was relaxed.
 
-## 2. Deletions — what, why, old guarantee, new owner
+## Verification evidence
 
-| Deleted | Why | Old guarantee | New owner / disposition |
-|---|---|---|---|
-| `gradle.lockfile`, `settings-gradle.lockfile`, `app/gradle.lockfile`, `samsung/gradle.lockfile`, all locking config, `resolveAndLockAll`, `dependencyLockCheck` | Version catalog pins every dependency exactly (guarded by `versionCatalogPinned`); no dynamic/range/SNAPSHOT declarations exist. Gradle's own docs state locking "makes sense only with dynamic versions". Lock state policed nothing resolution did not already fix | Reproducible resolution | Exact versions + strict dependency verification (686 components, SHA-256) give equal-or-stronger determinism and integrity |
-| `gradle/verification-metadata.template.xml` | Bootstrapping template for a generated file that is already committed; regeneration is one documented command | Bootstrapping guidance | One command in `docs/BUILD.md` |
-| `tools/security/enforce-dependency-policy.mjs` + tests | Its only AppT-unique rule was a manifest-scoped exception for jgit, obsolete because the root buildscript constraint resolves jgit to the patched release already recorded in the verification metadata; its remaining fail-on-severity rule duplicates the standard action | Vulnerable-dep PR gate | `actions/dependency-review-action` with `fail-on-severity: low`, `warn-only` removed — equal-or-stronger enforcement, one owner |
-| Sonar chain: quality-platform job, `sonar-project.properties`, `tools/ci/validate-sonar-inputs.py`, `tools/ci/test/sonar-boundary.test.py`, secret-bearing-boundary docs | Sonar added no consumed signal: its quality gate was never wired to a decision, coverage thresholds measured build/CI code, and it forced a secret-bearing job plus its own trust-analysis machinery (input validator, boundary tests, pinned-source proofs) | Cross-language quality gate | Android Lint + detekt + CodeQL (`security-extended`) remain the static/security owners; Jest LCOV remains locally. No decision depended on Sonar, so nothing needed to take over |
-| Kover: plugin (root/app/samsung), 80% floor, `androidUnit` coverage wiring, CI upload | Kover existed solely to feed Sonar; its floor counted CI/build code, not product quality | Coverage no-regression floor | None needed: the underlying tests remain and run in `android-unit`; coverage can be regenerated locally if ever wanted |
-| `maintenance.yml`, `tools/ci/purge-actions.mjs` + tests | One historical run. GitHub retention settings and ordinary Actions administration cover cache/run cleanup | Destructive housekeeping on demand | Manual GitHub administration; nothing in the repo needs periodic purging |
-| Warm-state machinery in `diagnose.yml`: per-job outputs, cache-restore steps, warm packaging/upload, trusted `publish-gradle-warm-state` job, `tools/ci/test/workflow-cache-contract.test.py` | Performance optimization for repeated diagnostics with its own trust analysis, sanitized-publisher job and parsed-YAML contract to police it — the only `cache-mode: write-only` exception in the repo, built for iteration speed on a small app | Faster repeated Gradle diagnostics | Standard provider Gradle caches with `cache-mode: read`. First runs of a mode are slower; the audit judged that acceptable against the machinery it deletes |
-| `backend-static` + `backend-test` jobs and diagnose modes | The backend is a 2-file, non-deployable skeleton; two CI domains and two dispatch labels policed it | Independent static/test failure evidence | One `backend` job running `npm run verify --prefix backend` (static then tests); split permitted to return when the backend becomes deployable |
-| `dependency-state` diagnose mode/label | Its only job regenerated lock state that no longer exists | Lock-state diagnostics | Gone with locking |
-| Pinned CodeQL bundle + duplicated `GRADLE_VERSION` in `codeql.yml` | The codeql-action's own bundle supports the current Kotlin; the wrapper is the Gradle version authority | Known-good CodeQL CLI | `codeql-action` default bundle; wrapper + `distributionSha256Sum` |
+Green at the implementation candidate before report-only updates:
 
-Consolidations: `markdownlint` to the single `.markdownlint-cli2.jsonc`
-canonical config (Batch A, commit `28369eb`, proven 0 issues / 28 files);
-backend verification to one job and one `npm run verify` interface;
-dependency policy to the standard dependency-review action.
+- Node suites: diagnose focus 67/67, dispatch bridge 38/38, exact-head assertion 16/16, tooling constraints 18/18, secret scanner 10/10.
+- Sonar secret-boundary Python suite: 13/13; cache-mode contract passed.
+- Project-state contract: 8/8 tests; contract check passed. No `.project-ai/skills/**` file was modified.
+- Secret scanner tree scan passed. Tooling-constraint enforcer passed.
+- `npm ci --prefix backend` and `npm run verify --prefix backend` passed (typecheck, lint/format/Knip, Jest 2/2; 100% coverage on the skeleton). Sandbox Node was v22.22.3 and emitted the expected `EBADENGINE` warning because the package requires Node 24; GitHub workflow setup remains pinned to Node 24.
+- yamllint passed; all four workflow YAML files parse: verify 11 jobs, diagnose 6, CodeQL 2, agent-control 1.
+- markdownlint-cli2 passed over 29 Markdown files.
 
-## 3. Retained (and why)
+**Android/Gradle terminal verification is blocked in this sandbox:** `java` and `JAVA_HOME` are absent, Android SDK variables/paths are absent, and HTTPS egress to Gradle/Maven/Google SDK endpoints fails (`SSL_ERROR_SYSCALL`; apt repositories also unreachable). `./gradlew --version` fails immediately with “JAVA_HOME is not set and no 'java' command could be found.” No green Gradle build is claimed. The Gradle changes have not had local compile/test verification; full GitHub `workflow_dispatch` verification is still required after push.
 
-| Kept | Rationale |
-|---|---|
-| Strict dependency verification (`--dependency-verification=strict`, 686 SHA-256 entries) | The single, genuinely valuable integrity state; the audit's removal proofs (exact pins, no dynamics, working strict verification) all lean on it |
-| `diagnose.yml` core: 5 modes, `diagnose-focus.mjs` validated argv, dispatch bridge, `assert-dispatch-target` | ≥50 diagnose dispatches and ≥30 bridge dispatches in two days of history — the most-used machinery in the repo. Focus input stays data-only; the exact-head assertion stays the load-bearing trust boundary |
-| `cache-mode: read` on verify/diagnose | Provider-enforced cache isolation for PR-controlled code, zero maintenance |
-| `tools/secret-scan` | Platform secret scanning misses generic PEM keys, raw JWTs, GCP service-account JSON — AppT-relevant patterns; 341 LOC, zero dependencies |
-| `enforce-gradle-tooling-constraints.mjs` | Actively remediates real advisories on the plugin classpath (e.g. GHSA-2363-cqg2-863c on jdom2 this run); owned in one dependency-free file |
-| `codeql.yml` (minimized) | Officially recommended security SAST; advanced setup is now the smallest viable form |
-| Dependabot, SHA-pinned actions, version catalog + pin guard, appTGuards, CodeRabbit config, project-state contracts | All standard, cheap, or actively enforcing product invariants |
+## Active PR boundary / deferred cleanup
 
-## 4. Security statements for removed security-adjacent mechanisms
+- Draft PR #118 remains open and owns the S05 product/device/benchmark changes. No product source, Samsung protocol code, fixtures, release-boundary behavior, or `macrobenchmark/**` was changed here. `app/gradle.lockfile`, `samsung/gradle.lockfile`, and `gradle/verification-metadata.template.xml` are restored in this branch so PR #118's generated-state edits can merge without file-level modify/delete conflicts.
+- A merge-tree simulation against PR #118's current head finds only **one content conflict** in `docs/BUILD.md`: the obsolete `backend-test` focus example in its S05 doc patch versus this branch's replacement with the current combined `backend` mode. No build/product file conflict remains. Resolve that single documentation hunk to the current `backend` selector when integrating; `backend-test` had zero active diagnostic runs in the 46-run sample.
+- `.project-ai/PROJECT_STATE.md` still reflects accepted `main` state and the `ci:dependency-state` route. Per repo policy, it should be reconciled only after this work is accepted on `main`; no PROJECT_STATE change was made here. `.project-ai/execution/verification.md` uses “dependency-state” as a generic operation class, not a live route.
+- CodeQL Default Setup remains a repository-owner settings action because the integration's API call was forbidden (403).
 
-- Dependency locking: prevented silent transitive-graph drift. The pinned
-  catalog (guarded) plus strict verification against recorded SHA-256 hashes
-  means any changed artifact — including a moved transitive — fails the build
-  loudly. The attack class is covered more directly.
-- `enforce-dependency-policy.mjs`: prevented vulnerable packages at PR time.
-  The standard dependency-review action now runs with `fail-on-severity: low`
-  and no warn-only escape; the retired jgit exception was proven unnecessary
-  (root buildscript constraint already forces the patched 6.10.1 release,
-  confirmed in `gradle/verification-metadata.xml`).
-- Warm-state publisher: prevented cache poisoning by PR code while restoring
-  speed. With it gone there is no cache-write path for PR-controlled code at
-  all in verify/diagnose — the boundary got stronger, not weaker.
-- workflow-cache-contract test: policed a write-capable exception that no
-  longer exists; `cache-mode: read`, SHA-pinned actions and the read-only
-  default token still enforce the cache boundary structurally.
-- Sonar boundary machinery: protected `SONAR_TOKEN` from PR-controlled
-  scanner configuration. With Sonar gone there is no secret-bearing analysis
-  job at all — the threat surface was removed rather than re-guarded.
-- Maintenance purge: destructive by design (`actions: write`, run deletion).
-  Removing it shrinks the repository's destructive surface; GitHub's own
-  retention settings manage history.
+## Outcome
 
-## 5. Verification evidence at final head `9f31088`
-
-Executed in-sandbox (no Android SDK available; Android domains remain
-CI-verified, unchanged by this work):
-
-- Node suites: diagnose-focus 67/67, dispatch-workflow 38/38,
-  assert-dispatch-target 16/16, enforce-gradle-tooling-constraints 18/18,
-  secret-scan 10/10 — 149 pass, 0 fail.
-- Python: `project-state-contract.test.py` OK (8 tests);
-  `project_state_contract.py` passed; `.project-ai/skills/validate.py`
-  passed (20 skills, routing coverage complete).
-- `node tools/secret-scan/secret-scan.mjs`: OK, 287 tracked files.
-- `node tools/security/enforce-gradle-tooling-constraints.mjs`: floor
-  passed (remediation evidence emitted).
-- `npm ci --prefix backend` + `npm run verify --prefix backend`: full
-  backend interface green (typecheck, ESLint, Prettier, Knip, Jest 2/2,
-  100% coverage reported).
-- yamllint (`.github/`, repo config): clean. PyYAML parse of all four
-  workflows: valid — verify 10 jobs, diagnose 6, codeql 2, agent-control 1.
-- markdownlint-cli2 over all 28 tracked Markdown files: 0 issues.
-- Repo-wide residual grep for every removed concept (sonar, kover, purge,
-  maintenance, warm, dependency-state, backend-static/test,
-  enforce-dependency-policy, lockfile, dependency-lock): remaining hits are
-  only intentional history (release.md migration narrative), the retirement
-  comment in verify.yml's dependency-review step, `package-lock.json`
-  (npm, standard, kept), and the two deferred control-plane notes below.
-
-## 6. Deferred / owner actions
-
-- `.project-ai/PROJECT_STATE.md` (route `ci:dependency-state`) and
-  `.project-ai/execution/verification.md` (dependency-state bullet) still
-  mention the retired mode. Left for control-plane reconciliation at PR
-  acceptance per the standing rule that `.project-ai` state updates are not
-  authored here; both spots are exact and small.
-- `macrobenchmark/gradle.lockfile` remains: its removal is owned by draft
-  PR #118 (S05). If #118 does not land, deleting that one file completes the
-  locking retirement.
-- CodeQL Default Setup: the documented migration remains an owner action —
-  the control-plane token cannot toggle it (code-scanning/default-setup API
-  returns `403 Resource not accessible by integration`). The minimized advanced
-  workflow records this condition in-repo.
-- PR #118 (draft S05) is intentionally untouched; nothing here reintroduces
-  anything retired by S05 Contract Revision 5.
-
-## 7. Verdict
-
-The audit found AppT materially overengineered relative to its actual
-product, team and risk profile. This branch removes the over-provisioned
-layers — duplicate dependency-integrity ownership, an unconsumed quality
-platform and its coverage feeder, a performance cache with its own trust
-machinery, destructive housekeeping with one use, and a CI split sized for a
-deployable backend — while strengthening the boundaries that matter: strict
-verification is now the single integrity state, dependency review is the
-single PR supply-chain gate, no PR-controlled code path can write caches,
-and no secret-bearing analysis job exists. Concept count, not line count,
-was the metric: five fewer dependency concepts, seven fewer jobs, one fewer
-workflow, one fewer secret surface, zero product-code changes.
+The branch removes or consolidates redundant permanent machinery without flattening the AppT/Samsung product architecture, changing product behavior, deleting product tests, weakening strict artifact verification, or granting untrusted code cache/secrets/write authority. It is materially simpler: **one fewer workflow, six fewer CI jobs, four fewer script/action files, two fewer custom Gradle task names, one markdownlint owner, one backend CI domain, and no active Gradle lock lifecycle**. It deliberately retains two demonstrated high-value mechanisms the static complexity audit could not prove from repository shape alone: Sonar's active required quality gate and the frequently used trusted agent bridge; it retains the warm-cache removal as an explicit measured tradeoff.
