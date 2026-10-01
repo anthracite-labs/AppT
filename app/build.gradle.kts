@@ -34,9 +34,11 @@ plugins {
 // Local builds use an explicit sentinel; the physical verifier refuses to produce a report without
 // a full source SHA.
 val apptBuildSha =
-    providers.environmentVariable("APPT_BUILD_SHA")
+    providers
+        .environmentVariable("APPT_BUILD_SHA")
         .orElse(providers.gradleProperty("apptBuildSha"))
         .getOrElse("local")
+
 require(apptBuildSha == "local" || apptBuildSha.matches(Regex("[0-9a-f]{40}"))) {
     "APPT_BUILD_SHA must be a full lowercase 40-character Git SHA or unset for a local build."
 }
@@ -403,9 +405,9 @@ tasks.register("verifyReleaseS05Boundaries") {
                 .flatMap { sourceRoot -> sourceRoot.walkTopDown().filter { it.isFile }.toList() }
                 .flatMap { source ->
                     val contents = source.readText()
-                    forbiddenMarkers.filter { marker -> marker in contents }.map { marker ->
-                        "${source.relativeTo(projectDir)} contains '$marker'"
-                    }
+                    forbiddenMarkers
+                        .filter { marker -> marker in contents }
+                        .map { marker -> "${source.relativeTo(projectDir)} contains '$marker'" }
                 }
         if (sourceLeaks.isNotEmpty()) {
             throw GradleException(
@@ -415,9 +417,12 @@ tasks.register("verifyReleaseS05Boundaries") {
         }
 
         val apkDirectory = layout.buildDirectory.dir("outputs/apk/release").get().asFile
-        val releaseApks = apkDirectory.listFiles { candidate -> candidate.extension == "apk" }.orEmpty()
+        val releaseApks =
+            apkDirectory.listFiles { candidate -> candidate.extension == "apk" }.orEmpty()
         if (releaseApks.isEmpty()) {
-            throw GradleException("No release APK found under ${apkDirectory.relativeTo(projectDir)}.")
+            throw GradleException(
+                "No release APK found under ${apkDirectory.relativeTo(projectDir)}."
+            )
         }
         releaseApks.forEach { apk ->
             ZipFile(apk).use { archive ->
@@ -430,7 +435,9 @@ tasks.register("verifyReleaseS05Boundaries") {
                     }
                 inspectedEntries.forEach { entry ->
                     val contents =
-                        archive.getInputStream(entry).use { it.readBytes().toString(Charsets.ISO_8859_1) }
+                        archive.getInputStream(entry).use {
+                            it.readBytes().toString(Charsets.ISO_8859_1)
+                        }
                     val leakedMarkers = forbiddenMarkers.filter { marker -> marker in contents }
                     if (leakedMarkers.isNotEmpty()) {
                         throw GradleException(

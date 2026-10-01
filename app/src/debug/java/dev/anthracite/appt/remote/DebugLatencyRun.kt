@@ -51,11 +51,7 @@ internal class DebugLatencyRun {
         if (samples.size != REQUIRED_MEASUREMENTS || !candidateSha.matches(SHA_PATTERN)) return null
         val boundedPhoneModel = phoneModel.singleLine(MAX_PHONE_MODEL_LENGTH)
         val boundedAndroidVersion = androidVersion.singleLine(MAX_ANDROID_VERSION_LENGTH)
-        if (
-            boundedPhoneModel.isBlank() ||
-                boundedAndroidVersion.isBlank() ||
-                apiLevel <= 0
-        ) {
+        if (boundedPhoneModel.isBlank() || boundedAndroidVersion.isBlank() || apiLevel <= 0) {
             return null
         }
 
@@ -100,25 +96,23 @@ internal data class DebugLatencyReport(
     val p50Pass: Boolean
         get() = p50Millis <= P50_LIMIT_MILLIS
 
-    fun clipboardText(): String =
-        buildString {
-            appendLine("Candidate SHA: $candidateSha")
-            appendLine("Phone model: $phoneModel")
-            appendLine("Android version / API: $androidVersion / $apiLevel")
-            appendLine("Run count: $runCount")
-            appendLine(
-                "Latency samples (ms): " +
-                    samplesMillis.joinToString(", ", transform = ::formatMillis)
-            )
-            appendLine("p50 (nearest rank, ms): ${formatMillis(p50Millis)}")
-            appendLine("p95 (nearest rank, ms): ${formatMillis(p95Millis)}")
-            appendLine(
-                "Measurement: local UI command callback immediately before dispatch to " +
-                    "session.command return after local socket write; TV acknowledgement and " +
-                    "visible action excluded."
-            )
-            append("p50 <= 20 ms: ${if (p50Pass) "PASS" else "FAIL"}")
-        }
+    fun clipboardText(): String = buildString {
+        appendLine("Candidate SHA: $candidateSha")
+        appendLine("Phone model: $phoneModel")
+        appendLine("Android version / API: $androidVersion / $apiLevel")
+        appendLine("Run count: $runCount")
+        appendLine(
+            "Latency samples (ms): " + samplesMillis.joinToString(", ", transform = ::formatMillis)
+        )
+        appendLine("p50 (nearest rank, ms): ${formatMillis(p50Millis)}")
+        appendLine("p95 (nearest rank, ms): ${formatMillis(p95Millis)}")
+        appendLine(
+            "Measurement: local UI command callback immediately before dispatch to " +
+                "session.command return after local socket write; TV acknowledgement and " +
+                "visible action excluded."
+        )
+        append("p50 <= 20 ms: ${if (p50Pass) "PASS" else "FAIL"}")
+    }
 
     private fun formatMillis(value: Double): String = String.format(Locale.ROOT, "%.3f", value)
 

@@ -102,11 +102,12 @@ internal fun DebugS05VerifierAction(snapshot: ActiveRemoteSnapshot?, host: Activ
                 }
             }
         }
-        if (controller.phase != DebugS05Phase.Inactive &&
-            controller.phase != DebugS05Phase.BusyWarmup &&
-            controller.phase != DebugS05Phase.BusyMeasurement &&
-            controller.phase != DebugS05Phase.Complete &&
-            controller.phase != DebugS05Phase.Failed
+        if (
+            controller.phase != DebugS05Phase.Inactive &&
+                controller.phase != DebugS05Phase.BusyWarmup &&
+                controller.phase != DebugS05Phase.BusyMeasurement &&
+                controller.phase != DebugS05Phase.Complete &&
+                controller.phase != DebugS05Phase.Failed
         ) {
             Text(
                 "Measured interactions: ${controller.sampleCount} of " +
@@ -118,8 +119,7 @@ internal fun DebugS05VerifierAction(snapshot: ActiveRemoteSnapshot?, host: Activ
 }
 
 /**
- * Debug variant intercepts only an armed on-screen Volume up click; all other commands stay
- * normal.
+ * Debug variant intercepts only an armed on-screen Volume up click; all other commands stay normal.
  */
 internal fun DebugS05VerifierCommand(
     command: TvCommand,
@@ -162,8 +162,10 @@ private class DebugS05Controller {
 
     var phase by mutableStateOf(DebugS05Phase.Inactive)
         private set
+
     var sampleCount by mutableIntStateOf(0)
         private set
+
     var report by mutableStateOf<DebugLatencyReport?>(null)
         private set
 
@@ -280,8 +282,7 @@ private object DebugS05ControllerRegistry {
     fun controllerFor(session: RemoteSession): DebugS05Controller =
         controllers.getOrPut(session) { DebugS05Controller() }
 
-    @Synchronized
-    fun existing(session: RemoteSession): DebugS05Controller? = controllers[session]
+    @Synchronized fun existing(session: RemoteSession): DebugS05Controller? = controllers[session]
 }
 
 private fun copyReport(context: Context, report: DebugLatencyReport) {

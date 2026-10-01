@@ -34,4 +34,5 @@ rootProject.name = "AppT"
 //   :app     Android application
 //   :samsung Samsung control module
 include(":app")
+
 include(":samsung")

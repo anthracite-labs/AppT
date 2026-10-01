@@ -332,10 +332,7 @@ private fun RemoteDestination(
         onOpenSettings = onOpenSettings,
         onToggleNavigationMode = viewModel::onToggleNavigationMode,
         readyAccessory = {
-            VariantRemoteAccessory(
-                active?.takeIf { it.tvId == TvId(tvId) },
-                activeRemoteHost,
-            )
+            VariantRemoteAccessory(active?.takeIf { it.tvId == TvId(tvId) }, activeRemoteHost)
         },
     )
 }

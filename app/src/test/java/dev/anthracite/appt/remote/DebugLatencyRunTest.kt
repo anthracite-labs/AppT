@@ -112,11 +112,10 @@ class DebugLatencyRunTest {
     fun measuredTimingStartsInTheUiCallbackAndStopsBeforeCompletionProcessing() = runTest {
         val events = mutableListOf<String>()
         var clockIndex = 0
-        val measured =
-            DebugMeasuredCommand {
-                events += "clock-${++clockIndex}"
-                if (clockIndex == 1) 1_000_000L else 26_000_000L
-            }
+        val measured = DebugMeasuredCommand {
+            events += "clock-${++clockIndex}"
+            if (clockIndex == 1) 1_000_000L else 26_000_000L
+        }
         val dispatcher = StandardTestDispatcher(testScheduler)
         val scope = CoroutineScope(dispatcher)
         var result: CommandResult? = null
@@ -138,10 +137,7 @@ class DebugLatencyRunTest {
         assertEquals(listOf("clock-1"), events)
         runCurrent()
 
-        assertEquals(
-            listOf("clock-1", "session-command", "clock-2", "process-result"),
-            events,
-        )
+        assertEquals(listOf("clock-1", "session-command", "clock-2", "process-result"), events)
         assertEquals(CommandResult.Accepted, result)
         assertEquals(25.0, elapsedMillis ?: -1.0, 0.0)
     }
