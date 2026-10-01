@@ -57,7 +57,7 @@ over exactly the same work, in one invocation:
 # Root Android/Kotlin verification lifecycle interface aggregating strict
 # compiler diagnostics (-Werror), Spotless + ktfmt, debug assembly, unit/Robolectric
 # tests, Android Lint, detekt, Kover coverage verification, dependency locks,
-# appTGuards, and macrobenchmark compilation:
+# appTGuards and release-boundary checks:
 ./gradlew --no-daemon --dependency-verification=strict ciCheck
 
 # The CI-owned failure domains, one at a time:
@@ -206,8 +206,6 @@ yamllint, markdownlint, and ShellCheck run locally when those tools are present:
 - `yamllint -c .yamllint.yml .`
 - `tools/security/run.sh`
 
-Installed-app acceptance executes on GitHub Actions via Gradle Managed Devices
-(API 29) with KVM acceleration.
 
 ## Verification cadence
 
@@ -217,7 +215,7 @@ policy (whitespace/diff validation, repository security-policy self-tests, secre
 scanning, tooling constraint checks) and repository quality (yamllint,
 markdownlint, ShellCheck, shfmt, actionlint, zizmor) — plus change detection and
 dependency review when the candidate changed dependency inputs. It does not build
-Android, run backend verification, start a managed device, run SonarQube,
+Android, run backend verification, run SonarQube,
 regenerate dependency state, or execute `ciCheck` or any of its narrower domains.
 
 The gate requires change detection to have succeeded in its own right, because
@@ -502,7 +500,7 @@ Because GitHub-managed Default Setup uses CodeQL bundle 2.27.0 which does not
 support Kotlin 2.4.20 (supported starting in CodeQL CLI / bundle 2.27.1), AppT
 temporarily uses an Advanced Setup workflow pinned to CodeQL Action `v4.38.2`
 and bundle `2.27.1`. The workflow analyzes `java-kotlin` (built manually under
-strict dependency verification via `./gradlew ... assembleDebug :macrobenchmark:assembleBenchmark`),
+strict dependency verification via `./gradlew ... assembleDebug`),
 `javascript-typescript`, and `actions` using the `security-extended` query suite.
 
 Local reproduction of the deterministic Kotlin extraction build:
