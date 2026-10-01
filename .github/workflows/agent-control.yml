@@ -86,10 +86,7 @@ jobs:
           "ci:samsung-unit",
           "ci:android-static",
           "ci:android-build",
-          "ci:backend",
-          "ci:backend-static",
-          "ci:backend-test",
-          "ci:dependency-state"
+          "ci:backend"
         ]'),
         github.event.label.name
       )

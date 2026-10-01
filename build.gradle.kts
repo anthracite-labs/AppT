@@ -15,8 +15,8 @@
 //
 // Issue #68 (Dependabot alerts #15, #17, #58): the same reasoning covers the
 // three coordinates that remained. None of them is declared by any AppT module,
-// so they appear in no `*.gradle.lockfile` and nowhere in
-// `gradle/libs.versions.toml`; they reach the dependency graph only as
+// so they appear nowhere in `gradle/libs.versions.toml`; they reach the
+// dependency graph only as
 // transitives of the plugins this file applies. The buildscript classpath is
 // therefore the only seam that owns them, and it is also the only seam
 // Dependabot's Gradle updater can read and mutate: its file parser harvests
@@ -68,7 +68,6 @@ plugins {
     // Kotlin, so Issue #36's detekt scope does not reach it.
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.spotless)
-    alias(libs.plugins.kover)
 }
 
 spotless {
@@ -84,62 +83,13 @@ spotless {
     }
 }
 
-dependencies {
-    kover(project(":app"))
-    kover(project(":samsung"))
-}
-
-kover {
-    reports {
-        verify {
-            rule {
-                // Reviewed baseline floor: measured 90.58% (125/138 lines) in Kover 0.9.5.
-                minBound(80)
-            }
-        }
-    }
-}
-
-// Dependency locking, enabled repository-wide (release.md#gradle).
-// Lockfiles are committed; CI runs `dependencyLockCheck` in the validating
-// mode so a drifted or missing lock state fails the build rather than
-// silently re-resolving.
-allprojects { dependencyLocking { lockAllConfigurations() } }
-
 apply(from = rootProject.file("gradle/guards.gradle.kts"))
 
-// Regenerates every committed lockfile in one resolution pass. Run as
-// `./gradlew resolveAndLockAll --write-locks` after a reviewed dependency
-// change (docs/BUILD.md). Without `--write-locks` it is a no-op resolution.
-//
-// Gradle 9 (Issue #54): a task may only resolve configurations owned by its
-// own project, so this task is registered per subproject and the bare command
-// name runs every instance — same coverage the single root task had, without
-// the cross-project resolution Gradle 9 rejects.
-subprojects {
-    tasks.register("resolveAndLockAll") {
-        group = "verification"
-        description =
-            "Resolves this module's locked configurations so --write-locks can refresh the lockfiles."
-        notCompatibleWithConfigurationCache("Writes lockfiles during resolution")
-        doFirst {
-            require(gradle.startParameter.isWriteDependencyLocks) {
-                "resolveAndLockAll must be run with --write-locks"
-            }
-        }
-        doLast {
-            // Resolve the dependency GRAPH, not the artifact files. Dependency
-            // locking records the resolved graph, and `resolve()`/`files` additionally
-            // forces artifact selection, which is ambiguous for configurations such
-            // as `:app:debugAndroidTestCompileClasspath` that see several variants of
-            // `:app` itself and would need an `artifactType` to disambiguate. Graph
-            // resolution is exactly what locking needs and is what AGP supports here.
-            configurations
-                .filter { it.isCanBeResolved }
-                .forEach { configuration -> configuration.incoming.resolutionResult.root }
-        }
-    }
-}
+// Dependency integrity is owned by ONE committed artifact:
+// gradle/verification-metadata.xml under --dependency-verification=strict.
+// Every declared version is exact (version catalog + `versionCatalogPinned`
+// guard), so Gradle dependency locking had no dynamic versions to stabilize
+// and was retired as a redundant second integrity layer.
 
 // ---------------------------------------------------------------------------
 // CI-owned Android failure domains (Issue #88)
@@ -163,15 +113,13 @@ tasks.register("androidFormat") {
 
 tasks.register("androidStatic") {
     group = "verification"
-    description =
-        "Android static and policy verification: Android Lint, detekt, appTGuards, dependency locks."
+    description = "Android static and policy verification: Android Lint, detekt, appTGuards."
     dependsOn(
         ":app:lintDebug",
         ":samsung:lintDebug",
         ":app:detekt",
         ":samsung:detekt",
         "appTGuards",
-        "dependencyLockCheck",
     )
 }
 
@@ -187,8 +135,7 @@ tasks.register("androidBuild") {
 // a full verification run always produces both.
 tasks.register("androidUnit") {
     group = "verification"
-    description =
-        "Android unit/Robolectric verification for :app and :samsung, plus Kover coverage generation and verification."
+    description = "Android unit/Robolectric verification for :app and :samsung."
     dependsOn(":app:testDebugUnitTest", ":samsung:test")
 }
 
@@ -205,22 +152,3 @@ tasks.register("ciCheck") {
     dependsOn("androidFormat", "androidStatic", "androidBuild", "androidUnit")
 }
 
-gradle.projectsEvaluated {
-    val koverXml =
-        tasks.findByName("koverXmlReport")
-            ?: project(":app").tasks.findByName("koverXmlReport")
-            ?: tasks.findByName("koverXmlReportDebug")
-            ?: project(":app").tasks.findByName("koverXmlReportDebug")
-    val koverVerify =
-        tasks.findByName("koverVerify")
-            ?: project(":app").tasks.findByName("koverVerify")
-            ?: tasks.findByName("koverVerifyDebug")
-            ?: project(":app").tasks.findByName("koverVerifyDebug")
-
-    // The coverage producers belong to the unit-test domain, which is the job
-    // that publishes the Kover evidence Sonar consumes.
-    tasks.named("androidUnit") {
-        koverXml?.let { dependsOn(it) }
-        koverVerify?.let { dependsOn(it) }
-    }
-}

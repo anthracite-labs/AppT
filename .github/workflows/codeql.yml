@@ -4,8 +4,11 @@
 # scans GitHub Actions and JavaScript/TypeScript only. Java/Kotlin CodeQL is
 # manual/main/scheduled.
 #
-# Temporary Advanced Setup is pinned to CodeQL 2.27.1 while GitHub-managed
-# Default Setup lacks Kotlin 2.4.20 support.
+# Advanced Setup is kept only while the sandbox/control-plane token cannot
+# toggle GitHub-managed Default Setup (the code-scanning/default-setup API
+# returns 403 for it). Migration to Default Setup remains the documented owner
+# action; the pinned CodeQL bundle workaround is gone — the codeql-action's
+# own bundle now supports Kotlin 2.4.20.
 
 name: CodeQL
 
@@ -31,8 +34,6 @@ concurrency:
 
 env:
   JAVA_VERSION: '17'
-  GRADLE_VERSION: '9.7.1'
-  CODEQL_BUNDLE_URL: 'https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.27.1/codeql-bundle-linux64.tar.zst'
 
 jobs:
   analyze-fast:
@@ -64,7 +65,6 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           build-mode: none
-          tools: ${{ env.CODEQL_BUNDLE_URL }}
           queries: security-extended
 
       - name: Perform CodeQL analysis
@@ -98,10 +98,11 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
 
       - name: Set up Gradle
-        # gradle/actions/setup-gradle v6.3.0
+        # gradle/actions/setup-gradle v6.3.0 — no gradle-version input: the
+        # committed wrapper (with its pinned distributionSha256Sum) is the
+        # version authority, as everywhere else in this repository.
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
         with:
-          gradle-version: ${{ env.GRADLE_VERSION }}
           cache-disabled: true
 
       - name: Initialize CodeQL
@@ -110,7 +111,6 @@ jobs:
         with:
           languages: java-kotlin
           build-mode: manual
-          tools: ${{ env.CODEQL_BUNDLE_URL }}
           queries: security-extended
 
       - name: Build Java and Kotlin targets

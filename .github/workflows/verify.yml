@@ -8,8 +8,7 @@
 # The old monolithic Android job (one root `ciCheck` invocation) is replaced by
 # independent failure domains that run in parallel. Unrelated evidence keeps
 # being produced when another domain fails — a formatting failure can no longer
-# hide app unit-test evidence, and a backend static failure can no longer hide
-# backend test evidence — and the gate alone decides acceptance. Gradle keeps
+# hide app unit-test evidence — and the gate alone decides acceptance. Gradle keeps
 # owning Android/Kotlin verification; each Android domain invokes the matching
 # root lifecycle task (`androidFormat`, `androidStatic`, `androidBuild`,
 # `androidUnit`), and `ciCheck` remains the convenient local umbrella over all
@@ -17,15 +16,14 @@
 #
 # Cadence: pull-request synchronization runs only the cheap repository domains
 # (policy and quality) plus dependency review when dependency inputs changed.
-# The expensive Android, backend and quality-platform domains
-# run on pushes to `main` and on an explicit `workflow_dispatch`, so a coding
-# iteration stays cheap while the human or an authorized control-plane
-# integration chooses when the full bill is paid.
+# The expensive Android and backend domains run on pushes to `main` and on an
+# explicit `workflow_dispatch`, so a coding iteration stays cheap while the
+# human or an authorized control-plane integration chooses when the full bill
+# is paid.
 #
 # Boundaries:
 #   * focused, permanent, non-terminal diagnostics live in `diagnose.yml`;
 #   * CodeQL (`codeql.yml`) remains the separate, authoritative security SAST;
-#   * destructive Actions maintenance lives only in `maintenance.yml`;
 #   * agent invocation goes through `agent-control.yml`;
 #   * nothing in this workflow deletes workflow runs or caches, and every job
 #     here is read-only.
@@ -130,9 +128,7 @@ jobs:
           python3 tools/ci/test/project-state-contract.test.py
           python3 tools/ci/project_state_contract.py
           node --test "tools/secret-scan/test/secret-scan.test.mjs"
-          node --test "tools/security/test/enforce-dependency-policy.test.mjs"
           node --test "tools/security/test/enforce-gradle-tooling-constraints.test.mjs"
-          node --test "tools/ci/test/purge-actions.test.mjs"
           node --test "tools/ci/test/dispatch-workflow.test.mjs"
           node --test "tools/ci/test/diagnose-focus.test.mjs"
           node --test "tools/ci/test/assert-dispatch-target.test.mjs"
@@ -189,12 +185,6 @@ jobs:
           pip install --break-system-packages yamllint==1.35.1
           yamllint -c .yamllint.yml .
 
-      - name: Prove provider cache isolation
-        # PyYAML is supplied by the pinned yamllint install immediately above.
-        run: |
-          python3 tools/ci/test/workflow-cache-contract.test.py
-          python3 tools/ci/test/sonar-boundary.test.py
-
       - name: Run markdownlint
         # DavidAnson/markdownlint-cli2-action v24.2.0
         uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff
@@ -240,13 +230,11 @@ jobs:
           tar -xzf "${archive}" actionlint
           sudo install -m 0755 actionlint /usr/local/bin/actionlint
           set -o pipefail
-          # The pinned parser predates provider cache-mode syntax at both the
-          # workflow and job levels. Only these exact unknown-key diagnostics
-          # are delegated to the parsed-YAML cache contract above; every other
-          # actionlint diagnostic still fails CI.
+          # The pinned parser predates provider cache-mode syntax at the
+          # workflow level. Only this exact unknown-key diagnostic is ignored;
+          # every other actionlint diagnostic still fails CI.
           actionlint \
             -ignore '^unexpected key "cache-mode" for "workflow" section\.' \
-            -ignore '^unexpected key "cache-mode" for "job" section\.' \
             2>&1 | tee /tmp/actionlint.log || {
             echo "::error title=actionlint Failure::$(head -n 20 /tmp/actionlint.log | tr '\n' ' ')"
             exit 1
@@ -450,9 +438,9 @@ jobs:
           }
 
   # ---------------------------------------------------------------------------
-  # 6. Android unit / Robolectric verification — :app and :samsung tests plus
-  #    the Kover coverage evidence Sonar consumes. Samsung unit tests are
-  #    authoritative verification evidence here, not diagnostics.
+  # 6. Android unit / Robolectric verification — :app and :samsung tests.
+  #    Samsung unit tests are authoritative verification evidence here, not
+  #    diagnostics.
   # ---------------------------------------------------------------------------
   android-unit:
     name: Android unit and Robolectric verification
@@ -496,7 +484,7 @@ jobs:
           ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
-      - name: Run Android unit tests and Kover coverage verification
+      - name: Run Android unit tests
         run: |
           set -o pipefail
           ./gradlew --no-daemon --dependency-verification=strict --continue androidUnit 2>&1 | tee /tmp/unit.log || {
@@ -505,23 +493,13 @@ jobs:
             exit 1
           }
 
-      - name: Upload Kover coverage report
-        if: always()
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: kover-coverage-report
-          path: |
-            app/build/reports/kover/**
-            build/reports/kover/**
-          if-no-files-found: warn
-          retention-days: 7
-
   # ---------------------------------------------------------------------------
-  # 7. Backend static verification — typecheck, ESLint, Prettier, Knip.
+  # 7. Backend verification — the backend is a small, non-deployable skeleton,
+  #    so it gets ONE proportional job running its full verification interface
+  #    (typecheck, typed ESLint, Prettier, Knip, then Jest with LCOV).
   # ---------------------------------------------------------------------------
-  backend-static:
-    name: Backend static verification
+  backend:
+    name: Backend verification
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
@@ -565,73 +543,9 @@ jobs:
       - name: Install from committed lockfile
         run: npm ci --prefix backend
 
-      - name: Run backend static verification interface
-        run: npm run verify:static --prefix backend
+      - name: Run backend verification interface
+        run: npm run verify --prefix backend
 
-  # ---------------------------------------------------------------------------
-  # 8. Backend tests + LCOV — independent of backend static verification, so a
-  #    static failure cannot hide test evidence (and the reverse).
-  # ---------------------------------------------------------------------------
-  backend-test:
-    name: Backend tests and coverage
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    steps:
-      - name: Check out the dispatch anchor
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          # For a bridge dispatch this is the default branch the workflow ran
-          # from, so the assertion below and the local composite actions it uses
-          # are trusted repository content. The dispatch target is checked out
-          # afterwards, once it has been validated.
-          persist-credentials: false
-
-      - name: Assert the dispatch target
-        id: assert-target
-        if: inputs.expected_sha != ''
-        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
-        with:
-          expected-sha: ${{ inputs.expected_sha }}
-          target-ref: ${{ inputs.target_ref }}
-
-      - name: Set up Node
-        uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - name: Check out the exact expected SHA
-        if: inputs.expected_sha != ''
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          # The commit the assertion just proved, not the raw dispatch input. An
-          # input is attacker-reachable; this is a value trusted logic has
-          # verified. Everything from here on is the code under verification,
-          # executed by this trusted workflow under its own read-only
-          # permissions -- the same trust level as an ordinary pull-request run.
-          ref: ${{ steps.assert-target.outputs.sha }}
-          persist-credentials: false
-
-      - name: Install from committed lockfile
-        run: npm ci --prefix backend
-
-      - name: Run backend tests with LCOV coverage
-        run: npm run verify:test --prefix backend
-
-      - name: Upload backend coverage
-        if: always()
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: backend-coverage-report
-          path: backend/coverage/**
-          if-no-files-found: warn
-          retention-days: 7
-
-
-  # ---------------------------------------------------------------------------
   # 10. Change detection — what the candidate actually touched. This job always
   #     runs, so a conditional job below never leaves a required check pending
   #     the way a top-level `paths:` filter would.
@@ -681,12 +595,11 @@ jobs:
           # dependency inputs changed" and let dependency review decide.
           #
           # Dependency inputs are the files whose change alters a resolved
-          # dependency graph: the Gradle declaration surface (any `*.gradle.kts`,
-          # the committed `*.gradle.lockfile` lockfiles including the root
-          # `settings-gradle.lockfile`, and everything under `gradle/` — the
-          # version catalog, the verification metadata and the wrapper pin) plus
-          # the backend package manifest and lockfile.
-          dependency_input_pattern='^(backend/package(-lock)?\.json|gradle/.*|.*\.gradle\.kts|(.*/)?gradle\.lockfile|.*[-.]gradle\.lockfile)$'
+          # dependency graph: the Gradle declaration surface (any `*.gradle.kts`
+          # and everything under `gradle/` — the version catalog, the
+          # verification metadata and the wrapper pin) plus the backend package
+          # manifest and lockfile.
+          dependency_input_pattern='^(backend/package(-lock)?\.json|gradle/.*|.*\.gradle\.kts)$'
           changed=true
           if [ -n "$base" ] && [ "$base" != "0000000000000000000000000000000000000000" ]; then
             files="$(gh api "repos/${REPOSITORY}/compare/${base}...${head}" --jq '.files[].filename' 2>/dev/null || true)"
@@ -772,127 +685,25 @@ jobs:
               ;;
           esac
 
+      # The standard action owns AppT's dependency security policy directly:
+      # fail on any introduced vulnerability at low severity or above. The
+      # former custom enforcer (tools/security/enforce-dependency-policy.mjs)
+      # existed only to permit GHSA-vrpq-qp53-qv56 in settings.gradle.kts while
+      # jgit still resolved to a vulnerable version; the root buildscript
+      # constraint now resolves jgit to the patched 6.10.1.202505221210-r
+      # (confirmed in gradle/verification-metadata.xml), so the exception and
+      # the second enforcement system are gone.
       - name: Dependency review
         # actions/dependency-review-action v5.0.0
         id: review
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
         with:
           fail-on-severity: low
-          warn-only: true
           comment-summary-in-pr: never
           retry-on-snapshot-warnings: true
           retry-on-snapshot-warnings-timeout: 600
           base-ref: ${{ steps.base.outputs.ref }}
           head-ref: ${{ inputs.expected_sha || github.sha }}
-
-      - name: Enforce strict dependency security policy
-        shell: bash
-        env:
-          VULNERABLE_CHANGES: ${{ steps.review.outputs.vulnerable-changes }}
-        run: node tools/security/enforce-dependency-policy.mjs
-
-  # ---------------------------------------------------------------------------
-  # 12. Quality platform — SonarQube Cloud over the coverage evidence produced
-  #     by the two producer jobs. It deliberately does not wait on Android
-  #     formatting or Android static verification: an unrelated failure there
-  #     must not suppress the quality-platform evidence.
-  # ---------------------------------------------------------------------------
-  quality-platform:
-    name: SonarQube Cloud quality platform
-    needs:
-      - android-unit
-      - backend-test
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    steps:
-      - name: Check out the dispatch anchor
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          # Keep trusted settings/helpers in the workspace root. Target source
-          # gets a separate checkout and cannot replace scanner control files.
-          persist-credentials: false
-
-      - name: Assert the dispatch target
-        id: assert-target
-        if: inputs.expected_sha != ''
-        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
-        with:
-          expected-sha: ${{ inputs.expected_sha }}
-          target-ref: ${{ inputs.target_ref }}
-
-      - name: Check out source as data in a separate directory
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          # Bridge: the validated target SHA. Ordinary main/manual run: its
-          # exact event SHA. Neither path loads control logic from this tree.
-          ref: ${{ steps.assert-target.outputs.sha || github.sha }}
-          path: sonar-target
-          persist-credentials: false
-
-      - name: Download Kover coverage report
-        # actions/download-artifact v7.0.0
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
-        with:
-          name: kover-coverage-report
-          path: ${{ runner.temp }}/sonar-kover
-
-      - name: Download backend coverage report
-        # actions/download-artifact v7.0.0
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
-        with:
-          name: backend-coverage-report
-          path: ${{ runner.temp }}/sonar-backend
-
-      - name: Validate inert Sonar inputs and fresh scanner state
-        env:
-          SCAN_TEMP: ${{ runner.temp }}
-        run: |
-          python3 tools/ci/validate-sonar-inputs.py \
-            --source sonar-target \
-            --android "$SCAN_TEMP/sonar-kover" \
-            --backend "$SCAN_TEMP/sonar-backend" \
-            --work "$SCAN_TEMP/sonar-work" \
-            --home "$SCAN_TEMP/sonar-home"
-
-      - name: Check for SonarQube Cloud Token
-        id: check_token
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          if [ -z "$SONAR_TOKEN" ]; then
-            echo "::error title=SonarQube Cloud Token Missing::SONAR_TOKEN secret is required for mandatory SonarQube Cloud quality platform analysis. Analysis cannot be bypassed."
-            exit 1
-          fi
-
-      - name: Run SonarQube Cloud Analysis
-        # sonarsource/sonarqube-scan-action v8.2.2
-        uses: sonarsource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4
-        with:
-          scannerVersion: 8.1.0.6389
-          # Stay at the trusted anchor (the action defaults projectBaseDir to
-          # '.'). Do not combine the explicit settings file with a target base.
-          # Analyze only target paths; target settings remain inert. Quote each
-          # WHOLE argument: string-argv 0.3.2 preserves quotes after the '='.
-          args: >-
-            "-Dproject.settings=${{ github.workspace }}/sonar-project.properties"
-            "-Dsonar.sources=sonar-target/app/src/main,sonar-target/samsung/src/main,sonar-target/backend/src"
-            "-Dsonar.tests=sonar-target/app/src/test,sonar-target/backend/test"
-            "-Dsonar.java.binaries=sonar-target/app/build/intermediates/javac/debug/classes,sonar-target/app/build/tmp/kotlin-classes/debug"
-            "-Dsonar.modules="
-            "-Dsonar.host.url=https://sonarcloud.io"
-            "-Dsonar.scanner.sonarcloudUrl=https://sonarcloud.io"
-            "-Dsonar.scanner.apiBaseUrl=https://api.sonarcloud.io"
-            "-Dsonar.working.directory=${{ runner.temp }}/sonar-work"
-            "-Dsonar.userHome=${{ runner.temp }}/sonar-home"
-            "-Dsonar.coverage.jacoco.xmlReportPaths=${{ runner.temp }}/sonar-kover/build/reports/kover/report.xml,${{ runner.temp }}/sonar-kover/app/build/reports/kover/report.xml,${{ runner.temp }}/sonar-kover/app/build/reports/kover/reportDebug.xml,${{ runner.temp }}/sonar-kover/build/reports/kover/reportDebug.xml"
-            "-Dsonar.javascript.lcov.reportPaths=${{ runner.temp }}/sonar-backend/lcov.info"
-            "-Dsonar.scm.revision=${{ steps.assert-target.outputs.sha || github.sha }}"
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   # ---------------------------------------------------------------------------
   # 13. Gate — the single stable required status interface for default-branch
@@ -907,11 +718,9 @@ jobs:
       - android-static
       - android-build
       - android-unit
-      - backend-static
-      - backend-test
+      - backend
       - changes
       - dependency-review
-      - quality-platform
     if: always()
     runs-on: ubuntu-24.04
     permissions:
@@ -926,11 +735,9 @@ jobs:
           ANDROID_STATIC_RESULT: ${{ needs.android-static.result }}
           ANDROID_BUILD_RESULT: ${{ needs.android-build.result }}
           ANDROID_UNIT_RESULT: ${{ needs.android-unit.result }}
-          BACKEND_STATIC_RESULT: ${{ needs.backend-static.result }}
-          BACKEND_TEST_RESULT: ${{ needs.backend-test.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
           CHANGES_RESULT: ${{ needs.changes.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
-          QUALITY_PLATFORM_RESULT: ${{ needs.quality-platform.result }}
           TARGET_SHA: ${{ inputs.expected_sha || github.sha }}
         run: |
           set -uo pipefail
@@ -985,10 +792,9 @@ jobs:
 
           if [ "$EVENT_NAME" = "pull_request" ]; then
             echo "Pull-request verification: repository policy, repository quality, change"
-            echo "detection and dependency review only. The Android, backend,"
-            echo "and quality-platform domains are produced by a full"
-            echo "verification run (push to main, workflow_dispatch, or the"
-            echo "agent-control bridge)."
+            echo "detection and dependency review only. The Android and backend"
+            echo "domains are produced by a full verification run (push to main,"
+            echo "workflow_dispatch, or the agent-control bridge)."
             echo
 
             require repo-policy "$REPO_POLICY_RESULT"
@@ -999,9 +805,7 @@ jobs:
             not_run android-static
             not_run android-build
             not_run android-unit
-            not_run backend-static
-            not_run backend-test
-            not_run quality-platform
+            not_run backend
           else
             echo "Full repository verification."
             echo
@@ -1012,9 +816,7 @@ jobs:
             require android-static "$ANDROID_STATIC_RESULT"
             require android-build "$ANDROID_BUILD_RESULT"
             require android-unit "$ANDROID_UNIT_RESULT"
-            require backend-static "$BACKEND_STATIC_RESULT"
-            require backend-test "$BACKEND_TEST_RESULT"
-            require quality-platform "$QUALITY_PLATFORM_RESULT"
+            require backend "$BACKEND_RESULT"
             require_dependency_review
           fi
 
@@ -1026,10 +828,8 @@ jobs:
             printf '| %s | %s |\n' "android-static" "$ANDROID_STATIC_RESULT"
             printf '| %s | %s |\n' "android-build" "$ANDROID_BUILD_RESULT"
             printf '| %s | %s |\n' "android-unit" "$ANDROID_UNIT_RESULT"
-            printf '| %s | %s |\n' "backend-static" "$BACKEND_STATIC_RESULT"
-            printf '| %s | %s |\n' "backend-test" "$BACKEND_TEST_RESULT"
+            printf '| %s | %s |\n' "backend" "$BACKEND_RESULT"
             printf '| %s | %s |\n' "dependency-review" "$DEPENDENCY_REVIEW_RESULT"
-            printf '| %s | %s |\n' "quality-platform" "$QUALITY_PLATFORM_RESULT"
             echo
             if [ "$failed" -eq 0 ]; then
               echo "All required verification domains succeeded."

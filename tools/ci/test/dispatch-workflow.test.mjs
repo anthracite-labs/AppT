@@ -561,9 +561,6 @@ describe('dispatchCommand', () => {
       'ci:android-static',
       'ci:app-unit',
       'ci:backend',
-      'ci:backend-static',
-      'ci:backend-test',
-      'ci:dependency-state',
       'ci:full',
       'ci:samsung-unit',
     ]);

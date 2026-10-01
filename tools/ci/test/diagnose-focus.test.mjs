@@ -58,16 +58,7 @@ const UNFOCUSED_COMMANDS = {
     '--continue',
     'androidBuild',
   ],
-  'backend-static': ['npm', 'run', 'verify:static', '--prefix', 'backend'],
-  'backend-test': ['npm', 'run', 'verify:test', '--prefix', 'backend'],
   backend: ['npm', 'run', 'verify', '--prefix', 'backend'],
-  'dependency-state': [
-    './gradlew',
-    '--no-daemon',
-    '--dependency-verification=strict',
-    'resolveAndLockAll',
-    '--write-locks',
-  ],
 };
 
 /**
@@ -79,10 +70,7 @@ const INVOCATION_PREFIX = {
   'samsung-unit': ['./gradlew', '--no-daemon', '--dependency-verification=strict', '--continue'],
   'android-static': ['./gradlew', '--no-daemon', '--dependency-verification=strict', '--continue'],
   'android-build': ['./gradlew', '--no-daemon', '--dependency-verification=strict', '--continue'],
-  'backend-static': ['npm', 'run'],
-  'backend-test': ['npm', 'run'],
   backend: ['npm', 'run'],
-  'dependency-state': ['./gradlew', '--no-daemon', '--dependency-verification=strict'],
 };
 
 /**
@@ -99,7 +87,6 @@ const OWNED_GRADLE_TASKS = {
     ':app:detekt',
     ':samsung:detekt',
     'appTGuards',
-    'dependencyLockCheck',
   ],
   'android-build': [
     ':app:assembleDebug',
@@ -108,8 +95,6 @@ const OWNED_GRADLE_TASKS = {
 };
 
 const OWNED_NPM_SCRIPTS = {
-  'backend-static': ['verify:static', 'typecheck', 'lint', 'format:check', 'knip'],
-  'backend-test': ['verify:test'],
   backend: ['verify', 'verify:static', 'verify:test', 'typecheck', 'lint', 'format:check', 'knip'],
 };
 
@@ -211,29 +196,18 @@ describe('a valid focus narrows within its mode', () => {
       tasks,
     ]),
 
-    // Allowlisted backend static sub-checks, as npm script names.
-    ...Object.entries(BACKEND_STATIC_SUBCHECKS).map(([focus, script]) => [
-      'backend-static',
-      focus,
-      [script, '--prefix', 'backend'],
-    ]),
-
-    // Jest file and name targeting, through the mode's own npm script.
-    ['backend-test', 'file:src/foo.test.ts', ['verify:test', '--prefix', 'backend', '--', 'src/foo.test.ts']],
-    ['backend-test', 'name:handles a retry', [
-      'verify:test',
-      '--prefix',
-      'backend',
-      '--',
-      '--testNamePattern',
-      'handles a retry',
-    ]],
-
     // The whole backend narrowing to its own responsibilities.
     ['backend', 'static', ['verify:static', '--prefix', 'backend']],
     ['backend', 'test', ['verify:test', '--prefix', 'backend']],
-    ['backend', 'static:knip', ['knip', '--prefix', 'backend']],
+    // Allowlisted backend static sub-checks, reached through the backend mode.
+    ...Object.entries(BACKEND_STATIC_SUBCHECKS).map(([focus, script]) => [
+      'backend',
+      `static:${focus}`,
+      [script, '--prefix', 'backend'],
+    ]),
+    // Jest file and name targeting, through the mode's own npm script.
     ['backend', 'test:src/foo.test.ts', ['verify:test', '--prefix', 'backend', '--', 'src/foo.test.ts']],
+    ['backend', 'test:handles a retry', ['verify:test', '--prefix', 'backend', '--', 'handles a retry']],
 
   ];
 
@@ -296,22 +270,12 @@ describe('invalid and cross-mode focus fails closed', () => {
     ['android-static', 'nope'],
     ['android-build', 'lint'],
     ['android-build', 'nope'],
-    ['backend-static', 'detekt'],
-    ['backend-static', 'nope'],
-
     // A kind the mode does not accept.
-    ['backend-test', 'lint'],
-    ['backend-test', 'class:x'],
-    ['backend-test', 'file:'],
-    ['backend-test', 'name:'],
-    ['backend-test', 'file:--coverage'],
-    ['backend-test', 'name:--testNamePattern'],
     ['backend', 'lint'],
     ['backend', 'static:'],
     ['backend', 'test:'],
     ['backend', 'static:nope'],
     ['backend', 'test:--coverage'],
-    ['dependency-state', 'anything'],
 
     // A value that would be read as a flag rather than as a selector.
     ['app-unit', '--tests'],
@@ -329,15 +293,6 @@ describe('invalid and cross-mode focus fails closed', () => {
       assert.notEqual(result.status, 0);
     });
   }
-
-  it('dependency-state rejects every non-empty focus', () => {
-    for (const focus of ['locks', 'app', 'other', 'anything']) {
-      assert.throws(
-        () => resolveFocus({ mode: 'dependency-state', focus }),
-        /focus is not supported for dependency-state/
-      );
-    }
-  });
 
   it('rejects an unknown mode', () => {
     assert.throws(() => resolveFocus({ mode: 'not-a-mode' }), /unknown diagnose mode/);
@@ -401,14 +356,14 @@ describe('special characters stay data', () => {
     // The Jest modes take a pattern, which is legitimately free-form, so the
     // metacharacters have to survive — as exactly one argv entry.
     for (const value of ['src/foo$(whoami).test.ts', 'src/foo`id`.test.ts', 'src/a&&b.test.ts']) {
-      const resolved = resolveFocus({ mode: 'backend-test', focus: `file:${value}` });
+      const resolved = resolveFocus({ mode: 'backend', focus: `test:${value}` });
       assert.equal(resolved.command.at(-1), value, value);
       assert.equal(resolved.command.at(-2), '--', value);
     }
   });
 
   it('a space survives inside a single argv entry', () => {
-    const resolved = resolveFocus({ mode: 'backend-test', focus: 'name:handles a retry' });
+    const resolved = resolveFocus({ mode: 'backend', focus: 'test:handles a retry' });
     assert.equal(resolved.command.at(-1), 'handles a retry');
   });
 });
@@ -447,7 +402,7 @@ describe('the CLI encoding round-trips', () => {
   });
 
   it('an argument containing a space stays on one line', () => {
-    const result = runCli('backend-test', 'name:handles a retry');
+    const result = runCli('backend', 'test:handles a retry');
     assert.equal(result.ok, true, result.stderr);
     const args = result.stdout.split('\n').filter((line) => line !== '');
     assert.equal(args.at(-1), 'handles a retry');
