@@ -563,6 +563,7 @@ describe('dispatchCommand', () => {
       'ci:backend',
       'ci:backend-static',
       'ci:backend-test',
+      'ci:dependency-state',
       'ci:device',
       'ci:full',
       'ci:samsung-unit',
