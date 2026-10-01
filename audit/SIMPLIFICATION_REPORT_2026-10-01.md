@@ -3,6 +3,7 @@
 **Branch:** `arena/01a0f840-appt`
 **Base:** `origin/main` at `754f6e23ed24447fa131722b242b671258b0308c`
 **Implementation head before this report update:** `1f86aed`
+**Final reconciliation pass:** 2026-10-01, on the complete branch (see verification evidence below).
 **Scope:** repository simplification only. No product source or product test was edited. `.project-ai/skills/**` is unchanged; `PROJECT_STATE.md` is left for post-acceptance reconciliation.
 
 This implements the two accepted audits (`REPO_AUDIT_2026-10-01_main_754f6e2.md` and `COMPLEXITY_AUDIT_2026-10-01_main_754f6e2.md`) against the live repository and open PRs. It deliberately leaves S05-owned product, device, benchmark and generated-state edits to draft PR #118. PRs #123 and #128 were closed as superseded; see their closure comments. The cache and Sonar decisions below were revised after checking actual GitHub workflow history rather than applying audit conclusions mechanically.
@@ -101,12 +102,25 @@ Green at the implementation candidate before report-only updates:
 
 **Android/Gradle terminal verification is blocked in this sandbox:** `java` and `JAVA_HOME` are absent, Android SDK variables/paths are absent, and HTTPS egress to Gradle/Maven/Google SDK endpoints fails (`SSL_ERROR_SYSCALL`; apt repositories also unreachable). `./gradlew --version` fails immediately with “JAVA_HOME is not set and no 'java' command could be found.” No green Gradle build is claimed. The Gradle changes have not had local compile/test verification; full GitHub `workflow_dispatch` verification is still required after push.
 
+### Final reconciliation pass (this report's head)
+
+Re-run green on the complete branch immediately before this update:
+
+- Node suites (`node --test tools/ci/test tools/security/test tools/secret-scan/test`): **149 pass / 0 fail**.
+- Sonar secret-boundary suite: 13/13. Cache-mode contract: passed (`verify` and `diagnose` parse as provider `cache-mode` read-only; no writer exception). Project-state contract: 8/8 plus `project_state_contract.py check` passed.
+- `yamllint` clean across the four workflow files; `markdownlint-cli2 "**/*.md"` clean (rc 0).
+- `npm ci --prefix backend` + `npm run verify --prefix backend`: typecheck/lint/Knip green, Jest 2/2, 100% coverage on the skeleton.
+- Secret scanner tree scan: OK over 295 tracked files.
+- Stale-reference sweep for every retired concept (`resolveAndLockAll`, `dependencyLockCheck`, `lockAllConfigurations`, `write-locks`, the `ci:dependency-state` live route, `purge-actions`/`maintenance.yml`, `backend-static`/`backend-test` as peer modes, `koverVerify`/`minBound`, warm-state publishing): **no live references remain** outside (a) the audit artifacts, (b) the PROJECT_STATE acceptance line for PR #129 — reconciled post-acceptance per that file's own policy, (c) the generic operation-class vocabulary in `.project-ai/execution/verification.md`, and (d) one historical note in `release.md` that correctly describes the maintenance-workflow retirement.
+- Confirmed PR #118's head still edits `app/gradle.lockfile`, `samsung/gradle.lockfile`, `macrobenchmark/gradle.lockfile`, `gradle/verification-metadata.xml`, and `gradle/verification-metadata.template.xml`, so those files are deliberately retained here to avoid a modify/delete conflict with the active slice.
+
 ## Active PR boundary / deferred cleanup
 
 - Draft PR #118 remains open and owns the S05 product/device/benchmark changes. No product source, Samsung protocol code, fixtures, release-boundary behavior, or `macrobenchmark/**` was changed here. `app/gradle.lockfile`, `samsung/gradle.lockfile`, and `gradle/verification-metadata.template.xml` are restored in this branch so PR #118's generated-state edits can merge without file-level modify/delete conflicts.
 - A merge-tree simulation against PR #118's current head finds only **one content conflict** in `docs/BUILD.md`: the obsolete `backend-test` focus example in its S05 doc patch versus this branch's replacement with the current combined `backend` mode. No build/product file conflict remains. Resolve that single documentation hunk to the current `backend` selector when integrating; `backend-test` had zero active diagnostic runs in the 46-run sample.
 - `.project-ai/PROJECT_STATE.md` still reflects accepted `main` state and the `ci:dependency-state` route. Per repo policy, it should be reconciled only after this work is accepted on `main`; no PROJECT_STATE change was made here. `.project-ai/execution/verification.md` uses “dependency-state” as a generic operation class, not a live route.
 - CodeQL Default Setup remains a repository-owner settings action because the integration's API call was forbidden (403).
+- **Issue #127 ("Trusted hosted Gradle lock refresh artifact") is superseded and should be closed by a repository owner** — this integration is forbidden from closing or commenting on issues (403 on both). Rationale: the issue's contract requires a trusted route to run `./gradlew resolveAndLockAll --write-locks` and stage the five known lockfiles, but locking was retired wholesale here (commit d6a8f05), `resolveAndLockAll` no longer exists, and no active lock state remains to refresh. The motivating Baseline Profile producer change in PR #118 belongs to the pre-Revision-5 S05 shape retired by Contract Revision 5. The companion implementation PR #128 was already closed with this rationale. If dynamic/range/SNAPSHOT declarations are ever reintroduced, locking and a refresh route become a fresh decision.
 
 ## Outcome
 
