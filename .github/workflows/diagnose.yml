@@ -1037,8 +1037,7 @@ jobs:
             cp "$path" "$artifact_root/$path"
           done
 
-          printf '%s
-' "${changed[@]}" > "$artifact_root/changed-paths.txt"
+          printf '%s\\n' "${changed[@]}" > "$artifact_root/changed-paths.txt"
 
       - name: Upload generated Gradle lock state
         # actions/upload-artifact v7.0.1
