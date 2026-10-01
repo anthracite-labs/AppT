@@ -996,8 +996,11 @@ jobs:
             "settings-gradle.lockfile"
             "app/gradle.lockfile"
             "samsung/gradle.lockfile"
-            "macrobenchmark/gradle.lockfile"
           )
+          # Revision 5 retires :macrobenchmark. During that bounded migration the
+          # generated lockfile may be deleted, but it must never be regenerated
+          # or returned as live dependency state.
+          retired=("macrobenchmark/gradle.lockfile")
 
           mapfile -t changed < <(
             git status --porcelain=v1 --untracked-files=no |
@@ -1008,7 +1011,7 @@ jobs:
 
           for path in "${changed[@]}"; do
             permitted=false
-            for candidate in "${allowed[@]}"; do
+            for candidate in "${allowed[@]}" "${retired[@]}"; do
               if [ "$path" = "$candidate" ]; then
                 permitted=true
                 break
@@ -1022,7 +1025,7 @@ jobs:
 
           artifact_root="${RUNNER_TEMP}/dependency-state"
           rm -rf "$artifact_root"
-          mkdir -p "$artifact_root/app" "$artifact_root/samsung" "$artifact_root/macrobenchmark"
+          mkdir -p "$artifact_root/app" "$artifact_root/samsung"
 
           for path in "${allowed[@]}"; do
             if [ ! -f "$path" ] || [ -L "$path" ]; then
