@@ -27,6 +27,7 @@ GRADLE_DIAGNOSTIC_JOBS = {
     "device",
 }
 TRUSTED_CACHE_WRITER_JOB = "publish-gradle-warm-state"
+LOCK_REFRESH_JOB = "dependency-lock-refresh"
 
 
 def validate_trusted_cache_writer(job_id, job):
@@ -291,6 +292,41 @@ class WorkflowCacheContractTests(unittest.TestCase):
                     upload["with"]["name"],
                 )
                 self.assertIn("${{ github.run_id }}", upload["with"]["name"])
+
+    def test_dependency_lock_refresh_is_bounded_read_only_handoff(self):
+        diagnose = yaml.safe_load((WORKFLOWS / "diagnose.yml").read_text())
+        job = diagnose["jobs"][LOCK_REFRESH_JOB]
+
+        self.assertEqual(job["permissions"], {"contents": "read"})
+        self.assertNotIn("cache-mode", job)
+
+        rendered = yaml.safe_dump(job)
+        self.assertNotIn("${{ secrets.", rendered)
+        self.assertNotIn("actions/cache/save@", rendered)
+        self.assertNotIn("persist-credentials: true", rendered)
+
+        steps = {step.get("name"): step for step in job["steps"]}
+        refresh = steps["Regenerate Gradle lock state"]["run"]
+        self.assertIn("DIAGNOSE_ARGS", refresh)
+
+        stage = steps["Validate and stage bounded lockfile handoff"]["run"]
+        for path in (
+            "gradle.lockfile",
+            "settings-gradle.lockfile",
+            "app/gradle.lockfile",
+            "samsung/gradle.lockfile",
+            "macrobenchmark/gradle.lockfile",
+        ):
+            self.assertIn(path, stage)
+        self.assertIn("path.is_symlink()", stage)
+        self.assertIn("unexpected Gradle lockfiles", stage)
+        self.assertIn("max_each = 5 * 1024 * 1024", stage)
+        self.assertIn("max_total = 20 * 1024 * 1024", stage)
+
+        upload = steps["Upload generated Gradle lockfiles"]
+        self.assertIn("actions/upload-artifact@", upload["uses"])
+        self.assertEqual(upload["with"]["retention-days"], 3)
+        self.assertIn("appt-gradle-lock-refresh-", upload["with"]["name"])
 
     def test_future_target_workflows_are_discovered(self):
         workflow = yaml.safe_load("""
