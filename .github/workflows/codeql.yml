@@ -115,13 +115,9 @@ jobs:
 
       - name: Build Java and Kotlin targets
         if: github.event_name != 'pull_request'
-        run: |
-          chmod +x ./gradlew
-          ./gradlew --no-daemon --no-build-cache \
-            -Dorg.gradle.parallel=false \
-            -Pkotlin.compiler.execution.strategy=in-process \
-            --dependency-verification=strict \
-            assembleDebug
+        # tools/security/run.sh owns the exact strict CodeQL extraction command
+        # and is also the local reproduction path in docs/BUILD.md.
+        run: tools/security/run.sh build
 
       - name: Perform CodeQL analysis
         # github/codeql-action v4.38.2
