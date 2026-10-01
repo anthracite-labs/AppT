@@ -46,6 +46,7 @@ export const DIAGNOSE_MODES = Object.freeze([
   'backend-static',
   'backend-test',
   'backend',
+  'dependency-lock-refresh',
   'device',
 ]);
 
@@ -67,6 +68,20 @@ const GRADLE_DEVICE = [
   '--no-daemon',
   '--dependency-verification=strict',
   '-Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect',
+];
+
+/**
+ * Reviewed dependency-state regeneration. This is intentionally a fixed
+ * operation rather than a focusable task selector: it may refresh the
+ * repository-owned Gradle lockfiles after a deliberate dependency/configuration
+ * change, but it may not be widened into arbitrary Gradle execution.
+ */
+const GRADLE_LOCK_REFRESH = [
+  './gradlew',
+  '--no-daemon',
+  '--dependency-verification=strict',
+  'resolveAndLockAll',
+  '--write-locks',
 ];
 
 /** npm script invocation prefix. */
@@ -368,6 +383,17 @@ export function resolveFocus({ mode, focus } = {}) {
           command = [...npm('verify:test'), '--', child];
         }
       }
+      break;
+    }
+
+    // A fixed, non-focusable repository maintenance operation. The trusted
+    // workflow separately bounds the artifact handoff to known lockfile paths.
+    case 'dependency-lock-refresh': {
+      kind = 'fixed-operation';
+      if (normalized !== '') {
+        throw new Error('dependency-lock-refresh does not accept a focus');
+      }
+      command = [...GRADLE_LOCK_REFRESH];
       break;
     }
 
