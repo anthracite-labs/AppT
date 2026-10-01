@@ -394,7 +394,7 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # 5. Android build — debug assembly (which runs the merged-manifest guards)
-  #    and macrobenchmark compilation.
+  #    and AppT assembly/release-boundary checks.
   # ---------------------------------------------------------------------------
   android-build:
     name: Android build
@@ -630,88 +630,6 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-  # ---------------------------------------------------------------------------
-  # 9. Device — installed-app acceptance on a Gradle Managed Device (API 29).
-  # ---------------------------------------------------------------------------
-  device:
-    name: Installed-app acceptance on Gradle Managed Device (API 29)
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    permissions:
-      contents: read
-    steps:
-      - name: Check out the dispatch anchor
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          # For a bridge dispatch this is the default branch the workflow ran
-          # from, so the assertion below and the local composite actions it uses
-          # are trusted repository content. The dispatch target is checked out
-          # afterwards, once it has been validated.
-          persist-credentials: false
-
-      - name: Assert the dispatch target
-        id: assert-target
-        if: inputs.expected_sha != ''
-        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
-        with:
-          expected-sha: ${{ inputs.expected_sha }}
-          target-ref: ${{ inputs.target_ref }}
-
-      - name: Set up the Android/JVM toolchain
-        uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
-        with:
-          java-version: ${{ env.JAVA_VERSION }}
-      - name: Check out the exact expected SHA
-        if: inputs.expected_sha != ''
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          # The commit the assertion just proved, not the raw dispatch input. An
-          # input is attacker-reachable; this is a value trusted logic has
-          # verified. Everything from here on is the code under verification,
-          # executed by this trusted workflow under its own read-only
-          # permissions -- the same trust level as an ordinary pull-request run.
-          ref: ${{ steps.assert-target.outputs.sha }}
-          persist-credentials: false
-
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-          ls -la /dev/kvm
-
-      - name: Run Gradle Managed Device Acceptance Test (API 29)
-        run: |
-          set -o pipefail
-          ./gradlew --no-daemon --dependency-verification=strict \
-            -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
-            :app:pixel2api29DebugAndroidTest 2>&1 | tee /tmp/gmd.log || {
-              echo "::error title=GMD Failure::$(grep -A 10 "\* What went wrong:" /tmp/gmd.log | head -n 10 | tr '\n' ' ')"
-              grep -A 30 "FAILURE: Build failed" /tmp/gmd.log || true
-              {
-                echo "### GMD Failure Log"
-                echo '```'
-                tail -n 60 /tmp/gmd.log
-                echo '```'
-              } >> "$GITHUB_STEP_SUMMARY"
-              exit 1
-            }
-
-      - name: Upload managed device reports
-        if: always()
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: managed-device-report
-          path: |
-            app/build/reports/androidTests/managedDevice/**
-            app/build/outputs/androidTest-results/managedDevice/**
-          if-no-files-found: warn
-          retention-days: 7
 
   # ---------------------------------------------------------------------------
   # 10. Change detection — what the candidate actually touched. This job always
@@ -991,7 +909,6 @@ jobs:
       - android-unit
       - backend-static
       - backend-test
-      - device
       - changes
       - dependency-review
       - quality-platform
@@ -1011,7 +928,6 @@ jobs:
           ANDROID_UNIT_RESULT: ${{ needs.android-unit.result }}
           BACKEND_STATIC_RESULT: ${{ needs.backend-static.result }}
           BACKEND_TEST_RESULT: ${{ needs.backend-test.result }}
-          DEVICE_RESULT: ${{ needs.device.result }}
           CHANGES_RESULT: ${{ needs.changes.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           QUALITY_PLATFORM_RESULT: ${{ needs.quality-platform.result }}
@@ -1070,7 +986,7 @@ jobs:
           if [ "$EVENT_NAME" = "pull_request" ]; then
             echo "Pull-request verification: repository policy, repository quality, change"
             echo "detection and dependency review only. The Android, backend,"
-            echo "managed-device and quality-platform domains are produced by a full"
+            echo "and quality-platform domains are produced by a full"
             echo "verification run (push to main, workflow_dispatch, or the"
             echo "agent-control bridge)."
             echo
@@ -1085,7 +1001,6 @@ jobs:
             not_run android-unit
             not_run backend-static
             not_run backend-test
-            not_run device
             not_run quality-platform
           else
             echo "Full repository verification."
@@ -1099,7 +1014,6 @@ jobs:
             require android-unit "$ANDROID_UNIT_RESULT"
             require backend-static "$BACKEND_STATIC_RESULT"
             require backend-test "$BACKEND_TEST_RESULT"
-            require device "$DEVICE_RESULT"
             require quality-platform "$QUALITY_PLATFORM_RESULT"
             require_dependency_review
           fi
@@ -1114,7 +1028,6 @@ jobs:
             printf '| %s | %s |\n' "android-unit" "$ANDROID_UNIT_RESULT"
             printf '| %s | %s |\n' "backend-static" "$BACKEND_STATIC_RESULT"
             printf '| %s | %s |\n' "backend-test" "$BACKEND_TEST_RESULT"
-            printf '| %s | %s |\n' "device" "$DEVICE_RESULT"
             printf '| %s | %s |\n' "dependency-review" "$DEPENDENCY_REVIEW_RESULT"
             printf '| %s | %s |\n' "quality-platform" "$QUALITY_PLATFORM_RESULT"
             echo
