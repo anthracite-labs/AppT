@@ -61,6 +61,13 @@ const UNFOCUSED_COMMANDS = {
   'backend-static': ['npm', 'run', 'verify:static', '--prefix', 'backend'],
   'backend-test': ['npm', 'run', 'verify:test', '--prefix', 'backend'],
   backend: ['npm', 'run', 'verify', '--prefix', 'backend'],
+  'dependency-lock-refresh': [
+    './gradlew',
+    '--no-daemon',
+    '--dependency-verification=strict',
+    'resolveAndLockAll',
+    '--write-locks',
+  ],
   device: [
     './gradlew',
     '--no-daemon',
@@ -86,6 +93,13 @@ const INVOCATION_PREFIX = {
   'backend-static': ['npm', 'run'],
   'backend-test': ['npm', 'run'],
   backend: ['npm', 'run'],
+  'dependency-lock-refresh': [
+    './gradlew',
+    '--no-daemon',
+    '--dependency-verification=strict',
+    'resolveAndLockAll',
+    '--write-locks',
+  ],
   device: [
     './gradlew',
     '--no-daemon',
@@ -115,6 +129,7 @@ const OWNED_GRADLE_TASKS = {
     ':app:verifyReleaseS05Boundaries',
     ':macrobenchmark:assembleBenchmark',
   ],
+  'dependency-lock-refresh': ['resolveAndLockAll'],
   device: [
     ':app:pixel2api29DebugAndroidTest',
     ':samsung:pixel2api29DebugAndroidTest',
@@ -352,6 +367,8 @@ describe('invalid and cross-mode focus fails closed', () => {
     ['device', 'method:Foo'],
     ['device', 'package:a..b'],
     ['device', 'class:-x'],
+    ['dependency-lock-refresh', 'anything'],
+    ['dependency-lock-refresh', 'dependency-lock'],
 
     // A value that would be read as a flag rather than as a selector.
     ['app-unit', '--tests'],
