@@ -94,7 +94,7 @@ androidComponents {
         it.enable =
             it.buildType == "benchmark" ||
                 it.buildType == "release" ||
-                it.buildType.endsWith("Release")
+                it.buildType?.endsWith("Release") == true
     }
 }
 
