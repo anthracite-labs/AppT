@@ -86,6 +86,18 @@ dependencies {
     implementation(libs.androidx.benchmark.macro.junit4)
 }
 
+androidComponents {
+    beforeVariants(selector().all()) {
+        // Retain the benchmark test variant and expose the release/Baseline Profile producer
+        // variants consumed by :app:releaseBaselineProfile. Keep debug producer variants disabled;
+        // this remains a test-only module and does not add benchmark code to the shipped app.
+        it.enable =
+            it.buildType == "benchmark" ||
+                it.buildType == "release" ||
+                it.buildType.endsWith("Release")
+    }
+}
+
 // Keep the contract's connectedCheck entry point on the existing GMD execution route: the aggregate
 // includes the device task that runs macrobenchmarks against the deterministic benchmark target.
 tasks.matching { it.name == "connectedCheck" }.configureEach {
