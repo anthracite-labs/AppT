@@ -37,6 +37,7 @@ Success means S05 makes the accepted phone-native Remote, Settings, accessibilit
 - S05 is the next authorized implementation slice.
 - S05 is currently active under Issue #117. Contract Revision 4 is the current accepted contract revision; bounded corrections continue on PR #118 until all required hosted/profile and physical-verifier closeout evidence is complete.
 - Trusted exact-head Gradle dependency-state regeneration is accepted through PR #129 as the permanent `ci:dependency-state` diagnostic route. It may regenerate only the known Gradle lockfiles under strict verification and never writes the target branch.
+- Trusted hosted device diagnostics enable KVM and serialize Gradle Managed Device provisioning/execution through PR #132, adapting the Apache-2.0 Android `nowinandroid` / `performance-samples` CI pattern while preserving AppT's exact-head assertion, strict verification, read-only target execution, existing device coverage, and bounded artifacts.
 - S07 may be dependency-ready but is not active or authorized.
 - Provider facts marked `needs validation` must be confirmed when they first become implementation-relevant. Material external/protocol claims also carry explicit authority/implementation-evidence/AppT-decision provenance in their owning architecture documents.
 - Final AppT source-license selection and focused Samsung vendor-terms/legal review remain pre-public-release gates.
@@ -52,7 +53,7 @@ S04 — Saved pairing, fail-closed identity, and the safe forget primitive — a
 
 ## Next Authorized Action
 
-Continue Issue #117 / PR #118 on the existing Arena branch. Complete the currently bounded dependency-state correction using the accepted Wire 6.4.7 constraint and the repository-owned `ci:dependency-state` route for generated lockfiles, then resume the remaining Revision 4 hosted profile/device verification and physical-verifier closeout. Keep PR #118 Draft / NOT VERIFIED until the full active contract is satisfied and human acceptance is given.
+Continue Issue #117 / PR #118 on the existing Arena branch. Rerun exact-head `ci:device` on the current PR head using the accepted serialized-GMD diagnostic route. If it succeeds, consume only the bounded generated baseline-profile handoff, commit the generated profile on PR #118, prove clean regeneration and hosted `:macrobenchmark:connectedCheck` on the resulting profile-bearing candidate, then complete terminal exact-head verification, debug APK production, and the final physical verifier rerun. Keep PR #118 Draft / NOT VERIFIED until the full active contract is satisfied and human acceptance is given.
 
 ## Authoritative References
 
