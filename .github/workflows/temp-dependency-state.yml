@@ -101,7 +101,35 @@ jobs:
         id: metadata
         if: steps.locks.outcome == 'success'
         continue-on-error: true
-        run: ./gradlew --no-daemon --write-verification-metadata sha256 ciCheck
+        run: |
+          set -uo pipefail
+          log_file="${RUNNER_TEMP}/verification-metadata.log"
+          set +e
+          ./gradlew --no-daemon --write-verification-metadata sha256 ciCheck > "$log_file" 2>&1
+          command_status=$?
+          set -e
+
+          if [ "$command_status" -ne 0 ]; then
+            diagnostic_file="${RUNNER_TEMP}/verification-metadata-diagnostic.txt"
+            python3 - "$log_file" > "$diagnostic_file" <<'PY'
+          import sys
+          from pathlib import Path
+
+          lines = Path(sys.argv[1]).read_text(errors="replace").splitlines()
+          text = "\n".join(lines[-80:])
+          if len(text) > 6000:
+              text = text[-6000:]
+          if not text.strip():
+              text = "Gradle returned a failure without diagnostic output."
+          print(text)
+          PY
+            diagnostic="$(cat "$diagnostic_file")"
+            printf '### Verification metadata generation failed\n\nExit code: `%s`\n\n```text\n%s\n```\n' \
+              "$command_status" "$diagnostic" >> "$GITHUB_STEP_SUMMARY"
+            encoded="$(printf '%s' "$diagnostic" | python3 -c 'import sys; s=sys.stdin.read(); print(s.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"), end="")')"
+            printf '::error title=Verification metadata generation failed::%s\n' "$encoded"
+          fi
+          exit "$command_status"
 
       - name: Collect only generated dependency-state candidates
         if: always()
