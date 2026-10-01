@@ -73,6 +73,8 @@ const UNFOCUSED_COMMANDS = {
     '--no-daemon',
     '--dependency-verification=strict',
     '-Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect',
+    '-Pandroid.experimental.androidTest.numManagedDeviceShards=1',
+    '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1',
     ':app:pixel2api29DebugAndroidTest',
     ':samsung:pixel2api29DebugAndroidTest',
     ':samsung:pixel2api35DebugAndroidTest',
@@ -99,6 +101,8 @@ const INVOCATION_PREFIX = {
     '--no-daemon',
     '--dependency-verification=strict',
     '-Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect',
+    '-Pandroid.experimental.androidTest.numManagedDeviceShards=1',
+    '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1',
   ],
 };
 
