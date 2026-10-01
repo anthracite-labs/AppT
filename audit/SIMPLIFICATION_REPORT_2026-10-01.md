@@ -71,10 +71,10 @@ acceptance, together with the owner actions below.
 
 ### Owner decisions outstanding (category 4)
 
-1. **CodeQL code-scanning alerts** (3, "Potential cache poisoning", `verify.yml` dispatch-target checkouts): this is the accepted trusted-dispatch design, identical on `main`; the alerts are flagged only because this PR rewrote the file. Mitigation is provider-enforced `cache-mode: read` (workflow-level, structurally proven by `cache-mode-contract.test.py`), which CodeQL's Actions analyzer does not model. The integration cannot list or dismiss code-scanning alerts (403). Owner action: dismiss the three alerts with that rationale, or add a scoped query exclusion — a security-posture decision deliberately not made unilaterally.
+1. **CodeQL code-scanning alerts** (3, "Potential cache poisoning", `verify.yml` dispatch-target checkouts): this is the accepted trusted-dispatch design, identical on `main`; the alerts are flagged only because this PR rewrote the file. The trust boundary is documented and structurally enforced: workflow-level provider `cache-mode: read`; no surviving cache writer anywhere in the repository; `contents: read` job permissions; exact open-PR-head assertion before any target checkout (`assert-dispatch-target`); `persist-credentials: false` on every checkout; and the structural `cache-mode-contract.test.py` proving verify/diagnose stay read-only. CodeQL's Actions analyzer does not model provider-enforced `cache-mode`, so the findings are treated as analyzer false positives against the accepted design. No cache machinery was added and no workflow was weakened to satisfy them. The integration cannot list or dismiss code-scanning alerts (403). Owner action: dismiss the three alerts with this evidence, or add a scoped query exclusion — a security-posture decision deliberately not made unilaterally.
 2. **CodeQL Default Setup toggle**: `code-scanning/default-setup` API returns 403 for this token; remains an owner settings action.
 3. **Issue #127 closure**: issue API forbidden for this integration; closure rationale recorded above (locking restored, but the *trusted hosted refresh route* stays retired — refresh is a reviewed local change, so the issue's contract remains superseded).
-4. **Post-merge terminal verification**: first push to `main` exercises the simplified full graph (the trusted `ci:full` route cannot validate its own replacement before merge).
+4. **Pre-merge hosted full verification of the candidate graph is impossible with current permissions.** Re-attempted on the final pass: direct `workflow_dispatch` of the candidate branch's own `verify.yml` returns 403 (integration lacks Actions write), and the trusted-main bridge is unusable by design because it executes main's old workflow definition. The simplified full graph is therefore exercised by the first push to `main` after merge. Recorded as the remaining bootstrap limitation requiring owner acceptance; no infrastructure was invented to work around it.
 **Scope:** repository simplification only. No product source or product test was edited. `.project-ai/skills/**` is unchanged; `PROJECT_STATE.md` is left for post-acceptance reconciliation.
 
 This implements the two accepted audits (`REPO_AUDIT_2026-10-01_main_754f6e2.md` and `COMPLEXITY_AUDIT_2026-10-01_main_754f6e2.md`) against the live repository and open PRs. It deliberately leaves S05-owned product, device, benchmark and generated-state edits to draft PR #118. PRs #123 and #128 were closed as superseded; see their closure comments. The cache and Sonar decisions below were revised after checking actual GitHub workflow history rather than applying audit conclusions mechanically.
@@ -93,7 +93,7 @@ This implements the two accepted audits (`REPO_AUDIT_2026-10-01_main_754f6e2.md`
 | Production source LOC (`app` + `samsung` Kotlin and backend TS) | 7,543 | 7,543 | 0 |
 | Product test LOC | 9,015 | 9,015 | 0 |
 | Workflows | 5 | 4 | −1 |
-| Workflow YAML LOC | 2,703 | 1,842 | −861 (−32%) |
+| Workflow YAML LOC | 2,703 | 1,838 | −865 (−32%) |
 | CI jobs | 26 | 20 | −6 |
 | Custom CI/security scripts + local composite actions | 22 files / 6,539 LOC | 18 files / 4,646 LOC | −4 files / −1,893 LOC |
 | `docs/**` plus root documentation LOC | 6,946 | 6,727 | −219 |
@@ -103,7 +103,7 @@ This implements the two accepted audits (`REPO_AUDIT_2026-10-01_main_754f6e2.md`
 | Gradle lockfiles in tree | 5 | 5 | restored after the correction addendum: standard locking re-enabled, all five lockfiles active |
 
 Current workflow jobs: `verify` 11, `diagnose` 6, `codeql` 2, `agent-control` 1.
-Current generated lock state: legacy `app/gradle.lockfile`, `samsung/gradle.lockfile`, and `macrobenchmark/gradle.lockfile`; the build no longer enables dependency locking or checks/refreshes these files. Strict dependency verification remains active. The verification-metadata template also remains because active PR #118 edits it; see Deferred.
+Current generated lock state (after the correction addendum): standard dependency locking is enabled repository-wide (`lockAllConfigurations()`); all five committed lockfiles — root `gradle.lockfile`, `settings-gradle.lockfile`, `app/`, `samsung/` and `macrobenchmark/gradle.lockfile` — are active, and `./gradlew resolveAndLockAll --write-locks` is the documented refresh command (`docs/BUILD.md`). Strict dependency verification remains active. The verification-metadata template also remains because active PR #118 edits it; see Deferred.
 
 The hand-authored support reduction includes docs, CI, tools and non-skill support. The 3,279 LOC under `.project-ai/skills/**` contributes zero to this comparison and was not touched. Product architecture, fixtures and product tests are preserved.
 
@@ -117,9 +117,12 @@ The hand-authored support reduction includes docs, CI, tools and non-skill suppo
 
 ### Gradle dependency and coverage stack
 
-- Removed global `lockAllConfigurations`, `resolveAndLockAll`, `dependencyLockCheck`, lock-specific CI/change-detection wiring, and the trusted `dependency-state` diagnose mode/label. No dynamic, range, or SNAPSHOT versions exist in the version catalog; exact versions remain protected by `versionCatalogPinned`.
-- Deleted the root and settings lockfiles. The remaining app, Samsung and benchmark lockfiles are no longer consumed by the build and are intentionally left for PR #118's S05-generated-state changes; no lock refresh command remains.
-- `gradle/verification-metadata.xml` remains the single active artifact-integrity state under `--dependency-verification=strict`. The template is temporarily retained because PR #118 modifies it; it is not used by the active verification path.
+Final state after the correction addendum (which supersedes the initial locking retirement described in the execution history below):
+
+- **Standard Gradle dependency locking is retained.** `allprojects { dependencyLocking { lockAllConfigurations() } }` and the per-subproject `resolveAndLockAll` refresh task remain, byte-identical to `main`. All five committed lockfiles (root, settings, app, Samsung, macrobenchmark) are active and stabilize the resolved transitive graph; exact direct versions (catalog + `versionCatalogPinned`) own the declared surface on top.
+- **Custom machinery around locking is removed:** the `dependencyLockCheck` resolution wrapper (Gradle natively fails any drifted resolution once lockfiles are committed), the trusted hosted `dependency-state` lock-refresh diagnostic route (refresh stays a reviewed local change per `docs/BUILD.md`), and lock-specific control-plane ceremony.
+- History: locking was initially retired in batch B on the assumption that exact pins made it redundant; hosted Android verification then proved the lock state was keeping previously-unseen transitive artifacts (kotlin-stdlib 1.9.21/2.1.20 module metadata) out of the graph, so the known-good locking state was restored rather than regenerating verification metadata to absorb drift. See the correction addendum for the evidence.
+- `gradle/verification-metadata.xml` remains the active artifact-integrity state under `--dependency-verification=strict`. The template is retained because PR #118 modifies it; it is not used by the active verification path.
 - Retained Kover **product coverage reporting** because Sonar consumes its XML. Removed the 80% Kover threshold on build/CI implementation and all `koverVerify` wiring. Unit tests still run; no test was removed.
 
 ### CI, diagnostics and security platform
@@ -187,7 +190,7 @@ Re-run green on the complete branch immediately before this update:
 
 ## Active PR boundary / deferred cleanup
 
-- Draft PR #118 remains open and owns the S05 product/device/benchmark changes. No product source, Samsung protocol code, fixtures, release-boundary behavior, or `macrobenchmark/**` was changed here. `app/gradle.lockfile`, `samsung/gradle.lockfile`, and `gradle/verification-metadata.template.xml` are restored in this branch so PR #118's generated-state edits can merge without file-level modify/delete conflicts.
+- Draft PR #118 remains open and owns the S05 product/device/benchmark changes. No product source, Samsung protocol code, fixtures, release-boundary behavior, or `macrobenchmark/**` was changed here. All five Gradle lockfiles are active lock state again under standard locking (see the correction addendum), and `gradle/verification-metadata.template.xml` is retained because PR #118 edits it; PR #118's lockfile edits are therefore ordinary generated-state updates against live files, not modify/delete conflicts.
 - A merge-tree simulation against PR #118's current head finds only **one content conflict** in `docs/BUILD.md`: the obsolete `backend-test` focus example in its S05 doc patch versus this branch's replacement with the current combined `backend` mode. No build/product file conflict remains. Resolve that single documentation hunk to the current `backend` selector when integrating; `backend-test` had zero active diagnostic runs in the 46-run sample.
 - `.project-ai/PROJECT_STATE.md` still reflects accepted `main` state and the `ci:dependency-state` route. Per repo policy, it should be reconciled only after this work is accepted on `main`; no PROJECT_STATE change was made here. `.project-ai/execution/verification.md` uses “dependency-state” as a generic operation class, not a live route.
 - CodeQL Default Setup remains a repository-owner settings action because the integration's API call was forbidden (403).

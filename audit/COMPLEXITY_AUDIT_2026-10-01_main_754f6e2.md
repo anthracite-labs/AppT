@@ -9,6 +9,8 @@
 
 **Classification vocabulary (exactly one per mechanism, Section J):** ESSENTIAL · JUSTIFIED · REASONABLE DEFENSE-IN-DEPTH · QUESTIONABLE · OVERENGINEERED · REDUNDANT · PREMATURE · LEGACY COMPLEXITY · INVESTIGATE.
 
+> **Post-audit correction (2026-10-01, PR #136):** one of this audit's mechanism assessments was disproved by subsequent hosted evidence and corrected in implementation; the overall conclusion is unchanged. The audit judged Gradle dependency locking redundant given exact version pins (F.1, I-3, J-3/J-4) and predicted no measurable risk increase from removing it. The first hosted Android verification after removal showed the opposite: unlocked resolution explored transitive artifacts the committed lock state had kept out of the graph (kotlin-stdlib 1.9.21/2.1.20 module metadata), so locking *was* stabilizing the resolved transitive graph, and its removal carried real reproducibility/graph-drift risk. Standard locking (`lockAllConfigurations()`, `resolveAndLockAll`, all five lockfiles) was therefore restored in PR #136; the audit's criticism of the *custom machinery around locking* (lock-check wrapper, hosted refresh route, settings-lockfile overreach) still stands and those removals were kept. See the correction notes in F.1, I-3 and Section J.
+
 ---
 
 ## A. Executive Conclusion
@@ -249,10 +251,12 @@ Two genuinely different things live here and must not be conflated: **(a)** inst
 
 Ordered by (confidence × maintenance cost). Each finding states the mechanism, why it looks disproportionate, and the strongest case *for* it — both sides are on the record.
 
-### F.1 Dependency locking on top of strict verification (REDUNDANT / OVERENGINEERED — high confidence)
+### F.1 Dependency locking on top of strict verification (REDUNDANT — high confidence at audit time; see correction)
 
 Five lockfiles including `settings-gradle.lockfile`, `resolveAndLockAll`/`dependencyLockCheck` tasks, and lock-state discipline in dependabot flows — stacked *above* a 686-component strict verification file and an exact-pin catalog. Gradle's manual: locking is only meaningful with dynamic versions (C.1); AppT declares none. Only 1 of 8 comparables uses lockfiles; none combines them with verification-metadata. Locks here cannot detect artifact tampering (that's layer 5's job) and only detect coordinate drift that exact pinning already prevents; their freshness depends on the same update events that touch the catalog.
 *Case for:* they document the fully-resolved graph at a glance and were (per repo history) the first integrity layer adopted. *Rebuttal:* a checked-in record that must be manually kept current and duplicates a stronger layer is a liability, not a defense.
+
+**Correction (post-audit, PR #136):** the rebuttal above missed a function the evidence later exposed: with exact pins but *no* lockfiles, hosted resolution still explored transitive artifacts not present in the locked graph (kotlin-stdlib 1.9.21/2.1.20 module metadata), which strict verification then rejected — i.e. the lockfiles were stabilizing the resolved transitive graph, not merely recording it, and removing them carried real graph-drift/reproducibility risk. The finding against the *custom machinery* (lock-check wrapper, hosted refresh route) stands; the finding against standard locking itself was wrong and was reversed in implementation — standard locking and all five lockfiles were restored.
 
 ### F.2 Diagnose dispatch platform (OVERENGINEERED for this repo — high confidence)
 
@@ -356,7 +360,7 @@ Tiers: 0 = no-regret documentation/legacy (already enumerated in the inventory a
 
 1. (Tier 0) Ship PR #118 Batch 1: macrobenchmark remnants O1–O8, transitional codeql state. (H)
 2. (Tier 0) Fix doc drift DR1–DR6 (retired `device` mode references, missing dependency-state docs). (H)
-3. (Tier 1) **Retire dependency locking** (lockfiles ×5, `resolveAndLockAll`, `dependencyLockCheck`, lock discipline in dep updates). Keep strict verification-metadata as the single integrity layer; regenerate it where lockfiles used to be regenerated. Saves ~1,290 checked-in lines + two guard tasks + one concept; Gradle's own docs say locking adds nothing without dynamic versions. Benefit lost: checked-in resolved-graph snapshot (reproducible by `./gradlew dependencies` any time). Risk increase: none measurable. (H)
+3. (Tier 1) **Retire dependency locking** (lockfiles ×5, `resolveAndLockAll`, `dependencyLockCheck`, lock discipline in dep updates). Keep strict verification-metadata as the single integrity layer; regenerate it where lockfiles used to be regenerated. Saves ~1,290 checked-in lines + two guard tasks + one concept; Gradle's own docs say locking adds nothing without dynamic versions. Benefit lost: checked-in resolved-graph snapshot (reproducible by `./gradlew dependencies` any time). Risk increase: none measurable. (H) — **Corrected post-audit (PR #136):** hosted verification showed removal *did* cause graph drift (previously locked-away transitive artifacts failed strict verification), so "risk increase: none measurable" was wrong; standard locking, `resolveAndLockAll` and all five lockfiles were restored. Only the `dependencyLockCheck` wrapper, hosted refresh route, and lock-specific ceremony were retired.
 4. (Tier 1) Drop `verification-metadata.template.xml` + diagnose `dependency-state` regeneration mode; regeneration becomes a documented one-line command run during dependency updates. (H)
 5. (Tier 1) **Switch CodeQL to default setup** if a one-run trial shows its Kotlin build-mode handling succeeds; delete advanced workflow + pinned-bundle management. (M)
 6. (Tier 1) Merge the custom dependency-policy enforcer's rules into `dependency-review-action` configuration; retire the script + tests if expressible. (M)
@@ -379,7 +383,7 @@ Expected effect of Tiers 0–2 alone: −~8–9k support LOC, −2 workflows' wo
 |---|---|---|---|
 | 1 | Version catalog, exact versions | ESSENTIAL | Standard baseline |
 | 2 | `versionCatalogPinned` guard | JUSTIFIED | 10 lines enforcing the baseline |
-| 3 | Dependency locking, all configurations | REDUNDANT | Gradle docs: only meaningful with dynamic versions; AppT has none |
+| 3 | Dependency locking, all configurations | REDUNDANT → RESTORED (see correction) | Audit-time verdict reversed by PR #136 hosted evidence: lockfiles were stabilizing the resolved transitive graph; standard locking kept, custom wrapper removed |
 | 4 | `settings-gradle.lockfile` | OVERENGINEERED | Locking of the buildscript classpath; 0/8 comparables, thin value |
 | 5 | Strict verification-metadata (686 comps) | JUSTIFIED | Unique anti-tampering layer; primary if #3–4 go |
 | 6 | Verification template + regeneration mode | OVERENGINEERED | A workflow mode for a one-line Gradle command |
@@ -402,15 +406,17 @@ Expected effect of Tiers 0–2 alone: −~8–9k support LOC, −2 workflows' wo
 | 23 | Dispatch platform (focus grammar, argv vector, assert-dispatch-target, warm-cache publisher/sanitizer, parsed-YAML contract test) | OVERENGINEERED | Platform-grade subsystem for agent dispatch; 0/8 comparables; size ≫ demonstrated need |
 | 24 | agent-control bridge + exact-HEAD assertions | INVESTIGATE | Justified only at dispatch volumes/threats not yet demonstrated |
 | 25 | maintenance purge workflow | PREMATURE | History hygiene machinery ahead of demonstrated need |
-| 26 | `.project-ai` skill system, 20 skills | PREMATURE (instances) / INVESTIGATE (system) | Unrealized-lifecycle skills are speculative; core skills earn keep |
+| 26a | `.project-ai` skill system machinery (validator, template, routing) | INVESTIGATE | Enforcement value depends on the post-simplification dispatch model |
+| 26b | `.project-ai` unrealized-lifecycle skills (incident-response, postmortem, observability, release-deployment) | PREMATURE | Speculative for an unreleased app; core skills earn their keep |
 | 27 | PROJECT_STATE contract checker | INVESTIGATE | Enforcement value depends on post-#23/#24 dispatch model |
-| 28 | Docs volume | JUSTIFIED (protocol/architecture) / QUESTIONABLE (process docs) | Protocol docs are real knowledge; process docs scale with the machinery they police |
+| 28a | Protocol/architecture/product documentation | JUSTIFIED | Real knowledge about an actually-complex device protocol |
+| 28b | Process/control-plane documentation | QUESTIONABLE | Scales with the machinery it polices; reduces as machinery reduces |
 | 29 | Physical-device verification policy | JUSTIFIED | Policy document, not machinery |
 | 30 | Retired GMD/macrobenchmark remnants | LEGACY COMPLEXITY | Enumerated O1–O8; cleanup assigned to PR #118 |
 | 31 | Backend skeleton + its CI jobs | PREMATURE | CI peers with the product while `deployable:false` |
 | 32 | Local-first test pyramid + Samsung fixture machinery | ESSENTIAL | Matches official guidance; product's core risk engineering |
 
-Counts: ESSENTIAL 8 · JUSTIFIED 8 · REASONABLE DEFENSE-IN-DEPTH 1 · QUESTIONABLE 6 · OVERENGINEERED 4 · REDUNDANT 1 · PREMATURE 3 · LEGACY COMPLEXITY 1 · INVESTIGATE 4 (one row carries a split verdict). Every mechanism classified; none unclassified.
+Counts (34 rows after splitting 26 and 28 so each row carries exactly one classification): ESSENTIAL 7 · JUSTIFIED 8 · REASONABLE DEFENSE-IN-DEPTH 1 · QUESTIONABLE 5 · OVERENGINEERED 4 · REDUNDANT 1 · PREMATURE 3 · LEGACY COMPLEXITY 1 · INVESTIGATE 4. Every mechanism classified; none unclassified. Row 3's REDUNDANT verdict was reversed in implementation after hosted evidence (see the top-of-file correction); it is retained here as the audit-time classification with the outcome annotated, not re-adjudicated.
 
 ---
 
