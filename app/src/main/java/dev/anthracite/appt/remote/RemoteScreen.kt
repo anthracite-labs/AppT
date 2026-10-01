@@ -66,14 +66,7 @@ fun RemoteScreen(
     onHapticFeedback: () -> Unit = {},
     readyAccessory: @Composable () -> Unit = {},
 ) {
-    val view = LocalView.current
-    val haptic: () -> Unit = {
-        if (state.hapticsEnabled && view.isHapticFeedbackEnabled) {
-            // View.performHapticFeedback observes Android's system touch-feedback policy.
-            view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
-            onHapticFeedback()
-        }
-    }
+    val haptic = remoteHaptic(state.hapticsEnabled, onHapticFeedback)
     Surface(modifier = modifier.fillMaxSize(), color = ColorTokens.surface) {
         BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
             Column(
@@ -129,6 +122,21 @@ fun RemoteScreen(
 }
 
 @Composable
+private fun remoteHaptic(
+    enabled: Boolean,
+    onHapticFeedback: () -> Unit,
+): () -> Unit {
+    val view = LocalView.current
+    return {
+        if (enabled && view.isHapticFeedbackEnabled) {
+            // View.performHapticFeedback observes Android's system touch-feedback policy.
+            view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+            onHapticFeedback()
+        }
+    }
+}
+
+@Composable
 private fun RemoteHeader(
     state: RemoteUiState,
     readyAccessory: @Composable () -> Unit,
@@ -166,32 +174,40 @@ private fun RemoteHeader(
                     )
                 }
             }
-            OutlinedButton(
-                onClick = onOpenSettings,
-                modifier =
-                    Modifier.defaultMinSize(
-                            minWidth = SizeTokens.minimumTouchTarget,
-                            minHeight = SizeTokens.minimumTouchTarget,
-                        )
-                        .testTag(RemoteTestTags.SETTINGS),
-            ) {
-                Text(stringResource(R.string.remote_settings), style = TypeTokens.label)
-            }
-            if (state.powerOffAvailable) {
-                Button(
-                    onClick = onPower,
-                    modifier =
-                        Modifier.defaultMinSize(
-                                minWidth = SizeTokens.primaryControl,
-                                minHeight = SizeTokens.primaryControl,
-                            )
-                            .testTag(RemoteTestTags.key(RemoteKey.Power)),
-                ) {
-                    Text(stringResource(R.string.remote_power), style = TypeTokens.label)
-                }
-            }
+            RemoteSettingsButton(onOpenSettings)
+            if (state.powerOffAvailable) RemotePowerButton(onPower)
         }
         readyAccessory()
+    }
+}
+
+@Composable
+private fun RemoteSettingsButton(onOpenSettings: () -> Unit) {
+    OutlinedButton(
+        onClick = onOpenSettings,
+        modifier =
+            Modifier.defaultMinSize(
+                    minWidth = SizeTokens.minimumTouchTarget,
+                    minHeight = SizeTokens.minimumTouchTarget,
+                )
+                .testTag(RemoteTestTags.SETTINGS),
+    ) {
+        Text(stringResource(R.string.remote_settings), style = TypeTokens.label)
+    }
+}
+
+@Composable
+private fun RemotePowerButton(onPower: () -> Unit) {
+    Button(
+        onClick = onPower,
+        modifier =
+            Modifier.defaultMinSize(
+                    minWidth = SizeTokens.primaryControl,
+                    minHeight = SizeTokens.primaryControl,
+                )
+                .testTag(RemoteTestTags.key(RemoteKey.Power)),
+    ) {
+        Text(stringResource(R.string.remote_power), style = TypeTokens.label)
     }
 }
 

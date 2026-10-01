@@ -124,7 +124,7 @@ jobs:
           print(text)
           PY
             diagnostic="$(cat "$diagnostic_file")"
-            printf '### Verification metadata generation failed\n\nExit code: `%s`\n\n```text\n%s\n```\n' \
+            printf "### Verification metadata generation failed\\n\\nExit code: \\`%s\\`\\n\\n\\`\\`\\`text\\n%s\\n\\`\\`\\`\\n" \\
               "$command_status" "$diagnostic" >> "$GITHUB_STEP_SUMMARY"
             encoded="$(printf '%s' "$diagnostic" | python3 -c 'import sys; s=sys.stdin.read(); print(s.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"), end="")')"
             printf '::error title=Verification metadata generation failed::%s\n' "$encoded"
