@@ -23,6 +23,7 @@ failures were classified, and one correction commit implements only the real def
 | android-static: strict verification rejected `kotlin-stdlib` 1.9.21/2.1.20 module metadata in `:samsung:debugAndroidTestRuntimeClasspath` | 2 — real defect (graph drift caused by the locking retirement) | fixed by restoring standard dependency locking (below), not by regenerating verification metadata |
 | android-build: `org.jetbrains.kotlin.plugin.compose:2.4.20` resolution failure | 2 — same root cause (unlocked resolution exploring previously locked-away artifacts) | same fix |
 | "Basic caching failed to save entry" annotations | 3 — external/transient, non-fatal | none |
+| CodeQL code-scanning check: 3 "potential cache poisoning" alerts on `verify.yml` dispatch-target checkouts (lines 188/493/564) | 4 — owner decision (see below) | pre-existing accepted pattern, re-flagged because the PR rewrote the file |
 | CodeQL Default Setup toggle (403), Issue #127 closure (403), post-merge terminal verification of a CI-self-modifying PR | 4 — owner decisions | reported below |
 
 ### Dependency locking — re-evaluation and partial restoration
@@ -66,8 +67,14 @@ plus local suites (149 Node tests, Sonar boundary 13/13, project-state contract 
 cache-mode contract, yamllint, markdownlint, backend verify, secret scan, stale-reference
 sweeps). Final terminal verification of the simplified full graph happens on the first
 push to `main` after merge — accepted as a bootstrap limitation requiring owner
-acceptance, together with the two 403 owner actions (CodeQL Default Setup toggle,
-Issue #127 closure).
+acceptance, together with the owner actions below.
+
+### Owner decisions outstanding (category 4)
+
+1. **CodeQL code-scanning alerts** (3, "Potential cache poisoning", `verify.yml` dispatch-target checkouts): this is the accepted trusted-dispatch design, identical on `main`; the alerts are flagged only because this PR rewrote the file. Mitigation is provider-enforced `cache-mode: read` (workflow-level, structurally proven by `cache-mode-contract.test.py`), which CodeQL's Actions analyzer does not model. The integration cannot list or dismiss code-scanning alerts (403). Owner action: dismiss the three alerts with that rationale, or add a scoped query exclusion — a security-posture decision deliberately not made unilaterally.
+2. **CodeQL Default Setup toggle**: `code-scanning/default-setup` API returns 403 for this token; remains an owner settings action.
+3. **Issue #127 closure**: issue API forbidden for this integration; closure rationale recorded above (locking restored, but the *trusted hosted refresh route* stays retired — refresh is a reviewed local change, so the issue's contract remains superseded).
+4. **Post-merge terminal verification**: first push to `main` exercises the simplified full graph (the trusted `ci:full` route cannot validate its own replacement before merge).
 **Scope:** repository simplification only. No product source or product test was edited. `.project-ai/skills/**` is unchanged; `PROJECT_STATE.md` is left for post-acceptance reconciliation.
 
 This implements the two accepted audits (`REPO_AUDIT_2026-10-01_main_754f6e2.md` and `COMPLEXITY_AUDIT_2026-10-01_main_754f6e2.md`) against the live repository and open PRs. It deliberately leaves S05-owned product, device, benchmark and generated-state edits to draft PR #118. PRs #123 and #128 were closed as superseded; see their closure comments. The cache and Sonar decisions below were revised after checking actual GitHub workflow history rather than applying audit conclusions mechanically.
@@ -91,7 +98,7 @@ This implements the two accepted audits (`REPO_AUDIT_2026-10-01_main_754f6e2.md`
 | Custom CI/security scripts + local composite actions | 22 files / 6,539 LOC | 18 files / 4,646 LOC | −4 files / −1,893 LOC |
 | `docs/**` plus root documentation LOC | 6,946 | 6,727 | −219 |
 | `.project-ai/**` LOC | 4,191 | 4,191 | 0 (skills are 3,279 LOC and were excluded from this work) |
-| Distinct registered Gradle check/guard task names | 18 | 16 | −2 |
+| Distinct registered Gradle check/guard task names | 18 | 17 | −1 after the correction addendum (`dependencyLockCheck` wrapper stays removed; standard `resolveAndLockAll` restored) |
 | Markdownlint configuration owners | 3 | 1 | −2 |
 | Gradle lockfiles in tree | 5 | 5 | restored after the correction addendum: standard locking re-enabled, all five lockfiles active |
 
@@ -184,8 +191,8 @@ Re-run green on the complete branch immediately before this update:
 - A merge-tree simulation against PR #118's current head finds only **one content conflict** in `docs/BUILD.md`: the obsolete `backend-test` focus example in its S05 doc patch versus this branch's replacement with the current combined `backend` mode. No build/product file conflict remains. Resolve that single documentation hunk to the current `backend` selector when integrating; `backend-test` had zero active diagnostic runs in the 46-run sample.
 - `.project-ai/PROJECT_STATE.md` still reflects accepted `main` state and the `ci:dependency-state` route. Per repo policy, it should be reconciled only after this work is accepted on `main`; no PROJECT_STATE change was made here. `.project-ai/execution/verification.md` uses “dependency-state” as a generic operation class, not a live route.
 - CodeQL Default Setup remains a repository-owner settings action because the integration's API call was forbidden (403).
-- **Issue #127 ("Trusted hosted Gradle lock refresh artifact") is superseded and should be closed by a repository owner** — this integration is forbidden from closing or commenting on issues (403 on both). Rationale: the issue's contract requires a trusted route to run `./gradlew resolveAndLockAll --write-locks` and stage the five known lockfiles, but locking was retired wholesale here (commit d6a8f05), `resolveAndLockAll` no longer exists, and no active lock state remains to refresh. The motivating Baseline Profile producer change in PR #118 belongs to the pre-Revision-5 S05 shape retired by Contract Revision 5. The companion implementation PR #128 was already closed with this rationale. If dynamic/range/SNAPSHOT declarations are ever reintroduced, locking and a refresh route become a fresh decision.
+- **Issue #127 ("Trusted hosted Gradle lock refresh artifact") is superseded and should be closed by a repository owner** — this integration is forbidden from closing or commenting on issues (403 on both). Rationale after the correction addendum: standard dependency locking and `resolveAndLockAll` were restored, but the issue's actual contract — a *trusted hosted diagnose route* that regenerates lock state — stays deliberately retired as unnecessary custom machinery. Lock refresh remains a reviewed local change with the documented command (`docs/BUILD.md`); no CI mode exists or is planned to perform it, so there is no lock state for a hosted route to refresh. If a future workspace genuinely cannot run Java for a reviewed dependency change, that is a fresh decision.
 
 ## Outcome
 
-The branch removes or consolidates redundant permanent machinery without flattening the AppT/Samsung product architecture, changing product behavior, deleting product tests, weakening strict artifact verification, or granting untrusted code cache/secrets/write authority. It is materially simpler: **one fewer workflow, six fewer CI jobs, four fewer script/action files, two fewer custom Gradle task names, one markdownlint owner, one backend CI domain, and no active Gradle lock lifecycle**. It deliberately retains two demonstrated high-value mechanisms the static complexity audit could not prove from repository shape alone: Sonar's active required quality gate and the frequently used trusted agent bridge; it retains the warm-cache removal as an explicit measured tradeoff.
+The branch removes or consolidates redundant permanent machinery without flattening the AppT/Samsung product architecture, changing product behavior, deleting product tests, weakening strict artifact verification, or granting untrusted code cache/secrets/write authority. It is materially simpler: **one fewer workflow, six fewer CI jobs, four fewer script/action files, one fewer custom Gradle task name (the `dependencyLockCheck` wrapper), one markdownlint owner, one backend CI domain, and no custom machinery around standard dependency locking** — while standard locking itself was restored by the correction addendum after hosted verification proved it stabilizes the transitive graph. It deliberately retains two demonstrated high-value mechanisms the static complexity audit could not prove from repository shape alone: Sonar's active required quality gate and the frequently used trusted agent bridge; it retains the warm-cache removal as an explicit measured tradeoff.
