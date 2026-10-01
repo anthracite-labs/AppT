@@ -90,6 +90,7 @@ jobs:
           "ci:backend",
           "ci:backend-static",
           "ci:backend-test",
+          "ci:dependency-state",
           "ci:device"
         ]'),
         github.event.label.name
