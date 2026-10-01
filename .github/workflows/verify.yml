@@ -627,7 +627,7 @@ jobs:
           # and everything under `gradle/` — the version catalog, the
           # verification metadata and the wrapper pin) plus the backend package
           # manifest and lockfile.
-          dependency_input_pattern='^(backend/package(-lock)?\.json|gradle/.*|.*\.gradle\.kts)$'
+          dependency_input_pattern='^(backend/package(-lock)?\.json|gradle/.*|.*\.gradle\.kts|(.*/)?gradle\.lockfile|.*[-.]gradle\.lockfile)$'
           changed=true
           if [ -n "$base" ] && [ "$base" != "0000000000000000000000000000000000000000" ]; then
             files="$(gh api "repos/${REPOSITORY}/compare/${base}...${head}" --jq '.files[].filename' 2>/dev/null || true)"

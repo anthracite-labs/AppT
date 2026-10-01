@@ -164,8 +164,7 @@ Use the highest useful seam and test external behavior rather than internal impl
 - Development, internal, and production Firebase/Cloud, Play Billing, Play Integrity, and backend environments are separated, and production credentials never enter the repository. See `docs/architecture/release.md`.
 - Use a Gradle version catalog.
 - Pin dependency versions; no production `+` ranges or snapshots.
-- Use committed dependency verification metadata with strict verification as the
-  single dependency-integrity state. No Gradle dependency locking.
+- Enable dependency locking and dependency verification where practical.
 - Restrict dependency repositories.
 - Dependency updates arrive as reviewed pull requests rather than silent upgrades.
 - Pin GitHub Actions to immutable revisions where practical.

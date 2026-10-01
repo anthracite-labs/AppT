@@ -17,7 +17,7 @@
 #     other build; that is Gradle's behaviour, not this script's.)
 #   * It requires no secrets and reads no credential, token or keystore.
 #   * It does not self-heal or regenerate any supply-chain artifact. A missing or
-#     drifted verification-metadata entry fails the run rather than being
+#     drifted lockfile or verification entry fails the run rather than being
 #     rewritten, exactly as `.github/workflows/verify.yml` intends.
 #
 # Exit status: non-zero if any constituent check fails. The script fails closed

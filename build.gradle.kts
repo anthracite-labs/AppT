@@ -91,11 +91,48 @@ dependencies {
 
 apply(from = rootProject.file("gradle/guards.gradle.kts"))
 
-// Dependency integrity is owned by ONE committed artifact:
-// gradle/verification-metadata.xml under --dependency-verification=strict.
-// Every declared version is exact (version catalog + `versionCatalogPinned`
-// guard), so Gradle dependency locking had no dynamic versions to stabilize
-// and was retired as a redundant second integrity layer.
+// Dependency locking, enabled repository-wide (release.md#gradle): committed
+// lockfiles stabilize the resolved transitive graph, and Gradle fails any
+// resolution that drifts from the committed lock state. Exact direct versions
+// (version catalog + `versionCatalogPinned` guard) own the declared surface;
+// locking owns the resolved graph. After a reviewed dependency change refresh
+// every lockfile with `./gradlew resolveAndLockAll --write-locks`
+// (docs/BUILD.md).
+
+allprojects { dependencyLocking { lockAllConfigurations() } }
+
+// Regenerates every committed lockfile in one resolution pass. Run as
+// `./gradlew resolveAndLockAll --write-locks` after a reviewed dependency
+// change (docs/BUILD.md). Without `--write-locks` it is a no-op resolution.
+//
+// Gradle 9 (Issue #54): a task may only resolve configurations owned by its
+// own project, so this task is registered per subproject and the bare command
+// name runs every instance — same coverage the single root task had, without
+// the cross-project resolution Gradle 9 rejects.
+subprojects {
+    tasks.register("resolveAndLockAll") {
+        group = "verification"
+        description =
+            "Resolves this module's locked configurations so --write-locks can refresh the lockfiles."
+        notCompatibleWithConfigurationCache("Writes lockfiles during resolution")
+        doFirst {
+            require(gradle.startParameter.isWriteDependencyLocks) {
+                "resolveAndLockAll must be run with --write-locks"
+            }
+        }
+        doLast {
+            // Resolve the dependency GRAPH, not the artifact files. Dependency
+            // locking records the resolved graph, and `resolve()`/`files` additionally
+            // forces artifact selection, which is ambiguous for configurations such
+            // as `:app:debugAndroidTestCompileClasspath` that see several variants of
+            // `:app` itself and would need an `artifactType` to disambiguate. Graph
+            // resolution is exactly what locking needs and is what AGP supports here.
+            configurations
+                .filter { it.isCanBeResolved }
+                .forEach { configuration -> configuration.incoming.resolutionResult.root }
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // CI-owned Android failure domains (Issue #88)
@@ -168,7 +205,5 @@ gradle.projectsEvaluated {
 
     // Product coverage is useful input to the Sonar new-code quality gate.
     // There is deliberately no percentage floor on build/CI implementation.
-    tasks.named("androidUnit") {
-        koverXml?.let { dependsOn(it) }
-    }
+    tasks.named("androidUnit") { koverXml?.let { dependsOn(it) } }
 }

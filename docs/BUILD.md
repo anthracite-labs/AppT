@@ -30,8 +30,8 @@ These files were produced once by a one-shot bootstrap workflow, which generated
 the wrapper in an empty scratch build (running `gradle wrapper` inside this
 repository would configure the AppT build, and resolve AGP, before the wrapper
 meant to run that build exists), recorded the published distribution checksum,
-generated the SHA-256 verification metadata, proved the result passes strict
-verification, and committed it. That workflow was **deleted** once
+generated the lockfiles and the SHA-256 verification metadata, proved the result
+passes strict verification, and committed it. That workflow was **deleted** once
 the artifacts landed: the committed state is now the only source, and CI never
 regenerates it.
 
@@ -98,13 +98,15 @@ Review the regenerated `<components>` diff, then commit the regenerated file.
 Strict verification fails loudly if a still-needed entry was removed, so the
 removal is self-checking.
 
-Gradle dependency locking is disabled: every dependency version in the catalog
-is exact (enforced by `versionCatalogPinned`), so locking had no dynamic version
-to stabilize. The remaining `app/gradle.lockfile`, `samsung/gradle.lockfile`, and
-`macrobenchmark/gradle.lockfile` are legacy generated outputs, not consumed by
-the current build. Their final removal is coordinated with active S05 PR #118,
-which updates the app lockfile and retires the benchmark module. No current
-command refreshes lock state.
+Dependency lockfiles are committed. Every declared version in the catalog is
+exact (enforced by `versionCatalogPinned`); locking owns the RESOLVED transitive
+graph on top of that, and Gradle fails any resolution that drifts from the
+committed lock state. After a deliberate, reviewed dependency change, refresh
+them with:
+
+```bash
+./gradlew resolveAndLockAll --write-locks
+```
 
 ### Plugin-classpath tooling constraints (Issue #68)
 

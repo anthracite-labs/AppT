@@ -9,11 +9,8 @@ The accepted baseline is GitHub Actions, Gradle, Android App Bundle, Play App Si
 - `dependencyResolutionManagement.repositoriesMode = FAIL_ON_PROJECT_REPOS`.
 - Repositories: `google()` and `mavenCentral()`. Plugin portal only under `pluginManagement`.
 - No JitPack and no ad-hoc Maven URLs in V1.
-- Dependency verification metadata committed. CI uses strict verification. This is
-  the single committed dependency-integrity state.
-- No Gradle dependency locking. The version catalog pins every version exactly
-  (enforced by the `versionCatalogPinned` guard), so locking has no dynamic
-  versions to stabilize; strict verification owns artifact integrity.
+- Dependency locking enabled. Lockfiles committed.
+- Dependency verification metadata committed. CI uses strict verification.
 - Updates arrive as reviewed pull requests. Silent upgrades are not allowed.
 
 ### Dependency set
@@ -209,7 +206,7 @@ local action from the workspace on disk, every job that uses one runs
 9. **dependency-review** — GitHub Dependency Review on pull requests, and on
     full runs when the candidate changed dependency inputs. It consumes the
     GitHub dependency graph, fails on newly introduced vulnerable packages, and
-    complements strict dependency verification.
+    complements committed dependency locking and strict verification.
 10. **quality-platform** — SonarQube Cloud analysis of the Android and backend
     code, consuming current-run Kover XML and Jest LCOV reports. It owns the
     cross-language new-code coverage, duplication, maintainability and
@@ -245,7 +242,7 @@ The Android verification floor preserved behind those domains includes:
 - architecture tests only for concrete source/bytecode laws that are not already
   owned by Gradle dependency guards; do not install an empty architecture
   framework merely to claim coverage;
-- strict dependency verification against the committed verification metadata;
+- committed dependency lock state and strict dependency verification;
 - the manifest permission allowlist and `AD_ID` prohibition;
 - no telemetry/crash-reporting/advertising/attribution artifact (`noTelemetryDependency`
   on `:app`; the crash-reporting vocabulary is part of this guard, and the

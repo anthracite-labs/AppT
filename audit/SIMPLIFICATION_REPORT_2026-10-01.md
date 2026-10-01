@@ -4,6 +4,70 @@
 **Base:** `origin/main` at `754f6e23ed24447fa131722b242b671258b0308c`
 **Implementation head before this report update:** `1f86aed`
 **Final reconciliation pass:** 2026-10-01, on the complete branch (see verification evidence below).
+
+## Correction addendum — post hosted verification (supersedes the locking retirement)
+
+After this report was first written, one trusted `ci:full` dispatch (run `36909210678`,
+head `a8a624c`) produced the first real hosted Android verification of the branch. Its
+failures were classified, and one correction commit implements only the real defects.
+
+### Failure classification (run 36909210678 @ a8a624c)
+
+| Failure | Category | Disposition |
+|---|---|---|
+| repo-policy invokes deleted `enforce-dependency-policy.test.mjs` | 1 — expected old-main verifier incompatibility | none; the trusted route executes `main`'s workflow definition, which still references scripts this PR legitimately deletes. Self-resolves at merge. Not evidence for restoration. |
+| repo-quality invokes deleted `workflow-cache-contract.test.py` | 1 — same | none |
+| dependency-review invokes deleted `enforce-dependency-policy.mjs` | 1 — same | none |
+| gate failure | 1 — downstream of the above plus category 2 | none |
+| android-format: Spotless violation in `build.gradle.kts` | 2 — real defect | fixed: ktfmt collapses the now-single-statement `tasks.named("androidUnit")` lambda to one line |
+| android-static: strict verification rejected `kotlin-stdlib` 1.9.21/2.1.20 module metadata in `:samsung:debugAndroidTestRuntimeClasspath` | 2 — real defect (graph drift caused by the locking retirement) | fixed by restoring standard dependency locking (below), not by regenerating verification metadata |
+| android-build: `org.jetbrains.kotlin.plugin.compose:2.4.20` resolution failure | 2 — same root cause (unlocked resolution exploring previously locked-away artifacts) | same fix |
+| "Basic caching failed to save entry" annotations | 3 — external/transient, non-fatal | none |
+| CodeQL Default Setup toggle (403), Issue #127 closure (403), post-merge terminal verification of a CI-self-modifying PR | 4 — owner decisions | reported below |
+
+### Dependency locking — re-evaluation and partial restoration
+
+The hosted failure disproved the audit's broad conclusion that "exact direct versions
+mean locking adds no useful determinism". With locking disabled, hosted resolution
+explored transitive artifacts (kotlin-stdlib 1.9.21/2.1.20 module metadata) that the
+committed lock state had kept out of the graph; strict verification correctly rejected
+them. The known-good resolved graph was restored rather than accommodating the drift:
+
+- Restored (standard Gradle machinery, byte-identical to `main`): `allprojects { dependencyLocking { lockAllConfigurations() } }`; the per-subproject `resolveAndLockAll` refresh task (Gradle's documented lock-all-in-one-execution pattern); root `gradle.lockfile` and `settings-gradle.lockfile`. Module lockfiles (`app`, `samsung`, `macrobenchmark`) were already present. Strict verification metadata is untouched — no metadata was regenerated to absorb drift.
+- Still removed (custom machinery around locking): the ~64-line `dependencyLockCheck` resolution wrapper (Gradle natively fails any drifted resolution once lockfiles are committed, so every resolving task owns drift detection); the trusted hosted `dependency-state`/lock-refresh diagnostic route (refresh remains a reviewed local change per `docs/BUILD.md`; Issue #127's premise stands superseded); the custom dependency-policy enforcer (standard dependency-review owns the policy).
+- Docs reconciled to the restored state: `docs/BUILD.md` (canonical refresh procedure), `docs/ARCHITECTURE.md`, `docs/architecture/release.md`, `.github/dependabot.yml` reviewer note, `verify.yml` change-detection pattern (lockfiles are dependency inputs again), `tools/security/run.sh` fail-closed description.
+
+### Sonar / Kover — one bounded decision, no further oscillation
+
+**Keep Sonar as-is in this PR.** It provides a unique consumed signal (cross-language
+new-code coverage, duplication, maintainability, reliability quality gate; live evidence:
+main verify run `36881699523` success with `quality-platform` required by the gate),
+and removing it requires a separate accepted gate/architecture change. That
+simplification is deferred out of this PR rather than oscillating inside it.
+**Kover stays at the minimum Sonar requires:** product coverage aggregation + XML
+reporting wired into `androidUnit`; no coverage floor anywhere (the build/CI floor was
+ceremonial and is removed). This decision is final for this PR.
+
+### Defects fixed in the correction commit
+
+1. `gradle/libs.versions.toml`: restored the `kover` plugin alias left unresolved by the coverage-floor removal (all Gradle jobs died at script compilation: `Unresolved reference 'kover'`).
+2. `build.gradle.kts`: Spotless/ktfmt formatting of the surviving Kover wiring.
+3. Dependency locking restoration as described above.
+4. Trimmed the retired-enforcer history comment in `verify.yml` (per complete-removal policy).
+
+### Verification strategy note (bootstrap limitation)
+
+This PR modifies the verification workflows themselves. The trusted `ci:full` route
+executes `main`'s workflow definition, so it cannot validate its own replacement:
+category-1 failures are structural, not convergent, and no further `ci:full` dispatches
+will be used as the correction loop. Branch-native evidence instead: GitHub executes
+the candidate workflow for `pull_request` checks (all green at the corrected head),
+plus local suites (149 Node tests, Sonar boundary 13/13, project-state contract 8/8,
+cache-mode contract, yamllint, markdownlint, backend verify, secret scan, stale-reference
+sweeps). Final terminal verification of the simplified full graph happens on the first
+push to `main` after merge — accepted as a bootstrap limitation requiring owner
+acceptance, together with the two 403 owner actions (CodeQL Default Setup toggle,
+Issue #127 closure).
 **Scope:** repository simplification only. No product source or product test was edited. `.project-ai/skills/**` is unchanged; `PROJECT_STATE.md` is left for post-acceptance reconciliation.
 
 This implements the two accepted audits (`REPO_AUDIT_2026-10-01_main_754f6e2.md` and `COMPLEXITY_AUDIT_2026-10-01_main_754f6e2.md`) against the live repository and open PRs. It deliberately leaves S05-owned product, device, benchmark and generated-state edits to draft PR #118. PRs #123 and #128 were closed as superseded; see their closure comments. The cache and Sonar decisions below were revised after checking actual GitHub workflow history rather than applying audit conclusions mechanically.
@@ -29,7 +93,7 @@ This implements the two accepted audits (`REPO_AUDIT_2026-10-01_main_754f6e2.md`
 | `.project-ai/**` LOC | 4,191 | 4,191 | 0 (skills are 3,279 LOC and were excluded from this work) |
 | Distinct registered Gradle check/guard task names | 18 | 16 | −2 |
 | Markdownlint configuration owners | 3 | 1 | −2 |
-| Gradle lockfiles in tree | 5 | 3 | −2; remaining files are inactive, pending S05 ownership |
+| Gradle lockfiles in tree | 5 | 5 | restored after the correction addendum: standard locking re-enabled, all five lockfiles active |
 
 Current workflow jobs: `verify` 11, `diagnose` 6, `codeql` 2, `agent-control` 1.
 Current generated lock state: legacy `app/gradle.lockfile`, `samsung/gradle.lockfile`, and `macrobenchmark/gradle.lockfile`; the build no longer enables dependency locking or checks/refreshes these files. Strict dependency verification remains active. The verification-metadata template also remains because active PR #118 edits it; see Deferred.
@@ -70,9 +134,9 @@ The secret-bearing boundary is therefore retained: the candidate is checked out 
 | Mechanism | Decision | Previous guarantee | Current owner / effect |
 |---|---|---|---|
 | Exact Gradle versions + `versionCatalogPinned` | Keep | No dynamic/range drift | Version catalog + guard |
-| Gradle locking configuration and refresh tasks | Remove | Locked resolution graph | Exact pins + strict dependency verification; no dynamic declarations to lock |
-| Root/settings lockfiles | Remove | Generated resolved graph | Removed; no consumer |
-| App/Samsung/benchmark lockfiles | Defer physical deletion to PR #118 | Generated graph snapshots | No longer consumed; files left untouched while S05 updates them |
+| Gradle locking configuration and refresh tasks | Restore standard core; drop custom wrapper | Locked resolution graph | `lockAllConfigurations` + `resolveAndLockAll` restored byte-identical to main; the custom `dependencyLockCheck` wrapper stays removed because native Gradle lock enforcement already fails drifted resolution (see correction addendum) |
+| Root/settings lockfiles | Restore | Generated resolved graph | Restored from main; active under standard locking |
+| App/Samsung/benchmark lockfiles | Keep | Generated graph snapshots | Active under standard locking; left untouched for PR #118's S05 generated-state edits |
 | Strict verification metadata | Keep | Detect changed/tampered artifacts | Single active committed integrity state |
 | Verification metadata template | Defer deletion to PR #118 | Reviewable bootstrap policy header | Not consumed by CI/build; active S05 edits the file |
 | Custom dependency-policy enforcer | Remove | Fail PR on vulnerable introduced package; allowed patched jgit exception | Standard dependency-review action fails on low+; exception obsolete at patched jgit version |
