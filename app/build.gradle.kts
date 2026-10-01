@@ -14,6 +14,7 @@
 // KSP is the only annotation-processing path available (docs/BUILD.md).
 
 import java.util.Locale
+import java.util.zip.ZipFile
 import org.gradle.api.tasks.testing.Test
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
@@ -132,16 +133,17 @@ android {
     }
 }
 
-// AndroidX creates these non-distributable profile build types for the existing profile producer.
-// Their inherited release binding is excluded so the benchmark-only fake binding is the sole factory
-// implementation there. Neither the fake nor its binding is present in stock debug or release.
-android.sourceSets.maybeCreate("benchmarkRelease").java.apply {
-    srcDir("src/benchmarkHarness/java")
-    exclude("**/VariantBindings.kt")
-}
-android.sourceSets.maybeCreate("nonMinifiedRelease").java.apply {
-    srcDir("src/benchmarkHarness/java")
-    exclude("**/VariantBindings.kt")
+// The Baseline Profile plugin copies release Java roots to its synthetic build types. Reset only
+// those roots after plugin finalization so the deterministic binding/fake is their sole variant
+// source; stock debug and release keep their own bindings. `directories` is the supported AGP 9.4
+// source-directory API (srcDir/srcDirs/setSrcDirs are deprecated by the pinned toolchain).
+androidComponents.finalizeDsl { extension ->
+    listOf("benchmarkRelease", "nonMinifiedRelease").forEach { variantSourceSet ->
+        extension.sourceSets.getByName(variantSourceSet).java.directories.apply {
+            clear()
+            add("src/benchmarkHarness/java")
+        }
+    }
 }
 
 // Project-level Kotlin configuration. `jvmTarget` must match the Java
@@ -455,7 +457,7 @@ tasks.register("verifyReleaseS05Boundaries") {
             throw GradleException("No release APK found under ${apkDirectory.relativeTo(projectDir)}.")
         }
         releaseApks.forEach { apk ->
-            java.util.zip.ZipFile(apk).use { archive ->
+            ZipFile(apk).use { archive ->
                 val inspectedEntries =
                     archive.entries().asSequence().filter { entry ->
                         !entry.isDirectory &&
