@@ -17,7 +17,7 @@
 #
 # Cadence: pull-request synchronization runs only the cheap repository domains
 # (policy and quality) plus dependency review when dependency inputs changed.
-# The expensive Android, backend, managed-device and quality-platform domains
+# The expensive Android, backend and quality-platform domains
 # run on pushes to `main` and on an explicit `workflow_dispatch`, so a coding
 # iteration stays cheap while the human or an authorized control-plane
 # integration chooses when the full bill is paid.
