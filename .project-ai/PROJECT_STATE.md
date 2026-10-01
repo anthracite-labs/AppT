@@ -14,7 +14,7 @@ Implementation.
 
 ## Current Objective
 
-Complete S05 — Capability-driven Remote surface, Settings shell, and diagnostic recorder — under the accepted Issue #117 contract on the existing implementation PR #118.
+Complete S05 — Capability-driven Remote surface, Settings shell, and diagnostic recorder — under the accepted Issue #117 Contract Revision 5 on the existing implementation PR #118.
 
 Success means S05 makes the accepted phone-native Remote, Settings, accessibility, performance, and bounded local-diagnostics foundation real while preserving S04's accepted saved-pairing, fail-closed identity, and safe-forget boundaries, then closes on normal repository verification plus the slice-owned physical verifier evidence.
 
@@ -28,7 +28,7 @@ Success means S05 makes the accepted phone-native Remote, Settings, accessibilit
 - The pre-S02 security baseline is accepted through PR #38.
 - Verification and independent AI-code assurance are accepted through PR #60.
 - S02 is accepted through implementation PR #75 and corrective closeout PR #77.
-- S03 is accepted through implementation PR #80.
+- S03 is accepted through PR #80.
 - S04 is accepted through PR #105.
 - Repository CI/agent-control and verification hardening are accepted through PR #89.
 - Mandatory lifecycle skill routing and diagnose-before-fix gates are accepted through PR #84.
@@ -36,7 +36,7 @@ Success means S05 makes the accepted phone-native Remote, Settings, accessibilit
 - Reuse-before-reimplement is accepted through PR #108 for new Arena-ready Issues and future material revisions: the control plane compiles an Implementation Reuse Plan from accepted AppT code plus distributed harvest evidence; Arena prefers approved `EXISTING APPT`, `ADAPT`, or `PORT` leverage before `NEW`, and `NEW` requires a concrete recorded reason.
 - S05 is the next authorized implementation slice.
 - S05 is currently active under Issue #117. Contract Revision 5 is the current accepted contract revision. It retires Baseline Profile, `:macrobenchmark`, hosted Gradle Managed Device, profile-handoff/regeneration, and `ci:device` requirements in favor of ordinary AppT verification plus bounded debug slice diagnostics and physical evidence where the behavior genuinely requires hardware.
-- Trusted exact-head Gradle dependency-state regeneration is accepted through PR #129 as the permanent `ci:dependency-state` diagnostic route. It may regenerate only the known Gradle lockfiles under strict verification and never writes the target branch.
+- Repository simplification is accepted through PR #136. Standard Gradle dependency locking and strict dependency verification remain active; the custom `dependencyLockCheck` wrapper, hosted `ci:dependency-state` regeneration route, warm-cache publisher/sanitizer, manual Actions purge workflow, and redundant backend diagnostic modes are retired. `docs/BUILD.md` owns the current dependency-refresh and verification routes.
 - S07 may be dependency-ready but is not active or authorized.
 - Provider facts marked `needs validation` must be confirmed when they first become implementation-relevant. Material external/protocol claims also carry explicit authority/implementation-evidence/AppT-decision provenance in their owning architecture documents.
 - Final AppT source-license selection and focused Samsung vendor-terms/legal review remain pre-public-release gates.
@@ -44,7 +44,7 @@ Success means S05 makes the accepted phone-native Remote, Settings, accessibilit
 
 ## Durable Blockers
 
-None at the project/contract level. S05 still requires the benchmark/device plumbing purge, normal exact-head repository verification, an exact-head debug APK, and final physical verifier evidence.
+None at the project/contract level. S05 still requires reconciliation of PR #118 with current `main`, the remaining Revision 5 benchmark/device/profile purge, normal exact-head repository verification, an exact-head debug APK, and final physical verifier evidence.
 
 ## Latest Accepted Milestone
 
@@ -52,7 +52,9 @@ S04 — Saved pairing, fail-closed identity, and the safe forget primitive — a
 
 ## Next Authorized Action
 
-Continue Issue #117 / PR #118 on the existing Arena branch under Contract Revision 5. Remove the retired `:macrobenchmark` module, Baseline Profile tooling/configuration, benchmark-only synthetic app variants/fixtures, managed-device build definitions, and resulting dependency state from the implementation candidate; do not repair the failed benchmark harness. Preserve the stock-debug S05 physical verifier and release-exclusion guard. Regenerate only genuinely changed dependency state through the trusted route, regain focused AppT/Samsung checks, then run exact-head terminal verification and `ci:android-build`. Finish with the bounded five-sample physical verifier on the final exact candidate and human acceptance. Keep PR #118 Draft / NOT VERIFIED until those revised gates are satisfied.
+Continue Issue #117 / PR #118 on the existing Arena branch under Contract Revision 5. Reconcile current `main` into PR #118 first, preserving the accepted repository simplification. Remove the retired `:macrobenchmark` module, Baseline Profile tooling/configuration, benchmark-only synthetic app variants/fixtures, managed-device build definitions, and resulting stale dependency/catalog/verification/docs state from the implementation candidate; do not repair or recreate the retired benchmark/device harness.
+
+Preserve the stock-debug S05 physical verifier, its release-exclusion guard, ordinary app/Samsung tests, and S04 safety boundaries. If the purge genuinely changes dependency resolution, regenerate only the affected standard lock state with the current procedure in `docs/BUILD.md` (`./gradlew resolveAndLockAll --write-locks`) and update strict verification metadata only when the reviewed dependency graph requires it. Use the current focused diagnostic modes for implementation feedback, then run normal exact-head terminal verification and the current `android-build` diagnostic to produce the exact-head debug APK. Finish with the bounded five-sample physical verifier on that exact final candidate and human acceptance. Keep PR #118 Draft / NOT VERIFIED until those gates are satisfied.
 
 ## Authoritative References
 
