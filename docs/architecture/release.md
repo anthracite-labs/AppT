@@ -17,7 +17,7 @@ The accepted baseline is GitHub Actions, Gradle, Android App Bundle, Play App Si
 
 Runtime: Kotlin, Android Gradle Plugin, Compose BOM, Navigation Compose, kotlinx-serialization, Coroutines, Lifecycle, Hilt, Room, DataStore, OkHttp, WorkManager, Firebase BOM artifacts `firebase-auth` and `firebase-appcheck-playintegrity`, Play Billing, Play Integrity, Credential Manager.
 
-Test: JUnit, coroutines-test, Compose UI test, AndroidX test, Macrobenchmark (in the test-only `:macrobenchmark` module owned by [modules.md](modules.md#shape)), Robolectric for DataStore and migration tests, Firebase emulator suite for backend functions.
+Test: JUnit, coroutines-test, Compose UI test, AndroidX test, Robolectric for DataStore and migration tests, Firebase emulator suite for backend functions, plus bounded debug-only slice diagnostics when physical-device evidence is genuinely required.
 
 Backend toolchain: TypeScript on the Cloud Functions 2nd gen Node.js LTS runtime, owned by `backend/`, with `npm` and a committed `package-lock.json` (`npm ci --prefix backend` in CI), ESLint and Prettier configuration in the same directory, and Jest plus `firebase-functions-test` for the unit and emulator tests described in [testing.md](testing.md). The backend is not a Gradle module and never enters the Android dependency graph; the only contract between the two is the HTTPS API in [account-entitlement.md](account-entitlement.md).
 
@@ -138,7 +138,7 @@ The repository owns one authoritative verification workflow:
 cheap repository domains — repository policy and repository quality — plus
 dependency review when the candidate changed dependency inputs. It must not
 compile Android, execute `ciCheck` or any of its narrower domains, run backend
-verification, start a managed device, run SonarQube, or regenerate dependency
+verification, run SonarQube, or regenerate dependency
 state.
 
 The full verification domains run on pushes to `main` and on an explicit
@@ -187,9 +187,8 @@ local action from the workspace on disk, every job that uses one runs
    `appTGuards`, and `dependencyLockCheck`, under strict dependency
    verification and Gradle `--continue` so Lint, detekt and the guard floor all
    report in one run.
-5. **android-build** — the root `androidBuild` task: debug assembly (which runs
-   the merged-manifest permission and `AD_ID` guards) plus macrobenchmark
-   compilation.
+5. **android-build** — the root `androidBuild` task: AppT debug assembly plus
+   the merged-manifest, release-boundary and `AD_ID` guards.
 6. **android-unit** — the root `androidUnit` task: `:app:testDebugUnitTest` and
    `:samsung:test` plus Kover coverage generation and verification. Samsung unit
    tests are authoritative verification evidence, not diagnostics, so a full run
@@ -200,10 +199,6 @@ local action from the workspace on disk, every job that uses one runs
 8. **backend-test** — `npm run verify:test --prefix backend`: Jest with LCOV
    coverage. Independent of the static domain in both directions, so neither
    failure hides the other's evidence.
-9. **device** — Android Gradle Managed Devices, initially one API 29 device
-   because API 29 is AppT's `minSdk`, running the installed-app instrumentation
-   smoke/acceptance surface. No third-party emulator-runner Action is part of
-   the target stack.
 10. **changes** — change detection over the GitHub compare API, so a
     conditional job below never leaves a required check pending the way a
     top-level `paths:` filter would.
@@ -255,7 +250,6 @@ The Android verification floor preserved behind those domains includes:
 - the `:samsung` dependency boundary and no direct `android.util.Log` (the
   boundary also owns `:samsung`'s telemetry question, which is why the `:samsung`
   instance of `noTelemetryDependency` was removed);
-- no production dependency on `:macrobenchmark`;
 - no removed television-sync record or mutation-queue model in production code;
 - the version-catalog pin policy;
 - all other accepted `appTGuards` invariants.
@@ -315,11 +309,13 @@ the live AppT Sonar integration is proven. Until then, a narrow local detector
 such as jscpd may remain transitional evidence, but it must not become a second
 permanent blocking owner beside Sonar.
 
-Macrobenchmark code compiles on pull requests, but emulator timing is not release
-performance evidence. Performance acceptance is added on controlled physical
-hardware when the reliability slice makes it real. Protocol fuzz/property tests,
-Firebase emulator integration and physical Samsung acceptance are added only
-when their corresponding implementation surfaces exist.
+AppT does not maintain a repository-owned Android benchmark/GMD performance
+pipeline. Performance acceptance is attached to the slice that owns the behavior:
+focused executable tests prove structural properties, and a bounded debug-only
+diagnostic records exact-device evidence when physical timing is genuinely
+load-bearing. Protocol fuzz/property tests, Firebase emulator integration and
+physical Samsung acceptance are added only when their corresponding
+implementation surfaces exist.
 
 Mutation testing is a later deep-verification concern, not a ceremonial PR gate.
 When enough non-trivial pure business/protocol logic exists to produce a useful
@@ -424,18 +420,16 @@ text. The contract:
 |---|---|---|
 | `app-unit`, `samsung-unit` | Gradle test class/method pattern | `--tests <pattern>` on that module's own test task |
 | `android-static` | `lint` \| `detekt` \| `guards` \| `dependency-lock` | the owned tasks `androidStatic` already depends on |
-| `android-build` | `app` \| `macrobenchmark` | the owned tasks `androidBuild` already depends on |
+| `android-build` | `app` \| `release-guard` | the owned AppT build/release-boundary tasks `androidBuild` already depends on |
 | `backend-static` | `typecheck` \| `lint` \| `format` \| `knip` | the npm scripts `verify:static` already runs |
 | `backend-test` | `file:<pattern>` \| `name:<pattern>` | a Jest positional pattern, or `--testNamePattern` |
 | `backend` | `static` \| `test` \| `static:<sub>` \| `test:<pattern>` | its own static or test responsibility, and that responsibility's own selector |
-| `device` | `class:<fqcn>` \| `package:<pkg>` \| `method:<fqcn>#<method>` | `android.testInstrumentationRunnerArguments` on the pinned managed device |
 
 The selectors were verified against the pinned toolchain before being committed:
 the Gradle task paths are the ones `build.gradle.kts` declares for each failure
-domain, the npm script names are the ones `backend/package.json` declares, and
-the device task is the `pixel2api29` managed device configured in
-`app/build.gradle.kts`. A focused diagnostic is still implementation feedback
-only; full `verify` is unchanged by any of this.
+domain and the npm script names are the ones `backend/package.json` declares.
+A focused diagnostic is still implementation feedback only; full `verify` is
+unchanged by any of this.
 
 The label bridge keeps ordinary command labels full-mode by default. When an
 agent that lacks Actions-write permission needs the already-accepted narrow
@@ -466,7 +460,7 @@ without a human clicking through the Actions UI. Two routes exist:
    narrow a diagnostic label while remaining untrusted data validated by the
    trusted resolver. Adding one of the command labels (`ci:full`, `ci:app-unit`,
    `ci:samsung-unit`, `ci:android-static`, `ci:android-build`, `ci:backend`,
-   `ci:backend-static`, `ci:backend-test`, `ci:device`) to a pull request makes
+   `ci:backend-static`, `ci:backend-test`) to a pull request makes
    the bridge resolve that pull request's exact head SHA and branch, dispatch
    the matching workflow **from the repository's default branch** carrying the
    target as inputs, consume the label, and record what it dispatched.
@@ -749,7 +743,7 @@ be silently dropped while infrastructure changes.
    operates an Advanced Setup workflow (`.github/workflows/codeql.yml`) pinned to
    CodeQL Action `v4.38.2` (commit `2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2`) and
    bundle `2.27.1`. The workflow performs manual compilation under strict dependency
-   verification for `java-kotlin` (`./gradlew ... assembleDebug :macrobenchmark:assembleBenchmark`),
+   verification for `java-kotlin` (`./gradlew ... assembleDebug`),
    and analyzes `javascript-typescript` and `actions` using the `security-extended` query suite.
    Repository owners switch CodeQL setup in repository settings to recognize this
    workflow and avoid parallel Default Setup failures.
