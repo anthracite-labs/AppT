@@ -24,7 +24,6 @@ GRADLE_DIAGNOSTIC_JOBS = {
     "samsung-unit",
     "android-static",
     "android-build",
-    "device",
 }
 TRUSTED_CACHE_WRITER_JOB = "publish-gradle-warm-state"
 
