@@ -8,8 +8,7 @@
 # The old monolithic Android job (one root `ciCheck` invocation) is replaced by
 # independent failure domains that run in parallel. Unrelated evidence keeps
 # being produced when another domain fails — a formatting failure can no longer
-# hide app unit-test evidence, and a backend static failure can no longer hide
-# backend test evidence — and the gate alone decides acceptance. Gradle keeps
+# hide app unit-test evidence — and the gate alone decides acceptance. Gradle keeps
 # owning Android/Kotlin verification; each Android domain invokes the matching
 # root lifecycle task (`androidFormat`, `androidStatic`, `androidBuild`,
 # `androidUnit`), and `ciCheck` remains the convenient local umbrella over all
@@ -17,15 +16,14 @@
 #
 # Cadence: pull-request synchronization runs only the cheap repository domains
 # (policy and quality) plus dependency review when dependency inputs changed.
-# The expensive Android, backend and quality-platform domains
-# run on pushes to `main` and on an explicit `workflow_dispatch`, so a coding
+# The expensive Android, backend and Sonar quality-platform domains run on
+# pushes to `main` and on an explicit `workflow_dispatch`, so a coding
 # iteration stays cheap while the human or an authorized control-plane
 # integration chooses when the full bill is paid.
 #
 # Boundaries:
 #   * focused, permanent, non-terminal diagnostics live in `diagnose.yml`;
 #   * CodeQL (`codeql.yml`) remains the separate, authoritative security SAST;
-#   * destructive Actions maintenance lives only in `maintenance.yml`;
 #   * agent invocation goes through `agent-control.yml`;
 #   * nothing in this workflow deletes workflow runs or caches, and every job
 #     here is read-only.
@@ -130,9 +128,7 @@ jobs:
           python3 tools/ci/test/project-state-contract.test.py
           python3 tools/ci/project_state_contract.py
           node --test "tools/secret-scan/test/secret-scan.test.mjs"
-          node --test "tools/security/test/enforce-dependency-policy.test.mjs"
           node --test "tools/security/test/enforce-gradle-tooling-constraints.test.mjs"
-          node --test "tools/ci/test/purge-actions.test.mjs"
           node --test "tools/ci/test/dispatch-workflow.test.mjs"
           node --test "tools/ci/test/diagnose-focus.test.mjs"
           node --test "tools/ci/test/assert-dispatch-target.test.mjs"
@@ -189,10 +185,10 @@ jobs:
           pip install --break-system-packages yamllint==1.35.1
           yamllint -c .yamllint.yml .
 
-      - name: Prove provider cache isolation
-        # PyYAML is supplied by the pinned yamllint install immediately above.
+      - name: Verify workflow trust boundaries
+        # PyYAML is supplied by the pinned yamllint install above.
         run: |
-          python3 tools/ci/test/workflow-cache-contract.test.py
+          python3 tools/ci/test/cache-mode-contract.test.py
           python3 tools/ci/test/sonar-boundary.test.py
 
       - name: Run markdownlint
@@ -240,13 +236,11 @@ jobs:
           tar -xzf "${archive}" actionlint
           sudo install -m 0755 actionlint /usr/local/bin/actionlint
           set -o pipefail
-          # The pinned parser predates provider cache-mode syntax at both the
-          # workflow and job levels. Only these exact unknown-key diagnostics
-          # are delegated to the parsed-YAML cache contract above; every other
-          # actionlint diagnostic still fails CI.
+          # The pinned parser predates provider cache-mode syntax at the
+          # workflow level. Only this exact unknown-key diagnostic is ignored;
+          # every other actionlint diagnostic still fails CI.
           actionlint \
             -ignore '^unexpected key "cache-mode" for "workflow" section\.' \
-            -ignore '^unexpected key "cache-mode" for "job" section\.' \
             2>&1 | tee /tmp/actionlint.log || {
             echo "::error title=actionlint Failure::$(head -n 20 /tmp/actionlint.log | tr '\n' ' ')"
             exit 1
@@ -450,9 +444,9 @@ jobs:
           }
 
   # ---------------------------------------------------------------------------
-  # 6. Android unit / Robolectric verification — :app and :samsung tests plus
-  #    the Kover coverage evidence Sonar consumes. Samsung unit tests are
-  #    authoritative verification evidence here, not diagnostics.
+  # 6. Android unit / Robolectric verification — :app and :samsung tests.
+  #    Samsung unit tests are authoritative verification evidence here, not
+  #    diagnostics.
   # ---------------------------------------------------------------------------
   android-unit:
     name: Android unit and Robolectric verification
@@ -496,7 +490,7 @@ jobs:
           ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
-      - name: Run Android unit tests and Kover coverage verification
+      - name: Run Android unit tests
         run: |
           set -o pipefail
           ./gradlew --no-daemon --dependency-verification=strict --continue androidUnit 2>&1 | tee /tmp/unit.log || {
@@ -518,10 +512,12 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # 7. Backend static verification — typecheck, ESLint, Prettier, Knip.
+  # 7. Backend verification — the backend is a small, non-deployable skeleton,
+  #    so it gets ONE proportional job running its full verification interface
+  #    (typecheck, typed ESLint, Prettier, Knip, then Jest with LCOV).
   # ---------------------------------------------------------------------------
-  backend-static:
-    name: Backend static verification
+  backend:
+    name: Backend verification
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
@@ -565,60 +561,8 @@ jobs:
       - name: Install from committed lockfile
         run: npm ci --prefix backend
 
-      - name: Run backend static verification interface
-        run: npm run verify:static --prefix backend
-
-  # ---------------------------------------------------------------------------
-  # 8. Backend tests + LCOV — independent of backend static verification, so a
-  #    static failure cannot hide test evidence (and the reverse).
-  # ---------------------------------------------------------------------------
-  backend-test:
-    name: Backend tests and coverage
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    steps:
-      - name: Check out the dispatch anchor
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          # For a bridge dispatch this is the default branch the workflow ran
-          # from, so the assertion below and the local composite actions it uses
-          # are trusted repository content. The dispatch target is checked out
-          # afterwards, once it has been validated.
-          persist-credentials: false
-
-      - name: Assert the dispatch target
-        id: assert-target
-        if: inputs.expected_sha != ''
-        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
-        with:
-          expected-sha: ${{ inputs.expected_sha }}
-          target-ref: ${{ inputs.target_ref }}
-
-      - name: Set up Node
-        uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - name: Check out the exact expected SHA
-        if: inputs.expected_sha != ''
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          # The commit the assertion just proved, not the raw dispatch input. An
-          # input is attacker-reachable; this is a value trusted logic has
-          # verified. Everything from here on is the code under verification,
-          # executed by this trusted workflow under its own read-only
-          # permissions -- the same trust level as an ordinary pull-request run.
-          ref: ${{ steps.assert-target.outputs.sha }}
-          persist-credentials: false
-
-      - name: Install from committed lockfile
-        run: npm ci --prefix backend
-
-      - name: Run backend tests with LCOV coverage
-        run: npm run verify:test --prefix backend
+      - name: Run backend verification interface
+        run: npm run verify --prefix backend
 
       - name: Upload backend coverage
         if: always()
@@ -630,8 +574,6 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-
-  # ---------------------------------------------------------------------------
   # 10. Change detection — what the candidate actually touched. This job always
   #     runs, so a conditional job below never leaves a required check pending
   #     the way a top-level `paths:` filter would.
@@ -681,11 +623,10 @@ jobs:
           # dependency inputs changed" and let dependency review decide.
           #
           # Dependency inputs are the files whose change alters a resolved
-          # dependency graph: the Gradle declaration surface (any `*.gradle.kts`,
-          # the committed `*.gradle.lockfile` lockfiles including the root
-          # `settings-gradle.lockfile`, and everything under `gradle/` — the
-          # version catalog, the verification metadata and the wrapper pin) plus
-          # the backend package manifest and lockfile.
+          # dependency graph: the Gradle declaration surface (any `*.gradle.kts`
+          # and everything under `gradle/` — the version catalog, the
+          # verification metadata and the wrapper pin) plus the backend package
+          # manifest and lockfile.
           dependency_input_pattern='^(backend/package(-lock)?\.json|gradle/.*|.*\.gradle\.kts|(.*/)?gradle\.lockfile|.*[-.]gradle\.lockfile)$'
           changed=true
           if [ -n "$base" ] && [ "$base" != "0000000000000000000000000000000000000000" ]; then
@@ -772,24 +713,21 @@ jobs:
               ;;
           esac
 
+      # The standard action owns AppT's dependency security policy directly:
+      # fail on any introduced vulnerability at low severity or above. There is
+      # no second enforcement system; the patched jgit resolution that any
+      # exception once covered is confirmed in gradle/verification-metadata.xml.
       - name: Dependency review
         # actions/dependency-review-action v5.0.0
         id: review
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
         with:
           fail-on-severity: low
-          warn-only: true
           comment-summary-in-pr: never
           retry-on-snapshot-warnings: true
           retry-on-snapshot-warnings-timeout: 600
           base-ref: ${{ steps.base.outputs.ref }}
           head-ref: ${{ inputs.expected_sha || github.sha }}
-
-      - name: Enforce strict dependency security policy
-        shell: bash
-        env:
-          VULNERABLE_CHANGES: ${{ steps.review.outputs.vulnerable-changes }}
-        run: node tools/security/enforce-dependency-policy.mjs
 
   # ---------------------------------------------------------------------------
   # 12. Quality platform — SonarQube Cloud over the coverage evidence produced
@@ -801,7 +739,7 @@ jobs:
     name: SonarQube Cloud quality platform
     needs:
       - android-unit
-      - backend-test
+      - backend
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
@@ -907,8 +845,7 @@ jobs:
       - android-static
       - android-build
       - android-unit
-      - backend-static
-      - backend-test
+      - backend
       - changes
       - dependency-review
       - quality-platform
@@ -926,8 +863,7 @@ jobs:
           ANDROID_STATIC_RESULT: ${{ needs.android-static.result }}
           ANDROID_BUILD_RESULT: ${{ needs.android-build.result }}
           ANDROID_UNIT_RESULT: ${{ needs.android-unit.result }}
-          BACKEND_STATIC_RESULT: ${{ needs.backend-static.result }}
-          BACKEND_TEST_RESULT: ${{ needs.backend-test.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
           CHANGES_RESULT: ${{ needs.changes.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           QUALITY_PLATFORM_RESULT: ${{ needs.quality-platform.result }}
@@ -985,10 +921,8 @@ jobs:
 
           if [ "$EVENT_NAME" = "pull_request" ]; then
             echo "Pull-request verification: repository policy, repository quality, change"
-            echo "detection and dependency review only. The Android, backend,"
-            echo "and quality-platform domains are produced by a full"
-            echo "verification run (push to main, workflow_dispatch, or the"
-            echo "agent-control bridge)."
+            echo "detection and dependency review only. Android, backend, and Sonar"
+            echo "quality analysis run on full verification (push to main or dispatch)."
             echo
 
             require repo-policy "$REPO_POLICY_RESULT"
@@ -999,8 +933,7 @@ jobs:
             not_run android-static
             not_run android-build
             not_run android-unit
-            not_run backend-static
-            not_run backend-test
+            not_run backend
             not_run quality-platform
           else
             echo "Full repository verification."
@@ -1012,8 +945,7 @@ jobs:
             require android-static "$ANDROID_STATIC_RESULT"
             require android-build "$ANDROID_BUILD_RESULT"
             require android-unit "$ANDROID_UNIT_RESULT"
-            require backend-static "$BACKEND_STATIC_RESULT"
-            require backend-test "$BACKEND_TEST_RESULT"
+            require backend "$BACKEND_RESULT"
             require quality-platform "$QUALITY_PLATFORM_RESULT"
             require_dependency_review
           fi
@@ -1026,8 +958,7 @@ jobs:
             printf '| %s | %s |\n' "android-static" "$ANDROID_STATIC_RESULT"
             printf '| %s | %s |\n' "android-build" "$ANDROID_BUILD_RESULT"
             printf '| %s | %s |\n' "android-unit" "$ANDROID_UNIT_RESULT"
-            printf '| %s | %s |\n' "backend-static" "$BACKEND_STATIC_RESULT"
-            printf '| %s | %s |\n' "backend-test" "$BACKEND_TEST_RESULT"
+            printf '| %s | %s |\n' "backend" "$BACKEND_RESULT"
             printf '| %s | %s |\n' "dependency-review" "$DEPENDENCY_REVIEW_RESULT"
             printf '| %s | %s |\n' "quality-platform" "$QUALITY_PLATFORM_RESULT"
             echo

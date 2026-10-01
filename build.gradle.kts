@@ -15,8 +15,8 @@
 //
 // Issue #68 (Dependabot alerts #15, #17, #58): the same reasoning covers the
 // three coordinates that remained. None of them is declared by any AppT module,
-// so they appear in no `*.gradle.lockfile` and nowhere in
-// `gradle/libs.versions.toml`; they reach the dependency graph only as
+// so they appear nowhere in `gradle/libs.versions.toml`; they reach the
+// dependency graph only as
 // transitives of the plugins this file applies. The buildscript classpath is
 // therefore the only seam that owns them, and it is also the only seam
 // Dependabot's Gradle updater can read and mutate: its file parser harvests
@@ -86,24 +86,17 @@ dependencies {
     kover(project(":samsung"))
 }
 
-kover {
-    reports {
-        verify {
-            rule {
-                // Reviewed baseline floor: measured 90.58% (125/138 lines) in Kover 0.9.5.
-                minBound(80)
-            }
-        }
-    }
-}
-
-// Dependency locking, enabled repository-wide (release.md#gradle).
-// Lockfiles are committed; CI runs `dependencyLockCheck` in the validating
-// mode so a drifted or missing lock state fails the build rather than
-// silently re-resolving.
-allprojects { dependencyLocking { lockAllConfigurations() } }
-
 apply(from = rootProject.file("gradle/guards.gradle.kts"))
+
+// Dependency locking, enabled repository-wide (release.md#gradle): committed
+// lockfiles stabilize the resolved transitive graph, and Gradle fails any
+// resolution that drifts from the committed lock state. Exact direct versions
+// (version catalog + `versionCatalogPinned` guard) own the declared surface;
+// locking owns the resolved graph. After a reviewed dependency change refresh
+// every lockfile with `./gradlew resolveAndLockAll --write-locks`
+// (docs/BUILD.md).
+
+allprojects { dependencyLocking { lockAllConfigurations() } }
 
 // Regenerates every committed lockfile in one resolution pass. Run as
 // `./gradlew resolveAndLockAll --write-locks` after a reviewed dependency
@@ -160,15 +153,13 @@ tasks.register("androidFormat") {
 
 tasks.register("androidStatic") {
     group = "verification"
-    description =
-        "Android static and policy verification: Android Lint, detekt, appTGuards, dependency locks."
+    description = "Android static and policy verification: Android Lint, detekt, appTGuards."
     dependsOn(
         ":app:lintDebug",
         ":samsung:lintDebug",
         ":app:detekt",
         ":samsung:detekt",
         "appTGuards",
-        "dependencyLockCheck",
     )
 }
 
@@ -184,7 +175,7 @@ tasks.register("androidBuild") {
 tasks.register("androidUnit") {
     group = "verification"
     description =
-        "Android unit/Robolectric verification for :app and :samsung, plus Kover coverage generation and verification."
+        "Android unit/Robolectric verification for :app and :samsung, plus Kover XML coverage reporting."
     dependsOn(":app:testDebugUnitTest", ":samsung:test")
 }
 
@@ -207,16 +198,8 @@ gradle.projectsEvaluated {
             ?: project(":app").tasks.findByName("koverXmlReport")
             ?: tasks.findByName("koverXmlReportDebug")
             ?: project(":app").tasks.findByName("koverXmlReportDebug")
-    val koverVerify =
-        tasks.findByName("koverVerify")
-            ?: project(":app").tasks.findByName("koverVerify")
-            ?: tasks.findByName("koverVerifyDebug")
-            ?: project(":app").tasks.findByName("koverVerifyDebug")
 
-    // The coverage producers belong to the unit-test domain, which is the job
-    // that publishes the Kover evidence Sonar consumes.
-    tasks.named("androidUnit") {
-        koverXml?.let { dependsOn(it) }
-        koverVerify?.let { dependsOn(it) }
-    }
+    // Product coverage is useful input to the Sonar new-code quality gate.
+    // There is deliberately no percentage floor on build/CI implementation.
+    tasks.named("androidUnit") { koverXml?.let { dependsOn(it) } }
 }

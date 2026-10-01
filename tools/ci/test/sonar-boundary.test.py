@@ -109,7 +109,7 @@ class SonarWorkflowTests(unittest.TestCase):
         job = workflow["jobs"]["quality-platform"]
         self.assertEqual(job["permissions"], {"contents": "read"})
         self.assertEqual(job.get("cache-mode", workflow["cache-mode"]), "read")
-        self.assertEqual(job["needs"], ["android-unit", "backend-test"])
+        self.assertEqual(job["needs"], ["android-unit", "backend"])
         self.assertNotIn("defaults", job)
         steps = job["steps"]
         checkouts = [step for step in steps if step.get("uses", "").startswith("actions/checkout@")]

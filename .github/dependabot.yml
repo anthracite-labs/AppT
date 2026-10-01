@@ -3,8 +3,6 @@
 # Purpose and limits (Issue #36, Issue #56): this produces *reviewed pull requests*.
 # It does not replace, and must not be read as replacing, any of the existing controls:
 #
-#   * committed Gradle lockfiles, refreshed only through
-#     `./gradlew resolveAndLockAll --write-locks` as a reviewed change;
 #   * gradle/verification-metadata.xml under --dependency-verification=strict;
 #   * the committed Gradle wrapper with its pinned distributionSha256Sum;
 #   * backend/package-lock.json with `npm ci` as the only install;
@@ -85,14 +83,13 @@ updates:
     # the authoritative process for BOTH the *.gradle.lockfile files and the
     # verification metadata.
     #
-    # Because CI resolves under --dependency-verification=strict and runs
-    # dependencyLockCheck, a Dependabot Gradle pull request fails closed until
+    # Because CI resolves under --dependency-verification=strict against
+    # committed lockfiles, a Dependabot Gradle pull request fails closed until
     # the regenerated artifacts are committed. That is the intended fail-closed
     # behaviour, not a flake. Before merging, run the documented regeneration
-    # (docs/BUILD.md, gradle/verification-metadata.template.xml):
+    # (docs/BUILD.md):
     #
-    #   ./gradlew --no-daemon --write-verification-metadata sha256 \
-    #     ciCheck
+    #   ./gradlew --no-daemon --write-verification-metadata sha256 ciCheck
     #   ./gradlew resolveAndLockAll --write-locks
     #
     # Then review the generated <components> diff exactly as you would review a

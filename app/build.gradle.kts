@@ -139,8 +139,7 @@ kotlin {
 //
 // `appt.db`, version 1, no destructive fallback. The exported schema is
 // committed so `schemaContainsNoForbiddenColumn` and every later migration test
-// can read it; `resolveAndLockAll --write-locks` and CI regenerate it when the
-// entities change.
+// can read it; any build that compiles the Room entities regenerates it.
 //
 // Room's KSP processor emits Kotlin unless it is told otherwise here. That codegen writes an
 // explicit `public` on every declaration it emits and leaves `var` properties unwritten, which

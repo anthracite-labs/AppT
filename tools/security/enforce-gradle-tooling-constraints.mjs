@@ -51,7 +51,7 @@
  *
  * Deliberately zero dependencies: its provenance is the repository itself and
  * its behaviour is reviewable in one file and covered by tests, matching
- * `tools/secret-scan/secret-scan.mjs` and `tools/security/enforce-dependency-policy.mjs`.
+ * `tools/secret-scan/secret-scan.mjs`.
  *
  * Usage:
  *   node tools/security/enforce-gradle-tooling-constraints.mjs
