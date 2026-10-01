@@ -618,6 +618,8 @@ jobs:
           persist-credentials: false
 
       - name: Run Android build
+        env:
+          APPT_BUILD_SHA: ${{ steps.assert-target.outputs.sha || github.sha }}
         run: |
           set -o pipefail
           mapfile -t DIAGNOSE_ARGS < "${RUNNER_TEMP}/diagnose-args"
@@ -933,7 +935,7 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # device — installed-app acceptance on a Gradle Managed Device (API 29).
+  # device — installed-app acceptance, AndroidX profile generation, and hosted macrobenchmark on GMD.
   # ---------------------------------------------------------------------------
   device:
     name: device
@@ -1009,6 +1011,8 @@ jobs:
           persist-credentials: false
 
       - name: Run Gradle Managed Device Acceptance Test (API 29)
+        env:
+          APPT_BUILD_SHA: ${{ steps.assert-target.outputs.sha || github.sha }}
         run: |
           set -o pipefail
           mapfile -t DIAGNOSE_ARGS < "${RUNNER_TEMP}/diagnose-args"
@@ -1023,6 +1027,53 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           }
+
+      - name: Prepare bounded generated Baseline Profile handoff
+        if: success() && inputs.focus == ''
+        env:
+          SOURCE_SHA: ${{ steps.assert-target.outputs.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          profile="app/src/release/generated/baselineProfiles/baseline-prof.txt"
+          test -s "$profile"
+          profile_bytes="$(stat -c '%s' "$profile")"
+          if [ "$profile_bytes" -gt 65536 ]; then
+            echo "::error title=Baseline Profile handoff::Generated profile exceeds the 64 KiB artifact bound."
+            exit 1
+          fi
+          profile_sha256="$(sha256sum "$profile" | cut -d' ' -f1)"
+          if git cat-file -e "HEAD:$profile" 2>/dev/null; then
+            git show "HEAD:$profile" > "${RUNNER_TEMP}/committed-baseline-prof.txt"
+            if ! cmp -s "$profile" "${RUNNER_TEMP}/committed-baseline-prof.txt"; then
+              echo "::error title=Baseline Profile regeneration::Generated profile differs byte-for-byte from the committed exact-head profile."
+              exit 1
+            fi
+            if [ -n "$(git status --porcelain -- "$profile")" ]; then
+              echo "::error title=Baseline Profile regeneration::Profile regeneration modified the exact-head worktree."
+              exit 1
+            fi
+            echo "Baseline Profile regeneration: byte-for-byte clean at $SOURCE_SHA." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Baseline Profile is generated and handed off, but no profile is committed at this exact head yet." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          handoff="${RUNNER_TEMP}/baseline-profile-handoff"
+          mkdir -p "$handoff"
+          cp -- "$profile" "$handoff/baseline-prof.txt"
+          printf 'source-sha=%s\nprofile-path=%s\nprofile-bytes=%s\nprofile-sha256=%s\n' \
+            "$SOURCE_SHA" "$profile" "$profile_bytes" "$profile_sha256" \
+            > "$handoff/handoff.txt"
+          test "$(sha256sum "$handoff/baseline-prof.txt" | cut -d' ' -f1)" = "$profile_sha256"
+
+      - name: Upload bounded Baseline Profile handoff
+        if: success() && inputs.focus == ''
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: appt-baseline-profile-${{ inputs.expected_sha || github.sha }}
+          path: ${{ runner.temp }}/baseline-profile-handoff/**
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
 
       - name: Package PR-local Gradle warm state
         id: gradle-warm-pack
@@ -1080,6 +1131,8 @@ jobs:
           path: |
             app/build/reports/androidTests/managedDevice/**
             app/build/outputs/androidTest-results/managedDevice/**
+            macrobenchmark/build/reports/androidTests/managedDevice/**
+            macrobenchmark/build/outputs/androidTest-results/managedDevice/**
           if-no-files-found: warn
           retention-days: 7
 
