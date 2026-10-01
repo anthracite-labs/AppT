@@ -34,9 +34,10 @@ plugins {
 // Surface the compiler task's exception chain as check annotations; remove
 // this block after the warning has been diagnosed.
 val temporaryCompilerFailureDetails = mutableListOf<String>()
-gradle.taskGraph.afterTask { task, state ->
+@Suppress("DEPRECATION")
+gradle.taskGraph.afterTask { task ->
     if (task.path == ":app:compileDebugUnitTestKotlin") {
-        var failure = state.failure
+        var failure = task.state.failure
         var depth = 0
         while (failure != null && depth < 30) {
             temporaryCompilerFailureDetails +=
