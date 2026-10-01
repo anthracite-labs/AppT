@@ -4,17 +4,14 @@ This document owns AppT's architecture vocabulary for **module**, **interface**,
 
 ## Shape
 
-Two production Gradle modules plus one test-only benchmark module. No further split until a demonstrated pressure appears.
+Two production Gradle modules. No benchmark/test-only application module; add another module only when a demonstrated product or ownership pressure appears.
 
 | Module | Kind | Owns | Does not own |
 |---|---|---|---|
 | `app` | production | Compose UI, navigation, permission explanation, account and licensing, Room, DataStore, entitlement cache, diagnostics, Hilt application graph | WebSocket payloads, discovery packets, pairing tokens, TLS pins, retry loops, protocol generation selection |
 | `samsung` | production | Discovery, identity correlation, pairing, security identity, session, reconnect, capability evidence, command translation, wake, secret storage | Permission dialogs, Firebase, account state, licensing, telemetry SDKs, layout |
-| `macrobenchmark` | test-only (`com.android.test`) | Macrobenchmark measurement of launch, frame timing, control latency, process-death reopen, and baseline-profile generation for `app` | Any production code, any shipped artifact, any dependency of `app` or `samsung` |
 
-`app` depends on `samsung`. `samsung` does not depend on `app`. Neither production module depends on `macrobenchmark`, and the benchmark module is not part of the release artifact.
-
-**Why the benchmark module exists** although the production shape is two modules: Android's Macrobenchmark API must run from a separate `com.android.test` module that targets the app under test, so it cannot live inside `app` or `samsung`. It adds no seam to production code, exposes nothing at runtime, and exists only in the test and CI graphs. `app` consumes generated baseline profiles through the `androidx.baselineprofile` plugin. Delete it and the reliability targets in [reliability.md](reliability.md) lose their verification, which is the "earns its keep" test.
+`app` depends on `samsung`. `samsung` does not depend on `app`. Test code stays with the module whose behavior it verifies; device-only slice diagnostics live in stock debug inputs and are excluded from release.
 
 There is no `domain`, `data`, `usecase`, or `repository` Gradle module. Packages inside `app` are not a Clean Architecture stack. A universal TV **interface** is not created; ecosystem #2 is the trigger for that seam.
 
@@ -217,7 +214,6 @@ CI enforces the boundary:
 
 - `:samsung` dependency insight must not contain Firebase, Play services, or any telemetry SDK.
 - `:app` dependency insight must not contain a Firestore client artifact or any crash-reporting, analytics, advertising, or attribution artifact.
-- Neither production module may depend on `:macrobenchmark`, and `:macrobenchmark` must not appear in the release artifact.
 - `samsung` production sources must not call `android.util.Log` or reference Firebase packages.
 - No production source may declare a sync record, tombstone, or mutation-queue type.
 

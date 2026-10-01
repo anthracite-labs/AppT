@@ -121,7 +121,7 @@ jobs:
             -Dorg.gradle.parallel=false \
             -Pkotlin.compiler.execution.strategy=in-process \
             --dependency-verification=strict \
-            assembleDebug :macrobenchmark:assembleBenchmark
+            assembleDebug
 
       - name: Perform CodeQL analysis
         # github/codeql-action v4.38.2

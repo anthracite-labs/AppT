@@ -543,7 +543,7 @@ describe('dispatchCommand', () => {
   it('keeps working when the provider reports no run details', async () => {
     const api = createFakeApi({ dispatchResponse: '' });
     const result = await dispatchCommand({
-      label: 'ci:device',
+      label: 'ci:app-unit',
       gh: api.gh,
       repo: REPO,
       prNumber: PR_NUMBER,
@@ -564,7 +564,6 @@ describe('dispatchCommand', () => {
       'ci:backend-static',
       'ci:backend-test',
       'ci:dependency-state',
-      'ci:device',
       'ci:full',
       'ci:samsung-unit',
     ]);

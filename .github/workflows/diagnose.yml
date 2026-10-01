@@ -58,7 +58,6 @@ on:
           - backend-test
           - backend
           - dependency-state
-          - device
       expected_sha:
         description: >-
           Commit SHA the dispatched ref was expected to resolve to. Set by the
@@ -79,8 +78,8 @@ on:
           Optional narrowing within the selected mode. Leave empty to run the
           whole mode. The accepted form depends on the mode: a Gradle test
           class or method pattern for the unit modes, a named sub-check for the
-          static and build modes, file:/name: for the backend modes, and
-          class:/package:/method: for the device mode. dependency-state accepts
+          static and build modes, and file:/name: for the backend modes.
+          dependency-state accepts
           no focus because partial lock regeneration is forbidden. Anything else fails
           closed before any work runs.
         required: false
@@ -544,7 +543,7 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # android-build — debug assembly and macrobenchmark compilation.
+  # android-build — AppT debug assembly and release-boundary checks.
   # ---------------------------------------------------------------------------
   android-build:
     name: android-build
@@ -997,8 +996,11 @@ jobs:
             "settings-gradle.lockfile"
             "app/gradle.lockfile"
             "samsung/gradle.lockfile"
-            "macrobenchmark/gradle.lockfile"
           )
+          # Revision 5 retires :macrobenchmark. During that bounded migration the
+          # generated lockfile may be deleted, but it must never be regenerated
+          # or returned as live dependency state.
+          retired=("macrobenchmark/gradle.lockfile")
 
           mapfile -t changed < <(
             git status --porcelain=v1 --untracked-files=no |
@@ -1009,7 +1011,7 @@ jobs:
 
           for path in "${changed[@]}"; do
             permitted=false
-            for candidate in "${allowed[@]}"; do
+            for candidate in "${allowed[@]}" "${retired[@]}"; do
               if [ "$path" = "$candidate" ]; then
                 permitted=true
                 break
@@ -1023,7 +1025,7 @@ jobs:
 
           artifact_root="${RUNNER_TEMP}/dependency-state"
           rm -rf "$artifact_root"
-          mkdir -p "$artifact_root/app" "$artifact_root/samsung" "$artifact_root/macrobenchmark"
+          mkdir -p "$artifact_root/app" "$artifact_root/samsung"
 
           for path in "${allowed[@]}"; do
             if [ ! -f "$path" ] || [ -L "$path" ]; then
@@ -1048,247 +1050,6 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # ---------------------------------------------------------------------------
-  # device — installed-app acceptance, AndroidX profile generation, and hosted macrobenchmark on GMD.
-  # ---------------------------------------------------------------------------
-  device:
-    name: device
-    if: inputs.mode == 'device'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    permissions:
-      actions: read
-      contents: read
-    outputs:
-      pr-number: ${{ steps.assert-target.outputs.pr-number }}
-      warm-artifact-id: ${{ steps.gradle-warm-upload.outputs.artifact-id }}
-    steps:
-      - name: Check out the dispatch anchor
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          # For a bridge dispatch this is the default branch the workflow ran
-          # from, so the assertion below and the local composite actions it uses
-          # are trusted repository content. The dispatch target is checked out
-          # afterwards, once it has been validated.
-          persist-credentials: false
-
-      - name: Assert the dispatch target
-        id: assert-target
-        if: inputs.expected_sha != ''
-        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
-        with:
-          expected-sha: ${{ inputs.expected_sha }}
-          target-ref: ${{ inputs.target_ref }}
-
-      - name: Set up the Android/JVM toolchain
-        uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
-        with:
-          java-version: ${{ env.JAVA_VERSION }}
-      - name: Resolve the diagnostic focus
-        env:
-          MODE: ${{ inputs.mode }}
-          FOCUS: ${{ inputs.focus }}
-        run: |
-          set -euo pipefail
-
-          # The focus is resolved by the reviewed module and written as an argv
-          # vector, one argument per line. The value is therefore data: it cannot
-          # become a command, a flag, or a task this mode does not own. An
-          # invalid, cross-mode or malformed focus fails here, before anything
-          # runs.
-          node tools/ci/diagnose-focus.mjs --mode "$MODE" --focus "$FOCUS" \
-            > "${RUNNER_TEMP}/diagnose-args"
-
-          if [ -n "$FOCUS" ]; then
-            echo "::notice title=${MODE} focused::${MODE} narrowed to: ${FOCUS}"
-          else
-            echo "::notice::${MODE} runs its full mode; no focus was supplied."
-          fi
-
-      - name: Restore PR-local Gradle build cache
-        if: steps.assert-target.outputs.pr-number != ''
-        # actions/cache/restore v4.2.4
-        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809
-        with:
-          path: ~/.gradle/caches/build-cache-1
-          key: appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-
-
-      - name: Check out the exact expected SHA
-        if: inputs.expected_sha != ''
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ steps.assert-target.outputs.sha }}
-          persist-credentials: false
-
-      # Match the trusted verify device job: hosted managed emulators require
-      # KVM access before Gradle provisions their system images.
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-          ls -la /dev/kvm
-
-      # Adapt Android's Apache-2.0 Now in Android / performance-samples
-      # GMD CI pattern: provision owned device definitions before the combined
-      # workload, then execute managed devices with one shard / one device.
-      # AppT owns multiple modules and two API images, so each setup task runs
-      # in its own Gradle process to avoid concurrent SDK/emulator installation.
-      - name: Pre-provision managed devices serially
-        env:
-          FOCUS: ${{ inputs.focus }}
-        run: |
-          set -euo pipefail
-
-          setup_tasks=(
-            ":app:pixel2api29Setup"
-            ":samsung:pixel2api29Setup"
-            ":samsung:pixel2api35Setup"
-          )
-          if [ -z "$FOCUS" ]; then
-            setup_tasks+=(":macrobenchmark:pixel2api29Setup")
-          fi
-
-          for task in "${setup_tasks[@]}"; do
-            ./gradlew \
-              --no-daemon \
-              --dependency-verification=strict \
-              -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
-              -Pandroid.experimental.androidTest.numManagedDeviceShards=1 \
-              -Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1 \
-              "$task"
-          done
-
-      - name: Run Gradle Managed Device Acceptance Test (API 29)
-        env:
-          APPT_BUILD_SHA: ${{ steps.assert-target.outputs.sha || github.sha }}
-        run: |
-          set -o pipefail
-          mapfile -t DIAGNOSE_ARGS < "${RUNNER_TEMP}/diagnose-args"
-          "${DIAGNOSE_ARGS[@]}" 2>&1 | tee /tmp/gmd.log || {
-            echo "::error title=device Failure::$(grep -A 10 "\* What went wrong:" /tmp/gmd.log | head -n 10 | tr '\n' ' ')"
-            grep -A 30 "FAILURE: Build failed" /tmp/gmd.log || true
-            {
-              echo "### GMD Failure Log"
-              echo '```'
-              tail -n 60 /tmp/gmd.log
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          }
-
-      - name: Prepare bounded generated Baseline Profile handoff
-        if: success() && inputs.focus == ''
-        env:
-          SOURCE_SHA: ${{ steps.assert-target.outputs.sha || github.sha }}
-        run: |
-          set -euo pipefail
-          profile="app/src/release/generated/baselineProfiles/baseline-prof.txt"
-          test -s "$profile"
-          profile_bytes="$(stat -c '%s' "$profile")"
-          if [ "$profile_bytes" -gt 65536 ]; then
-            echo "::error title=Baseline Profile handoff::Generated profile exceeds the 64 KiB artifact bound."
-            exit 1
-          fi
-          profile_sha256="$(sha256sum "$profile" | cut -d' ' -f1)"
-          if git cat-file -e "HEAD:$profile" 2>/dev/null; then
-            git show "HEAD:$profile" > "${RUNNER_TEMP}/committed-baseline-prof.txt"
-            if ! cmp -s "$profile" "${RUNNER_TEMP}/committed-baseline-prof.txt"; then
-              echo "::error title=Baseline Profile regeneration::Generated profile differs byte-for-byte from the committed exact-head profile."
-              exit 1
-            fi
-            if [ -n "$(git status --porcelain -- "$profile")" ]; then
-              echo "::error title=Baseline Profile regeneration::Profile regeneration modified the exact-head worktree."
-              exit 1
-            fi
-            echo "Baseline Profile regeneration: byte-for-byte clean at $SOURCE_SHA." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "Baseline Profile is generated and handed off, but no profile is committed at this exact head yet." >> "$GITHUB_STEP_SUMMARY"
-          fi
-          handoff="${RUNNER_TEMP}/baseline-profile-handoff"
-          mkdir -p "$handoff"
-          cp -- "$profile" "$handoff/baseline-prof.txt"
-          printf 'source-sha=%s\nprofile-path=%s\nprofile-bytes=%s\nprofile-sha256=%s\n' \
-            "$SOURCE_SHA" "$profile" "$profile_bytes" "$profile_sha256" \
-            > "$handoff/handoff.txt"
-          test "$(sha256sum "$handoff/baseline-prof.txt" | cut -d' ' -f1)" = "$profile_sha256"
-
-      - name: Upload bounded Baseline Profile handoff
-        if: success() && inputs.focus == ''
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: appt-baseline-profile-${{ inputs.expected_sha || github.sha }}
-          path: ${{ runner.temp }}/baseline-profile-handoff/**
-          if-no-files-found: error
-          retention-days: 7
-          compression-level: 0
-
-      - name: Package PR-local Gradle warm state
-        id: gradle-warm-pack
-        if: always() && steps.assert-target.outputs.pr-number != ''
-        run: |
-          set -euo pipefail
-
-          cache_dir="$HOME/.gradle/caches/build-cache-1"
-          archive="${RUNNER_TEMP}/gradle-local-build-cache.tar"
-          rm -f "$archive"
-
-          if [ ! -d "$cache_dir" ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=PR-local Gradle warm state::No local Gradle build cache was produced."
-            exit 0
-          fi
-
-          cache_kib="$(du -sk "$cache_dir" | awk '{print $1}')"
-          if [ "$cache_kib" -gt 524288 ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Local Gradle build cache exceeds 512 MiB; skipping warm-state upload."
-            exit 0
-          fi
-
-          /usr/bin/tar -cf "$archive" -C "$HOME/.gradle/caches" build-cache-1
-          archive_bytes="$(stat -c '%s' "$archive")"
-          if [ "$archive_bytes" -gt 536870912 ]; then
-            rm -f "$archive"
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Packaged Gradle build cache exceeds 512 MiB; skipping upload."
-            exit 0
-          fi
-
-          echo "available=true" >> "$GITHUB_OUTPUT"
-          echo "::notice title=PR-local Gradle warm state::Prepared a bounded build-cache artifact for the next diagnostic run."
-
-      - name: Upload PR-local Gradle warm state
-        id: gradle-warm-upload
-        if: always() && steps.gradle-warm-pack.outputs.available == 'true'
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: appt-gradle-local-cache-pr-${{ steps.assert-target.outputs.pr-number }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/gradle-local-build-cache.tar
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 0
-
-      - name: Upload managed device reports
-        if: always()
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: diagnose-managed-device-report
-          path: |
-            app/build/reports/androidTests/managedDevice/**
-            app/build/outputs/androidTest-results/managedDevice/**
-            macrobenchmark/build/reports/androidTests/managedDevice/**
-            macrobenchmark/build/outputs/androidTest-results/managedDevice/**
-          if-no-files-found: warn
-          retention-days: 7
 
   # ---------------------------------------------------------------------------
   # Trusted PR-local Gradle cache publisher. Target jobs remain cache-read-only.
@@ -1301,22 +1062,20 @@ jobs:
       - samsung-unit
       - android-static
       - android-build
-      - device
     if: >-
       always() &&
       inputs.expected_sha != '' &&
       (inputs.mode == 'app-unit' ||
        inputs.mode == 'samsung-unit' ||
        inputs.mode == 'android-static' ||
-       inputs.mode == 'android-build' ||
-       inputs.mode == 'device')
+       inputs.mode == 'android-build')
     runs-on: ubuntu-24.04
     cache-mode: write-only
     permissions:
       contents: read
     env:
-      PR_NUMBER: ${{ needs.app-unit.outputs.pr-number || needs.samsung-unit.outputs.pr-number || needs.android-static.outputs.pr-number || needs.android-build.outputs.pr-number || needs.device.outputs.pr-number }}
-      ARTIFACT_ID: ${{ needs.app-unit.outputs.warm-artifact-id || needs.samsung-unit.outputs.warm-artifact-id || needs.android-static.outputs.warm-artifact-id || needs.android-build.outputs.warm-artifact-id || needs.device.outputs.warm-artifact-id }}
+      PR_NUMBER: ${{ needs.app-unit.outputs.pr-number || needs.samsung-unit.outputs.pr-number || needs.android-static.outputs.pr-number || needs.android-build.outputs.pr-number }}
+      ARTIFACT_ID: ${{ needs.app-unit.outputs.warm-artifact-id || needs.samsung-unit.outputs.warm-artifact-id || needs.android-static.outputs.warm-artifact-id || needs.android-build.outputs.warm-artifact-id }}
     steps:
       - name: Download current diagnostic warm-state artifact
         if: env.PR_NUMBER != '' && env.ARTIFACT_ID != ''
@@ -1421,7 +1180,6 @@ jobs:
       - backend-test
       - backend
       - dependency-state
-      - device
       - publish-gradle-warm-state
     if: always()
     runs-on: ubuntu-24.04
