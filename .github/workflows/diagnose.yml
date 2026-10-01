@@ -57,6 +57,7 @@ on:
           - backend-static
           - backend-test
           - backend
+          - dependency-lock-refresh
           - device
       expected_sha:
         description: >-
@@ -79,7 +80,8 @@ on:
           whole mode. The accepted form depends on the mode: a Gradle test
           class or method pattern for the unit modes, a named sub-check for the
           static and build modes, file:/name: for the backend modes, and
-          class:/package:/method: for the device mode. Anything else fails
+          class:/package:/method: for the device mode. The dependency-lock-refresh
+          mode is a fixed operation and rejects any focus. Anything else fails
           closed before any work runs.
         required: false
         default: ''
@@ -1137,6 +1139,134 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
+  # dependency-lock-refresh — reviewed Gradle lock-state regeneration only.
+  # The target code runs read-only and the handoff is bounded to known lockfiles.
+  # ---------------------------------------------------------------------------
+  dependency-lock-refresh:
+    name: dependency-lock-refresh
+    if: inputs.mode == 'dependency-lock-refresh'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the dispatch anchor
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Assert the dispatch target
+        id: assert-target
+        if: inputs.expected_sha != ''
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] trusted default-branch action
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
+
+      - name: Set up the Android/JVM toolchain
+        uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] trusted default-branch action
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Resolve the fixed lock-refresh operation
+        env:
+          MODE: ${{ inputs.mode }}
+          FOCUS: ${{ inputs.focus }}
+        run: |
+          set -euo pipefail
+          node tools/ci/diagnose-focus.mjs --mode "$MODE" --focus "$FOCUS"             > "${RUNNER_TEMP}/diagnose-args"
+
+      - name: Check out the exact expected SHA
+        if: inputs.expected_sha != ''
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ steps.assert-target.outputs.sha }}
+          persist-credentials: false
+
+      - name: Regenerate Gradle lock state
+        run: |
+          set -euo pipefail
+          mapfile -t DIAGNOSE_ARGS < "${RUNNER_TEMP}/diagnose-args"
+          "${DIAGNOSE_ARGS[@]}"
+
+      - name: Validate and stage bounded lockfile handoff
+        env:
+          STAGE: ${{ runner.temp }}/appt-gradle-lock-refresh
+        run: |
+          set -euo pipefail
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+
+          python3 - "$PWD" "$STAGE" <<'PY'
+          from pathlib import Path
+          import os
+          import shutil
+          import sys
+
+          root = Path(sys.argv[1]).resolve()
+          stage = Path(sys.argv[2]).resolve()
+
+          allowed = {
+              Path("gradle.lockfile"),
+              Path("settings-gradle.lockfile"),
+              Path("app/gradle.lockfile"),
+              Path("samsung/gradle.lockfile"),
+              Path("macrobenchmark/gradle.lockfile"),
+          }
+          ignored_dirs = {".git", ".gradle", ".idea", "build", "node_modules"}
+          found = set()
+
+          for current, dirs, files in os.walk(root, followlinks=False):
+              dirs[:] = [name for name in dirs if name not in ignored_dirs]
+              current_path = Path(current)
+              for name in files:
+                  if name not in {"gradle.lockfile", "settings-gradle.lockfile"}:
+                      continue
+                  path = current_path / name
+                  rel = path.relative_to(root)
+                  if path.is_symlink() or not path.is_file():
+                      raise SystemExit(f"unsafe Gradle lockfile path: {rel}")
+                  found.add(rel)
+
+          missing = sorted(allowed - found)
+          unexpected = sorted(found - allowed)
+          if missing:
+              raise SystemExit("missing expected Gradle lockfiles: " + ", ".join(map(str, missing)))
+          if unexpected:
+              raise SystemExit("unexpected Gradle lockfiles: " + ", ".join(map(str, unexpected)))
+
+          total = 0
+          max_each = 5 * 1024 * 1024
+          max_total = 20 * 1024 * 1024
+          for rel in sorted(allowed):
+              source = root / rel
+              size = source.stat().st_size
+              if size <= 0 or size > max_each:
+                  raise SystemExit(f"invalid lockfile size for {rel}: {size}")
+              total += size
+              if total > max_total:
+                  raise SystemExit("Gradle lockfile handoff exceeds total size bound")
+              destination = stage / rel
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(source, destination)
+
+          print("Validated bounded Gradle lockfile handoff:")
+          for rel in sorted(allowed):
+              print(rel)
+          PY
+
+      - name: Upload generated Gradle lockfiles
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: appt-gradle-lock-refresh-${{ inputs.expected_sha || github.sha }}
+          path: ${{ runner.temp }}/appt-gradle-lock-refresh/**
+          if-no-files-found: error
+          retention-days: 3
+
+  # ---------------------------------------------------------------------------
   # Trusted PR-local Gradle cache publisher. Target jobs remain cache-read-only.
   # This job never checks out or executes PR code.
   # ---------------------------------------------------------------------------
@@ -1266,6 +1396,7 @@ jobs:
       - backend-static
       - backend-test
       - backend
+      - dependency-lock-refresh
       - device
       - publish-gradle-warm-state
     if: always()
