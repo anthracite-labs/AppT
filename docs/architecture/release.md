@@ -199,22 +199,22 @@ local action from the workspace on disk, every job that uses one runs
 8. **backend-test** — `npm run verify:test --prefix backend`: Jest with LCOV
    coverage. Independent of the static domain in both directions, so neither
    failure hides the other's evidence.
-10. **changes** — change detection over the GitHub compare API, so a
+9. **changes** — change detection over the GitHub compare API, so a
     conditional job below never leaves a required check pending the way a
     top-level `paths:` filter would.
-11. **dependency-review** — GitHub Dependency Review on pull requests, and on
+10. **dependency-review** — GitHub Dependency Review on pull requests, and on
     full runs when the candidate changed dependency inputs. It consumes the
     GitHub dependency graph and does not replace Gradle locking or strict
     verification. AppT's own dependency security policy is enforced on top of it
     by `tools/security/enforce-dependency-policy.mjs`.
-12. **quality-platform** — CI-based SonarQube Cloud analysis over the coverage
+11. **quality-platform** — CI-based SonarQube Cloud analysis over the coverage
     evidence produced by `android-unit` and `backend-test`. It waits on the two
     producers only: an Android formatting or Android static failure must not
     suppress the quality-platform evidence. Sonar owns the
     cross-language maintainability/reliability, new-code coverage and duplication
     quality gate; it does not replace CodeQL as AppT's authoritative security
     SAST. The CI job waits for the Sonar quality-gate result before succeeding.
-13. **gate** — depends on every domain above and succeeds only when all required
+12. **gate** — depends on every domain above and succeeds only when all required
     domains succeeded. This is the sole stable repository-owned status intended
     for default-branch protection. It requires `changes` to have succeeded in its
     own right: `dependency-review` declares `needs: changes`, so a failed
