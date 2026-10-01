@@ -1134,6 +1134,36 @@ jobs:
           sudo udevadm trigger --name-match=kvm
           ls -la /dev/kvm
 
+      # Adapt Android's Apache-2.0 Now in Android / performance-samples
+      # GMD CI pattern: provision owned device definitions before the combined
+      # workload, then execute managed devices with one shard / one device.
+      # AppT owns multiple modules and two API images, so each setup task runs
+      # in its own Gradle process to avoid concurrent SDK/emulator installation.
+      - name: Pre-provision managed devices serially
+        env:
+          FOCUS: ${{ inputs.focus }}
+        run: |
+          set -euo pipefail
+
+          setup_tasks=(
+            ":app:pixel2api29Setup"
+            ":samsung:pixel2api29Setup"
+            ":samsung:pixel2api35Setup"
+          )
+          if [ -z "$FOCUS" ]; then
+            setup_tasks+=(":macrobenchmark:pixel2api29Setup")
+          fi
+
+          for task in "${setup_tasks[@]}"; do
+            ./gradlew \
+              --no-daemon \
+              --dependency-verification=strict \
+              -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
+              -Pandroid.experimental.androidTest.numManagedDeviceShards=1 \
+              -Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1 \
+              "$task"
+          done
+
       - name: Run Gradle Managed Device Acceptance Test (API 29)
         env:
           APPT_BUILD_SHA: ${{ steps.assert-target.outputs.sha || github.sha }}
