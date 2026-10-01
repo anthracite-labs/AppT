@@ -714,13 +714,9 @@ jobs:
           esac
 
       # The standard action owns AppT's dependency security policy directly:
-      # fail on any introduced vulnerability at low severity or above. The
-      # former custom enforcer (tools/security/enforce-dependency-policy.mjs)
-      # existed only to permit GHSA-vrpq-qp53-qv56 in settings.gradle.kts while
-      # jgit still resolved to a vulnerable version; the root buildscript
-      # constraint now resolves jgit to the patched 6.10.1.202505221210-r
-      # (confirmed in gradle/verification-metadata.xml), so the exception and
-      # the second enforcement system are gone.
+      # fail on any introduced vulnerability at low severity or above. There is
+      # no second enforcement system; the patched jgit resolution that any
+      # exception once covered is confirmed in gradle/verification-metadata.xml.
       - name: Dependency review
         # actions/dependency-review-action v5.0.0
         id: review
