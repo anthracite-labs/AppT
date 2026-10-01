@@ -12,7 +12,6 @@ import dev.anthracite.appt.gate.LocalNetworkPermissionGate
 import dev.anthracite.appt.gate.PermissionGate
 import dev.anthracite.appt.preferences.PreferenceStore
 import dev.anthracite.appt.remote.ActiveRemoteHost
-import dev.anthracite.appt.samsung.SamsungModule
 import dev.anthracite.appt.samsung.SamsungTvs
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -33,7 +32,7 @@ import kotlinx.coroutines.SupervisorJob
  * scope outlives every Activity.
  */
 class AppTApplication : Application() {
-    val samsungTvs: SamsungTvs by lazy { SamsungModule.samsungTvs(this) }
+    val samsungTvs: SamsungTvs by lazy { VariantSamsungTvsFactory.create(this) }
 
     val permissionGate: PermissionGate by lazy {
         LocalNetworkPermissionGate(

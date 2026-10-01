@@ -7,7 +7,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Generates the committed profile from AppT's real onboarding-to-Remote journey. */
+/** Generates the committed profile from the deterministic benchmark-only onboarding-to-Remote journey. */
 @RunWith(AndroidJUnit4::class)
 class RemoteBaselineProfileGenerator {
     @get:Rule val baselineProfileRule = BaselineProfileRule()

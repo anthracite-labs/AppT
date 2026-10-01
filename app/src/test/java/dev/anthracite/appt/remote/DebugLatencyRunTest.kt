@@ -63,6 +63,40 @@ class DebugLatencyRunTest {
         assertEquals(50.0, report?.p95Millis ?: -1.0, 0.0)
         assertTrue(report?.p50Pass == false)
         assertNull(run.report("short-sha", "Pixel 7a", "16", 36))
+
+        val clipboard = requireNotNull(report).clipboardText()
+        assertTrue(clipboard.contains("Candidate SHA: ${"a".repeat(40)}"))
+        assertTrue(clipboard.contains("Phone model: Pixel 7a"))
+        assertTrue(clipboard.contains("Android version / API: 16 / 36"))
+        assertTrue(clipboard.contains("Run count: 5"))
+        assertTrue(clipboard.contains("callback immediately before dispatch"))
+        assertTrue(clipboard.contains("session.command return after local socket write"))
+        assertTrue(clipboard.contains("p50 <= 20 ms: FAIL"))
+        listOf("TV ID", "address:", "secret", "account", "payload").forEach { forbidden ->
+            assertFalse(clipboard.contains(forbidden, ignoreCase = true))
+        }
+    }
+
+    @Test
+    fun reportBoundsDeviceMetadataAndPassesAtTheInclusiveTwentyMillisecondLimit() {
+        fun reportFor(sampleMillis: Double, phoneModel: String, androidVersion: String): DebugLatencyReport {
+            val run = DebugLatencyRun()
+            repeat(DebugLatencyRun.REQUIRED_MEASUREMENTS) {
+                assertTrue(run.recordWarmup(CommandResult.Accepted))
+                assertTrue(run.recordMeasurement(CommandResult.Accepted, sampleMillis))
+            }
+            return requireNotNull(
+                run.report("b".repeat(40), phoneModel, androidVersion, apiLevel = 35)
+            )
+        }
+
+        val pass = reportFor(20.0, "P".repeat(100), "A".repeat(50))
+        val fail = reportFor(20.001, "Pixel", "16")
+
+        assertTrue(pass.p50Pass)
+        assertFalse(fail.p50Pass)
+        assertEquals(80, pass.phoneModel.length)
+        assertEquals(32, pass.androidVersion.length)
     }
 
     @Test

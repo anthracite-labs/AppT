@@ -10,10 +10,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Physical-phone command measurement for Issue #117. The trace starts at the Compose command
- * callback and ends when Samsung's command call returns after the local socket write; TV response
- * and visible action are outside this measurement. Each measured tap is preceded by an unmeasured
- * warm-up tap on the same Ready session.
+ * Hosted command-path smoke measurement for Issue #117. The benchmark-only target uses an accepted
+ * fake Ready Samsung session, so this proves the on-device macrobenchmark/trace harness executes;
+ * it is not physical-latency evidence. The real-phone p50 requirement is measured only by the
+ * debug-only verifier. Each hosted tap is preceded by an unmeasured warm-up on the same fake session.
  */
 @OptIn(ExperimentalMetricApi::class)
 @RunWith(AndroidJUnit4::class)

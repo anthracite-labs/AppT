@@ -179,8 +179,12 @@ tasks.register("androidStatic") {
 tasks.register("androidBuild") {
     group = "verification"
     description =
-        "Android build: debug assembly (which runs the merged-manifest guards) and macrobenchmark compilation."
-    dependsOn(":app:assembleDebug", ":macrobenchmark:assembleBenchmark")
+        "Android build: debug APK assembly, release S05 exclusion/profile-packaging guard, and macrobenchmark compilation."
+    dependsOn(
+        ":app:assembleDebug",
+        ":app:verifyReleaseS05Boundaries",
+        ":macrobenchmark:assembleBenchmark",
+    )
 }
 
 // Samsung unit tests are authoritative verification evidence, not diagnostics:

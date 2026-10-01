@@ -28,8 +28,8 @@
  * The commands below were verified against the pinned toolchain before being
  * committed: the Gradle task paths are the ones `build.gradle.kts` declares for
  * each failure domain, the npm script names are the ones
- * `backend/package.json` declares, and the device task is the Gradle Managed
- * Device `pixel2api29` configured in `app/build.gradle.kts`.
+ * `backend/package.json` declares, and the device tasks use the Gradle Managed
+ * Device `pixel2api29` configured in the app and macrobenchmark modules.
  *
  * Deliberately zero dependencies: its provenance is the repository itself.
  *
@@ -90,6 +90,7 @@ export const ANDROID_STATIC_SUBCHECKS = Object.freeze({
  */
 export const ANDROID_BUILD_SUBTARGETS = Object.freeze({
   app: [':app:assembleDebug'],
+  'release-guard': [':app:verifyReleaseS05Boundaries'],
   macrobenchmark: [':macrobenchmark:assembleBenchmark'],
 });
 
@@ -377,12 +378,18 @@ export function resolveFocus({ mode, focus } = {}) {
       // Both modules' instrumented suites run on the pinned device: :app's acceptance
       // suite and :samsung's Android-runtime contracts (Issue #91: regexes the JVM
       // accepts but Android's engine rejects must fail on the device route).
-      command = [
-        ...GRADLE_DEVICE,
+      const instrumentationTasks = [
         ':app:pixel2api29DebugAndroidTest',
         ':samsung:pixel2api29DebugAndroidTest',
         ':samsung:pixel2api35DebugAndroidTest',
       ];
+      command = [...GRADLE_DEVICE, ...instrumentationTasks];
+      if (normalized === '') {
+        // The full trusted-device route also generates the AndroidX profile and runs
+        // MacrobenchmarkRule through the hosted Pixel 2 GMD. Focused instrumentation
+        // requests intentionally remain a strict subset of the installed-app checks.
+        command.push(':app:generateReleaseBaselineProfile', ':macrobenchmark:connectedCheck');
+      }
       if (normalized !== '') {
         const { kind: target, value } = splitKind(
           normalized,

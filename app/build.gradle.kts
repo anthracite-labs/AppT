@@ -30,6 +30,17 @@ plugins {
     alias(libs.plugins.kover)
 }
 
+// The trusted hosted android-build route sets this from the dispatch-target assertion output.
+// Local builds use an explicit sentinel; the physical verifier refuses to produce a report without
+// a full source SHA.
+val apptBuildSha =
+    providers.environmentVariable("APPT_BUILD_SHA")
+        .orElse(providers.gradleProperty("apptBuildSha"))
+        .getOrElse("local")
+require(apptBuildSha == "local" || apptBuildSha.matches(Regex("[0-9a-f]{40}"))) {
+    "APPT_BUILD_SHA must be a full lowercase 40-character Git SHA or unset for a local build."
+}
+
 android {
     namespace = "dev.anthracite.appt"
     // compileSdk tracks the toolchain (Issue #54): the current AndroidX and
@@ -46,6 +57,7 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "APPT_BUILD_SHA", "\"$apptBuildSha\"")
     }
 
     buildTypes {
@@ -56,9 +68,8 @@ android {
 
     buildFeatures {
         compose = true
-        // No BuildConfig fields are needed and none are generated, so no
-        // environment identifier can leak into a build in this slice.
-        buildConfig = false
+        // The debug-only physical verifier shows the exact SHA injected by the trusted build route.
+        buildConfig = true
     }
 
     compileOptions {
@@ -121,6 +132,18 @@ android {
     }
 }
 
+// AndroidX creates these non-distributable profile build types for the existing profile producer.
+// Their inherited release binding is excluded so the benchmark-only fake binding is the sole factory
+// implementation there. Neither the fake nor its binding is present in stock debug or release.
+android.sourceSets.maybeCreate("benchmarkRelease").java.apply {
+    srcDir("src/benchmarkHarness/java")
+    exclude("**/VariantBindings.kt")
+}
+android.sourceSets.maybeCreate("nonMinifiedRelease").java.apply {
+    srcDir("src/benchmarkHarness/java")
+    exclude("**/VariantBindings.kt")
+}
+
 // Project-level Kotlin configuration. `jvmTarget` must match the Java
 // `compileOptions` above, or AGP fails the build on mismatched bytecode.
 kotlin {
@@ -154,6 +177,8 @@ ksp {
 baselineProfile {
     // Retain the generated variant profile in source so it can be reviewed and committed.
     saveInSrc = true
+    // Only the explicit trusted device diagnostic may reach the profile-producing GMD.
+    automaticGenerationDuringBuild = false
 }
 
 // ---------------------------------------------------------------------------
@@ -375,6 +400,104 @@ tasks.register("manifestPermissionAllowlist") {
     description =
         "Fails if any merged manifest declares a permission outside the release.md allowlist."
     dependsOn(tasks.withType<MergedManifestGuard>())
+}
+
+// This release-artifact guard proves the engineering verifier and benchmark fake do not leak into
+// the distributable variant. Once a generated profile is committed, it also proves release APK
+// packaging consumes that exact AndroidX profile source.
+tasks.register("verifyReleaseS05Boundaries") {
+    group = "verification"
+    description =
+        "Checks the release APK excludes debug S05 verification/benchmark code and packages a committed Baseline Profile when present."
+    dependsOn("assembleRelease")
+    doLast {
+        val forbiddenMarkers =
+            listOf(
+                "DebugS05VerifierAction",
+                "DebugS05VerifierCommand",
+                "DebugS05VerifierDialog",
+                "DebugLatencyRun",
+                "DebugLatencyReport",
+                "DebugMeasuredCommand",
+                "DebugS05VerifierActivity",
+                "s05:physical-verifier",
+                "S05 physical verification",
+                "S05 physical verifier",
+                "Start verification",
+                "Warm-up Volume Up",
+                "Measure Volume Up",
+                "Unmeasured warm-up",
+                "Measured interactions:",
+                "Copy verification result",
+                "BenchmarkReadySamsungTvs",
+            )
+        val distributableSources = listOf(file("src/main"), file("src/release"))
+        val sourceLeaks =
+            distributableSources
+                .filter { it.exists() }
+                .flatMap { sourceRoot -> sourceRoot.walkTopDown().filter { it.isFile }.toList() }
+                .flatMap { source ->
+                    val contents = source.readText()
+                    forbiddenMarkers.filter { marker -> marker in contents }.map { marker ->
+                        "${source.relativeTo(projectDir)} contains '$marker'"
+                    }
+                }
+        if (sourceLeaks.isNotEmpty()) {
+            throw GradleException(
+                "Release source graph contains debug verifier or benchmark-only material:\n" +
+                    sourceLeaks.joinToString("\n")
+            )
+        }
+
+        val apkDirectory = layout.buildDirectory.dir("outputs/apk/release").get().asFile
+        val releaseApks = apkDirectory.listFiles { candidate -> candidate.extension == "apk" }.orEmpty()
+        if (releaseApks.isEmpty()) {
+            throw GradleException("No release APK found under ${apkDirectory.relativeTo(projectDir)}.")
+        }
+        releaseApks.forEach { apk ->
+            java.util.zip.ZipFile(apk).use { archive ->
+                val inspectedEntries =
+                    archive.entries().asSequence().filter { entry ->
+                        !entry.isDirectory &&
+                            (entry.name == "AndroidManifest.xml" ||
+                                entry.name == "resources.arsc" ||
+                                (entry.name.startsWith("classes") && entry.name.endsWith(".dex")))
+                    }
+                inspectedEntries.forEach { entry ->
+                    val contents =
+                        archive.getInputStream(entry).use { it.readBytes().toString(Charsets.ISO_8859_1) }
+                    val leakedMarkers = forbiddenMarkers.filter { marker -> marker in contents }
+                    if (leakedMarkers.isNotEmpty()) {
+                        throw GradleException(
+                            "${apk.name}:${entry.name} contains debug-only S05 material: " +
+                                leakedMarkers.joinToString(", ")
+                        )
+                    }
+                }
+
+                val committedProfile = file("src/release/generated/baselineProfiles/baseline-prof.txt")
+                if (committedProfile.exists()) {
+                    if (committedProfile.length() == 0L) {
+                        throw GradleException("The committed Baseline Profile is empty.")
+                    }
+                    val packagedProfile = archive.getEntry("assets/dexopt/baseline.prof")
+                    if (packagedProfile == null || packagedProfile.size <= 0L) {
+                        throw GradleException(
+                            "${apk.name} does not contain the AndroidX-consumed assets/dexopt/baseline.prof."
+                        )
+                    }
+                    logger.lifecycle("${apk.name}: verified committed Baseline Profile packaging.")
+                } else {
+                    logger.lifecycle(
+                        "${apk.name}: no generated profile is committed yet; profile consumption remains pending."
+                    )
+                }
+            }
+        }
+        logger.lifecycle(
+            "verifyReleaseS05Boundaries: OK — release source graph and APK exclude debug verifier and benchmark-only fake."
+        )
+    }
 }
 
 // ---------------------------------------------------------------------------

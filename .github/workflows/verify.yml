@@ -439,6 +439,8 @@ jobs:
           persist-credentials: false
 
       - name: Run Android build
+        env:
+          APPT_BUILD_SHA: ${{ steps.assert-target.outputs.sha || github.sha }}
         run: |
           set -o pipefail
           ./gradlew --no-daemon --dependency-verification=strict --continue androidBuild 2>&1 | tee /tmp/build.log || {

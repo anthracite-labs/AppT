@@ -8,6 +8,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -20,6 +21,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.anthracite.appt.AppSettingsLauncher
 import dev.anthracite.appt.MainActivity
+import dev.anthracite.appt.VariantRemoteAccessory
+import dev.anthracite.appt.VariantRemoteCommand
 import dev.anthracite.appt.data.TvProfiles
 import dev.anthracite.appt.diagnostics.LocalDiagnostics
 import dev.anthracite.appt.discovery.DiscoveryScreen
@@ -289,6 +292,9 @@ private fun RemoteDestination(
         RemoteViewModel(TvId(tvId), activeRemoteHost, tvProfiles, preferenceStore, diagnostics)
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val active by activeRemoteHost.current.collectAsStateWithLifecycle()
+    val commandScope = rememberCoroutineScope()
+    val activeTvId = TvId(tvId)
     val activity = LocalActivity.current as? MainActivity
     LifecycleStartEffect(viewModel, activity) {
         val handler: (KeyEvent) -> Boolean = { event ->
@@ -312,11 +318,25 @@ private fun RemoteDestination(
     }
     RemoteScreen(
         state = state,
-        onCommand = viewModel::onCommand,
+        onCommand = { command ->
+            VariantRemoteCommand(
+                command = command,
+                host = activeRemoteHost,
+                tvId = activeTvId,
+                scope = commandScope,
+                fallback = viewModel::onCommand,
+            )
+        },
         onRetry = viewModel::onRetry,
         onConfirmRepair = viewModel::onConfirmRepair,
         onOpenSettings = onOpenSettings,
         onToggleNavigationMode = viewModel::onToggleNavigationMode,
+        readyAccessory = {
+            VariantRemoteAccessory(
+                active?.takeIf { it.tvId == TvId(tvId) },
+                activeRemoteHost,
+            )
+        },
     )
 }
 

@@ -69,6 +69,8 @@ const UNFOCUSED_COMMANDS = {
     ':app:pixel2api29DebugAndroidTest',
     ':samsung:pixel2api29DebugAndroidTest',
     ':samsung:pixel2api35DebugAndroidTest',
+    ':app:generateReleaseBaselineProfile',
+    ':macrobenchmark:connectedCheck',
   ],
 };
 
@@ -108,8 +110,18 @@ const OWNED_GRADLE_TASKS = {
     'appTGuards',
     'dependencyLockCheck',
   ],
-  'android-build': [':app:assembleDebug', ':macrobenchmark:assembleBenchmark'],
-  device: [':app:pixel2api29DebugAndroidTest', ':samsung:pixel2api29DebugAndroidTest', ':samsung:pixel2api35DebugAndroidTest'],
+  'android-build': [
+    ':app:assembleDebug',
+    ':app:verifyReleaseS05Boundaries',
+    ':macrobenchmark:assembleBenchmark',
+  ],
+  device: [
+    ':app:pixel2api29DebugAndroidTest',
+    ':samsung:pixel2api29DebugAndroidTest',
+    ':samsung:pixel2api35DebugAndroidTest',
+    ':app:generateReleaseBaselineProfile',
+    ':macrobenchmark:connectedCheck',
+  ],
 };
 
 const OWNED_NPM_SCRIPTS = {

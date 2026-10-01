@@ -64,6 +64,7 @@ fun RemoteScreen(
     onOpenSettings: () -> Unit = {},
     onToggleNavigationMode: () -> Unit = {},
     onHapticFeedback: () -> Unit = {},
+    readyAccessory: @Composable () -> Unit = {},
 ) {
     val view = LocalView.current
     val haptic: () -> Unit = {
@@ -85,6 +86,9 @@ fun RemoteScreen(
             ) {
                 RemoteHeader(
                     state = state,
+                    readyAccessory = {
+                        if (state.connection == ConnectionUi.Ready) readyAccessory()
+                    },
                     onOpenSettings = {
                         haptic()
                         onOpenSettings()
@@ -125,7 +129,12 @@ fun RemoteScreen(
 }
 
 @Composable
-private fun RemoteHeader(state: RemoteUiState, onOpenSettings: () -> Unit, onPower: () -> Unit) {
+private fun RemoteHeader(
+    state: RemoteUiState,
+    readyAccessory: @Composable () -> Unit,
+    onOpenSettings: () -> Unit,
+    onPower: () -> Unit,
+) {
     val statusText = state.connection.statusText()
     val statusGlyph = state.connection.statusGlyph()
     Column(verticalArrangement = Arrangement.spacedBy(SpaceTokens.xs)) {
@@ -182,6 +191,7 @@ private fun RemoteHeader(state: RemoteUiState, onOpenSettings: () -> Unit, onPow
                 }
             }
         }
+        readyAccessory()
     }
 }
 

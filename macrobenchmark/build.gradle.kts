@@ -29,6 +29,18 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    testOptions {
+        managedDevices {
+            localDevices {
+                create("pixel2api29") {
+                    device = "Pixel 2"
+                    apiLevel = 29
+                    systemImageSource = "aosp"
+                }
+            }
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -39,17 +51,21 @@ android {
     experimentalProperties["android.experimental.self-instrumenting"] = true
 
     buildTypes {
-        // S01 introduces no build variants in :app beyond AGP's stock
-        // debug/release and no signing identities (those are S07's), so the
-        // benchmark variant resolves :app's debug variant. Measuring a
-        // profileable non-debuggable build is a reliability concern that lands
-        // with the harness in S15, not a skeleton concern.
+        // The Baseline Profile consumer plugin creates :app's profileable
+        // benchmarkRelease build type. Prefer it over stock debug so the hosted
+        // macrobenchmark runs the deterministic fake variant rather than the real adapter.
         create("benchmark") {
             isDebuggable = true
             signingConfig = signingConfigs.getByName("debug")
-            matchingFallbacks += listOf("debug")
+            matchingFallbacks += listOf("benchmarkRelease", "debug")
         }
     }
+}
+
+baselineProfile {
+    // The hosted GMD is the producer route for both profile generation and connectedCheck.
+    managedDevices += "pixel2api29"
+    useConnectedDevices = false
 }
 
 // Project-level Kotlin configuration. `jvmTarget` must match the Java
@@ -76,6 +92,12 @@ androidComponents {
         // into a debug or release pipeline.
         it.enable = it.buildType == "benchmark"
     }
+}
+
+// Keep the contract's connectedCheck entry point on the existing GMD execution route: the aggregate
+// includes the device task that runs macrobenchmarks against the deterministic benchmark target.
+tasks.matching { it.name == "connectedCheck" }.configureEach {
+    dependsOn("pixel2api29BenchmarkAndroidTest")
 }
 
 // Issue #54 — narrow security constraints (never resolutionStrategy.force),
