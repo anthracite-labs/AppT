@@ -37,6 +37,7 @@ Success means S05 makes the accepted phone-native Remote, Settings, accessibilit
 - S05 is the next authorized implementation slice.
 - S05 is currently active under Issue #117. Contract Revision 4 is the current accepted contract revision; bounded corrections continue on PR #118 until all required hosted/profile and physical-verifier closeout evidence is complete.
 - Trusted exact-head Gradle dependency-state regeneration is accepted through PR #129 as the permanent `ci:dependency-state` diagnostic route. It may regenerate only the known Gradle lockfiles under strict verification and never writes the target branch.
+- Trusted hosted device diagnostics enable KVM before GMD execution and serialize managed-device provisioning/execution so multiple AppT modules cannot race while mutating the shared Android SDK. The route adapts the Apache-2.0 Android `nowinandroid` / `performance-samples` GMD CI pattern while preserving AppT's exact-head assertion, read-only target execution, bounded artifacts, and existing device coverage.
 - S07 may be dependency-ready but is not active or authorized.
 - Provider facts marked `needs validation` must be confirmed when they first become implementation-relevant. Material external/protocol claims also carry explicit authority/implementation-evidence/AppT-decision provenance in their owning architecture documents.
 - Final AppT source-license selection and focused Samsung vendor-terms/legal review remain pre-public-release gates.
@@ -44,7 +45,7 @@ Success means S05 makes the accepted phone-native Remote, Settings, accessibilit
 
 ## Durable Blockers
 
-None at the project/contract level.
+None at the project/contract level. S05 closeout still depends on successful hosted baseline-profile / macrobenchmark execution and final exact-head physical verifier evidence; those are acceptance gates, not a contract exception.
 
 ## Latest Accepted Milestone
 
@@ -52,7 +53,7 @@ S04 — Saved pairing, fail-closed identity, and the safe forget primitive — a
 
 ## Next Authorized Action
 
-Continue Issue #117 / PR #118 on the existing Arena branch. Complete the currently bounded dependency-state correction using the accepted Wire 6.4.7 constraint and the repository-owned `ci:dependency-state` route for generated lockfiles, then resume the remaining Revision 4 hosted profile/device verification and physical-verifier closeout. Keep PR #118 Draft / NOT VERIFIED until the full active contract is satisfied and human acceptance is given.
+Continue Issue #117 / PR #118 on the existing Arena branch. Rerun exact-head `ci:device` using the trusted serialized-GMD route. If it succeeds, consume only the bounded generated baseline-profile handoff, commit that generated profile on PR #118, prove clean regeneration and hosted `:macrobenchmark:connectedCheck` on the resulting profile-bearing candidate, then complete exact-head terminal verification, debug APK production, and the final physical verifier rerun. Keep PR #118 Draft / NOT VERIFIED until the full active contract is satisfied and human acceptance is given.
 
 ## Authoritative References
 
