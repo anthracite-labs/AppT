@@ -1,4 +1,4 @@
-# TEMPORARY, authorized by Issue #117 comments 5941941531 and 5942027335.
+# TEMPORARY, authorized by Issue #117 comments 5941941531, 5942027335, and 5942134313.
 # Exact-branch push only; remove after reviewing and committing the bounded artifact.
 # It exists only to generate dependency state unavailable in the Arena sandbox.
 name: temporary-dependency-state
@@ -47,9 +47,48 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Remove only the app lockfile in the ephemeral workspace
+        run: |
+          set -euo pipefail
+          test -f app/gradle.lockfile
+          rm -- app/gradle.lockfile
+          test ! -e app/gradle.lockfile
+
       - name: Regenerate Gradle dependency locks
         id: locks
         run: ./gradlew resolveAndLockAll --write-locks
+
+      - name: Emit bounded app lockfile log fallback
+        if: always()
+        env:
+          LOCKS_OUTCOME: ${{ steps.locks.outcome }}
+        run: |
+          set -euo pipefail
+          lock_file=app/gradle.lockfile
+          if [ "$LOCKS_OUTCOME" != 'success' ] || [ ! -f "$lock_file" ]; then
+            echo 'App lockfile fallback unavailable because lock regeneration did not complete.'
+            exit 0
+          fi
+
+          byte_count="$(wc -c < "$lock_file" | tr -d '[:space:]')"
+          if [ "$byte_count" -gt 2097152 ]; then
+            echo "::error::App lockfile exceeds the 2 MiB fallback bound (${byte_count} bytes)."
+            exit 1
+          fi
+
+          sha256="$(sha256sum "$lock_file" | cut -d ' ' -f 1)"
+          payload="$(gzip -9 -n -c "$lock_file" | base64 -w 0)"
+          payload_chars="${#payload}"
+          if [ "$payload_chars" -gt 65536 ]; then
+            echo "::error::Compressed app lockfile exceeds the 64 KiB encoded fallback bound (${payload_chars} characters)."
+            exit 1
+          fi
+
+          printf '%s\n' '=== APPT_APP_GRADLE_LOCKFILE_GZIP_BASE64_BEGIN ==='
+          printf 'sha256=%s\n' "$sha256"
+          printf 'bytes=%s\n' "$byte_count"
+          printf '%s\n' "$payload" | fold -w 76
+          printf '%s\n' '=== APPT_APP_GRADLE_LOCKFILE_GZIP_BASE64_END ==='
 
       - name: Regenerate strict verification metadata
         id: metadata
@@ -70,12 +109,14 @@ jobs:
 
           mapfile -t candidates < <(
             {
-              git diff --name-only
+              git diff --name-only --diff-filter=AMRT
               git ls-files --others --exclude-standard
             } | sort -u | while IFS= read -r path; do
               case "$path" in
-                gradle/verification-metadata.xml|gradle.lockfile|*/gradle.lockfile|*.gradle.lockfile)
-                  printf '%s\n' "$path"
+                app/gradle.lockfile|gradle/verification-metadata.xml)
+                  if [ -f "$path" ]; then
+                    printf '%s\n' "$path"
+                  fi
                   ;;
               esac
             done

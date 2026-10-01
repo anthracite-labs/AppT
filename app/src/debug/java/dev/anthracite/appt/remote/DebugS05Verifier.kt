@@ -18,7 +18,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -44,7 +43,8 @@ internal fun DebugS05VerifierAction(snapshot: ActiveRemoteSnapshot?, host: Activ
                 it.snapshot.state == SessionState.Ready &&
                 RemoteKey.VolumeUp in it.snapshot.capabilities.keys
         } ?: return
-    val controller = remember(ready.session) { DebugS05ControllerRegistry.controllerFor(ready.session) }
+    val controller =
+        remember(ready.session) { DebugS05ControllerRegistry.controllerFor(ready.session) }
     val context = LocalContext.current
     val hasExactBuildSha = BuildConfig.APPT_BUILD_SHA.matches(Regex("[0-9a-f]{40}"))
 
@@ -59,7 +59,10 @@ internal fun DebugS05VerifierAction(snapshot: ActiveRemoteSnapshot?, host: Activ
                     Text("Uses the active Ready session and the normal Volume up control below.")
                     OutlinedButton(onClick = controller::start) { Text("Start verification") }
                 } else {
-                    Text("Exact build SHA unavailable. Install the exact-head hosted debug APK to report evidence.")
+                    Text(
+                        "Exact build SHA unavailable. Install the exact-head hosted debug APK " +
+                            "to report evidence."
+                    )
                 }
             }
             DebugS05Phase.AwaitingWarmup ->
@@ -72,7 +75,10 @@ internal fun DebugS05VerifierAction(snapshot: ActiveRemoteSnapshot?, host: Activ
             DebugS05Phase.BusyWarmup -> Text("Unmeasured warm-up in progress.")
             DebugS05Phase.BusyMeasurement -> Text("Measured Volume up interaction in progress.")
             DebugS05Phase.Failed -> {
-                Text("${controller.sampleCount} of five successful measurements. No report was produced.")
+                Text(
+                    "${controller.sampleCount} of five successful measurements. " +
+                        "No report was produced."
+                )
                 OutlinedButton(onClick = controller::restart) { Text("Restart verification") }
             }
             DebugS05Phase.Complete -> {
@@ -80,7 +86,10 @@ internal fun DebugS05VerifierAction(snapshot: ActiveRemoteSnapshot?, host: Activ
                 if (report == null) {
                     Text("The bounded result could not be formed. No report is available.")
                 } else {
-                    Text("Five interactions complete. p50 ${report.p50Millis} ms — ${if (report.p50Pass) "PASS" else "FAIL"}.")
+                    Text(
+                        "Five interactions complete. p50 ${report.p50Millis} ms — " +
+                            "${if (report.p50Pass) "PASS" else "FAIL"}."
+                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
                             onClick = { copyReport(context, report) },
@@ -99,13 +108,19 @@ internal fun DebugS05VerifierAction(snapshot: ActiveRemoteSnapshot?, host: Activ
             controller.phase != DebugS05Phase.Complete &&
             controller.phase != DebugS05Phase.Failed
         ) {
-            Text("Measured interactions: ${controller.sampleCount} of ${DebugLatencyRun.REQUIRED_MEASUREMENTS}")
+            Text(
+                "Measured interactions: ${controller.sampleCount} of " +
+                    DebugLatencyRun.REQUIRED_MEASUREMENTS
+            )
             Text("TV acknowledgement and visible action are outside the measurement.")
         }
     }
 }
 
-/** Debug variant intercepts only an armed on-screen Volume up click; all other commands stay normal. */
+/**
+ * Debug variant intercepts only an armed on-screen Volume up click; all other commands stay
+ * normal.
+ */
 internal fun DebugS05VerifierCommand(
     command: TvCommand,
     host: ActiveRemoteHost,
@@ -228,7 +243,8 @@ private class DebugS05Controller {
                                         apiLevel = Build.VERSION.SDK_INT,
                                     )
                                 phase =
-                                    if (report == null) DebugS05Phase.Failed else DebugS05Phase.Complete
+                                    if (report == null) DebugS05Phase.Failed
+                                    else DebugS05Phase.Complete
                             } else {
                                 phase = DebugS05Phase.AwaitingWarmup
                             }
@@ -241,7 +257,11 @@ private class DebugS05Controller {
         }
     }
 
-    private fun sameReadySession(host: ActiveRemoteHost, tvId: TvId, session: RemoteSession): Boolean {
+    private fun sameReadySession(
+        host: ActiveRemoteHost,
+        tvId: TvId,
+        session: RemoteSession,
+    ): Boolean {
         val current = host.current.value ?: return false
         val snapshot = session.snapshot.value
         return current.tvId == tvId &&

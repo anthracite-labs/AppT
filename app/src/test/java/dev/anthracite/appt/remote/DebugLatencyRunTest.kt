@@ -23,7 +23,10 @@ class DebugLatencyRunTest {
         assertFalse(run.recordMeasurement(accepted, 1.0))
 
         repeat(DebugLatencyRun.REQUIRED_MEASUREMENTS) { index ->
-            assertTrue("warm-up $index should unlock exactly one sample", run.recordWarmup(accepted))
+            assertTrue(
+                "warm-up $index should unlock exactly one sample",
+                run.recordWarmup(accepted),
+            )
             assertTrue(run.canMeasure)
             assertTrue(run.recordMeasurement(accepted, (index + 1).toDouble()))
             assertFalse("warm-up must be repeated before the next sample", run.canMeasure)
@@ -80,7 +83,11 @@ class DebugLatencyRunTest {
 
     @Test
     fun reportBoundsDeviceMetadataAndPassesAtTheInclusiveTwentyMillisecondLimit() {
-        fun reportFor(sampleMillis: Double, phoneModel: String, androidVersion: String): DebugLatencyReport {
+        fun reportFor(
+            sampleMillis: Double,
+            phoneModel: String,
+            androidVersion: String,
+        ): DebugLatencyReport {
             val run = DebugLatencyRun()
             repeat(DebugLatencyRun.REQUIRED_MEASUREMENTS) {
                 assertTrue(run.recordWarmup(CommandResult.Accepted))

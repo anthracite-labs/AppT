@@ -51,7 +51,13 @@ internal class DebugLatencyRun {
         if (samples.size != REQUIRED_MEASUREMENTS || !candidateSha.matches(SHA_PATTERN)) return null
         val boundedPhoneModel = phoneModel.singleLine(MAX_PHONE_MODEL_LENGTH)
         val boundedAndroidVersion = androidVersion.singleLine(MAX_ANDROID_VERSION_LENGTH)
-        if (boundedPhoneModel.isBlank() || boundedAndroidVersion.isBlank() || apiLevel <= 0) return null
+        if (
+            boundedPhoneModel.isBlank() ||
+                boundedAndroidVersion.isBlank() ||
+                apiLevel <= 0
+        ) {
+            return null
+        }
 
         val sorted = samples.sorted()
         return DebugLatencyReport(
@@ -100,12 +106,16 @@ internal data class DebugLatencyReport(
             appendLine("Phone model: $phoneModel")
             appendLine("Android version / API: $androidVersion / $apiLevel")
             appendLine("Run count: $runCount")
-            appendLine("Latency samples (ms): ${samplesMillis.joinToString(", ", transform = ::formatMillis)}")
+            appendLine(
+                "Latency samples (ms): " +
+                    samplesMillis.joinToString(", ", transform = ::formatMillis)
+            )
             appendLine("p50 (nearest rank, ms): ${formatMillis(p50Millis)}")
             appendLine("p95 (nearest rank, ms): ${formatMillis(p95Millis)}")
             appendLine(
                 "Measurement: local UI command callback immediately before dispatch to " +
-                    "session.command return after local socket write; TV acknowledgement and visible action excluded."
+                    "session.command return after local socket write; TV acknowledgement and " +
+                    "visible action excluded."
             )
             append("p50 <= 20 ms: ${if (p50Pass) "PASS" else "FAIL"}")
         }
@@ -117,7 +127,10 @@ internal data class DebugLatencyReport(
     }
 }
 
-/** Starts the clock synchronously in the click callback and ends it immediately after command return. */
+/**
+ * Starts the clock synchronously in the click callback and ends it immediately after command
+ * return.
+ */
 internal class DebugMeasuredCommand(private val nowNanos: () -> Long) {
     fun dispatch(
         scope: CoroutineScope,
