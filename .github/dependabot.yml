@@ -3,8 +3,6 @@
 # Purpose and limits (Issue #36, Issue #56): this produces *reviewed pull requests*.
 # It does not replace, and must not be read as replacing, any of the existing controls:
 #
-#   * committed Gradle lockfiles, refreshed only through
-#     `./gradlew resolveAndLockAll --write-locks` as a reviewed change;
 #   * gradle/verification-metadata.xml under --dependency-verification=strict;
 #   * the committed Gradle wrapper with its pinned distributionSha256Sum;
 #   * backend/package-lock.json with `npm ci` as the only install;
@@ -74,29 +72,19 @@ updates:
 
     # REVIEWER NOTE — required follow-up for every Gradle bump in this repo.
     #
-    # Dependabot proposes the version bump in gradle/libs.versions.toml. Do not
-    # assume it keeps anything else in step automatically. It CANNOT write
-    # gradle/verification-metadata.xml at all, and its Gradle lockfile support
-    # has a documented limitation where gradle.lockfile is not updated when a
-    # Gradle version catalog is in use (dependabot-core#12557; later work in
-    # dependabot-core#14879 may have narrowed that gap — confirm on the first
-    # Dependabot Gradle pull request rather than trusting it either way). AppT
-    # is exactly that catalog-driven setup, so the manual regeneration below is
-    # the authoritative process for BOTH the *.gradle.lockfile files and the
-    # verification metadata.
+    # Dependabot proposes the version bump in gradle/libs.versions.toml. It
+    # CANNOT write gradle/verification-metadata.xml, and CI resolves under
+    # --dependency-verification=strict, so a Dependabot Gradle pull request
+    # fails closed until the regenerated verification metadata is committed.
+    # That is the intended fail-closed behaviour, not a flake. Before merging,
+    # run the documented regeneration (docs/BUILD.md):
     #
-    # Because CI resolves under --dependency-verification=strict and runs
-    # dependencyLockCheck, a Dependabot Gradle pull request fails closed until
-    # the regenerated artifacts are committed. That is the intended fail-closed
-    # behaviour, not a flake. Before merging, run the documented regeneration
-    # (docs/BUILD.md, gradle/verification-metadata.template.xml):
+    #   ./gradlew --no-daemon --write-verification-metadata sha256 ciCheck
     #
-    #   ./gradlew --no-daemon --write-verification-metadata sha256 \
-    #     ciCheck
-    #   ./gradlew resolveAndLockAll --write-locks
-    #
-    # Then review the generated <components> diff exactly as you would review a
-    # lockfile, and commit the regenerated artifacts to the Dependabot branch.
+    # Then review the generated <components> diff and commit the regenerated
+    # gradle/verification-metadata.xml to the Dependabot branch. Dependency
+    # locking was retired (exact version catalog + strict verification own
+    # integrity), so there are no lockfiles to refresh.
 
   # ---------------------------------------------------------------------------
   # Backend npm package. All dependency updates must go through this directory,

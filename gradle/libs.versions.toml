@@ -69,8 +69,6 @@ robolectric = "4.17"
 detekt = "1.23.8"
 # Spotless deterministic Kotlin formatting (Spotless + ktfmt) (Issue #56).
 spotless = "7.0.2"
-# Kover coverage report generation and verification floor (Issue #56).
-kover = "0.9.5"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
@@ -123,5 +121,4 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
-kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
 
