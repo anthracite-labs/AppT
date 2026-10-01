@@ -1,11 +1,13 @@
-# TEMPORARY, authorized by Issue #117 comment 5941941531.
-# Remove this workflow after reviewing and committing its bounded artifact.
+# TEMPORARY, authorized by Issue #117 comments 5941941531 and 5942027335.
+# Exact-branch push only; remove after reviewing and committing the bounded artifact.
 # It exists only to generate dependency state unavailable in the Arena sandbox.
 name: temporary-dependency-state
 run-name: Temporary dependency-state regeneration for ${{ github.sha }}
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - arena/01a0f304-appt
 
 permissions:
   contents: read
@@ -22,7 +24,16 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out the dispatched branch commit
+      - name: Assert the authorized branch-push event
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_NAME" = 'push'
+          test "$REF" = 'refs/heads/arena/01a0f304-appt'
+
+      - name: Check out the exact triggering commit
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
