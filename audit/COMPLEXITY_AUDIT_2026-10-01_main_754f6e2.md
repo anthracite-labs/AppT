@@ -91,37 +91,38 @@ Full mechanism-by-mechanism verdicts: Section J. Sequenced simplification option
 One PR touching a Samsung protocol file traverses: repo-policy check → repo-quality (6 linters) → android-format → android-static (detekt + Lint) → android-build → android-unit → backend-static + backend-test (for a backend the repo policy calls non-deployable) → changes detection → dependency-review (+ custom policy enforcer) → quality-platform (Sonar) → CodeQL (own workflow, 2 jobs) → gate aggregation → optional agent dispatch via agent-control bridge with exact-HEAD assertion → optional diagnose dispatch with focus grammar → release path described in docs but not exercised (no release exists yet). **~14 distinct check systems before merge**, before any device.
 
 ---
+
 ## C. Upstream Comparison (what the official guidance actually says)
 
 For each mechanism class: upstream position, then AppT's position relative to it. "AppT-beyond-upstream" means AppT does more than the official guidance asks; that is not automatically wrong, but it moves the justification burden onto AppT-specific risk.
 
 ### C.1 Dependency locking — *advanced, for dynamic versions*
 
-Gradle's user manual introduces locking as the remedy for non-determinism caused by dynamic versions: *"Dependency locking makes sense only with dynamic versions."* (Gradle User Manual, Dependency Locking — https://docs.gradle.org/current/userguide/dependency_locking.html ; identical statement in the historical doc https://docs.gradle.org/4.8/userguide/dependency_locking.html). The current manual's version-declaration guide marks locking with a 🔒 only "in situations where leveraging dependency locking is recommended", i.e. dynamic/range declarations (https://docs.gradle.org/current/userguide/dependency_versions.html).
+Gradle's user manual introduces locking as the remedy for non-determinism caused by dynamic versions: *"Dependency locking makes sense only with dynamic versions."* (Gradle User Manual, Dependency Locking — <https://docs.gradle.org/current/userguide/dependency_locking.html> ; identical statement in the historical doc <https://docs.gradle.org/4.8/userguide/dependency_locking.html>). The current manual's version-declaration guide marks locking with a 🔒 only "in situations where leveraging dependency locking is recommended", i.e. dynamic/range declarations (<https://docs.gradle.org/current/userguide/dependency_versions.html>).
 
 **AppT position — AppT-beyond-upstream:** AppT's version catalog pins *every* version exactly (enforced by the custom `versionCatalogPinned` guard), so there are no dynamic versions for locking to stabilize. What the 5 lockfiles (incl. `settings-gradle.lockfile`) actually provide at this point is a checked-in record of the resolved graph and a tripwire if a dependency's declared ranges resolve differently — a thin, churn-heavy residue of their original purpose.
 
 ### C.2 Dependency verification (checksums) — *supported, opt-in, security-hardening*
 
-Gradle ships verification as an explicit hardening feature ("Gradle 6.2 Release Notes", https://docs.gradle.org/6.2/release-notes.html ; user guide https://docs.gradle.org/current/userguide/dependency_verification.html): create `verification-metadata.xml`, all resolved artifacts are checked, SHA-256/512 are the only recommended algorithms, and the file is generated via `--write-verification-metadata`. The docs describe *how*, never *that you must*; it is an advanced, opt-in posture (the Gradle repo itself and Gradle's security guidance use it). It defends against artifact tampering/repository compromise that locking cannot see (locking checks coordinates, verification checks content).
+Gradle ships verification as an explicit hardening feature ("Gradle 6.2 Release Notes", <https://docs.gradle.org/6.2/release-notes.html> ; user guide <https://docs.gradle.org/current/userguide/dependency_verification.html>): create `verification-metadata.xml`, all resolved artifacts are checked, SHA-256/512 are the only recommended algorithms, and the file is generated via `--write-verification-metadata`. The docs describe *how*, never *that you must*; it is an advanced, opt-in posture (the Gradle repo itself and Gradle's security guidance use it). It defends against artifact tampering/repository compromise that locking cannot see (locking checks coordinates, verification checks content).
 
 **AppT position — AppT-beyond-upstream but defensible as the *primary* integrity layer:** strict verification of 686 components with a template and a regeneration workflow mode. Defensible *in itself*; the problem is that it is layered *on top of* locking rather than replacing it (see stack E.1).
 
 ### C.3 Pinning GitHub Actions to SHAs — *officially recommended*
 
-GitHub's secure-use reference: *"Pin actions to a full-length commit SHA … currently the only way to use an action as an immutable release"* (https://docs.github.com/en/actions/reference/security/secure-use).
+GitHub's secure-use reference: *"Pin actions to a full-length commit SHA … currently the only way to use an action as an immutable release"* (<https://docs.github.com/en/actions/reference/security/secure-use>).
 
 **AppT position — aligned:** 100% of `uses:` refs are full-SHA pinned, including Dependabot coverage for the `github-actions` ecosystem. This is exactly the recommended posture.
 
 ### C.4 Dependency review — *officially recommended PR check*
 
-"Dependency review lets you catch insecure dependencies before you introduce them" — GitHub recommends the dependency-review action on PRs and documents org-wide enforcement (https://docs.github.com/code-security/supply-chain-security/understanding-your-software-supply-chain/about-dependency-review).
+"Dependency review lets you catch insecure dependencies before you introduce them" — GitHub recommends the dependency-review action on PRs and documents org-wide enforcement (<https://docs.github.com/code-security/supply-chain-security/understanding-your-software-supply-chain/about-dependency-review>).
 
 **AppT position — aligned + AppT-beyond:** standard action present; additionally a custom `dependency-policy` enforcer re-checks policy rules (tools/ci). The platform action already fails on vulnerable packages and supports license/severity configuration; the custom layer needs a concrete policy it alone expresses to justify existing (Section I, item 6).
 
 ### C.5 CodeQL — *default setup is the recommended baseline*
 
-GitHub: default setup is *"the quickest, easiest, most low-maintenance way to enable code scanning"* and is recommended for eligible repositories; advanced setup exists for control over triggers, build modes, query suites (https://docs.github.com/en/code-security/concepts/code-scanning/setup-types ; https://docs.github.com/en/code-security/code-scanning/enabling-code-scanning/configuring-default-setup-for-code-scanning).
+GitHub: default setup is *"the quickest, easiest, most low-maintenance way to enable code scanning"* and is recommended for eligible repositories; advanced setup exists for control over triggers, build modes, query suites (<https://docs.github.com/en/code-security/concepts/code-scanning/setup-types> ; <https://docs.github.com/en/code-security/code-scanning/enabling-code-scanning/configuring-default-setup-for-code-scanning>).
 
 **AppT position — AppT-beyond:** advanced setup with a pinned CodeQL bundle, two split jobs (fast/Kotlin), scheduled + PR triggers. Justifiable only if default setup demonstrably fails for this build; the maintenance cost (bundle pinning, YAML upkeep, two jobs) is otherwise avoidable. Marked QUESTIONABLE with a concrete de-escalation path.
 
@@ -135,19 +136,19 @@ SonarQube/SonarCloud is commercial third-party tooling; no Android/Gradle/GitHub
 
 ### C.8 Secret scanning — *platform provides push protection*
 
-GitHub provides secret scanning with push protection as a platform feature (https://docs.github.com/en/code-security/secret-scanning). AppT additionally maintains a custom scanner (`tools/secret-scan`, 249+92 LOC). The custom scanner can encode repo-specific patterns and run in CI contexts the platform doesn't cover — but for a repo whose secrets are GitHub Actions secrets, push protection already blocks the dominant leak path. Largely **overlapping with the platform**; kept as QUESTIONABLE with a small footprint.
+GitHub provides secret scanning with push protection as a platform feature (<https://docs.github.com/en/code-security/secret-scanning>). AppT additionally maintains a custom scanner (`tools/secret-scan`, 249+92 LOC). The custom scanner can encode repo-specific patterns and run in CI contexts the platform doesn't cover — but for a repo whose secrets are GitHub Actions secrets, push protection already blocks the dominant leak path. Largely **overlapping with the platform**; kept as QUESTIONABLE with a small footprint.
 
 ### C.9 Android app architecture & module count — *no official mandate to modularize*
 
-The Android architecture guidance (https://developer.android.com/topic/architecture) prescribes layer separation and UI/state patterns, not module counts. Practitioner consensus (secondary: e.g. https://www.reddit.com/r/androiddev/comments/1b6h68o/ ; https://xcelore.com/blog/modular-architecture-in-android-why-it-matters/) consistently warns against over-modularization early; the reference app Google maintains (Now in Android) uses a modest module set. AppT's choice — `:app` + `:samsung` + (retired) `:macrobenchmark` — is *below* typical module counts and matches the "meaningful chunk" rule. **Aligned / proportionate.**
+The Android architecture guidance (<https://developer.android.com/topic/architecture>) prescribes layer separation and UI/state patterns, not module counts. Practitioner consensus (secondary: e.g. <https://www.reddit.com/r/androiddev/comments/1b6h68o/> ; <https://xcelore.com/blog/modular-architecture-in-android-why-it-matters/>) consistently warns against over-modularization early; the reference app Google maintains (Now in Android) uses a modest module set. AppT's choice — `:app` + `:samsung` + (retired) `:macrobenchmark` — is *below* typical module counts and matches the "meaningful chunk" rule. **Aligned / proportionate.**
 
 ### C.10 Testing strategy — *local-first pyramid*
 
-Official Android testing guidance recommends fast local (JVM/Robolectric) tests as the base, instrumentation for what needs a device (https://developer.android.com/agents/skills/testing/testing-setup/skill ; testing overview https://developer.android.com/training/testing). AppT: 8,962 LOC JVM/Robolectric unit tests vs 308 LOC androidTest — an aggressively local-first pyramid, well matched to guidance. **Aligned.**
+Official Android testing guidance recommends fast local (JVM/Robolectric) tests as the base, instrumentation for what needs a device (<https://developer.android.com/agents/skills/testing/testing-setup/skill> ; testing overview <https://developer.android.com/training/testing>). AppT: 8,962 LOC JVM/Robolectric unit tests vs 308 LOC androidTest — an aggressively local-first pyramid, well matched to guidance. **Aligned.**
 
 ### C.11 Managed devices / Baseline Profiles — *optional*
 
-AGP managed devices and Baseline Profiles are optional platform features (https://developer.android.com/studio/test/managed-devices ; https://developer.android.com/topic/performance/baselineprofiles/overview). AppT has retired hosted managed-device usage and macrobenchmarking (see companion inventory audit, O1–O8). No current overinvestment; the remnants are LEGACY COMPLEXITY already assigned to cleanup in PR #118 Batch 1.
+AGP managed devices and Baseline Profiles are optional platform features (<https://developer.android.com/studio/test/managed-devices> ; <https://developer.android.com/topic/performance/baselineprofiles/overview>). AppT has retired hosted managed-device usage and macrobenchmarking (see companion inventory audit, O1–O8). No current overinvestment; the remnants are LEGACY COMPLEXITY already assigned to cleanup in PR #118 Batch 1.
 
 ---
 
@@ -184,6 +185,7 @@ Method: `gh api repos/{owner}/{repo}/git/trees/{default_branch}?recursive=1` str
 - AppT's agent-driven development model has no counterpart in the sample — so where AppT exceeds every comparable, the excess is either (a) genuinely novel-and-necessary, or (b) disproportionate. Sections E–F adjudicate mechanism by mechanism instead of assuming either.
 
 ---
+
 ## E. Complexity Stacks (where layers overlap)
 
 Each stack lists its layers, which risks they actually cover, where they overlap, and the minimal valuable set.
@@ -242,6 +244,7 @@ Two genuinely different things live here and must not be conflated: **(a)** inst
 `samsungDependencyBoundary` · `samsungGraphExcludesFirebase` · `noFirestoreClientInApp` · `noSyncRecordInProductionSource` · `noLogInSamsungSource` · `noProductionModuleDependsOnBenchmark` · `manifestPermissionAllowlist` · `adIdAbsentFromManifest`. Eight small Gradle/source guards, each ~10–40 lines, each encoding a stated product invariant (privacy posture, vendor isolation, module hygiene). Cheap, specific, test-like. This is the *good* kind of custom machinery and mostly stays (Section G).
 
 ---
+
 ## F. Overengineering Findings
 
 Ordered by (confidence × maintenance cost). Each finding states the mechanism, why it looks disproportionate, and the strongest case *for* it — both sides are on the record.
@@ -323,6 +326,7 @@ Explicitly proportionate — defend these from future "simplification":
 12. **CodeQL itself** — keep scanning; only its *setup mode* is questioned (F.9).
 
 ---
+
 ## H. "Boring AppT" — the minimal conventional design
 
 What an experienced Android team optimizing for boring + maintainable + secure would actually build at this scale, with the same product requirements (Samsung protocol correctness, privacy posture, agent-assisted development):
@@ -348,27 +352,22 @@ What an experienced Android team optimizing for boring + maintainable + secure w
 
 Confidence: H = high, M = medium. None of these are executed by this audit.
 
-**Tier 0 — no-regret (documentation/legacy, already enumerated in inventory audit):**
-1. Ship PR #118 Batch 1: macrobenchmark remnants O1–O8, transitional codeql state. (H)
-2. Fix doc drift DR1–DR6 (retired `device` mode references, missing dependency-state docs). (H)
+Tiers: 0 = no-regret documentation/legacy (already enumerated in the inventory audit); 1 = low-risk deletions of redundant layers; 2 = consolidation; 3 = agent-platform right-sizing (biggest lever, needs usage data); 4 = keep (Section G).
 
-**Tier 1 — low-risk deletions of redundant layers:**
-3. **Retire dependency locking** (lockfiles ×5, `resolveAndLockAll`, `dependencyLockCheck`, lock discipline in dep updates). Keep strict verification-metadata as the single integrity layer; regenerate it where lockfiles used to be regenerated. Saves ~1,290 checked-in lines + two guard tasks + one concept; Gradle's own docs say locking adds nothing without dynamic versions. Benefit lost: checked-in resolved-graph snapshot (reproducible by `./gradlew dependencies` any time). Risk increase: none measurable. (H)
-4. Drop `verification-metadata.template.xml` + diagnose `dependency-state` regeneration mode; regeneration becomes a documented one-line command run during dependency updates. (H)
-5. **Switch CodeQL to default setup** if a one-run trial shows its Kotlin build-mode handling succeeds; delete advanced workflow + pinned-bundle management. (M)
-6. Merge the custom dependency-policy enforcer's rules into `dependency-review-action` configuration; retire the script + tests if expressible. (M)
+1. (Tier 0) Ship PR #118 Batch 1: macrobenchmark remnants O1–O8, transitional codeql state. (H)
+2. (Tier 0) Fix doc drift DR1–DR6 (retired `device` mode references, missing dependency-state docs). (H)
+3. (Tier 1) **Retire dependency locking** (lockfiles ×5, `resolveAndLockAll`, `dependencyLockCheck`, lock discipline in dep updates). Keep strict verification-metadata as the single integrity layer; regenerate it where lockfiles used to be regenerated. Saves ~1,290 checked-in lines + two guard tasks + one concept; Gradle's own docs say locking adds nothing without dynamic versions. Benefit lost: checked-in resolved-graph snapshot (reproducible by `./gradlew dependencies` any time). Risk increase: none measurable. (H)
+4. (Tier 1) Drop `verification-metadata.template.xml` + diagnose `dependency-state` regeneration mode; regeneration becomes a documented one-line command run during dependency updates. (H)
+5. (Tier 1) **Switch CodeQL to default setup** if a one-run trial shows its Kotlin build-mode handling succeeds; delete advanced workflow + pinned-bundle management. (M)
+6. (Tier 1) Merge the custom dependency-policy enforcer's rules into `dependency-review-action` configuration; retire the script + tests if expressible. (M)
+7. (Tier 2) Collapse `backend-static`/`backend-test` into one hygiene job while the backend is a 39-line skeleton. (H)
+8. (Tier 2) Decide secret-scanner keep-or-replace vs GitHub push protection + secret scanning; if replaced, delete 341 LOC. (M)
+9. (Tier 2) Trim repo-quality linters to the security-relevant set (zizmor, actionlint, yamllint); make markdownlint/shellcheck/shfmt advisory or drop. (M — these are cheap; lowest priority)
+10. (Tier 3) Instrument diagnose dispatch usage for one cycle; retire modes never dispatched, then evaluate replacing the dispatch platform with standard `workflow_dispatch` + GitHub-native re-run, which deletes the focus grammar, argv vector, exact-HEAD bridge, warm-cache publisher/sanitizer and the parsed-YAML contract test (~5–6k LOC incl. tests). Only the demonstrated threat model of *untrusted* dispatch payloads justifies keeping any of it. (M)
+11. (Tier 3) Retire unrealized skills (`incident-response`, `postmortem-learning`, `observability-operations-design`, `release-deployment` until first release/ops surface exists); keep the skill *system* minimal. (H on retirement, M on system reduction)
+12. (Tier 3) Re-evaluate the PROJECT_STATE contract checker after 10 & 11; if dispatch volume is low, doc convention suffices. (M)
 
-**Tier 2 — consolidation:**
-7. Collapse `backend-static`/`backend-test` into one hygiene job while the backend is a 39-line skeleton. (H)
-8. Decide secret-scanner keep-or-replace vs GitHub push protection + secret scanning; if replaced, delete 341 LOC. (M)
-9. Trim repo-quality linters to the security-relevant set (zizmor, actionlint, yamllint); make markdownlint/shellcheck/shfmt advisory or drop. (M — these are cheap; lowest priority)
-
-**Tier 3 — agent-platform right-sizing (biggest lever, needs usage data):**
-10. Instrument diagnose dispatch usage for one cycle; retire modes never dispatched, then evaluate replacing the dispatch platform with standard `workflow_dispatch` + GitHub-native re-run, which deletes the focus grammar, argv vector, exact-HEAD bridge, warm-cache publisher/sanitizer and the parsed-YAML contract test (~5–6k LOC incl. tests). Only the demonstrated threat model of *untrusted* dispatch payloads justifies keeping any of it. (M)
-11. Retire unrealized skills (`incident-response`, `postmortem-learning`, `observability-operations-design`, `release-deployment` until first release/ops surface exists); keep the skill *system* minimal. (H on retirement, M on system reduction)
-12. Re-evaluate the PROJECT_STATE contract checker after 10 & 11; if dispatch volume is low, doc convention suffices. (M)
-
-**Tier 4 — keep (Section G):** everything listed there, specifically the Samsung test suite, verification-metadata, policy guards, SHA-pinning hardening, dependency-review, local-first pyramid, protocol docs.
+Tier 4 keeps everything in Section G — specifically the Samsung test suite, verification-metadata, policy guards, SHA-pinning hardening, dependency-review, the local-first pyramid, and protocol docs.
 
 Expected effect of Tiers 0–2 alone: −~8–9k support LOC, −2 workflows' worth of jobs, −3 concepts, zero product risk change. Tier 3 doubles that if usage data supports it.
 

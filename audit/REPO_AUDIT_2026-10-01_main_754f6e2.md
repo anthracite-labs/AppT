@@ -316,6 +316,7 @@ Everything else in the repository is necessary, current, and correctly located. 
 ```
 
 (File counts: root 18, `.github` 9, `.project-ai` 30, `app` 83, `backend` 13, `config` 1, `docs` 22, `gradle` 6, `macrobenchmark` 4, `samsung` 96, `tools` 19 — total 301; verified against `git ls-files | wc -l`.)
+
 ---
 
 ## 3. Directory inventory
@@ -423,6 +424,7 @@ These exist solely as language/source-set path segments; each inherits the class
 - `macrobenchmark/src`, `macrobenchmark/src/main/java`, `macrobenchmark/src/main/java/dev`, `macrobenchmark/src/main/java/dev/anthracite`, `macrobenchmark/src/main/java/dev/anthracite/appt` — package path of the retired module (**O**)
 
 (149 directories total = 1 root + 148 nested; every entry above or in §3.1–§3.6 covers them.)
+
 ---
 
 ## 4. File inventory (all 301 tracked files)
@@ -539,6 +541,7 @@ Legend — classification abbreviations as in §3. Confidence: **H** high, **M**
 | `docs/architecture/slices.md` | Architecture | S01–S17 route + per-slice acceptance | Issue compilation; PROJECT_STATE | HISTORICAL / DOCUMENTATION — KEEP | Keep (S05 section already reflects Rev 5 stock-debug verifier) | H |
 | `docs/architecture/testing.md` | Architecture | Test seams, fixture schema, required contracts, physical matrix | Test-suite design; `FixtureProvenanceTest`; fixture layout | HISTORICAL / DOCUMENTATION — KEEP | Keep | H |
 | `docs/architecture/ui-ux.md` | Architecture | Product-surface/interaction rules | S05 Remote/Settings contracts | HISTORICAL / DOCUMENTATION — KEEP | Keep | H |
+
 ### 4.6 `app/**` (83)
 
 Build/lockfile/schema (3):
@@ -749,6 +752,7 @@ Fixture data (34 files = 17 cases × `provenance.json` + `trace.jsonl`) under `s
 | `tools/security/run.sh` | Security entrypoint | One-command local security checks (`deps`, `build` CodeQL extraction repro); fails closed | BUILD.md documented local route; ShellCheck/shfmt-checked | KEEP | Keep | H |
 | `tools/security/test/enforce-dependency-policy.test.mjs` | Security test | Policy enforcer tests | verify.yml repo-policy | KEEP | Keep | H |
 | `tools/security/test/enforce-gradle-tooling-constraints.test.mjs` | Security test | Tooling-constraint enforcer tests | verify.yml repo-policy | KEEP | Keep | H |
+
 ---
 
 ## 5. Dead / obsolete candidates (full evidence record)
