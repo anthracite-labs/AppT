@@ -15,6 +15,8 @@
 
 import java.util.Locale
 import java.util.zip.ZipFile
+import org.gradle.api.logging.LogLevel
+import org.gradle.api.logging.StandardOutputListener
 import org.gradle.api.tasks.testing.Test
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
@@ -28,6 +30,44 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.detekt)
     alias(libs.plugins.kover)
+}
+
+// TEMPORARY diagnostic instrumentation for the failing test compilation.
+// Capture this module's compiler warnings and expose them as check annotations;
+// remove the block after the warning has been diagnosed.
+val temporaryKotlinWarnings = linkedSetOf<String>()
+var publishingTemporaryKotlinWarnings = false
+val temporaryKotlinWarningCapture =
+    StandardOutputListener { output ->
+        if (!publishingTemporaryKotlinWarnings) {
+            output.toString().lineSequence()
+                .map { it.replace(Regex("\\u001B\\[[0-9;]*m"), "").trim() }
+                .filter { line ->
+                    line.contains("warning:", ignoreCase = true) ||
+                        Regex("(?:^|\\s)w:").containsMatchIn(line) ||
+                        "warnings found and -Werror" in line
+                }
+                .forEach(temporaryKotlinWarnings::add)
+        }
+    }
+logging.captureStandardOutput(LogLevel.QUIET)
+logging.captureStandardError(LogLevel.ERROR)
+logging.addStandardOutputListener(temporaryKotlinWarningCapture)
+logging.addStandardErrorListener(temporaryKotlinWarningCapture)
+gradle.buildFinished {
+    publishingTemporaryKotlinWarnings = true
+    println(
+        "::notice title=Temporary Kotlin diagnostic::" +
+            "Captured ${temporaryKotlinWarnings.size} candidate warning lines."
+    )
+    temporaryKotlinWarnings.take(80).forEach { warning ->
+        val safeWarning =
+            warning.take(1500)
+                .replace("%", "%25")
+                .replace("\r", "%0D")
+                .replace("\n", "%0A")
+        println("::error title=Temporary Kotlin compiler warning::$safeWarning")
+    }
 }
 
 // The trusted hosted android-build route sets this from the dispatch-target assertion output.
