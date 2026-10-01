@@ -12,7 +12,7 @@ Test external behavior at the highest useful seam. The two primary seams are `Sa
 | Instrumented | Keystore round trip, backup exclusion, permission gate, Room migration, process-death restore, Credential Manager and Play Billing seams | Layout polish |
 | Compose | Critical flows against a fake `SamsungTvs` and fake licensing: first control, exemption, reconnect status, hidden dead controls, no address on cards, gate surfaces | Wire format |
 | Accessibility | Semantics, target sizes, scaled text, reduced motion, traversal order | Visual taste |
-| Performance | Launch, control latency, frame timing, memory, battery, measured from the test-only `:macrobenchmark` module in [modules.md](modules.md#shape) | Product desirability |
+| Performance | Focused code-path tests plus bounded debug-only slice diagnostics on the exact candidate when device timing matters | Product desirability or synthetic hosted-emulator timing |
 | Physical matrix | One real television per generation actually claimed | A predeclared year range |
 
 `app` tests replace `SamsungModule` and the licensing seams with fakes. They assert on snapshots and results. They do not assert `KEY_*` or ports.
@@ -220,9 +220,9 @@ Instrumented Compose coverage on API 34+ enables the platform accessibility vali
 
 | Test | Assertion |
 |---|---|
-| `launchBudget` | Macrobenchmark cold and warm start stay inside [reliability.md](reliability.md) targets |
-| `commandLatencyBudget` | Input-to-write latency stays inside the control-path budget on the reference device |
-| `frameTimingBudget` | Remote, Discovery, and TvList keep ≥ 95% of frames in budget |
+| `launchPathRemainsNonBlocking` | Launch routing and first usable UI do not wait on backend/network work; exact-device timing is recorded only when a slice needs it |
+| `s05PhysicalLatencyVerifier` | Five warmed input-to-local-socket-write samples on the exact candidate satisfy the S05 p50 target and report p95 |
+| `interactiveSurfaceRemainsResponsive` | Compose/state tests prove immediate local feedback; device frame timing is a slice-owned diagnostic when required |
 | `commandDoesNotAwaitDiagnostics` | A full diagnostic buffer never delays a command |
 | `reconnectRecoveryRate` | ≥ 90% of scripted single drops recover inside the budget |
 
@@ -302,7 +302,6 @@ Backend tests run against the Firebase emulator suite with a fake Play verifier 
 | `releaseVariantsShareVersionCode` | The internal and production release artifacts from one commit carry the same `versionCode` and `versionName`, and both are higher than the previous release's |
 | `signingIdentityMatchesChannel` | The tester artifact carries the internal certificate, the bundle uploaded to Play carries the upload certificate, the two differ, and neither is a debug certificate |
 | `appCheckRegistrationMatchesChannel` | The App Check registration fingerprint recorded for `appt-prod` is the Play app-signing certificate, the one recorded for `appt-internal` is the internal certificate, and no fingerprint appears in more than one environment |
-| `noProductionModuleDependsOnBenchmark` | `:app` and `:samsung` do not depend on `:macrobenchmark`, and `:macrobenchmark` is absent from the release artifact |
 
 ## Physical acceptance matrix
 
