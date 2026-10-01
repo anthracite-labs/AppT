@@ -14,9 +14,9 @@ Implementation.
 
 ## Current Objective
 
-Compile and dispatch S05 — Capability-driven Remote surface, Settings shell, and diagnostic recorder — as the next authorized implementation slice.
+Complete S05 — Capability-driven Remote surface, Settings shell, and diagnostic recorder — under the accepted Issue #117 contract on the existing implementation PR #118.
 
-Success means S05 makes the accepted phone-native Remote, Settings, accessibility, performance, and bounded local-diagnostics foundation real while preserving S04's accepted saved-pairing, fail-closed identity, and safe-forget boundaries.
+Success means S05 makes the accepted phone-native Remote, Settings, accessibility, performance, and bounded local-diagnostics foundation real while preserving S04's accepted saved-pairing, fail-closed identity, and safe-forget boundaries, and satisfies the current hosted/profile plus physical-verifier closeout requirements before acceptance.
 
 ## Accepted Decisions
 
@@ -35,6 +35,8 @@ Success means S05 makes the accepted phone-native Remote, Settings, accessibilit
 - Bounded diagnostic breadth before correction is accepted through PR #106: inside the smallest affected domain, collect the practical independent failure set, group root causes, then correct coherently without weakening failure semantics.
 - Reuse-before-reimplement is accepted through PR #108 for new Arena-ready Issues and future material revisions: the control plane compiles an Implementation Reuse Plan from accepted AppT code plus distributed harvest evidence; Arena prefers approved `EXISTING APPT`, `ADAPT`, or `PORT` leverage before `NEW`, and `NEW` requires a concrete recorded reason.
 - S05 is the next authorized implementation slice.
+- S05 is currently active under Issue #117. Contract Revision 4 is the current accepted contract revision; bounded corrections continue on PR #118 until all required hosted/profile and physical-verifier closeout evidence is complete.
+- Trusted exact-head Gradle dependency-state regeneration is accepted through PR #129 as the permanent `ci:dependency-state` diagnostic route. It may regenerate only the known Gradle lockfiles under strict verification and never writes the target branch.
 - S07 may be dependency-ready but is not active or authorized.
 - Provider facts marked `needs validation` must be confirmed when they first become implementation-relevant. Material external/protocol claims also carry explicit authority/implementation-evidence/AppT-decision provenance in their owning architecture documents.
 - Final AppT source-license selection and focused Samsung vendor-terms/legal review remain pre-public-release gates.
@@ -42,7 +44,7 @@ Success means S05 makes the accepted phone-native Remote, Settings, accessibilit
 
 ## Durable Blockers
 
-None for S05 dispatch.
+None at the project/contract level.
 
 ## Latest Accepted Milestone
 
@@ -50,7 +52,7 @@ S04 — Saved pairing, fail-closed identity, and the safe forget primitive — a
 
 ## Next Authorized Action
 
-Compile S05 from `docs/architecture/slices.md` and its owning architecture sources into an Arena-ready Issue with the required Implementation Reuse Plan, then dispatch it through `.project-ai/execution/arena-dispatch.md`.
+Continue Issue #117 / PR #118 on the existing Arena branch. Complete the currently bounded dependency-state correction using the accepted Wire 6.4.7 constraint and the repository-owned `ci:dependency-state` route for generated lockfiles, then resume the remaining Revision 4 hosted profile/device verification and physical-verifier closeout. Keep PR #118 Draft / NOT VERIFIED until the full active contract is satisfied and human acceptance is given.
 
 ## Authoritative References
 
