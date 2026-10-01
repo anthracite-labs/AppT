@@ -15,9 +15,6 @@
 
 import java.util.Locale
 import java.util.zip.ZipFile
-import org.gradle.api.Task
-import org.gradle.api.execution.TaskExecutionListener
-import org.gradle.api.tasks.TaskState
 import org.gradle.api.tasks.testing.Test
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
@@ -31,46 +28,6 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.detekt)
     alias(libs.plugins.kover)
-}
-
-// TEMPORARY diagnostic instrumentation for the failing test compilation.
-// Surface the compiler task's exception chain as check annotations; remove
-// this block after the warning has been diagnosed.
-val temporaryCompilerFailureDetails = mutableListOf<String>()
-@Suppress("DEPRECATION")
-gradle.taskGraph.addTaskExecutionListener(
-    object : TaskExecutionListener {
-        override fun beforeExecute(task: Task) = Unit
-
-        override fun afterExecute(task: Task, state: TaskState) {
-            if (task.path == ":app:compileDebugUnitTestKotlin") {
-                var failure = state.failure
-                var depth = 0
-                while (failure != null && depth < 30) {
-                    temporaryCompilerFailureDetails +=
-                        "${failure.javaClass.name}: ${failure.message ?: "(no message)"}"
-                    failure.suppressed.forEach { suppressed ->
-                        temporaryCompilerFailureDetails +=
-                            "${suppressed.javaClass.name}: ${suppressed.message ?: "(no message)"}"
-                    }
-                    failure = failure.cause
-                    depth++
-                }
-            }
-        }
-    }
-)
-gradle.buildFinished {
-    val details = temporaryCompilerFailureDetails.take(80)
-    println("::notice title=Temporary Kotlin diagnostic::Captured ${details.size} exception details.")
-    details.forEach { detail ->
-        val safeDetail =
-            detail.take(1500)
-                .replace("%", "%25")
-                .replace("\r", "%0D")
-                .replace("\n", "%0A")
-        println("::error title=Temporary Kotlin exception detail::$safeDetail")
-    }
 }
 
 // The trusted hosted android-build route sets this from the dispatch-target assertion output.
