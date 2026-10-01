@@ -3,6 +3,7 @@ package dev.anthracite.appt.remote
 import dev.anthracite.appt.samsung.CommandResult
 import dev.anthracite.appt.samsung.TvFailure
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -99,6 +100,7 @@ class DebugLatencyRunTest {
         assertEquals(32, pass.androidVersion.length)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun measuredTimingStartsInTheUiCallbackAndStopsBeforeCompletionProcessing() = runTest {
         val events = mutableListOf<String>()
