@@ -11,13 +11,13 @@ Reference device class for all targets: a mid-tier 2023-or-later Android phone (
 
 ## Launch and setup
 
-The measurement harness lives in the **test-only `:macrobenchmark` module** described in [modules.md](modules.md#shape). Without that module the Macrobenchmark targets below cannot run, which is why it exists even though the production shape is two modules.
+Performance evidence follows the app-first verification model: focused executable tests prove structural/non-blocking properties, and a bounded debug-only slice diagnostic records exact-device timing only when a slice genuinely needs physical evidence. AppT does not maintain a separate benchmark application module or hosted-emulator performance pipeline.
 
 | Target | p50 | p95 | Notes | Verification |
 |---|---|---|---|---|
-| Cold start to first frame of the resolved start destination | 500 ms | 1200 ms | No backend wait before first frame; launch routing is synchronous over local state | Macrobenchmark `StartupTimingMetric` |
-| Cold start to usable last-used Remote (chrome, controls enabled as capability evidence allows) | 900 ms | 2000 ms | Session may still be `Connecting`; the surface is usable regardless | Macrobenchmark plus a Compose test asserting controls render before `Ready` |
-| Warm start from recents within grace to interactive Remote | 150 ms | 400 ms | Reuses the retained session | Macrobenchmark warm start |
+| Cold start to first frame of the resolved start destination | 500 ms | 1200 ms | No backend wait before first frame; launch routing is synchronous over local state | Structural launch tests; exact-device timing only in the owning slice diagnostic when needed |
+| Cold start to usable last-used Remote (chrome, controls enabled as capability evidence allows) | 900 ms | 2000 ms | Session may still be `Connecting`; the surface is usable regardless | Compose test asserting controls render before `Ready`; physical timing only when the owning slice requires it |
+| Warm start from recents within grace to interactive Remote | 150 ms | 400 ms | Reuses the retained session | Lifecycle/Compose tests plus a bounded physical diagnostic when timing is acceptance-critical |
 | Time from local-network grant to first television card | 1500 ms | 4000 ms | Bounded scan is 10 s; a card is a `Found` event, not a scan end | Contract test with a scripted transport plus a physical note |
 | Scan completion at the bound | 10 s | 10 s | Existing bound in [discovery.md](discovery.md); cancelling is faster | `discoveryEndsAtBound` |
 | Card tap to Pairing surface visible | 150 ms | 350 ms | User-perceived responsiveness, not the TV-side approval | Compose test with a fake |
@@ -28,7 +28,7 @@ The measurement harness lives in the **test-only `:macrobenchmark` module** desc
 
 | Target | p50 | p95 | Notes | Verification |
 |---|---|---|---|---|
-| Key press to socket write issued for `Tap` while `Ready` | 20 ms | 60 ms | Excludes network and TV; measured from input event to write completion inside `samsung` | Contract test with a recording transport plus Macrobenchmark trace |
+| Key press to socket write issued for `Tap` while `Ready` | 20 ms | 60 ms | Excludes network and TV; measured from input event to write completion inside `samsung` | Recording-transport contract test plus the S05 stock-debug physical latency verifier |
 | Key press to haptic and press-state feedback | 1 frame | 2 frames | Feedback never waits for a round trip | Compose test with a frame counter |
 | `Hold` press-to-release accuracy | ±30 ms | ±60 ms | Clamp at 10 s | Contract test with a fake clock |
 | Command dispatch blocked by diagnostics | 0 ms | 0 ms | The diagnostic offer is non-blocking; a full buffer drops events | `commandDoesNotAwaitDiagnostics` |
@@ -44,7 +44,7 @@ The measurement harness lives in the **test-only `:macrobenchmark` module** desc
 | Transient single-drop recovery rate on the same network | ≥ 90% within budget | Tune during implementation; reported per physical device | Physical matrix plus a scripted LAN flap run |
 | Address-change recovery without user action | ≥ 90% within budget | Internal rediscovery of the saved identity | `rediscoverSameUuid` |
 | Post-`Unreachable` user-initiated recovery | ≤ 5 s to `Reconnecting`, then normal budget | No hidden auto-retry loop | Lifecycle test |
-| Process-death reopen to usable Remote | 2000 ms | Includes routing and session open attempt | Macrobenchmark plus a scripted process kill |
+| Process-death reopen to usable Remote | 2000 ms | Includes routing and session open attempt | Lifecycle/process-recreation test plus physical release checkpoint when required |
 | First frame after rotation | ≤ 1 frame budget | No reconnect, no gate, no re-scan | `rotationKeepsSession` |
 
 ## Entitlement and backend
@@ -63,8 +63,8 @@ The measurement harness lives in the **test-only `:macrobenchmark` module** desc
 
 | Target | Value | Notes | Verification |
 |---|---|---|---|
-| Remote rendering | ≥ 95% of frames within the display frame budget | Baseline profile shipped for Remote, Discovery, and TvList | Macrobenchmark `FrameTimingMetric` plus JankStats in internal builds |
-| Interaction jank | ≤ 1% of frames > 32 ms; no frame > 100 ms | Includes scroll of the More sheet | Macrobenchmark |
+| Remote rendering | ≥ 95% of frames within the display frame budget | No benchmark/profile pipeline; investigate regressions with slice-owned debug diagnostics | Compose responsiveness tests plus bounded on-device diagnostics when needed |
+| Interaction jank | ≤ 1% of frames > 32 ms; no frame > 100 ms | Includes scroll of the More sheet | Bounded on-device diagnostic in the owning slice when this becomes acceptance-critical |
 | Idle memory (PSS, app in foreground on Welcome) | ≤ 140 MB | Tune during implementation | Memory profiler in CI-adjacent release check |
 | Active Remote memory (PSS) | ≤ 200 MB | One socket, one session, no cached frames | Memory profiler |
 | Background idle battery | ≤ 0.5% per hour | No wakelocks, no keepalive outside a retained session, no polling | Battery historian run on the reference device |
@@ -86,7 +86,7 @@ The measurement harness lives in the **test-only `:macrobenchmark` module** desc
 
 ## Regression policy
 
-- Baseline profiles are committed for Remote, Discovery, and TvList, and refreshed when their composition changes materially.
-- Macrobenchmark results are recorded per release on the reference device; a >20% regression on a control-path or launch target blocks promotion until explained.
+- AppT does not maintain committed Baseline Profiles or a repository-owned Macrobenchmark/GMD pipeline.
+- When a slice makes a device-timing target acceptance-critical, its bounded debug diagnostic records the exact candidate and the regression is investigated before acceptance.
 - Physical matrix rows record reconnect, wake, and resume outcomes per television, including honest failures.
 - Performance work never changes a product decision in [ui-ux.md](ui-ux.md) or a security control in [security.md](security.md). If a budget conflicts with a control, the control wins and the budget is renegotiated.
