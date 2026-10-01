@@ -1,0 +1,124 @@
+# TEMPORARY, authorized by Issue #117 comment 5941941531.
+# Remove this workflow after reviewing and committing its bounded artifact.
+# It exists only to generate dependency state unavailable in the Arena sandbox.
+name: temporary-dependency-state
+run-name: Temporary dependency-state regeneration for ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: temporary-dependency-state-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  regenerate:
+    name: Regenerate dependency state
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the dispatched branch commit
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up JDK 17 without Actions caching
+        # actions/setup-java v6.0.1. The cache input is intentionally omitted.
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Regenerate Gradle dependency locks
+        id: locks
+        run: ./gradlew resolveAndLockAll --write-locks
+
+      - name: Regenerate strict verification metadata
+        id: metadata
+        if: steps.locks.outcome == 'success'
+        continue-on-error: true
+        run: ./gradlew --no-daemon --write-verification-metadata sha256 ciCheck
+
+      - name: Collect only generated dependency-state candidates
+        if: always()
+        env:
+          LOCKS_OUTCOME: ${{ steps.locks.outcome }}
+          METADATA_OUTCOME: ${{ steps.metadata.outcome }}
+        run: |
+          set -euo pipefail
+
+          artifact_dir="${RUNNER_TEMP}/appt-dependency-state"
+          mkdir -p "$artifact_dir"
+
+          mapfile -t candidates < <(
+            {
+              git diff --name-only
+              git ls-files --others --exclude-standard
+            } | sort -u | while IFS= read -r path; do
+              case "$path" in
+                gradle/verification-metadata.xml|gradle.lockfile|*/gradle.lockfile|*.gradle.lockfile)
+                  printf '%s\n' "$path"
+                  ;;
+              esac
+            done
+          )
+
+          {
+            printf 'commit=%s\n' "$(git rev-parse HEAD)"
+            printf 'locks_outcome=%s\n' "${LOCKS_OUTCOME:-not-run}"
+            printf 'metadata_outcome=%s\n' "${METADATA_OUTCOME:-not-run}"
+            printf 'generated_paths=%s\n' "${#candidates[@]}"
+            for path in "${candidates[@]}"; do
+              printf '%s\n' "$path"
+              mkdir -p "$artifact_dir/$(dirname "$path")"
+              cp -- "$path" "$artifact_dir/$path"
+            done
+          } | tee "$artifact_dir/manifest.txt"
+
+          if [ "${#candidates[@]}" -gt 0 ]; then
+            git diff --check -- "${candidates[@]}"
+            git diff --binary -- "${candidates[@]}" > "$artifact_dir/dependency-state.patch"
+          else
+            printf '# No generated dependency-state diff was produced.\n' > "$artifact_dir/dependency-state.patch"
+          fi
+
+          size_bytes="$(find "$artifact_dir" -type f -printf '%s\n' | awk '{ total += $1 } END { print total + 0 }')"
+          if [ "$size_bytes" -gt 10485760 ]; then
+            echo "::error::Dependency-state artifact exceeds the 10 MiB bound (${size_bytes} bytes)."
+            exit 1
+          fi
+          echo "Collected ${#candidates[@]} generated dependency-state path(s), ${size_bytes} bytes total."
+
+      - name: Upload bounded generated dependency state
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: appt-dependency-state-${{ github.sha }}
+          path: ${{ runner.temp }}/appt-dependency-state/
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 6
+
+      - name: Preserve generation command failures
+        if: always()
+        env:
+          LOCKS_OUTCOME: ${{ steps.locks.outcome }}
+          METADATA_OUTCOME: ${{ steps.metadata.outcome }}
+        run: |
+          set -euo pipefail
+          if [ "$LOCKS_OUTCOME" != 'success' ]; then
+            echo "Lock regeneration outcome was: ${LOCKS_OUTCOME:-not-run}"
+            exit 1
+          fi
+          if [ "$METADATA_OUTCOME" != 'success' ]; then
+            echo "Verification-metadata regeneration outcome was: ${METADATA_OUTCOME:-not-run}"
+            exit 1
+          fi
