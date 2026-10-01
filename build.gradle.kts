@@ -1,9 +1,41 @@
+import org.gradle.api.logging.StandardOutputListener
+
 // Root build for AppT.
 //
 // This file owns the repository-level supply-chain and privacy floor that
 // docs/architecture/release.md and docs/architecture/diagnostics.md require
 // CI to enforce from S01 onward. The individual guards live in
 // gradle/guards.gradle.kts so this file stays a readable index of them.
+
+// TEMPORARY diagnostic instrumentation for the failing :app test compilation.
+// Capture Kotlin warning lines and expose them as check annotations because the
+// hosted log archive is unreachable from this session. Remove after diagnosis.
+val temporaryKotlinWarnings = linkedSetOf<String>()
+var publishingTemporaryKotlinWarnings = false
+val temporaryKotlinWarningCapture =
+    StandardOutputListener { output ->
+        if (!publishingTemporaryKotlinWarnings) {
+            output.toString().lineSequence()
+                .map(String::trim)
+                .filter { line ->
+                    line.startsWith("w:") || line.startsWith("warning:") || "warnings found and -Werror" in line
+                }
+                .forEach(temporaryKotlinWarnings::add)
+        }
+    }
+logging.addStandardOutputListener(temporaryKotlinWarningCapture)
+logging.addStandardErrorListener(temporaryKotlinWarningCapture)
+gradle.buildFinished {
+    publishingTemporaryKotlinWarnings = true
+    temporaryKotlinWarnings.take(80).forEach { warning ->
+        val safeWarning =
+            warning.take(1500)
+                .replace("%", "%25")
+                .replace("\r", "%0D")
+                .replace("\n", "%0A")
+        println("::error title=TEMPORARY Kotlin compiler warning::$safeWarning")
+    }
+}
 
 // Issue #54 final security closure: AGP 9.4.1 is the newest stable plugin,
 // but its plugin/buildscript classpath still declares older vulnerable
