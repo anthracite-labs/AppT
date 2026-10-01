@@ -1,8 +1,8 @@
-# TEMPORARY, authorized by Issue #117 comments 5941941531, 5942027335, and 5942134313.
-# Exact-branch push only; remove after reviewing and committing the bounded artifact.
-# It exists only to generate dependency state unavailable in the Arena sandbox.
+# TEMPORARY, authorized by Issue #117 comments 5941941531, 5942027335, 5942134313, and 5942385537.
+# Exact-branch push only; remove after reviewing and committing the bounded formatter/state artifacts.
+# This workflow formats only the authorized four-file set and generates dependency state unavailable in Arena.
 name: temporary-dependency-state
-run-name: Temporary dependency-state regeneration for ${{ github.sha }}
+run-name: Temporary Spotless/dependency-state regeneration for ${{ github.sha }}
 
 on:
   push:
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   regenerate:
-    name: Regenerate dependency state
+    name: Regenerate formatter and dependency state
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
@@ -38,6 +38,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up JDK 17 without Actions caching
@@ -47,7 +48,160 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Assert the authorized formatter target source state
+        env:
+          TARGET_SHA: 4566d2ed7097f4ecc059d590ac84243117806472
+        run: |
+          set -euo pipefail
+          git cat-file -e "$TARGET_SHA^{commit}"
+          git diff --quiet "$TARGET_SHA" HEAD -- \
+            app/src/debug/java/dev/anthracite/appt/remote/DebugLatencyRun.kt \
+            app/src/debug/java/dev/anthracite/appt/remote/DebugS05Verifier.kt \
+            app/src/main/java/dev/anthracite/appt/navigation/AppTNavGraph.kt \
+            app/src/test/java/dev/anthracite/appt/remote/DebugLatencyRunTest.kt
+
+      - name: Run the repository Spotless formatter
+        id: formatter_apply
+        run: ./gradlew spotlessApply
+
+      - name: Capture the bounded four-file Spotless patch
+        id: formatter_capture
+        if: always()
+        env:
+          FORMATTER_OUTCOME: ${{ steps.formatter_apply.outcome }}
+          TARGET_SHA: 4566d2ed7097f4ecc059d590ac84243117806472
+        run: |
+          set -euo pipefail
+
+          output_dir="${RUNNER_TEMP}/appt-spotless-four-file"
+          mkdir -p "$output_dir/files"
+          patch_file="$output_dir/spotless-four-file.patch"
+          manifest_file="$output_dir/manifest.txt"
+          : > "$patch_file"
+
+          target_files=(
+            app/src/debug/java/dev/anthracite/appt/remote/DebugLatencyRun.kt
+            app/src/debug/java/dev/anthracite/appt/remote/DebugS05Verifier.kt
+            app/src/main/java/dev/anthracite/appt/navigation/AppTNavGraph.kt
+            app/src/test/java/dev/anthracite/appt/remote/DebugLatencyRunTest.kt
+          )
+
+          if [ "$FORMATTER_OUTCOME" != 'success' ]; then
+            {
+              printf 'target_sha=%s\n' "$TARGET_SHA"
+              printf 'formatter_outcome=%s\n' "$FORMATTER_OUTCOME"
+              printf 'capture_outcome=not-run-formatter-failed\n'
+            } | tee "$manifest_file"
+            exit 0
+          fi
+
+          mapfile -t changed_paths < <(git diff --name-only --diff-filter=AMRT | LC_ALL=C sort -u)
+          expected_paths="$(printf '%s\n' "${target_files[@]}" | LC_ALL=C sort)"
+          actual_paths="$(printf '%s\n' "${changed_paths[@]}")"
+
+          unexpected_paths=()
+          for path in "${changed_paths[@]}"; do
+            allowed=false
+            for target_file in "${target_files[@]}"; do
+              if [ "$path" = "$target_file" ]; then
+                allowed=true
+                break
+              fi
+            done
+            if [ "$allowed" != 'true' ]; then
+              unexpected_paths+=("$path")
+            fi
+          done
+
+          if [ "${#unexpected_paths[@]}" -gt 0 ]; then
+            {
+              printf 'target_sha=%s\n' "$TARGET_SHA"
+              printf 'formatter_outcome=%s\n' "$FORMATTER_OUTCOME"
+              printf 'capture_outcome=failed-unexpected-tracked-files\n'
+              printf 'unexpected_paths=%s\n' "${#unexpected_paths[@]}"
+              printf '%s\n' "${unexpected_paths[@]}"
+            } | tee "$manifest_file"
+            echo '::error::spotlessApply modified tracked files outside the four-file allowlist.'
+            exit 1
+          fi
+
+          if [ "$actual_paths" != "$expected_paths" ]; then
+            {
+              printf 'target_sha=%s\n' "$TARGET_SHA"
+              printf 'formatter_outcome=%s\n' "$FORMATTER_OUTCOME"
+              printf 'capture_outcome=failed-allowlist-mismatch\n'
+              printf 'expected_paths:\n%s\n' "$expected_paths"
+              printf 'actual_paths:\n%s\n' "$actual_paths"
+            } | tee "$manifest_file"
+            echo '::error::spotlessApply did not produce exactly the four authorized file changes.'
+            exit 1
+          fi
+
+          git diff --check -- "${target_files[@]}"
+          git diff --binary -- "${target_files[@]}" > "$patch_file"
+          for path in "${target_files[@]}"; do
+            mkdir -p "$output_dir/files/$(dirname "$path")"
+            cp -- "$path" "$output_dir/files/$path"
+          done
+
+          patch_bytes="$(wc -c < "$patch_file" | tr -d '[:space:]')"
+          patch_sha256="$(sha256sum "$patch_file" | cut -d ' ' -f 1)"
+          total_bytes="$(find "$output_dir" -type f -printf '%s\n' | awk '{ total += $1 } END { print total + 0 }')"
+          if [ "$patch_bytes" -gt 1048576 ] || [ "$total_bytes" -gt 8388608 ]; then
+            echo "::error::Spotless output exceeded its 1 MiB patch / 8 MiB artifact bound."
+            exit 1
+          fi
+
+          {
+            printf 'target_sha=%s\n' "$TARGET_SHA"
+            printf 'formatter_outcome=%s\n' "$FORMATTER_OUTCOME"
+            printf 'capture_outcome=success\n'
+            printf 'patch_sha256=%s\n' "$patch_sha256"
+            printf 'patch_bytes=%s\n' "$patch_bytes"
+            printf 'formatted_files=%s\n' "${#target_files[@]}"
+            for path in "${target_files[@]}"; do
+              file_bytes="$(wc -c < "$path" | tr -d '[:space:]')"
+              file_sha256="$(sha256sum "$path" | cut -d ' ' -f 1)"
+              printf 'file=%s bytes=%s sha256=%s\n' "$path" "$file_bytes" "$file_sha256"
+            done
+          } | tee "$manifest_file"
+
+      - name: Emit bounded Spotless patch log fallback
+        if: always()
+        env:
+          CAPTURE_OUTCOME: ${{ steps.formatter_capture.outcome }}
+          TARGET_SHA: 4566d2ed7097f4ecc059d590ac84243117806472
+        run: |
+          set -euo pipefail
+          patch_file="${RUNNER_TEMP}/appt-spotless-four-file/spotless-four-file.patch"
+          if [ "$CAPTURE_OUTCOME" != 'success' ] || [ ! -s "$patch_file" ]; then
+            echo 'Spotless patch fallback unavailable because capture did not produce a verified patch.'
+            exit 0
+          fi
+
+          patch_bytes="$(wc -c < "$patch_file" | tr -d '[:space:]')"
+          patch_sha256="$(sha256sum "$patch_file" | cut -d ' ' -f 1)"
+          payload="$(gzip -9 -n -c "$patch_file" | base64 -w 0)"
+          payload_chars="${#payload}"
+          if [ "$patch_bytes" -gt 1048576 ] || [ "$payload_chars" -gt 262144 ]; then
+            echo '::error::Spotless patch exceeds its bounded log-fallback limits.'
+            exit 1
+          fi
+
+          printf '%s\n' '=== APPT_SPOTLESS_FOUR_FILE_PATCH_GZIP_BASE64_BEGIN ==='
+          printf 'target_sha=%s\n' "$TARGET_SHA"
+          printf 'patch_sha256=%s\n' "$patch_sha256"
+          printf 'patch_bytes=%s\n' "$patch_bytes"
+          printf '%s\n' "$payload" | fold -w 76
+          printf '%s\n' '=== APPT_SPOTLESS_FOUR_FILE_PATCH_GZIP_BASE64_END ==='
+
+      - name: Verify the formatted source tree
+        id: spotless_check
+        if: steps.formatter_apply.outcome == 'success' && steps.formatter_capture.outcome == 'success'
+        run: ./gradlew spotlessCheck
+
       - name: Remove only the app lockfile in the ephemeral workspace
+        if: steps.spotless_check.outcome == 'success'
         run: |
           set -euo pipefail
           test -f app/gradle.lockfile
@@ -56,6 +210,7 @@ jobs:
 
       - name: Regenerate Gradle dependency locks
         id: locks
+        if: steps.spotless_check.outcome == 'success'
         run: ./gradlew resolveAndLockAll --write-locks
 
       - name: Emit bounded app lockfile log fallback
@@ -159,18 +314,37 @@ jobs:
           retention-days: 3
           compression-level: 6
 
-      - name: Preserve generation command failures
+      - name: Upload bounded four-file Spotless output
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: appt-spotless-four-file-${{ github.sha }}
+          path: ${{ runner.temp }}/appt-spotless-four-file/
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 6
+
+      - name: Preserve formatter and generation command failures
         if: always()
         env:
+          FORMATTER_OUTCOME: ${{ steps.formatter_apply.outcome }}
+          CAPTURE_OUTCOME: ${{ steps.formatter_capture.outcome }}
+          SPOTLESS_OUTCOME: ${{ steps.spotless_check.outcome }}
           LOCKS_OUTCOME: ${{ steps.locks.outcome }}
           METADATA_OUTCOME: ${{ steps.metadata.outcome }}
         run: |
           set -euo pipefail
-          if [ "$LOCKS_OUTCOME" != 'success' ]; then
-            echo "Lock regeneration outcome was: ${LOCKS_OUTCOME:-not-run}"
-            exit 1
-          fi
-          if [ "$METADATA_OUTCOME" != 'success' ]; then
-            echo "Verification-metadata regeneration outcome was: ${METADATA_OUTCOME:-not-run}"
-            exit 1
-          fi
+          for pair in \
+            "formatterApply:${FORMATTER_OUTCOME:-not-run}" \
+            "formatterCapture:${CAPTURE_OUTCOME:-not-run}" \
+            "spotlessCheck:${SPOTLESS_OUTCOME:-not-run}" \
+            "lockRegeneration:${LOCKS_OUTCOME:-not-run}" \
+            "verificationMetadata:${METADATA_OUTCOME:-not-run}"; do
+            name="${pair%%:*}"
+            outcome="${pair#*:}"
+            if [ "$outcome" != 'success' ]; then
+              echo "${name} outcome was: ${outcome}"
+              exit 1
+            fi
+          done
