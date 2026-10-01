@@ -107,6 +107,14 @@ change, refresh them with:
 ./gradlew resolveAndLockAll --write-locks
 ```
 
+The hosted `dependency-lock-refresh` mode is the fallback for the exact
+repository-owned command above when the implementation workspace cannot run Java.
+It executes `resolveAndLockAll --write-locks` only after the standard exact-head
+PR assertion, under read-only repository/cache permissions, and uploads only the
+five expected Gradle lockfiles as a short-lived review artifact. It never commits
+the result. Review and commit that artifact on the implementation branch, then
+run `dependencyLockCheck` / terminal verification normally.
+
 ### Plugin-classpath tooling constraints (Issue #68)
 
 Some vulnerable coordinates are never declared by an AppT module. They reach the
@@ -184,11 +192,12 @@ when safe, and escalate only the blocked operation.
    install/download), escalate only that blocked operation. The hosted fallback
    for Android/JVM implementation feedback is a `workflow_dispatch` of
    `.github/workflows/diagnose.yml` with the narrowest mode that answers the
-   question: `app-unit`, `samsung-unit`, `android-static`, `android-build`, or
-   `device`. A diagnostic run is implementation feedback only. It is not terminal
-   repository verification and does not satisfy `verify / gate` for a finished
-   candidate. Do not dispatch a full `verify` run merely to discover the next
-   compile, format, or unit-test error.
+   question: `app-unit`, `samsung-unit`, `android-static`, `android-build`,
+   `device`, or (only after an actual reviewed dependency/configuration change)
+   `dependency-lock-refresh`. A diagnostic run is implementation feedback only.
+   It is not terminal repository verification and does not satisfy `verify / gate`
+   for a finished candidate. Do not dispatch a full `verify` run merely to
+   discover the next compile, format, or unit-test error.
 4. Temporary branch-scoped workflow YAML is last-resort, only when a live
    capability probe shows no narrower route exists (local tooling or an existing
    `diagnose.yml` mode). Do not add per-slice workflow files as slice
@@ -265,7 +274,8 @@ Invoking diagnostics without clicking through the Actions UI:
 - an integration that can only mutate pull-request metadata adds one of the
   command labels (`ci:app-unit`, `ci:samsung-unit`, `ci:android-static`,
   `ci:android-build`, `ci:backend`, `ci:backend-static`, `ci:backend-test`,
-  `ci:device`, `ci:full`) to the pull request, and `agent-control.yml` resolves
+  `ci:dependency-lock-refresh`, `ci:device`, `ci:full`) to the pull request,
+  and `agent-control.yml` resolves
   that pull request's head SHA and branch, dispatches the matching workflow from
   the repository's default branch, removes the label, and records what it
   dispatched.
