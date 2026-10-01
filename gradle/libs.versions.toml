@@ -30,7 +30,7 @@ androidx-test-junit = "1.3.0"
 androidx-test-core = "1.7.0"
 androidx-test-runner = "1.7.0"
 androidx-test-uiautomator = "2.4.0"
-androidx-annotation = "1.10.0"
+androidx-annotation = "1.11.0"
 kotlinx-serialization = "1.11.0"
 # S03 (Issue #79): Room for the device-local TvProfile row, DataStore for the
 # typed preference keys, OkHttp for the live WebSocket session inside :samsung,
@@ -55,7 +55,7 @@ ksp = "2.3.12"
 # resolves on :app, so declaring it adds no new artifact to the app graph; it
 # becomes a direct, reviewed pin instead of a transitive one.
 # License: Apache-2.0. Publisher: JetBrains (org.jetbrains.kotlinx), Maven Central.
-kotlinx-coroutines = "1.9.0"
+kotlinx-coroutines = "1.11.0"
 junit = "4.13.2"
 robolectric = "4.17"
 # detekt is AppT's Kotlin static-analysis floor (Issue #36). Pinned to the
@@ -68,9 +68,9 @@ robolectric = "4.17"
 # Updates arrive as reviewed pull requests, like every other pin.
 detekt = "1.23.8"
 # Spotless deterministic Kotlin formatting (Spotless + ktfmt) (Issue #56).
-spotless = "7.0.2"
+spotless = "8.10.2"
 # Product coverage reports feed Sonar's new-code quality gate; no percentage floor.
-kover = "0.9.5"
+kover = "0.9.9"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
