@@ -82,6 +82,7 @@ export const COMMAND_LABELS = {
   'ci:backend': { workflow: 'diagnose.yml', mode: 'backend' },
   'ci:backend-static': { workflow: 'diagnose.yml', mode: 'backend-static' },
   'ci:backend-test': { workflow: 'diagnose.yml', mode: 'backend-test' },
+  'ci:dependency-state': { workflow: 'diagnose.yml', mode: 'dependency-state' },
   'ci:device': { workflow: 'diagnose.yml', mode: 'device' },
 };
 
