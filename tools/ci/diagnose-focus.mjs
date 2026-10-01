@@ -77,6 +77,8 @@ const GRADLE_DEVICE = [
   '--no-daemon',
   '--dependency-verification=strict',
   '-Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect',
+  '-Pandroid.experimental.androidTest.numManagedDeviceShards=1',
+  '-Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1',
 ];
 
 /** npm script invocation prefix. */
