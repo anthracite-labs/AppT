@@ -292,6 +292,48 @@ class WorkflowCacheContractTests(unittest.TestCase):
                 )
                 self.assertIn("${{ github.run_id }}", upload["with"]["name"])
 
+    def test_dependency_state_refresh_is_read_only_and_bounded(self):
+        diagnose = yaml.safe_load((WORKFLOWS / "diagnose.yml").read_text())
+        job = diagnose["jobs"]["dependency-state"]
+
+        self.assertEqual(job["permissions"], {"contents": "read"})
+        self.assertNotIn("cache-mode", job)
+
+        steps = {step.get("name"): step for step in job["steps"]}
+        exact_checkout = steps["Check out the exact expected SHA"]
+        self.assertEqual(
+            exact_checkout["with"]["ref"],
+            "${{ steps.assert-target.outputs.sha }}",
+        )
+        self.assertEqual(exact_checkout["with"]["persist-credentials"], False)
+
+        boundary = steps["Validate bounded lockfile output"]["run"]
+        for path in (
+            "gradle.lockfile",
+            "settings-gradle.lockfile",
+            "app/gradle.lockfile",
+            "samsung/gradle.lockfile",
+            "macrobenchmark/gradle.lockfile",
+        ):
+            self.assertIn(f'"{path}"', boundary)
+        self.assertNotIn("verification-metadata.xml", boundary)
+        self.assertIn("Unexpected tracked change", boundary)
+        self.assertIn("[ -L \"$path\" ]", boundary)
+        self.assertIn("5242880", boundary)
+
+        upload = steps["Upload generated Gradle lock state"]
+        self.assertIn("actions/upload-artifact@", upload["uses"])
+        self.assertEqual(upload["with"]["retention-days"], 7)
+        self.assertEqual(
+            upload["with"]["path"],
+            "${{ runner.temp }}/dependency-state/**",
+        )
+
+        rendered = yaml.safe_dump(job)
+        self.assertNotIn("contents: write", rendered)
+        self.assertNotIn("secrets.", rendered)
+        self.assertNotIn("git push", rendered)
+
     def test_future_target_workflows_are_discovered(self):
         workflow = yaml.safe_load("""
 permissions: {contents: read}

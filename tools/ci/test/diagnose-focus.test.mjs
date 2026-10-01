@@ -61,6 +61,13 @@ const UNFOCUSED_COMMANDS = {
   'backend-static': ['npm', 'run', 'verify:static', '--prefix', 'backend'],
   'backend-test': ['npm', 'run', 'verify:test', '--prefix', 'backend'],
   backend: ['npm', 'run', 'verify', '--prefix', 'backend'],
+  'dependency-state': [
+    './gradlew',
+    '--no-daemon',
+    '--dependency-verification=strict',
+    'resolveAndLockAll',
+    '--write-locks',
+  ],
   device: [
     './gradlew',
     '--no-daemon',
@@ -86,6 +93,7 @@ const INVOCATION_PREFIX = {
   'backend-static': ['npm', 'run'],
   'backend-test': ['npm', 'run'],
   backend: ['npm', 'run'],
+  'dependency-state': ['./gradlew', '--no-daemon', '--dependency-verification=strict'],
   device: [
     './gradlew',
     '--no-daemon',
@@ -352,6 +360,7 @@ describe('invalid and cross-mode focus fails closed', () => {
     ['device', 'method:Foo'],
     ['device', 'package:a..b'],
     ['device', 'class:-x'],
+    ['dependency-state', 'anything'],
 
     // A value that would be read as a flag rather than as a selector.
     ['app-unit', '--tests'],
@@ -370,6 +379,15 @@ describe('invalid and cross-mode focus fails closed', () => {
       assert.notEqual(result.status, 0);
     });
   }
+
+  it('dependency-state rejects every non-empty focus', () => {
+    for (const focus of ['locks', 'app', 'device', 'anything']) {
+      assert.throws(
+        () => resolveFocus({ mode: 'dependency-state', focus }),
+        /focus is not supported for dependency-state/
+      );
+    }
+  });
 
   it('rejects an unknown mode', () => {
     assert.throws(() => resolveFocus({ mode: 'not-a-mode' }), /unknown diagnose mode/);

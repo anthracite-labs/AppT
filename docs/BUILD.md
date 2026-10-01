@@ -184,8 +184,10 @@ when safe, and escalate only the blocked operation.
    install/download), escalate only that blocked operation. The hosted fallback
    for Android/JVM implementation feedback is a `workflow_dispatch` of
    `.github/workflows/diagnose.yml` with the narrowest mode that answers the
-   question: `app-unit`, `samsung-unit`, `android-static`, `android-build`, or
-   `device`. A diagnostic run is implementation feedback only. It is not terminal
+   question: `app-unit`, `samsung-unit`, `android-static`, `android-build`, `dependency-state`, or
+   `device`. Use `dependency-state` only after a reviewed Gradle dependency/configuration
+   change requires `resolveAndLockAll --write-locks`; it uploads bounded generated lockfiles
+   and never writes the target branch. A diagnostic run is implementation feedback only. It is not terminal
    repository verification and does not satisfy `verify / gate` for a finished
    candidate. Do not dispatch a full `verify` run merely to discover the next
    compile, format, or unit-test error.
