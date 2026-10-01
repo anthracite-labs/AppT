@@ -206,7 +206,6 @@ yamllint, markdownlint, and ShellCheck run locally when those tools are present:
 - `yamllint -c .yamllint.yml .`
 - `tools/security/run.sh`
 
-
 ## Verification cadence
 
 Pull-request synchronization is intentionally cheap. `.github/workflows/verify.yml`
