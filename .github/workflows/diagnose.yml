@@ -1124,6 +1124,16 @@ jobs:
           ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
+      # Match the trusted verify device job: hosted managed emulators require
+      # KVM access before Gradle provisions their system images.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -la /dev/kvm
+
       - name: Run Gradle Managed Device Acceptance Test (API 29)
         env:
           APPT_BUILD_SHA: ${{ steps.assert-target.outputs.sha || github.sha }}
