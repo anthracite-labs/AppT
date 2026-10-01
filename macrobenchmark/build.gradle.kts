@@ -112,8 +112,9 @@ tasks.matching { it.name == "connectedCheck" }.configureEach {
 //   * wire-runtime 6.4.7 — androidx.benchmark (latest 1.5.0) transitively
 //     resolves Wire 6.4.0, which carries GHSA-9rm7-3qhh-h2mc (patched in
 //     6.4.5); 6.4.7 is the latest stable 6.x. `implementationDependenciesMetadata`
-//     resolves the same family outside the variant classpaths, so it is
-//     constrained to keep a single Wire version across the module.
+//     resolves the same family outside the variant classpaths, while the
+//     `nonMinifiedRelease*` Baseline Profile producer configurations need the
+//     same constraint for release profile generation.
 configurations.configureEach {
     val cfg = name
     val notations =
@@ -125,7 +126,9 @@ configurations.configureEach {
                     "org.apache.commons:commons-lang3:3.20.0",
                     "org.apache.httpcomponents:httpclient:4.5.14",
                 )
-            cfg.contains("benchmark") || cfg == "implementationDependenciesMetadata" ->
+            cfg.contains("benchmark") ||
+                cfg.startsWith("nonMinifiedRelease") ||
+                cfg == "implementationDependenciesMetadata" ->
                 listOf("com.squareup.wire:wire-runtime:6.4.7")
             else -> emptyList<String>()
         }
