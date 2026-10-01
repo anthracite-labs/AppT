@@ -8,6 +8,7 @@ import dev.anthracite.appt.samsung.TvCommand
 import dev.anthracite.appt.samsung.TvId
 import kotlinx.coroutines.CoroutineScope
 import dev.anthracite.appt.remote.DebugS05VerifierAction
+import dev.anthracite.appt.remote.DebugS05VerifierCommand
 import dev.anthracite.appt.samsung.SamsungModule
 
 /** Stock debug keeps the real production Samsung adapter for physical testing. */
