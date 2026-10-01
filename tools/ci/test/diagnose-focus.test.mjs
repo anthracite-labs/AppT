@@ -280,7 +280,7 @@ describe('invalid and cross-mode focus fails closed', () => {
     // A value that would be read as a flag rather than as a selector.
     ['app-unit', '--tests'],
     ['app-unit', '-x'],
-    ['backend-test', '-x'],
+    ['removed-backend-mode', '-x'],
   ];
 
   for (const [mode, focus] of rejections) {

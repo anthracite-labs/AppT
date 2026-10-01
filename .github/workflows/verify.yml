@@ -16,10 +16,10 @@
 #
 # Cadence: pull-request synchronization runs only the cheap repository domains
 # (policy and quality) plus dependency review when dependency inputs changed.
-# The expensive Android and backend domains run on pushes to `main` and on an
-# explicit `workflow_dispatch`, so a coding iteration stays cheap while the
-# human or an authorized control-plane integration chooses when the full bill
-# is paid.
+# The expensive Android, backend and Sonar quality-platform domains run on
+# pushes to `main` and on an explicit `workflow_dispatch`, so a coding
+# iteration stays cheap while the human or an authorized control-plane
+# integration chooses when the full bill is paid.
 #
 # Boundaries:
 #   * focused, permanent, non-terminal diagnostics live in `diagnose.yml`;
@@ -184,6 +184,12 @@ jobs:
         run: |
           pip install --break-system-packages yamllint==1.35.1
           yamllint -c .yamllint.yml .
+
+      - name: Verify workflow trust boundaries
+        # PyYAML is supplied by the pinned yamllint install above.
+        run: |
+          python3 tools/ci/test/cache-mode-contract.test.py
+          python3 tools/ci/test/sonar-boundary.test.py
 
       - name: Run markdownlint
         # DavidAnson/markdownlint-cli2-action v24.2.0
@@ -493,6 +499,18 @@ jobs:
             exit 1
           }
 
+      - name: Upload Kover coverage report
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: kover-coverage-report
+          path: |
+            app/build/reports/kover/**
+            build/reports/kover/**
+          if-no-files-found: warn
+          retention-days: 7
+
   # ---------------------------------------------------------------------------
   # 7. Backend verification — the backend is a small, non-deployable skeleton,
   #    so it gets ONE proportional job running its full verification interface
@@ -545,6 +563,16 @@ jobs:
 
       - name: Run backend verification interface
         run: npm run verify --prefix backend
+
+      - name: Upload backend coverage
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: backend-coverage-report
+          path: backend/coverage/**
+          if-no-files-found: warn
+          retention-days: 7
 
   # 10. Change detection — what the candidate actually touched. This job always
   #     runs, so a conditional job below never leaves a required check pending
@@ -706,6 +734,109 @@ jobs:
           head-ref: ${{ inputs.expected_sha || github.sha }}
 
   # ---------------------------------------------------------------------------
+  # 12. Quality platform — SonarQube Cloud over the coverage evidence produced
+  #     by the two producer jobs. It deliberately does not wait on Android
+  #     formatting or Android static verification: an unrelated failure there
+  #     must not suppress the quality-platform evidence.
+  # ---------------------------------------------------------------------------
+  quality-platform:
+    name: SonarQube Cloud quality platform
+    needs:
+      - android-unit
+      - backend
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the dispatch anchor
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # Keep trusted settings/helpers in the workspace root. Target source
+          # gets a separate checkout and cannot replace scanner control files.
+          persist-credentials: false
+
+      - name: Assert the dispatch target
+        id: assert-target
+        if: inputs.expected_sha != ''
+        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          expected-sha: ${{ inputs.expected_sha }}
+          target-ref: ${{ inputs.target_ref }}
+
+      - name: Check out source as data in a separate directory
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # Bridge: the validated target SHA. Ordinary main/manual run: its
+          # exact event SHA. Neither path loads control logic from this tree.
+          ref: ${{ steps.assert-target.outputs.sha || github.sha }}
+          path: sonar-target
+          persist-credentials: false
+
+      - name: Download Kover coverage report
+        # actions/download-artifact v7.0.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          name: kover-coverage-report
+          path: ${{ runner.temp }}/sonar-kover
+
+      - name: Download backend coverage report
+        # actions/download-artifact v7.0.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          name: backend-coverage-report
+          path: ${{ runner.temp }}/sonar-backend
+
+      - name: Validate inert Sonar inputs and fresh scanner state
+        env:
+          SCAN_TEMP: ${{ runner.temp }}
+        run: |
+          python3 tools/ci/validate-sonar-inputs.py \
+            --source sonar-target \
+            --android "$SCAN_TEMP/sonar-kover" \
+            --backend "$SCAN_TEMP/sonar-backend" \
+            --work "$SCAN_TEMP/sonar-work" \
+            --home "$SCAN_TEMP/sonar-home"
+
+      - name: Check for SonarQube Cloud Token
+        id: check_token
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::error title=SonarQube Cloud Token Missing::SONAR_TOKEN secret is required for mandatory SonarQube Cloud quality platform analysis. Analysis cannot be bypassed."
+            exit 1
+          fi
+
+      - name: Run SonarQube Cloud Analysis
+        # sonarsource/sonarqube-scan-action v8.2.2
+        uses: sonarsource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4
+        with:
+          scannerVersion: 8.1.0.6389
+          # Stay at the trusted anchor (the action defaults projectBaseDir to
+          # '.'). Do not combine the explicit settings file with a target base.
+          # Analyze only target paths; target settings remain inert. Quote each
+          # WHOLE argument: string-argv 0.3.2 preserves quotes after the '='.
+          args: >-
+            "-Dproject.settings=${{ github.workspace }}/sonar-project.properties"
+            "-Dsonar.sources=sonar-target/app/src/main,sonar-target/samsung/src/main,sonar-target/backend/src"
+            "-Dsonar.tests=sonar-target/app/src/test,sonar-target/backend/test"
+            "-Dsonar.java.binaries=sonar-target/app/build/intermediates/javac/debug/classes,sonar-target/app/build/tmp/kotlin-classes/debug"
+            "-Dsonar.modules="
+            "-Dsonar.host.url=https://sonarcloud.io"
+            "-Dsonar.scanner.sonarcloudUrl=https://sonarcloud.io"
+            "-Dsonar.scanner.apiBaseUrl=https://api.sonarcloud.io"
+            "-Dsonar.working.directory=${{ runner.temp }}/sonar-work"
+            "-Dsonar.userHome=${{ runner.temp }}/sonar-home"
+            "-Dsonar.coverage.jacoco.xmlReportPaths=${{ runner.temp }}/sonar-kover/build/reports/kover/report.xml,${{ runner.temp }}/sonar-kover/app/build/reports/kover/report.xml,${{ runner.temp }}/sonar-kover/app/build/reports/kover/reportDebug.xml,${{ runner.temp }}/sonar-kover/build/reports/kover/reportDebug.xml"
+            "-Dsonar.javascript.lcov.reportPaths=${{ runner.temp }}/sonar-backend/lcov.info"
+            "-Dsonar.scm.revision=${{ steps.assert-target.outputs.sha || github.sha }}"
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # ---------------------------------------------------------------------------
   # 13. Gate — the single stable required status interface for default-branch
   #     protection (`verify / gate`). It decides acceptance; nothing else does.
   # ---------------------------------------------------------------------------
@@ -721,6 +852,7 @@ jobs:
       - backend
       - changes
       - dependency-review
+      - quality-platform
     if: always()
     runs-on: ubuntu-24.04
     permissions:
@@ -738,6 +870,7 @@ jobs:
           BACKEND_RESULT: ${{ needs.backend.result }}
           CHANGES_RESULT: ${{ needs.changes.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
+          QUALITY_PLATFORM_RESULT: ${{ needs.quality-platform.result }}
           TARGET_SHA: ${{ inputs.expected_sha || github.sha }}
         run: |
           set -uo pipefail
@@ -792,9 +925,8 @@ jobs:
 
           if [ "$EVENT_NAME" = "pull_request" ]; then
             echo "Pull-request verification: repository policy, repository quality, change"
-            echo "detection and dependency review only. The Android and backend"
-            echo "domains are produced by a full verification run (push to main,"
-            echo "workflow_dispatch, or the agent-control bridge)."
+            echo "detection and dependency review only. Android, backend, and Sonar"
+            echo "quality analysis run on full verification (push to main or dispatch)."
             echo
 
             require repo-policy "$REPO_POLICY_RESULT"
@@ -806,6 +938,7 @@ jobs:
             not_run android-build
             not_run android-unit
             not_run backend
+            not_run quality-platform
           else
             echo "Full repository verification."
             echo
@@ -817,6 +950,7 @@ jobs:
             require android-build "$ANDROID_BUILD_RESULT"
             require android-unit "$ANDROID_UNIT_RESULT"
             require backend "$BACKEND_RESULT"
+            require quality-platform "$QUALITY_PLATFORM_RESULT"
             require_dependency_review
           fi
 
@@ -830,6 +964,7 @@ jobs:
             printf '| %s | %s |\n' "android-unit" "$ANDROID_UNIT_RESULT"
             printf '| %s | %s |\n' "backend" "$BACKEND_RESULT"
             printf '| %s | %s |\n' "dependency-review" "$DEPENDENCY_REVIEW_RESULT"
+            printf '| %s | %s |\n' "quality-platform" "$QUALITY_PLATFORM_RESULT"
             echo
             if [ "$failed" -eq 0 ]; then
               echo "All required verification domains succeeded."

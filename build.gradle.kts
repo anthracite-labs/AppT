@@ -68,6 +68,7 @@ plugins {
     // Kotlin, so Issue #36's detekt scope does not reach it.
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.spotless)
+    alias(libs.plugins.kover)
 }
 
 spotless {
@@ -81,6 +82,11 @@ spotless {
         targetExclude("**/build/**")
         ktfmt().kotlinlangStyle()
     }
+}
+
+dependencies {
+    kover(project(":app"))
+    kover(project(":samsung"))
 }
 
 apply(from = rootProject.file("gradle/guards.gradle.kts"))
@@ -135,7 +141,8 @@ tasks.register("androidBuild") {
 // a full verification run always produces both.
 tasks.register("androidUnit") {
     group = "verification"
-    description = "Android unit/Robolectric verification for :app and :samsung."
+    description =
+        "Android unit/Robolectric verification for :app and :samsung, plus Kover XML coverage reporting."
     dependsOn(":app:testDebugUnitTest", ":samsung:test")
 }
 
@@ -152,3 +159,16 @@ tasks.register("ciCheck") {
     dependsOn("androidFormat", "androidStatic", "androidBuild", "androidUnit")
 }
 
+gradle.projectsEvaluated {
+    val koverXml =
+        tasks.findByName("koverXmlReport")
+            ?: project(":app").tasks.findByName("koverXmlReport")
+            ?: tasks.findByName("koverXmlReportDebug")
+            ?: project(":app").tasks.findByName("koverXmlReportDebug")
+
+    // Product coverage is useful input to the Sonar new-code quality gate.
+    // There is deliberately no percentage floor on build/CI implementation.
+    tasks.named("androidUnit") {
+        koverXml?.let { dependsOn(it) }
+    }
+}

@@ -31,8 +31,9 @@ the wrapper in an empty scratch build (running `gradle wrapper` inside this
 repository would configure the AppT build, and resolve AGP, before the wrapper
 meant to run that build exists), recorded the published distribution checksum,
 generated the SHA-256 verification metadata, proved the result passes strict
-verification, and committed it. That workflow was **deleted** once the artifacts
-landed: the committed state is now the only source, and CI never regenerates it.
+verification, and committed it. That workflow was **deleted** once
+the artifacts landed: the committed state is now the only source, and CI never
+regenerates it.
 
 `distributionSha256Sum` was read from the published
 `gradle-9.7.1-bin.zip.sha256` and independently matches the Gradle
@@ -55,7 +56,8 @@ over exactly the same work, in one invocation:
 ```bash
 # Root Android/Kotlin verification lifecycle interface aggregating strict
 # compiler diagnostics (-Werror), Spotless + ktfmt, debug assembly, unit/Robolectric
-# tests, Android Lint, detekt and appTGuards:
+# tests, Android Lint, detekt, Kover product-coverage reporting, appTGuards
+# and release-boundary checks:
 ./gradlew --no-daemon --dependency-verification=strict ciCheck
 
 # The CI-owned failure domains, one at a time:
@@ -70,12 +72,14 @@ over exactly the same work, in one invocation:
 
 ```
 
-`androidUnit` runs `:app:testDebugUnitTest` **and** `:samsung:test`: Samsung
-unit tests are authoritative verification evidence, not diagnostics.
+`androidUnit` runs `:app:testDebugUnitTest` **and** `:samsung:test` plus Kover
+XML coverage reporting for the Sonar new-code quality gate. There is no coverage
+percentage floor on build/CI machinery. Samsung unit tests are authoritative
+verification evidence, not diagnostics.
 
 ### Dependency verification
 
-`gradle/verification-metadata.xml` is the repository's single committed
+`gradle/verification-metadata.xml` is the repository's single active committed
 dependency-integrity state. It carries SHA-256 checksums for every resolved
 component, and CI runs every Gradle command with
 `--dependency-verification=strict`. An artifact whose checksum does not match is
@@ -94,10 +98,13 @@ Review the regenerated `<components>` diff, then commit the regenerated file.
 Strict verification fails loudly if a still-needed entry was removed, so the
 removal is self-checking.
 
-Gradle dependency locking was retired (the version catalog pins every version
-exactly, enforced by the `versionCatalogPinned` guard, so locking had no
-dynamic versions to stabilize; strict verification owns artifact integrity).
-There are no lockfiles to refresh.
+Gradle dependency locking is disabled: every dependency version in the catalog
+is exact (enforced by `versionCatalogPinned`), so locking had no dynamic version
+to stabilize. The remaining `app/gradle.lockfile`, `samsung/gradle.lockfile`, and
+`macrobenchmark/gradle.lockfile` are legacy generated outputs, not consumed by
+the current build. Their final removal is coordinated with active S05 PR #118,
+which updates the app lockfile and retires the benchmark module. No current
+command refreshes lock state.
 
 ### Plugin-classpath tooling constraints (Issue #68)
 
@@ -195,6 +202,8 @@ yamllint, markdownlint, and ShellCheck run locally when those tools are present:
 - `npm run verify --prefix backend`
 - `node --test "tools/secret-scan/test/secret-scan.test.mjs" && node tools/secret-scan/secret-scan.mjs`
 - `node --test "tools/ci/test/dispatch-workflow.test.mjs"`
+- `python3 tools/ci/test/cache-mode-contract.test.py`
+- `python3 tools/ci/test/sonar-boundary.test.py`
 - `yamllint -c .yamllint.yml .`
 - `tools/security/run.sh`
 
@@ -206,21 +215,21 @@ policy (whitespace/diff validation, repository security-policy self-tests, secre
 scanning, tooling constraint checks) and repository quality (yamllint,
 markdownlint, ShellCheck, shfmt, actionlint, zizmor) — plus change detection and
 dependency review when the candidate changed dependency inputs. It does not build
-Android, run backend verification, or execute `ciCheck` or any of its narrower
-domains.
+Android, run backend verification, run Sonar, regenerate dependency state, or
+execute `ciCheck` or any of its narrower domains.
 
 The gate requires change detection to have succeeded in its own right, because
 `dependency-review` declares `needs: changes`: if change detection fails, GitHub
 skips dependency review, and a gate that accepted that skip would let the failure
 pass silently.
 
-The full verification domains run on pushes to `main` and on an explicit
-**Run workflow** dispatch of `verify` on the branch that needs the complete
-suite. There is no `mode` input: a dispatched run is the full suite. Focused,
+The full Android, backend and Sonar quality-platform domains run on pushes to
+`main` and on an explicit **Run workflow** dispatch of `verify` on the branch
+that needs the complete suite. There is no `mode` input: a dispatched run is the full suite. Focused,
 non-terminal feedback is a `diagnose.yml` dispatch, never a `verify` dispatch.
 
-Do not regenerate the verification metadata as an iteration step. Regenerate it
-only after an actual reviewed dependency change requires it.
+Do not regenerate verification metadata as an iteration step. Regenerate it only
+after an actual reviewed dependency change requires it.
 
 ## CI topology and agent invocation
 
@@ -228,16 +237,16 @@ Four active workflows, each with one responsibility:
 
 | Workflow | Trigger | Responsibility |
 |---|---|---|
-| `verify.yml` | `pull_request`, `push` to `main`, `workflow_dispatch` | Authoritative verification and the sole stable `verify / gate` |
+| `verify.yml` | `pull_request`, `push` to `main`, `workflow_dispatch` | Authoritative verification, Sonar quality gate and sole stable `verify / gate` |
 | `diagnose.yml` | `workflow_dispatch` only | Focused, permanent, non-terminal diagnostics |
 | `codeql.yml` | `pull_request`, `push` to `main`, `schedule`, `workflow_dispatch` | Security SAST |
 | `agent-control.yml` | `pull_request_target` (label added) | Trusted dispatch bridge for agents |
 
 Repository-local composite actions live under `.github/actions/**`
-(`setup-node`, `setup-jvm`, `assert-dispatch-target`). Runner filesystem state is
-never shared between jobs, so each job re-establishes its own toolchain; the
-Gradle version is not duplicated in workflow configuration because the committed
-wrapper plus its `distributionSha256Sum` is the version authority.
+(`setup-node`, `setup-jvm`, `assert-dispatch-target`). Runner filesystem state is never shared between
+jobs, so each job re-establishes its own toolchain; the Gradle version is not
+duplicated in workflow configuration because the committed wrapper plus its
+`distributionSha256Sum` is the version authority.
 
 GitHub resolves a local action (`uses: ./.github/actions/...`) from the
 workspace on disk, so **every job that uses a composite action must run
@@ -250,10 +259,10 @@ Invoking diagnostics without clicking through the Actions UI:
 - an actor with Actions write permission dispatches `diagnose.yml` directly;
 - an integration that can only mutate pull-request metadata adds one of the
   command labels (`ci:app-unit`, `ci:samsung-unit`, `ci:android-static`,
-  `ci:android-build`, `ci:backend`, `ci:full`) to the pull request, and
-  `agent-control.yml` resolves that pull request's head SHA and branch,
-  dispatches the matching workflow from the repository's default branch, removes
-  the label, and records what it dispatched.
+  `ci:android-build`, `ci:backend`, `ci:full`) to the pull request, and `agent-control.yml` resolves
+  that pull request's head SHA and branch, dispatches the matching workflow from
+  the repository's default branch, removes the label, and records what it
+  dispatched.
 
 To narrow a diagnostic through that metadata-only bridge, put exactly one
 mode-bound marker on a line by itself in the pull-request body before applying
@@ -301,14 +310,48 @@ the default branch's scope. Repository-token permissions alone do not enforce
 this boundary. This applies to every job and event in those two workflows;
 provider cache writes are intentionally unavailable even for trusted-only runs.
 
-Fork pull requests cannot be dispatched at all and fail closed. The dispatch
-logic lives in `tools/ci/dispatch-workflow.mjs`, proven by
+There is no cache-writing exception in either workflow. Verified target code
+runs with provider caches read-only (`cache-mode: read`); verification and
+diagnostics do not publish target-controlled state into a trusted cache. The
+tradeoff is a cold Gradle build cache on each hosted run.
+
+Fork pull requests cannot be dispatched through the metadata bridge and fail
+closed. The logic lives in `tools/ci/dispatch-workflow.mjs`, proven by
 `tools/ci/test/dispatch-workflow.test.mjs`; the tests reject a commit SHA used
-directly as `workflow_dispatch.ref` and reject the earlier mutable-ref shape
-outright, because `targetRef` is required and `ref` may never equal it. The
-assertion's own decision logic is proven by
-`tools/ci/test/assert-dispatch-target.test.mjs`, which extracts it from the
-action and runs it against a fake `gh`.
+directly as `workflow_dispatch.ref` and reject the earlier mutable-ref shape.
+The assertion's decision logic is proven by
+`tools/ci/test/assert-dispatch-target.test.mjs` against a fake `gh`.
+
+The pinned actionlint parser does not recognize provider `cache-mode` syntax at
+the workflow level, so `repo-quality` runs
+`tools/ci/test/cache-mode-contract.test.py` after yamllint. It parses the actual
+workflow YAML and requires `verify.yml` and `diagnose.yml` to keep the
+workflow-level `cache-mode: read`, with no job override. The Sonar boundary test
+also verifies the cache mode on the secret-bearing scanner job.
+
+### Secret-bearing Sonar analysis
+
+The quality-platform job does **not** execute target build/install scripts. It
+keeps its trusted dispatch-anchor checkout at the workspace root, checks the
+validated target into `sonar-target`, and downloads coverage into separate
+runner-temporary directories. The scanner reads the anchor's
+`sonar-project.properties` through an explicit `project.settings` argument.
+The scanner stays at the trusted anchor (no target `projectBaseDir` input);
+explicit `sonar.sources`, `sonar.tests` and `sonar.java.binaries` overrides select
+only `sonar-target/...` paths. Entire `-Dkey=value` arguments are quoted because
+the pinned action's parser preserves quotes placed only around a value.
+Target and artifact copies are not scanner configuration. Module settings are
+disabled, endpoints are fixed, and scanner state starts in fresh directories
+outside all input trees. Input symlinks and special files fail closed before any
+secret-bearing step. Both Kover XML and backend LCOV remain required and are
+imported from the current run's producer artifacts through explicit paths.
+
+Only the token-presence check and pinned scanner receive `SONAR_TOKEN`; the
+scanner no longer receives an unnecessary `GITHUB_TOKEN`. The scanner action and
+CLI version stay pinned. `tools/ci/test/sonar-boundary.test.py` checks this split
+without running target code or contacting Sonar. See the
+[release security analysis](architecture/release.md#secret-bearing-sonar-boundary)
+for the pinned upstream source evidence and the remaining hosted-proof boundary.
 
 ### Diagnostic breadth and failure capture
 
@@ -373,7 +416,7 @@ gh workflow run diagnose.yml -f mode=app-unit
 # narrowed inside the mode
 gh workflow run diagnose.yml -f mode=app-unit -f focus=com.example.FooTest
 gh workflow run diagnose.yml -f mode=android-static -f focus=lint
-gh workflow run diagnose.yml -f mode=backend -f focus=test:handles a retry
+gh workflow run diagnose.yml -f mode=backend -f focus=test:package-identity
 ```
 
 `tools/ci/diagnose-focus.mjs` owns the per-mode grammar and returns the exact
@@ -395,21 +438,19 @@ PR updates scan GitHub Actions and JavaScript/TypeScript only. Java/Kotlin CodeQ
 runs when explicitly dispatched, on pushes to `main`, and on the scheduled
 security run.
 
-AppT runs an Advanced Setup workflow (`.github/workflows/codeql.yml`) using the
-`codeql-action`'s own bundle — no separately pinned CodeQL bundle — analyzing
-`java-kotlin` (built manually under strict dependency verification via
-`./gradlew ... assembleDebug`), `javascript-typescript`, and `actions` with the
-`security-extended` query suite.
+AppT uses the `codeql-action`-managed bundle in the Advanced Setup workflow;
+there is no separately pinned CodeQL bundle. The workflow analyzes `java-kotlin`
+(built under strict dependency verification via `./gradlew ... assembleDebug`),
+`javascript-typescript`, and `actions` with the `security-extended` query suite.
+
+GitHub Default Setup is the preferred low-maintenance owner, but the control-
+plane token cannot toggle it (the `code-scanning/default-setup` API returns
+403 for this repository). Once a repository owner enables Default Setup and
+managed Java/Kotlin analysis succeeds on the current Kotlin version, the
+advanced workflow can be deleted.
 
 Local reproduction of the deterministic Kotlin extraction build:
 
 ```bash
 tools/security/run.sh build
 ```
-
-Migration-back condition: GitHub-managed Default Setup is the preferred
-long-term owner. It is not enabled today because the control-plane token cannot
-toggle it (the `code-scanning/default-setup` API returns `403 Resource not
-accessible by integration` for this repository). Once a repository owner enables
-Default Setup in repository settings and managed Java/Kotlin analysis passes on
-the current Kotlin version, `.github/workflows/codeql.yml` can be deleted.

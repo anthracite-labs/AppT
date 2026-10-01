@@ -83,8 +83,9 @@ updates:
     #
     # Then review the generated <components> diff and commit the regenerated
     # gradle/verification-metadata.xml to the Dependabot branch. Dependency
-    # locking was retired (exact version catalog + strict verification own
-    # integrity), so there are no lockfiles to refresh.
+    # locking is disabled (exact version catalog + strict verification own
+    # integrity); no active Gradle lock state is refreshed. Any remaining
+    # generated lockfiles are legacy outputs awaiting the active S05 closeout.
 
   # ---------------------------------------------------------------------------
   # Backend npm package. All dependency updates must go through this directory,

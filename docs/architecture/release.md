@@ -140,10 +140,11 @@ Repository workflow code must not duplicate those platform controls.
 ### Repository verification workflow
 
 The repository owns one authoritative verification workflow:
-`.github/workflows/verify.yml`. Pull-request synchronization runs only the two
-cheap repository domains — repository policy and repository quality — plus
-dependency review when the candidate changed dependency inputs. It must not compile Android, run backend verification, or execute `ciCheck` or
-any of its narrower domains.
+`.github/workflows/verify.yml`. Pull-request synchronization runs only the two cheap repository domains —
+repository policy and repository quality — plus dependency review when the
+candidate changed dependency inputs. It does not compile Android, run backend
+verification, run the Sonar quality platform, or execute `ciCheck` or any of its
+narrower domains.
 
 The full verification domains run on pushes to `main` and on an explicit
 `workflow_dispatch` (there is no `mode` input; a dispatched run is the full
@@ -163,7 +164,8 @@ exists.
 The workflow exposes one stable branch-protection interface: `verify / gate`
 (workflow `verify`, job `gate`). On ordinary pull requests that gate represents
 the two cheap repository domains and dependency review; a full run produces the
-same gate after every verification domain. Internal job names may evolve
+same gate after Android, backend, dependency-review and Sonar quality-platform
+evidence. Internal job names may evolve
 without changing branch protection. No diagnostic run can satisfy or masquerade
 as that gate.
 
@@ -208,7 +210,15 @@ local action from the workspace on disk, every job that uses one runs
     full runs when the candidate changed dependency inputs. It consumes the
     GitHub dependency graph, fails on newly introduced vulnerable packages, and
     complements strict dependency verification.
-10. **gate** — depends on every domain above and succeeds only when all required
+10. **quality-platform** — SonarQube Cloud analysis of the Android and backend
+    code, consuming current-run Kover XML and Jest LCOV reports. It owns the
+    cross-language new-code coverage, duplication, maintainability and
+    reliability quality gate that Android Lint, detekt, CodeQL and tests do not
+    provide. It runs only on full verification, after the Android and backend
+    producers. Historical evidence confirms it is active: main verification run
+    `36881699523` (2026-10-01) completed the Sonar scan successfully, and the
+    gate required `quality-platform` success.
+11. **gate** — depends on every domain above and succeeds only when all required
     domains succeeded. This is the sole stable repository-owned status intended
     for default-branch protection. It requires `changes` to have succeeded in its
     own right: `dependency-review` declares `needs: changes`, so a failed
@@ -230,6 +240,8 @@ The Android verification floor preserved behind those domains includes:
 - deterministic Spotless + ktfmt checking;
 - assembly and unit/Robolectric tests;
 - Android Lint and detekt;
+- Kover XML product-coverage reports for Sonar's new-code coverage quality gate;
+  no percentage floor is applied to build/CI implementation;
 - architecture tests only for concrete source/bytecode laws that are not already
   owned by Gradle dependency guards; do not install an empty architecture
   framework merely to claim coverage;
@@ -265,6 +277,17 @@ CodeQL remains the authoritative security SAST owner; generic Semgrep or another
 general SAST engine is not added without a concrete AppT invariant CodeQL and the
 project-native tools cannot express.
 
+Sonar remains because the full verification gate actually consumes its distinct
+cross-language new-code coverage, duplication, maintainability and reliability
+quality gate; those signals are not supplied by Android Lint, detekt, CodeQL or
+ordinary tests. This is supported by a successful main-run scan, not merely by
+a configuration file. The Sonar job does not execute pull-request-controlled
+build/install scripts: it checks out the exact candidate as data, keeps trusted
+scanner configuration at the anchor, validates inputs before exposing
+`SONAR_TOKEN`, and uses a pinned scanner. The detailed operational trust boundary
+and its regression test are documented in `docs/BUILD.md` and
+`tools/ci/test/sonar-boundary.test.py`.
+
 GitHub secret protection owns provider/generic secret detection, and the
 repository must not duplicate it. `tools/secret-scan/secret-scan.mjs` therefore
 keeps only the AppT-specific credential-file and credential-material guards:
@@ -279,7 +302,7 @@ tests hold that boundary in place. A provider key written as a hardcoded
 assignment is still caught, by the assignment guard rather than by provider
 detection.
 
-Android Lint, detekt, ESLint, Prettier, Knip and Jest remain native to
+Android Lint, detekt, Kover, ESLint, Prettier, Knip and Jest remain native to
 their project toolchains. Spotless + ktfmt is one formatting responsibility, not
 two checks: it is exposed once as the `android-format` domain and the root
 `androidFormat` task, and is never split into separate formatting jobs.
@@ -304,7 +327,9 @@ a skeleton merely to report an impressive empty score.
 
 Code produced by ChatGPT, Arena, another coding agent, or a human is held to the
 same repository evidence. Agent authorship never lowers a gate and never counts
-as evidence that the implementation is correct.
+as evidence that the implementation is correct. Sonar's deterministic
+quality-platform result is one required full-run evidence source; it does not
+replace human review or CodeQL security analysis.
 
 CodeRabbit is an independent PR-review layer, configured in version-controlled
 `.coderabbit.yaml`. Automatic reviews, linked-issue assessment and focused
@@ -382,7 +407,7 @@ text. The contract:
 | `app-unit`, `samsung-unit` | Gradle test class/method pattern | `--tests <pattern>` on that module's own test task |
 | `android-static` | `lint` \| `detekt` \| `guards` | the owned tasks `androidStatic` already depends on |
 | `android-build` | `app` \| `release-guard` | the owned AppT build/release-boundary tasks `androidBuild` already depends on |
-| `backend` | `static:<sub>` \| `test:<pattern>` | a named static sub-responsibility, or a Jest positional/name pattern |
+| `backend` | `static:<sub>` \| `test:<pattern>` | a named static sub-responsibility, or a Jest positional file pattern |
 
 The selectors were verified against the pinned toolchain before being committed:
 the Gradle task paths are the ones `build.gradle.kts` declares for each failure
