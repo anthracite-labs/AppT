@@ -70,10 +70,6 @@ over exactly the same work, in one invocation:
 ./gradlew spotlessApply
 ./gradlew spotlessCheck
 
-# Installed-app runtime acceptance on Gradle Managed Device (API 29):
-./gradlew --no-daemon --dependency-verification=strict \
-  -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
-  :app:pixel2api29DebugAndroidTest
 ```
 
 `androidUnit` runs `:app:testDebugUnitTest` **and** `:samsung:test` plus Kover
@@ -267,7 +263,7 @@ Invoking diagnostics without clicking through the Actions UI:
 - an integration that can only mutate pull-request metadata adds one of the
   command labels (`ci:app-unit`, `ci:samsung-unit`, `ci:android-static`,
   `ci:android-build`, `ci:backend`, `ci:backend-static`, `ci:backend-test`,
-  `ci:device`, `ci:full`) to the pull request, and `agent-control.yml` resolves
+  `ci:full`) to the pull request, and `agent-control.yml` resolves
   that pull request's head SHA and branch, dispatches the matching workflow from
   the repository's default branch, removes the label, and records what it
   dispatched.
