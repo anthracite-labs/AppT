@@ -69,7 +69,7 @@ robolectric = "4.17"
 detekt = "1.23.8"
 # Spotless deterministic Kotlin formatting (Spotless + ktfmt) (Issue #56).
 spotless = "7.0.2"
-# Kover coverage report generation and verification floor (Issue #56).
+# Product coverage reports feed Sonar's new-code quality gate; no percentage floor.
 kover = "0.9.5"
 
 [libraries]

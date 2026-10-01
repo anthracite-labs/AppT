@@ -1,6 +1,16 @@
+// Canonical markdownlint configuration for AppT.
+//
+// One owner: markdownlint-cli2 reads this file directly, and the CI job in
+// .github/workflows/verify.yml passes it explicitly. The former standalone
+// rule file (.markdownlint.jsonc) and ignore file (.markdownlintignore) were
+// consolidated here.
 {
   "config": {
     "default": true,
+    // Long lines, duplicate headings, inline HTML, first-line headings,
+    // blank-line-around-tables, missing-language-on-code-fence variants:
+    // deliberate documentation-style exclusions, preserved from the original
+    // reviewed configuration.
     "MD013": false,
     "MD024": false,
     "MD033": false,
@@ -11,6 +21,8 @@
   "ignores": [
     ".project-ai/**",
     "node_modules/**",
-    "backend/node_modules/**"
+    "backend/node_modules/**",
+    ".git/**",
+    ".agents/**"
   ]
 }

@@ -42,10 +42,7 @@ export const DIAGNOSE_MODES = Object.freeze([
   'samsung-unit',
   'android-static',
   'android-build',
-  'backend-static',
-  'backend-test',
   'backend',
-  'dependency-state',
 ]);
 
 /**
@@ -60,15 +57,6 @@ const GRADLE_CONTINUE = [
   '--continue',
 ];
 
-/** Dependency-state regeneration is a single reviewed Gradle task and never accepts focus. */
-const GRADLE_DEPENDENCY_STATE = [
-  './gradlew',
-  '--no-daemon',
-  '--dependency-verification=strict',
-  'resolveAndLockAll',
-  '--write-locks',
-];
-
 /** npm script invocation prefix. */
 const npm = (script) => ['npm', 'run', script, '--prefix', 'backend'];
 
@@ -81,7 +69,6 @@ export const ANDROID_STATIC_SUBCHECKS = Object.freeze({
   lint: [':app:lintDebug', ':samsung:lintDebug'],
   detekt: [':app:detekt', ':samsung:detekt'],
   guards: ['appTGuards'],
-  'dependency-lock': ['dependencyLockCheck'],
 });
 
 /**
@@ -286,41 +273,6 @@ export function resolveFocus({ mode, focus } = {}) {
       break;
     }
 
-    // A finite allowlist of the backend's static sub-checks.
-    case 'backend-static': {
-      kind = 'allowlisted-subcheck';
-      command = npm('verify:static');
-      if (normalized !== '') {
-        if (!Object.hasOwn(BACKEND_STATIC_SUBCHECKS, normalized)) {
-          throw new Error(
-            `focus for backend-static must be one of ${Object.keys(BACKEND_STATIC_SUBCHECKS).join(', ')}; ` +
-              `got ${JSON.stringify(normalized)}`
-          );
-        }
-        command = npm(BACKEND_STATIC_SUBCHECKS[normalized]);
-      }
-      break;
-    }
-
-    // Jest file targeting (a positional pattern) or name targeting
-    // (`--testNamePattern`), passed through the mode's own npm script so the
-    // unfocused command is unchanged.
-    case 'backend-test': {
-      kind = 'jest-targeting';
-      command = npm('verify:test');
-      if (normalized !== '') {
-        const { kind: jestKind, value } = splitKind(normalized, ['file', 'name'], mode);
-        if (jestKind === 'name') {
-          requireJestPattern(value, 'Jest test name pattern');
-          command = [...npm('verify:test'), '--', '--testNamePattern', value];
-        } else {
-          requireJestPattern(value, 'Jest file pattern');
-          command = [...npm('verify:test'), '--', value];
-        }
-      }
-      break;
-    }
-
     // The whole backend, narrowable to its own static or test responsibility,
     // and from there to that responsibility's own child selector. A bare
     // `static` / `test` is valid; a colon with nothing after it is not.
@@ -361,16 +313,6 @@ export function resolveFocus({ mode, focus } = {}) {
           command = [...npm('verify:test'), '--', child];
         }
       }
-      break;
-    }
-
-    // Reviewed dependency-state regeneration. This mode is deliberately not
-    // focusable: narrowing a state-generation command would create partial lock state.
-    case 'dependency-state': {
-      if (normalized !== '') {
-        throw new Error('focus is not supported for dependency-state');
-      }
-      command = [...GRADLE_DEPENDENCY_STATE];
       break;
     }
 

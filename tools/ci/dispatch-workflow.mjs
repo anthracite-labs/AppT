@@ -80,9 +80,6 @@ export const COMMAND_LABELS = {
   'ci:android-static': { workflow: 'diagnose.yml', mode: 'android-static' },
   'ci:android-build': { workflow: 'diagnose.yml', mode: 'android-build' },
   'ci:backend': { workflow: 'diagnose.yml', mode: 'backend' },
-  'ci:backend-static': { workflow: 'diagnose.yml', mode: 'backend-static' },
-  'ci:backend-test': { workflow: 'diagnose.yml', mode: 'backend-test' },
-  'ci:dependency-state': { workflow: 'diagnose.yml', mode: 'dependency-state' },
 };
 
 /** Every allowlisted label, in a stable order for reporting and tests. */

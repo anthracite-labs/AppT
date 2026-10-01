@@ -92,8 +92,8 @@ Modes:
              patched version in gradle/verification-metadata.xml.
   detekt     The repository-local Kotlin static/security subset: detekt over
              production Kotlin in :app and :samsung against
-             config/detekt/detekt.yml, plus dependencyLockCheck. This is narrower
-             than the full `android-static` domain and `ciCheck`.
+             config/detekt/detekt.yml. This is narrower than the full
+             `android-static` domain and `ciCheck`.
   build      The exact strict Gradle build used for CodeQL Kotlin extraction.
              The command is printed below rather than documented by hand, so
              this help text cannot drift from what the script actually runs.
@@ -146,11 +146,11 @@ check_detekt() {
   # Runs against the single repository-owned config/detekt/detekt.yml. There is
   # no baseline file and no --auto-correct, so a finding fails the run.
   #
-  # This deliberately runs only detekt and dependencyLockCheck under strict
-  # verification. It is a narrower repository-local check, not equivalent to
-  # all work owned by the `android-static` domain or the `ciCheck` umbrella.
-  info "./gradlew ${GRADLE_STRICT_FLAGS[*]} detekt dependencyLockCheck"
-  ./gradlew "${GRADLE_STRICT_FLAGS[@]}" detekt dependencyLockCheck
+  # This deliberately runs only detekt under strict verification. It is a
+  # narrower repository-local check, not equivalent to all work owned by the
+  # `android-static` domain or the `ciCheck` umbrella.
+  info "./gradlew ${GRADLE_STRICT_FLAGS[*]} detekt"
+  ./gradlew "${GRADLE_STRICT_FLAGS[@]}" detekt
 }
 
 check_build() {

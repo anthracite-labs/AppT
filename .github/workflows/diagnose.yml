@@ -1,11 +1,10 @@
 # AppT focused diagnostics — permanent, manual, and never terminal.
 #
-# Topology (Issue #88)
-# -------------------
-# This workflow replaces the retired `samsung-targeted` dispatch mode of
-# `verify.yml`. It is the permanent home of focused implementation feedback:
-# one mode per meaningful failure domain, invokable on demand by a human or by
-# the trusted agent-control bridge, with no temporary per-issue workflow YAML.
+# Topology
+# --------
+# The permanent home of focused implementation feedback: one mode per
+# meaningful failure domain, invokable on demand by a human or by the trusted
+# agent-control bridge, with no temporary per-issue workflow YAML.
 #
 # Non-terminal by construction:
 #   * every mode is `workflow_dispatch` only, so a diagnostic run is never
@@ -17,8 +16,8 @@
 #
 # A finished candidate is verified by `verify` (full run), never by this file.
 #
-# Focus (Issue #88, human revision)
-# ---------------------------------
+# Focus
+# -----
 # Every mode accepts an optional `focus` input that narrows that mode without
 # widening it. `tools/ci/diagnose-focus.mjs` owns what "narrow" means per mode
 # and returns the exact argv vector to run, so the focus value is data rather
@@ -54,10 +53,7 @@ on:
           - samsung-unit
           - android-static
           - android-build
-          - backend-static
-          - backend-test
           - backend
-          - dependency-state
       expected_sha:
         description: >-
           Commit SHA the dispatched ref was expected to resolve to. Set by the
@@ -78,10 +74,8 @@ on:
           Optional narrowing within the selected mode. Leave empty to run the
           whole mode. The accepted form depends on the mode: a Gradle test
           class or method pattern for the unit modes, a named sub-check for the
-          static and build modes, and file:/name: for the backend modes.
-          dependency-state accepts
-          no focus because partial lock regeneration is forbidden. Anything else fails
-          closed before any work runs.
+          static and build modes, and static:/test: selectors for the backend
+          mode. Anything else fails closed before any work runs.
         required: false
         default: ''
 
@@ -114,11 +108,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
-      actions: read
       contents: read
-    outputs:
-      pr-number: ${{ steps.assert-target.outputs.pr-number }}
-      warm-artifact-id: ${{ steps.gradle-warm-upload.outputs.artifact-id }}
     steps:
       - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
@@ -142,6 +132,7 @@ jobs:
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           java-version: ${{ env.JAVA_VERSION }}
+
       - name: Resolve the diagnostic focus
         env:
           MODE: ${{ inputs.mode }}
@@ -163,16 +154,6 @@ jobs:
             echo "::notice::${MODE} runs its full mode; no focus was supplied."
           fi
 
-      - name: Restore PR-local Gradle build cache
-        if: steps.assert-target.outputs.pr-number != ''
-        # actions/cache/restore v4.2.4
-        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809
-        with:
-          path: ~/.gradle/caches/build-cache-1
-          key: appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-
-
       - name: Check out the exact expected SHA
         if: inputs.expected_sha != ''
         # actions/checkout v7.0.1
@@ -190,53 +171,6 @@ jobs:
               grep -A 30 "FAILURE: Build failed" /tmp/app-unit.log || true
               exit 1
           }
-
-      - name: Package PR-local Gradle warm state
-        id: gradle-warm-pack
-        if: always() && steps.assert-target.outputs.pr-number != ''
-        run: |
-          set -euo pipefail
-
-          cache_dir="$HOME/.gradle/caches/build-cache-1"
-          archive="${RUNNER_TEMP}/gradle-local-build-cache.tar"
-          rm -f "$archive"
-
-          if [ ! -d "$cache_dir" ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=PR-local Gradle warm state::No local Gradle build cache was produced."
-            exit 0
-          fi
-
-          cache_kib="$(du -sk "$cache_dir" | awk '{print $1}')"
-          if [ "$cache_kib" -gt 524288 ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Local Gradle build cache exceeds 512 MiB; skipping warm-state upload."
-            exit 0
-          fi
-
-          /usr/bin/tar -cf "$archive" -C "$HOME/.gradle/caches" build-cache-1
-          archive_bytes="$(stat -c '%s' "$archive")"
-          if [ "$archive_bytes" -gt 536870912 ]; then
-            rm -f "$archive"
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Packaged Gradle build cache exceeds 512 MiB; skipping upload."
-            exit 0
-          fi
-
-          echo "available=true" >> "$GITHUB_OUTPUT"
-          echo "::notice title=PR-local Gradle warm state::Prepared a bounded build-cache artifact for the next diagnostic run."
-
-      - name: Upload PR-local Gradle warm state
-        id: gradle-warm-upload
-        if: always() && steps.gradle-warm-pack.outputs.available == 'true'
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: appt-gradle-local-cache-pr-${{ steps.assert-target.outputs.pr-number }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/gradle-local-build-cache.tar
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 0
 
       - name: Upload app unit-test reports
         if: always()
@@ -259,11 +193,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
-      actions: read
       contents: read
-    outputs:
-      pr-number: ${{ steps.assert-target.outputs.pr-number }}
-      warm-artifact-id: ${{ steps.gradle-warm-upload.outputs.artifact-id }}
     steps:
       - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
@@ -287,6 +217,7 @@ jobs:
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           java-version: ${{ env.JAVA_VERSION }}
+
       - name: Resolve the diagnostic focus
         env:
           MODE: ${{ inputs.mode }}
@@ -294,11 +225,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # The focus is resolved by the reviewed module and written as an argv
-          # vector, one argument per line. The value is therefore data: it cannot
-          # become a command, a flag, or a task this mode does not own. An
-          # invalid, cross-mode or malformed focus fails here, before anything
-          # runs.
           node tools/ci/diagnose-focus.mjs --mode "$MODE" --focus "$FOCUS" \
             > "${RUNNER_TEMP}/diagnose-args"
 
@@ -307,16 +233,6 @@ jobs:
           else
             echo "::notice::${MODE} runs its full mode; no focus was supplied."
           fi
-
-      - name: Restore PR-local Gradle build cache
-        if: steps.assert-target.outputs.pr-number != ''
-        # actions/cache/restore v4.2.4
-        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809
-        with:
-          path: ~/.gradle/caches/build-cache-1
-          key: appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-
 
       - name: Check out the exact expected SHA
         if: inputs.expected_sha != ''
@@ -336,53 +252,6 @@ jobs:
               exit 1
           }
 
-      - name: Package PR-local Gradle warm state
-        id: gradle-warm-pack
-        if: always() && steps.assert-target.outputs.pr-number != ''
-        run: |
-          set -euo pipefail
-
-          cache_dir="$HOME/.gradle/caches/build-cache-1"
-          archive="${RUNNER_TEMP}/gradle-local-build-cache.tar"
-          rm -f "$archive"
-
-          if [ ! -d "$cache_dir" ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=PR-local Gradle warm state::No local Gradle build cache was produced."
-            exit 0
-          fi
-
-          cache_kib="$(du -sk "$cache_dir" | awk '{print $1}')"
-          if [ "$cache_kib" -gt 524288 ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Local Gradle build cache exceeds 512 MiB; skipping warm-state upload."
-            exit 0
-          fi
-
-          /usr/bin/tar -cf "$archive" -C "$HOME/.gradle/caches" build-cache-1
-          archive_bytes="$(stat -c '%s' "$archive")"
-          if [ "$archive_bytes" -gt 536870912 ]; then
-            rm -f "$archive"
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Packaged Gradle build cache exceeds 512 MiB; skipping upload."
-            exit 0
-          fi
-
-          echo "available=true" >> "$GITHUB_OUTPUT"
-          echo "::notice title=PR-local Gradle warm state::Prepared a bounded build-cache artifact for the next diagnostic run."
-
-      - name: Upload PR-local Gradle warm state
-        id: gradle-warm-upload
-        if: always() && steps.gradle-warm-pack.outputs.available == 'true'
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: appt-gradle-local-cache-pr-${{ steps.assert-target.outputs.pr-number }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/gradle-local-build-cache.tar
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 0
-
       - name: Upload Samsung unit-test reports
         if: always()
         # actions/upload-artifact v7.0.1
@@ -396,7 +265,7 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # android-static — Android Lint, detekt, appTGuards and dependency locks.
+  # android-static — Android Lint, detekt and appTGuards.
   # ---------------------------------------------------------------------------
   android-static:
     name: android-static
@@ -404,11 +273,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
-      actions: read
       contents: read
-    outputs:
-      pr-number: ${{ steps.assert-target.outputs.pr-number }}
-      warm-artifact-id: ${{ steps.gradle-warm-upload.outputs.artifact-id }}
     steps:
       - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
@@ -432,6 +297,7 @@ jobs:
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           java-version: ${{ env.JAVA_VERSION }}
+
       - name: Resolve the diagnostic focus
         env:
           MODE: ${{ inputs.mode }}
@@ -439,11 +305,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # The focus is resolved by the reviewed module and written as an argv
-          # vector, one argument per line. The value is therefore data: it cannot
-          # become a command, a flag, or a task this mode does not own. An
-          # invalid, cross-mode or malformed focus fails here, before anything
-          # runs.
           node tools/ci/diagnose-focus.mjs --mode "$MODE" --focus "$FOCUS" \
             > "${RUNNER_TEMP}/diagnose-args"
 
@@ -452,16 +313,6 @@ jobs:
           else
             echo "::notice::${MODE} runs its full mode; no focus was supplied."
           fi
-
-      - name: Restore PR-local Gradle build cache
-        if: steps.assert-target.outputs.pr-number != ''
-        # actions/cache/restore v4.2.4
-        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809
-        with:
-          path: ~/.gradle/caches/build-cache-1
-          key: appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-
 
       - name: Check out the exact expected SHA
         if: inputs.expected_sha != ''
@@ -480,53 +331,6 @@ jobs:
               grep -A 30 "FAILURE: Build failed" /tmp/android-static.log || true
               exit 1
           }
-
-      - name: Package PR-local Gradle warm state
-        id: gradle-warm-pack
-        if: always() && steps.assert-target.outputs.pr-number != ''
-        run: |
-          set -euo pipefail
-
-          cache_dir="$HOME/.gradle/caches/build-cache-1"
-          archive="${RUNNER_TEMP}/gradle-local-build-cache.tar"
-          rm -f "$archive"
-
-          if [ ! -d "$cache_dir" ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=PR-local Gradle warm state::No local Gradle build cache was produced."
-            exit 0
-          fi
-
-          cache_kib="$(du -sk "$cache_dir" | awk '{print $1}')"
-          if [ "$cache_kib" -gt 524288 ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Local Gradle build cache exceeds 512 MiB; skipping warm-state upload."
-            exit 0
-          fi
-
-          /usr/bin/tar -cf "$archive" -C "$HOME/.gradle/caches" build-cache-1
-          archive_bytes="$(stat -c '%s' "$archive")"
-          if [ "$archive_bytes" -gt 536870912 ]; then
-            rm -f "$archive"
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Packaged Gradle build cache exceeds 512 MiB; skipping upload."
-            exit 0
-          fi
-
-          echo "available=true" >> "$GITHUB_OUTPUT"
-          echo "::notice title=PR-local Gradle warm state::Prepared a bounded build-cache artifact for the next diagnostic run."
-
-      - name: Upload PR-local Gradle warm state
-        id: gradle-warm-upload
-        if: always() && steps.gradle-warm-pack.outputs.available == 'true'
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: appt-gradle-local-cache-pr-${{ steps.assert-target.outputs.pr-number }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/gradle-local-build-cache.tar
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 0
 
       - name: Upload Lint and detekt reports
         if: always()
@@ -551,11 +355,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
-      actions: read
       contents: read
-    outputs:
-      pr-number: ${{ steps.assert-target.outputs.pr-number }}
-      warm-artifact-id: ${{ steps.gradle-warm-upload.outputs.artifact-id }}
     steps:
       - name: Check out the dispatch anchor
         # actions/checkout v7.0.1
@@ -579,6 +379,7 @@ jobs:
         uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           java-version: ${{ env.JAVA_VERSION }}
+
       - name: Resolve the diagnostic focus
         env:
           MODE: ${{ inputs.mode }}
@@ -586,11 +387,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # The focus is resolved by the reviewed module and written as an argv
-          # vector, one argument per line. The value is therefore data: it cannot
-          # become a command, a flag, or a task this mode does not own. An
-          # invalid, cross-mode or malformed focus fails here, before anything
-          # runs.
           node tools/ci/diagnose-focus.mjs --mode "$MODE" --focus "$FOCUS" \
             > "${RUNNER_TEMP}/diagnose-args"
 
@@ -599,16 +395,6 @@ jobs:
           else
             echo "::notice::${MODE} runs its full mode; no focus was supplied."
           fi
-
-      - name: Restore PR-local Gradle build cache
-        if: steps.assert-target.outputs.pr-number != ''
-        # actions/cache/restore v4.2.4
-        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809
-        with:
-          path: ~/.gradle/caches/build-cache-1
-          key: appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            appt-pr-gradle-${{ steps.assert-target.outputs.pr-number }}-
 
       - name: Check out the exact expected SHA
         if: inputs.expected_sha != ''
@@ -630,53 +416,6 @@ jobs:
               exit 1
           }
 
-      - name: Package PR-local Gradle warm state
-        id: gradle-warm-pack
-        if: always() && steps.assert-target.outputs.pr-number != ''
-        run: |
-          set -euo pipefail
-
-          cache_dir="$HOME/.gradle/caches/build-cache-1"
-          archive="${RUNNER_TEMP}/gradle-local-build-cache.tar"
-          rm -f "$archive"
-
-          if [ ! -d "$cache_dir" ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=PR-local Gradle warm state::No local Gradle build cache was produced."
-            exit 0
-          fi
-
-          cache_kib="$(du -sk "$cache_dir" | awk '{print $1}')"
-          if [ "$cache_kib" -gt 524288 ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Local Gradle build cache exceeds 512 MiB; skipping warm-state upload."
-            exit 0
-          fi
-
-          /usr/bin/tar -cf "$archive" -C "$HOME/.gradle/caches" build-cache-1
-          archive_bytes="$(stat -c '%s' "$archive")"
-          if [ "$archive_bytes" -gt 536870912 ]; then
-            rm -f "$archive"
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=PR-local Gradle warm state::Packaged Gradle build cache exceeds 512 MiB; skipping upload."
-            exit 0
-          fi
-
-          echo "available=true" >> "$GITHUB_OUTPUT"
-          echo "::notice title=PR-local Gradle warm state::Prepared a bounded build-cache artifact for the next diagnostic run."
-
-      - name: Upload PR-local Gradle warm state
-        id: gradle-warm-upload
-        if: always() && steps.gradle-warm-pack.outputs.available == 'true'
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: appt-gradle-local-cache-pr-${{ steps.assert-target.outputs.pr-number }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/gradle-local-build-cache.tar
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 0
-
       - name: Upload debug APK
         if: success()
         # actions/upload-artifact v7.0.1
@@ -685,168 +424,6 @@ jobs:
           name: appt-debug-${{ inputs.expected_sha || github.sha }}
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-          retention-days: 7
-
-  # ---------------------------------------------------------------------------
-  # backend-static — TypeScript typecheck, ESLint, Prettier, Knip.
-  # ---------------------------------------------------------------------------
-  backend-static:
-    name: backend-static
-    if: inputs.mode == 'backend-static'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - name: Check out the dispatch anchor
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          # For a bridge dispatch this is the default branch the workflow ran
-          # from, so the assertion below and the local composite actions it uses
-          # are trusted repository content. The dispatch target is checked out
-          # afterwards, once it has been validated.
-          persist-credentials: false
-
-      - name: Assert the dispatch target
-        id: assert-target
-        if: inputs.expected_sha != ''
-        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
-        with:
-          expected-sha: ${{ inputs.expected_sha }}
-          target-ref: ${{ inputs.target_ref }}
-
-      - name: Set up Node
-        uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - name: Resolve the diagnostic focus
-        env:
-          MODE: ${{ inputs.mode }}
-          FOCUS: ${{ inputs.focus }}
-        run: |
-          set -euo pipefail
-
-          # The focus is resolved by the reviewed module and written as an argv
-          # vector, one argument per line. The value is therefore data: it cannot
-          # become a command, a flag, or a task this mode does not own. An
-          # invalid, cross-mode or malformed focus fails here, before anything
-          # runs.
-          node tools/ci/diagnose-focus.mjs --mode "$MODE" --focus "$FOCUS" \
-            > "${RUNNER_TEMP}/diagnose-args"
-
-          if [ -n "$FOCUS" ]; then
-            echo "::notice title=${MODE} focused::${MODE} narrowed to: ${FOCUS}"
-          else
-            echo "::notice::${MODE} runs its full mode; no focus was supplied."
-          fi
-
-      - name: Check out the exact expected SHA
-        if: inputs.expected_sha != ''
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          # The commit the assertion just proved, not the raw dispatch input. An
-          # input is attacker-reachable; this is a value trusted logic has
-          # verified. Everything from here on is the code under verification,
-          # executed by this trusted workflow under its own read-only
-          # permissions -- the same trust level as an ordinary pull-request run.
-          ref: ${{ steps.assert-target.outputs.sha }}
-          persist-credentials: false
-
-      - name: Install from committed lockfile
-        run: npm ci --prefix backend
-
-      - name: Run backend static verification interface
-        run: |
-          set -euo pipefail
-          mapfile -t DIAGNOSE_ARGS < "${RUNNER_TEMP}/diagnose-args"
-          "${DIAGNOSE_ARGS[@]}"
-
-  # ---------------------------------------------------------------------------
-  # backend-test — Jest with LCOV coverage.
-  # ---------------------------------------------------------------------------
-  backend-test:
-    name: backend-test
-    if: inputs.mode == 'backend-test'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - name: Check out the dispatch anchor
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          # For a bridge dispatch this is the default branch the workflow ran
-          # from, so the assertion below and the local composite actions it uses
-          # are trusted repository content. The dispatch target is checked out
-          # afterwards, once it has been validated.
-          persist-credentials: false
-
-      - name: Assert the dispatch target
-        id: assert-target
-        if: inputs.expected_sha != ''
-        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
-        with:
-          expected-sha: ${{ inputs.expected_sha }}
-          target-ref: ${{ inputs.target_ref }}
-
-      - name: Set up Node
-        uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - name: Resolve the diagnostic focus
-        env:
-          MODE: ${{ inputs.mode }}
-          FOCUS: ${{ inputs.focus }}
-        run: |
-          set -euo pipefail
-
-          # The focus is resolved by the reviewed module and written as an argv
-          # vector, one argument per line. The value is therefore data: it cannot
-          # become a command, a flag, or a task this mode does not own. An
-          # invalid, cross-mode or malformed focus fails here, before anything
-          # runs.
-          node tools/ci/diagnose-focus.mjs --mode "$MODE" --focus "$FOCUS" \
-            > "${RUNNER_TEMP}/diagnose-args"
-
-          if [ -n "$FOCUS" ]; then
-            echo "::notice title=${MODE} focused::${MODE} narrowed to: ${FOCUS}"
-          else
-            echo "::notice::${MODE} runs its full mode; no focus was supplied."
-          fi
-
-      - name: Check out the exact expected SHA
-        if: inputs.expected_sha != ''
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          # The commit the assertion just proved, not the raw dispatch input. An
-          # input is attacker-reachable; this is a value trusted logic has
-          # verified. Everything from here on is the code under verification,
-          # executed by this trusted workflow under its own read-only
-          # permissions -- the same trust level as an ordinary pull-request run.
-          ref: ${{ steps.assert-target.outputs.sha }}
-          persist-credentials: false
-
-      - name: Install from committed lockfile
-        run: npm ci --prefix backend
-
-      - name: Run backend tests with LCOV coverage
-        run: |
-          set -euo pipefail
-          mapfile -t DIAGNOSE_ARGS < "${RUNNER_TEMP}/diagnose-args"
-          "${DIAGNOSE_ARGS[@]}"
-
-      - name: Upload backend coverage
-        if: always()
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: diagnose-backend-coverage
-          path: backend/coverage/**
-          if-no-files-found: warn
           retention-days: 7
 
   # ---------------------------------------------------------------------------
@@ -882,6 +459,7 @@ jobs:
         uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
         with:
           node-version: ${{ env.NODE_VERSION }}
+
       - name: Resolve the diagnostic focus
         env:
           MODE: ${{ inputs.mode }}
@@ -889,11 +467,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # The focus is resolved by the reviewed module and written as an argv
-          # vector, one argument per line. The value is therefore data: it cannot
-          # become a command, a flag, or a task this mode does not own. An
-          # invalid, cross-mode or malformed focus fails here, before anything
-          # runs.
           node tools/ci/diagnose-focus.mjs --mode "$MODE" --focus "$FOCUS" \
             > "${RUNNER_TEMP}/diagnose-args"
 
@@ -908,11 +481,6 @@ jobs:
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          # The commit the assertion just proved, not the raw dispatch input. An
-          # input is attacker-reachable; this is a value trusted logic has
-          # verified. Everything from here on is the code under verification,
-          # executed by this trusted workflow under its own read-only
-          # permissions -- the same trust level as an ordinary pull-request run.
           ref: ${{ steps.assert-target.outputs.sha }}
           persist-credentials: false
 
@@ -925,246 +493,6 @@ jobs:
           mapfile -t DIAGNOSE_ARGS < "${RUNNER_TEMP}/diagnose-args"
           "${DIAGNOSE_ARGS[@]}"
 
-      - name: Upload backend coverage
-        if: always()
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: diagnose-backend-coverage
-          path: backend/coverage/**
-          if-no-files-found: warn
-          retention-days: 7
-
-  # ---------------------------------------------------------------------------
-  # dependency-state — reviewed Gradle lock regeneration only.
-  # ---------------------------------------------------------------------------
-  dependency-state:
-    name: dependency-state
-    if: inputs.mode == 'dependency-state'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    steps:
-      - name: Check out the dispatch anchor
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-
-      - name: Assert the dispatch target
-        id: assert-target
-        if: inputs.expected_sha != ''
-        uses: ./.github/actions/assert-dispatch-target # zizmor: ignore[self-repository] trusted default-branch action
-        with:
-          expected-sha: ${{ inputs.expected_sha }}
-          target-ref: ${{ inputs.target_ref }}
-
-      - name: Set up the Android/JVM toolchain
-        uses: ./.github/actions/setup-jvm # zizmor: ignore[self-repository] trusted default-branch action
-        with:
-          java-version: ${{ env.JAVA_VERSION }}
-
-      - name: Resolve dependency-state command
-        env:
-          MODE: ${{ inputs.mode }}
-          FOCUS: ${{ inputs.focus }}
-        run: |
-          set -euo pipefail
-          node tools/ci/diagnose-focus.mjs --mode "$MODE" --focus "$FOCUS"             > "${RUNNER_TEMP}/diagnose-args"
-
-      - name: Check out the exact expected SHA
-        if: inputs.expected_sha != ''
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ steps.assert-target.outputs.sha }}
-          persist-credentials: false
-
-      - name: Regenerate Gradle dependency lock state
-        run: |
-          set -euo pipefail
-          mapfile -t DIAGNOSE_ARGS < "${RUNNER_TEMP}/diagnose-args"
-          "${DIAGNOSE_ARGS[@]}"
-
-      - name: Validate bounded lockfile output
-        run: |
-          set -euo pipefail
-
-          allowed=(
-            "gradle.lockfile"
-            "settings-gradle.lockfile"
-            "app/gradle.lockfile"
-            "samsung/gradle.lockfile"
-          )
-          # Revision 5 retires :macrobenchmark. During that bounded migration the
-          # generated lockfile may be deleted, but it must never be regenerated
-          # or returned as live dependency state.
-          retired=("macrobenchmark/gradle.lockfile")
-
-          mapfile -t changed < <(
-            git status --porcelain=v1 --untracked-files=no |
-              sed -E 's/^.. //' |
-              sed -E 's/^.* -> //' |
-              sort -u
-          )
-
-          for path in "${changed[@]}"; do
-            permitted=false
-            for candidate in "${allowed[@]}" "${retired[@]}"; do
-              if [ "$path" = "$candidate" ]; then
-                permitted=true
-                break
-              fi
-            done
-            if [ "$permitted" != true ]; then
-              echo "::error title=dependency-state boundary::Unexpected tracked change: $path"
-              exit 1
-            fi
-          done
-
-          artifact_root="${RUNNER_TEMP}/dependency-state"
-          rm -rf "$artifact_root"
-          mkdir -p "$artifact_root/app" "$artifact_root/samsung"
-
-          for path in "${allowed[@]}"; do
-            if [ ! -f "$path" ] || [ -L "$path" ]; then
-              echo "::error title=dependency-state boundary::Expected regular lockfile: $path"
-              exit 1
-            fi
-            if [ "$(stat -c '%s' "$path")" -gt 5242880 ]; then
-              echo "::error title=dependency-state boundary::Lockfile exceeds 5 MiB: $path"
-              exit 1
-            fi
-            cp "$path" "$artifact_root/$path"
-          done
-
-          printf '%s\\n' "${changed[@]}" > "$artifact_root/changed-paths.txt"
-
-      - name: Upload generated Gradle lock state
-        # actions/upload-artifact v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: diagnose-dependency-state-${{ steps.assert-target.outputs.sha || github.sha }}
-          path: ${{ runner.temp }}/dependency-state/**
-          if-no-files-found: error
-          retention-days: 7
-
-
-  # ---------------------------------------------------------------------------
-  # Trusted PR-local Gradle cache publisher. Target jobs remain cache-read-only.
-  # This job never checks out or executes PR code.
-  # ---------------------------------------------------------------------------
-  publish-gradle-warm-state:
-    name: Publish PR-local Gradle warm state
-    needs:
-      - app-unit
-      - samsung-unit
-      - android-static
-      - android-build
-    if: >-
-      always() &&
-      inputs.expected_sha != '' &&
-      (inputs.mode == 'app-unit' ||
-       inputs.mode == 'samsung-unit' ||
-       inputs.mode == 'android-static' ||
-       inputs.mode == 'android-build')
-    runs-on: ubuntu-24.04
-    cache-mode: write-only
-    permissions:
-      contents: read
-    env:
-      PR_NUMBER: ${{ needs.app-unit.outputs.pr-number || needs.samsung-unit.outputs.pr-number || needs.android-static.outputs.pr-number || needs.android-build.outputs.pr-number }}
-      ARTIFACT_ID: ${{ needs.app-unit.outputs.warm-artifact-id || needs.samsung-unit.outputs.warm-artifact-id || needs.android-static.outputs.warm-artifact-id || needs.android-build.outputs.warm-artifact-id }}
-    steps:
-      - name: Download current diagnostic warm-state artifact
-        if: env.PR_NUMBER != '' && env.ARTIFACT_ID != ''
-        # actions/download-artifact v7.0.0
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
-        with:
-          artifact-ids: ${{ env.ARTIFACT_ID }}
-          path: ${{ runner.temp }}/appt-gradle-warm
-          merge-multiple: true
-
-      - name: Validate and stage PR-local Gradle build cache
-        id: gradle-warm-sanitize
-        if: env.PR_NUMBER != '' && env.ARTIFACT_ID != ''
-        env:
-          ARCHIVE: ${{ runner.temp }}/appt-gradle-warm/gradle-local-build-cache.tar
-        run: |
-          set -euo pipefail
-          echo "available=false" >> "$GITHUB_OUTPUT"
-
-          if ! [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
-            echo "::warning title=PR-local Gradle warm state::Validated PR number is unavailable; skipping cache publication."
-            exit 0
-          fi
-          if [ ! -f "$ARCHIVE" ]; then
-            echo "::warning title=PR-local Gradle warm state::The current diagnostic did not provide the expected archive; skipping cache publication."
-            exit 0
-          fi
-          if [ "$(stat -c '%s' "$ARCHIVE")" -gt 536870912 ]; then
-            echo "::warning title=PR-local Gradle warm state::The current archive exceeds the 512 MiB safety bound; skipping cache publication."
-            exit 0
-          fi
-
-          python3 - "$ARCHIVE" "$HOME/.gradle/caches" "$GITHUB_OUTPUT" <<'PY'
-          from pathlib import Path, PurePosixPath
-          import shutil
-          import sys
-          import tarfile
-
-          archive = Path(sys.argv[1])
-          destination = Path(sys.argv[2])
-          output = Path(sys.argv[3])
-          max_bytes = 512 * 1024 * 1024
-          max_files = 100_000
-
-          try:
-              with tarfile.open(archive, "r:") as bundle:
-                  members = bundle.getmembers()
-                  file_count = 0
-                  total_bytes = 0
-                  for member in members:
-                      path = PurePosixPath(member.name)
-                      if (
-                          path.is_absolute()
-                          or ".." in path.parts
-                          or not path.parts
-                          or path.parts[0] != "build-cache-1"
-                          or not (member.isfile() or member.isdir())
-                      ):
-                          raise ValueError(f"unsafe archive entry {member.name!r}")
-                      if member.isfile():
-                          file_count += 1
-                          total_bytes += member.size
-                          if file_count > max_files or total_bytes > max_bytes:
-                              raise ValueError("archive exceeds file-count or expanded-size bound")
-
-                  target = destination / "build-cache-1"
-                  shutil.rmtree(target, ignore_errors=True)
-                  destination.mkdir(parents=True, exist_ok=True)
-                  bundle.extractall(destination, members=members, filter="data")
-          except (tarfile.TarError, OSError, ValueError) as error:
-              print(
-                  f"::warning title=PR-local Gradle warm state::"
-                  f"Rejected warm-state archive ({error}); cache publication skipped."
-              )
-              raise SystemExit(0)
-
-          with output.open("a", encoding="utf-8") as handle:
-              handle.write("available=true\n")
-          print("Validated PR-local Gradle build cache for trusted publication.")
-          PY
-
-      - name: Save trusted PR-local Gradle build cache
-        if: steps.gradle-warm-sanitize.outputs.available == 'true'
-        # actions/cache/save v4.2.4
-        uses: actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809
-        with:
-          path: ~/.gradle/caches/build-cache-1
-          key: appt-pr-gradle-${{ env.PR_NUMBER }}-${{ github.run_id }}-${{ github.run_attempt }}
-
   # ---------------------------------------------------------------------------
   # Non-terminal record. This job exists so every diagnostic run states, on the
   # run itself, what it is and what it is not.
@@ -1176,11 +504,7 @@ jobs:
       - samsung-unit
       - android-static
       - android-build
-      - backend-static
-      - backend-test
       - backend
-      - dependency-state
-      - publish-gradle-warm-state
     if: always()
     runs-on: ubuntu-24.04
     permissions:
