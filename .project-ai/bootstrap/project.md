@@ -99,7 +99,7 @@ Establish only what the actual project needs, such as:
 - language/runtime;
 - framework;
 - package/dependency manager;
-- dependency-locking strategy;
+- dependency integrity strategy;
 - build system;
 - source/test layout;
 - database or persistence approach;
