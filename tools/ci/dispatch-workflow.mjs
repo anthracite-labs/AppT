@@ -34,7 +34,7 @@
  *      request's head branch name and `expected_sha` is the exact commit the
  *      command was issued against. The dispatched workflow resolves `target_ref`
  *      with trusted logic, requires it still to point at `expected_sha`, and only
- *      then checks that SHA out for Gradle, npm and device work.
+ *      then checks that SHA out for Gradle and npm work.
  *
  * So the exact-PR-head guarantee survives, the validation logic is trusted, and
  * the pull-request-controlled code is executed only by a trusted workflow under
@@ -83,7 +83,6 @@ export const COMMAND_LABELS = {
   'ci:backend-static': { workflow: 'diagnose.yml', mode: 'backend-static' },
   'ci:backend-test': { workflow: 'diagnose.yml', mode: 'backend-test' },
   'ci:dependency-state': { workflow: 'diagnose.yml', mode: 'dependency-state' },
-  'ci:device': { workflow: 'diagnose.yml', mode: 'device' },
 };
 
 /** Every allowlisted label, in a stable order for reporting and tests. */
