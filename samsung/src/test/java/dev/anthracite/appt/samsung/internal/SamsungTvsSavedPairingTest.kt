@@ -57,7 +57,6 @@ class SamsungTvsSavedPairingTest {
     /** The SPKI the pairing was made under; the scripted television keeps presenting it. */
     private val savedPin = "aa".repeat(32)
 
-    // --- token resume -----------------------------------------------------------------
 
     @Test
     fun tokenResumeSendsTheSavedTokenWithoutAnotherApprovalPrompt() = runTest {
@@ -69,8 +68,6 @@ class SamsungTvsSavedPairingTest {
             )
         val observedStates = mutableListOf<SessionState>()
         val session = LiveSession(television, transport, this, secrets)
-        // backgroundScope: the collector runs for the whole test and is cancelled with it, so the
-        // runTest end is not blocked by a live session subscription.
         backgroundScope.launch { session.snapshot.collect { observedStates.add(it.state) } }
 
         advanceUntilIdle()
@@ -126,7 +123,6 @@ class SamsungTvsSavedPairingTest {
                 script(SessionEvent.Frame(0, rotatedFrame)),
                 certificateIdentity = savedPin,
             )
-        // The staging wrote through the store; from here the store refuses every write.
         secrets.failWrites = true
         val session = LiveSession(television, transport, this, secrets)
 
@@ -150,12 +146,10 @@ class SamsungTvsSavedPairingTest {
         advanceUntilIdle()
     }
 
-    // --- fail-closed identity ---------------------------------------------------------
 
     @Test
     fun identityMismatchDoesNotSendToken() = runTest {
         stageSavedPairing()
-        // The same television now presents a different SPKI: the saved pin does not match.
         val transport =
             ScriptedSessionTransport(
                 SessionFixture.load("identity-mismatch"),
@@ -174,7 +168,6 @@ class SamsungTvsSavedPairingTest {
             transport.attemptedUrls.isEmpty(),
         )
         assertTrue("nothing was written", transport.sent.isEmpty())
-        // No loop: the failed identity check starts no further attempt.
         assertEquals(1, transport.connects.size)
         val result = session.command(TvCommand.Tap(RemoteKey.VolumeUp))
         assertEquals(CommandResult.Rejected(TvFailure.Unavailable), result)
@@ -186,8 +179,6 @@ class SamsungTvsSavedPairingTest {
     @Test
     fun noPlaintextTokenAfterTlsPairing() = runTest {
         stageSavedPairing()
-        // The same television now answers only on the plaintext channel; the saved TLS pin cannot
-        // be checked there, so the saved token must stay off the wire entirely.
         val plaintextTelevision = television.copy(tls = false)
         val transport = ScriptedSessionTransport(script(prompt()))
         val session = LiveSession(plaintextTelevision, transport, this, secrets)
@@ -208,7 +199,6 @@ class SamsungTvsSavedPairingTest {
     @Test
     fun aPlaintextUuidIdentityChangeFailsClosedBeforeConnecting() = runTest {
         stageSavedPairing()
-        // The plaintext television now presents a different protocol UUID than the saved one.
         val changedUuid = "11111111-2222-4333-8444-555555555555"
         val plaintextTelevision = television.copy(tls = false, uuid = changedUuid)
         val transport = ScriptedSessionTransport(script(prompt()))
@@ -228,7 +218,6 @@ class SamsungTvsSavedPairingTest {
         advanceUntilIdle()
     }
 
-    // --- unauthorized after a saved token ---------------------------------------------
 
     @Test
     fun unauthorizedWithTokenYieldsTokenRejectedAndNoLoop() = runTest {
@@ -248,8 +237,6 @@ class SamsungTvsSavedPairingTest {
         assertTrue("the saved token was the one presented", transport.attemptedTokens.single())
         assertTrue(transport.sockets.single().closed)
 
-        // retryApproval does not fix a rejected token; only the confirmed re-pair does. And no
-        // amount of waiting starts another connection.
         session.retryApproval()
         advanceTimeBy(60_000)
         advanceUntilIdle()
@@ -260,7 +247,6 @@ class SamsungTvsSavedPairingTest {
         advanceUntilIdle()
     }
 
-    // --- approval persistence ---------------------------------------------------------
 
     @Test
     fun approvalPersistsTheTokenAndPinAtomicallyWithTheDeviceRecord() = runTest {
@@ -274,7 +260,6 @@ class SamsungTvsSavedPairingTest {
         advanceUntilIdle()
         assertEquals(SessionState.Ready, session.snapshot.value.state)
 
-        // Nothing was persisted before the approval; the approval wrote both records once.
         assertEquals(1, secrets.savedSecrets.size)
         assertEquals(1, secrets.savedDevices.size)
         val (storedId, stored) = secrets.savedSecrets.single()
@@ -285,7 +270,6 @@ class SamsungTvsSavedPairingTest {
             stored.token,
         )
         assertEquals("the pin persisted is the candidate SPKI", savedPin, stored.pin)
-        // The samsung-private device record exists beside the secret and carries no token or pin.
         val record = secrets.loadDevice(tvId)!!
         assertEquals(tvId.value, record.uuid)
         assertEquals("[host-a]", record.lastAddress)
@@ -307,8 +291,6 @@ class SamsungTvsSavedPairingTest {
 
         advanceUntilIdle()
 
-        // The television approved, but the pairing could not be saved: no Ready that pretends a
-        // pairing exists, and the caller sees the saved-connection surface.
         assertEquals(SessionState.NeedsRepair, session.snapshot.value.state)
         assertEquals(null, session.snapshot.value.repairReason)
         assertTrue("nothing was persisted", secrets.savedSecrets.isEmpty())
@@ -317,7 +299,6 @@ class SamsungTvsSavedPairingTest {
         advanceUntilIdle()
     }
 
-    // --- secrets unavailable ----------------------------------------------------------
 
     @Test
     fun corruptSecretDoesNotResetPairing() = runTest {
@@ -341,7 +322,6 @@ class SamsungTvsSavedPairingTest {
         advanceUntilIdle()
     }
 
-    // --- explicit re-pair ---------------------------------------------------------------
 
     @Test
     fun confirmRepairDiscardsTheSecretThenPairsAsNew() = runTest {
@@ -381,11 +361,9 @@ class SamsungTvsSavedPairingTest {
         session.confirmRepair()
         advanceUntilIdle()
 
-        // The saved secret was discarded before the new first contact, which sends no token.
         assertEquals(listOf(tvId), secrets.discarded)
         assertFalse("the re-pair connects without any saved token", repaired.attemptedTokens.last())
         assertEquals(SessionState.Ready, session.snapshot.value.state)
-        // The fresh approval persisted a new pairing under the television's current identity.
         val persisted = secrets.savedSecrets.last().second
         assertEquals(changedIdentityPin, persisted.pin)
 
@@ -395,7 +373,6 @@ class SamsungTvsSavedPairingTest {
 
     @Test
     fun confirmRepairIsIgnoredForApprovalReasonsAndWhileHealthy() = runTest {
-        // A denied approval is retryable, not repairable.
         val denied = ScriptedSessionTransport(script(prompt(), SessionEvent.Close(30)))
         val session = LiveSession(television, denied, this, secrets)
         advanceUntilIdle()
@@ -416,7 +393,6 @@ class SamsungTvsSavedPairingTest {
         session.close()
         advanceUntilIdle()
 
-        // And a healthy session is never dropped by confirmRepair.
         val healthy =
             ScriptedSessionTransport(
                 SessionFixture.load("tls-approval-then-volume"),
@@ -433,7 +409,6 @@ class SamsungTvsSavedPairingTest {
         advanceUntilIdle()
     }
 
-    // --- forget -------------------------------------------------------------------------
 
     @Test
     fun forgetRemovesSecretAndIsIdempotent() = runTest {
@@ -457,12 +432,10 @@ class SamsungTvsSavedPairingTest {
         assertTrue("the relationship remains", secrets.loadSecret(tvId) != StoredSecret.Absent)
     }
 
-    // --- superseded generations ---------------------------------------------------------
 
     @Test
     fun supersededConnectCannotResurrectSession() = runTest {
         val store = InMemorySamsungStore()
-        // Session A's approval arrives late; session B is opened while A is still in flight.
         val transportA = ScriptedSessionTransport(script(prompt(100), approved(6_000)))
         val transportB = ScriptedSessionTransport(script(prompt(100), approved(200)))
         var created = 0
@@ -488,8 +461,6 @@ class SamsungTvsSavedPairingTest {
         advanceTimeBy(1_000)
         advanceUntilIdle()
 
-        // The replacement is Ready and persisted; the superseded session never published Ready and
-        // never persisted its own approval.
         assertEquals(SessionState.Ready, replacement.snapshot.value.state)
         assertNotEquals(SessionState.Ready, superseded.snapshot.value.state)
         assertEquals("only the replacement persisted", 1, store.savedSecrets.size)
@@ -522,7 +493,6 @@ class SamsungTvsSavedPairingTest {
         advanceTimeBy(2_000)
         advanceUntilIdle()
 
-        // The approval that arrived after the forget is cleanup-only: no Ready, no pairing.
         assertNotEquals(SessionState.Ready, session.snapshot.value.state)
         assertTrue(store.savedSecrets.isEmpty())
         assertTrue(store.savedDevices.isEmpty())
@@ -532,7 +502,6 @@ class SamsungTvsSavedPairingTest {
         advanceUntilIdle()
     }
 
-    // --- reopen continuity ---------------------------------------------------------------
 
     @Test
     fun processDeathDoesNotForceRepair() = runTest {
@@ -543,7 +512,6 @@ class SamsungTvsSavedPairingTest {
                 certificateIdentity = savedPin,
             )
         val confirmed = ConfirmedTelevisions()
-        // Nothing in memory: this is a fresh process. The device record is all that remains.
         val tvs =
             SamsungTvsImpl(
                 newScan = { error("no scan in this test") },
@@ -568,19 +536,16 @@ class SamsungTvsSavedPairingTest {
 
     @Test
     fun rememberedCardsComeFromTheDurableStore() = runTest {
-        // Without saved state the card is a fresh pairing.
         val freshEvents = scanWith(InMemorySamsungStore(), "ssdp-tizen-tv")
         val freshCard = freshEvents.filterIsInstance<DiscoveryEvent.Found>().single().tv
         assertEquals(false, freshCard.remembered)
         assertEquals(ControlAvailability.NeedsPairing, freshCard.availability)
 
-        // With a saved pairing the same scan reports remembered and ReadyToOpen.
         stageSavedPairing()
         val rememberedEvents = scanWith(secrets, "ssdp-tizen-tv")
         val rememberedCard = rememberedEvents.filterIsInstance<DiscoveryEvent.Found>().single().tv
         assertEquals(true, rememberedCard.remembered)
         assertEquals(ControlAvailability.ReadyToOpen, rememberedCard.availability)
-        // And no caller-visible field carries private evidence.
         val cardText = rememberedCard.toString()
         assertFalse(cardText.contains("[host-a]"))
         assertFalse(cardText.contains("token"))
@@ -590,9 +555,6 @@ class SamsungTvsSavedPairingTest {
     @Test
     fun aPlantedTokenNeverReachesTheDeviceRecordOrTheCallerSurface() = runTest {
         stageSavedPairing()
-        // A successful trusted resume: the saved identity matched and the saved token was accepted.
-        // (Driving the approval fixture here would be TokenRejected under the S04 contract, which
-        // unauthorizedWithTokenYieldsTokenRejectedAndNoLoop already proves.)
         val transport =
             ScriptedSessionTransport(
                 SessionFixture.load("token-resume"),
@@ -602,11 +564,9 @@ class SamsungTvsSavedPairingTest {
         advanceUntilIdle()
         assertEquals(SessionState.Ready, session.snapshot.value.state)
 
-        // The device record is typed without token or pin, so the encoded form cannot carry them.
         val encoded = DeviceRecordJson.encode(secrets.loadDevice(tvId)!!)
         assertFalse(encoded.contains(savedToken))
         assertFalse(encoded.contains(savedPin))
-        // Nothing the session wrote back or published contains the planted token.
         assertFalse(transport.sent.any { it.contains(savedToken) })
         assertFalse(session.snapshot.value.toString().contains(savedToken))
 
@@ -614,7 +574,6 @@ class SamsungTvsSavedPairingTest {
         advanceUntilIdle()
     }
 
-    // --- helpers -------------------------------------------------------------------------
 
     private fun script(vararg events: SessionEvent): SessionFixture =
         SessionFixture("script", events.toList(), emptyList())

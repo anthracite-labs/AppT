@@ -87,8 +87,6 @@ class FakeSamsungTvs : SamsungTvs {
 
         override suspend fun command(command: TvCommand): CommandResult {
             commands += command
-            // A real session writes only while it is Ready and rejects anything else, so the fake
-            // models that: the caller's behaviour is tested against the documented contract.
             val current = mutableSnapshot.value
             val result =
                 if (current.state == SessionState.Ready) nextResult
@@ -181,7 +179,6 @@ class FakeSamsungTvs : SamsungTvs {
         forgottenIds += id
         val result = nextForgetResult
         if (result == ForgetResult.Forgotten) {
-            // Idempotent success clears the relationship; a failure leaves it in place.
             remembered.remove(id)
         }
         nextForgetResult = ForgetResult.Forgotten

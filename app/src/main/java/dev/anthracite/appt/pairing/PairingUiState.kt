@@ -61,7 +61,6 @@ data class PairingUiState(
                     }
                 SessionState.Unreachable -> TvFailure.Unreachable
                 SessionState.Unsupported -> TvFailure.Unsupported
-                // Closed is not a pairing outcome the user can act on; the route has already left.
                 else -> TvFailure.Unavailable
             }
     }

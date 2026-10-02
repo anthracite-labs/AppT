@@ -52,38 +52,21 @@ object AppTTokens {
  */
 @Immutable
 object ColorTokens {
-    // color.brand — restrained accent; used for the primary action container.
     val brandAccent: Color = Color(0xFF4FC3F7)
     val brandOnAccent: Color = Color(0xFF00202E)
 
-    // color.surface — dark-first.
-    //
-    // Floor: 3:1 against adjacent non-text content. A dark-first design gets
-    // its elevation from a subtle tone shift, which by itself cannot reach 3:1
-    // against the surface beneath it, so the surface boundary is carried by
-    // [surfaceOutline], which does meet the floor against both surfaces
-    // (4.41:1 on `surface`, 3.87:1 on `surfaceElevated`). Tone alone is never
-    // the only signal that a surface boundary exists.
     val surface: Color = Color(0xFF101418)
     val surfaceElevated: Color = Color(0xFF1B2127)
     val surfaceOutline: Color = Color(0xFF727D88)
 
-    // color.content — floor: 4.5:1 for body text on its surface.
-    // contentPrimary   #E7ECF2 on #101418 -> ~14.5:1
-    // contentSecondary #B3BDC7 on #101418 -> ~ 8.6:1
     val contentPrimary: Color = Color(0xFFE7ECF2)
     val contentSecondary: Color = Color(0xFFB3BDC7)
-    // Disabled content is exempt from the text contrast floor (WCAG 1.4.3
-    // "Incidental"); it still clears 3:1 against the surface so a disabled
-    // control remains perceivable.
     val contentDisabled: Color = Color(0xFF6B7681)
 
-    // color.status — always paired with text or an icon, never colour alone.
     val statusReady: Color = Color(0xFF7BD88F)
     val statusAttention: Color = Color(0xFFFFCA6B)
     val statusUnavailable: Color = Color(0xFFFF8A80)
 
-    // color.feedback — same contrast floors as content.
     val feedbackError: Color = Color(0xFFFF8A80)
     val feedbackWarning: Color = Color(0xFFFFCA6B)
     val feedbackSuccess: Color = Color(0xFF7BD88F)

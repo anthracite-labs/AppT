@@ -78,9 +78,7 @@ class RemoteViewModel(
         try {
             block()
         } catch (_: RuntimeException) {
-            // Optional instrumentation must not prevent an accepted command from being recorded.
         } catch (_: LinkageError) {
-            // Older platform implementations may not provide the tracing entry point.
         }
     }
 

@@ -63,8 +63,6 @@ class AppTNavGraphTest {
     private val tvs = FakeSamsungTvs()
     private val gate = FakePermissionGate()
     private val profiles = TvProfiles(FakeTvProfileDao()) { 1L }
-    // Resolved once: DataStore reads its file more than once, and a fresh directory per call
-    // would hand every read a different file.
     private val preferencesFile =
         File(Files.createTempDirectory("appt-nav").toFile(), PREFERENCES_FILE_NAME)
 

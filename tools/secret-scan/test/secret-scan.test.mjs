@@ -1,4 +1,3 @@
-// Tests for the first-party secret scanner. Run with `node --test tools/secret-scan`.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
@@ -32,20 +31,12 @@ test('does not flag ordinary source', () => {
 });
 
 test('leaves provider token formats to GitHub Secret Scanning and Push Protection', () => {
-  // docs/architecture/release.md#github-owned-controls: the platform owns
-  // generic provider-secret detection. The repository scanner keeps only the
-  // AppT-specific credential-file and credential-material guards, so a bare
-  // provider token must not be reported here.
   for (const { name, sample } of PROVIDER_OWNED_SAMPLES) {
     assert.deepEqual(findCredentialsInText(sample), [], `${name} must not be detected here`);
   }
 });
 
 test('still flags a provider key used as a hardcoded assignment', () => {
-  // Assembled from fragments so no provider-shaped literal appears in this
-  // file; see the `fixture` note in ../secret-scan.mjs. The point of the case
-  // is that the AppT assignment guard catches it, not that the repository
-  // detects the provider format.
   const key = ['AIza', 'B'.repeat(35)].join('');
   const findings = findCredentialsInText(`api_key = "${key}"`);
   assert.ok(findings.length > 0);

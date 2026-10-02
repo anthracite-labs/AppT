@@ -72,8 +72,6 @@ fun LocalNetworkScreen(
                         onRetry = onRetry,
                         onOpenSettings = onOpenSettings,
                     )
-                // Requesting is never entered by the V1 gate, and Granted navigates to Discovery
-                // straight away; neither offers an action of its own.
                 LocalNetworkPhase.Requesting,
                 LocalNetworkPhase.Granted -> Unit
             }

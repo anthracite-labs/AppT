@@ -50,7 +50,6 @@ class PlaintextWebSocketTransportTest {
             uuid = uuid,
         )
 
-    // --- the resumed-pairing identity gate (connection.md#security-identity) ---------------
 
     @Test
     fun aResumedPlaintextPairingFailsClosedWhenTheFreshIdentityDiffers() = runBlocking {
@@ -60,7 +59,6 @@ class PlaintextWebSocketTransportTest {
                 fetchCurrentUuid = { _, _ -> "a-different-current-uuid" },
             )
         val saved = PairingSecret(token = "resume-token", pin = null)
-        // IdentityMismatch, not Unreachable: the decision happened before any socket was opened.
         assertEquals(
             ConnectionAttempt.IdentityMismatch,
             transport.connect(plaintextTelevision("saved-uuid"), saved),
@@ -100,8 +98,6 @@ class PlaintextWebSocketTransportTest {
                 fetchCurrentUuid = { _, _ -> "saved-uuid" },
             )
         val saved = PairingSecret(token = "resume-token", pin = null)
-        // Nothing listens on the plaintext port here, so passing the gate ends in Unreachable —
-        // which is the proof that the gate passed and the socket was attempted.
         assertEquals(
             ConnectionAttempt.Unreachable,
             transport.connect(plaintextTelevision("saved-uuid"), saved),
@@ -125,14 +121,7 @@ class PlaintextWebSocketTransportTest {
 
     @Test
     fun theRealProbeFormatsABareIpv6LiteralAsABracketedAuthority() = runBlocking {
-        // The probe's fresh device-info request must carry a valid authority: a bare IPv6 literal
-        // is bracketed exactly as the upgrade request brackets it. The probe reaches a matched
-        // identity here, so passing the gate ends in Unreachable (nothing serves the remote
-        // channel: the second connection is accepted by nobody, the upgrade read stalls past
-        // its bound, and open fails normally), which is the proof the probe ran and returned
-        // the document's UUID.
         val ipv6Loopback = InetAddress.getByName("::1")
-        // The probe dials the television's derived plaintext remote port, so the stub serves there.
         ServerSocket(ConfirmedTelevision.PLAINTEXT_REMOTE_PORT, 1, ipv6Loopback).use { server ->
             server.soTimeout = 30_000
             var hostHeader: String? = null
@@ -173,9 +162,6 @@ class PlaintextWebSocketTransportTest {
 
     @Test
     fun theRealProbeFailsClosedOnAnUnreadableDocument() = runBlocking {
-        // The default probe returns null for a non-200 document, and a resumed pairing with no
-        // establishable current identity is IdentityMismatch — no remote socket, no token.
-        // The probe dials the television's derived plaintext remote port, so the stub serves there.
         ServerSocket(ConfirmedTelevision.PLAINTEXT_REMOTE_PORT, 1, loopback).use { server ->
             server.soTimeout = 30_000
             val peer = thread {
@@ -282,7 +268,6 @@ class PlaintextWebSocketTransportTest {
                 server.accept().use { socket ->
                     val request = readRequest(socket.getInputStream())
                     writeHandshake(socket, request)
-                    // RST rather than a clean FIN: the client read must not escape IOException.
                     socket.setSoLinger(true, 0)
                     socket.close()
                 }

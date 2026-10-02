@@ -89,7 +89,6 @@ class WelcomeScreenTest {
         }
     }
 
-    // --- product shape (ui-ux.md#onboarding) --------------------------------
 
     @Test
     fun `shows the core value proposition`() {
@@ -124,7 +123,6 @@ class WelcomeScreenTest {
     @Test
     fun `the surface is static text, not a multi-page carousel`() {
         setWelcome()
-        // A feature carousel would expose a horizontal scroll range on a pager.
         val horizontallyScrollable =
             composeRule
                 .onAllNodes(
@@ -138,7 +136,6 @@ class WelcomeScreenTest {
         )
     }
 
-    // --- accessibility contracts --------------------------------------------
 
     @Test
     fun `the primary action has a click action and a TalkBack label`() {
@@ -176,8 +173,6 @@ class WelcomeScreenTest {
     @Test
     fun `stays usable at 200 percent font scale`() {
         setWelcome(fontScale = 2f)
-        // The surface scrolls, so nothing is dropped or made unreachable when
-        // text doubles in size.
         composeRule.onNodeWithTag(WelcomeTestTags.VALUE_PROPOSITION).assertExists()
         composeRule.onNodeWithTag(WelcomeTestTags.REASSURANCE).assertExists()
         composeRule.onNodeWithTag(WelcomeTestTags.PRIMARY_ACTION).assertExists()
@@ -187,8 +182,6 @@ class WelcomeScreenTest {
     @Test
     fun `renders and stays interactive when motion is reduced`() {
         setWelcome(motionDurationScale = 0f)
-        // Reduced motion removes the brand mark's timed reveal; the surface and
-        // its single action are unaffected.
         composeRule.onNodeWithTag(WelcomeTestTags.MASCOT).assertExists()
         composeRule.onNodeWithTag(WelcomeTestTags.PRIMARY_ACTION).assertHasClickAction()
         assertEquals(1, clickableNodeCount())

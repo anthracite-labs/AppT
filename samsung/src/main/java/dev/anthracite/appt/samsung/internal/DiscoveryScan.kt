@@ -84,8 +84,6 @@ internal class DiscoveryScan(
                     launch { confirm(lan, candidate.host, claims, emit) }
                 }
             }
-            // Probes may finish sending early; the scan still runs to its bound so a late
-            // television can appear.
             awaitCancellation()
         }
 
@@ -98,15 +96,10 @@ internal class DiscoveryScan(
         val document =
             DEVICE_INFO_PORTS.firstNotNullOfOrNull { port -> transport.deviceInfo(lan, host, port) }
         val info = document?.let(DeviceInfoParser::parse) ?: return
-        // A document that names a different host does not belong to this candidate
-        // (protocol.md#limits); soundbars, speakers and players are not televisions.
         if (!info.isTelevision || (info.reportedHost != null && info.reportedHost != host)) return
 
         val id = TvId(info.uuid ?: mintId())
         if (!claims.claimTv(id)) return
-        // Private control evidence for `open`: the address the television answered on, and which
-        // adopted channel its own flags select. Never caller-visible; the durable part is owned by
-        // the pairing write, not by discovery.
         confirmed.record(
             ConfirmedTelevision(
                 id = id,
@@ -117,11 +110,6 @@ internal class DiscoveryScan(
                 displayName = info.name.takeIf { it.isNotBlank() },
             )
         )
-        // samsung-interface.md#discover: `remembered` means a secret or saved identity exists for
-        // this id, and `ReadyToOpen` means `open` should resume a saved pairing. Both read the
-        // durable store; neither is inferred from a year, a model, or a name.
-        // The only dispatcher switch the scan makes: durable file/Keystore reads leave the
-        // caller's (main) thread, and nothing here participates in the caller's bound clock.
         val (savedSecret, hasRecord) =
             withContext(readDispatcher) {
                 secrets.loadSecret(id) to (secrets.loadDevice(id) != null)

@@ -58,8 +58,6 @@ internal class AndroidDiscoveryTransport(context: Context) : DiscoveryTransport 
     }
 
     override suspend fun deviceInfo(lan: Lan, host: String, port: Int): String? {
-        // `host` is always the numeric address a probe reported (see candidates), so this parses
-        // the literal and performs no name lookup.
         val address =
             try {
                 InetAddress.getByName(host)

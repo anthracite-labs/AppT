@@ -1,44 +1,7 @@
 #!/usr/bin/env node
-/**
- * AppT focused-diagnostic focus resolution (Issue #88, human revision).
- *
- * Every `diagnose.yml` mode accepts an optional `focus` input that narrows that
- * mode without widening it. This module owns what "narrow" means for each mode,
- * so the narrowing is reviewable in one file and provable without running a
- * diagnostic: it returns the exact argument vector the mode should execute, and
- * it throws on anything that would select work outside that mode.
- *
- * The contract this module enforces
- * --------------------------------
- *   * an empty `focus` reproduces the mode's current, unfocused command
- *     exactly — a focus is an addition, never a replacement of the mode;
- *   * a non-empty `focus` narrows only within its mode, either through the
- *     underlying tool's native selector (`--tests`, Jest patterns,
- *     instrumentation runner arguments) or through a finite allowlist of
- *     sub-responsibilities that mode already owns;
- *   * the value is data, never code. It is returned as a single argv entry, so
- *     no amount of shell metacharacter in it can become a command, a flag, or
- *     an unrelated task. It may contain spaces — a Jest test name legitimately
- *     does — but never a control character, and never a leading `-`;
- *   * a value that starts with `-` is rejected outright, because every
- *     underlying tool would read it as a flag rather than as a selector;
- *   * anything else — a wrong shape, a foreign prefix, a sub-responsibility the
- *     mode does not own — fails closed with a non-zero exit.
- *
- * The commands below were verified against the pinned toolchain before being
- * committed: the Gradle task paths are the ones `build.gradle.kts` declares for
- * each failure domain, the npm script names are the ones
- * `backend/package.json` declares.
- *
- * Deliberately zero dependencies: its provenance is the repository itself.
- *
- * Usage:
- *   node tools/ci/diagnose-focus.mjs --mode app-unit --focus com.example.FooTest
- */
 
 import { appendFileSync } from 'node:fs';
 
-/** Every diagnose mode, in the order `diagnose.yml` declares them. */
 export const DIAGNOSE_MODES = Object.freeze([
   'app-unit',
   'samsung-unit',
@@ -47,11 +10,6 @@ export const DIAGNOSE_MODES = Object.freeze([
   'backend',
 ]);
 
-/**
- * The Gradle invocation prefix each Android mode uses. Reproduced exactly so an
- * empty focus yields byte-for-byte the command the mode ran before focus
- * existed.
- */
 const GRADLE_CONTINUE = [
   './gradlew',
   '--no-daemon',
@@ -59,33 +17,19 @@ const GRADLE_CONTINUE = [
   '--continue',
 ];
 
-/** npm script invocation prefix. */
 const npm = (script) => ['npm', 'run', script, '--prefix', 'backend'];
 
-/**
- * Android static sub-checks, as owned tasks. `androidStatic` in
- * `build.gradle.kts` depends on exactly these, so focusing here selects a
- * strict subset of the same responsibility.
- */
 export const ANDROID_STATIC_SUBCHECKS = Object.freeze({
   lint: [':app:lintDebug', ':samsung:lintDebug'],
   detekt: [':app:detekt', ':samsung:detekt'],
   guards: ['appTGuards'],
 });
 
-/**
- * Android build sub-targets, as owned tasks. `androidBuild` depends on exactly
- * these.
- */
 export const ANDROID_BUILD_SUBTARGETS = Object.freeze({
   app: [':app:assembleDebug'],
   'release-guard': [':app:verifyReleaseS05Boundaries'],
 });
 
-/**
- * Backend static sub-checks, as npm script names. `verify:static` in
- * `backend/package.json` runs exactly these.
- */
 export const BACKEND_STATIC_SUBCHECKS = Object.freeze({
   typecheck: 'typecheck',
   lint: 'lint',
@@ -93,15 +37,8 @@ export const BACKEND_STATIC_SUBCHECKS = Object.freeze({
   knip: 'knip',
 });
 
-/** The two sub-responsibilities the whole-backend mode is made of. */
 export const BACKEND_RESPONSIBILITIES = Object.freeze(['static', 'test']);
 
-/**
- * True for C0 controls and DEL. Written as a code-point scan rather than a
- * character class so the rule is unambiguous in the source: a focus may not
- * contain a newline, because the CLI encodes one argument per line, and may not
- * contain any other control character either.
- */
 function hasControlCharacter(value) {
   for (let index = 0; index < value.length; index += 1) {
     const code = value.codePointAt(index);
@@ -110,36 +47,20 @@ function hasControlCharacter(value) {
   return false;
 }
 
-/**
- * A Gradle `--tests` pattern: a qualified class name with an optional
- * `#method`, where every segment may use `*` wildcards. It cannot contain a
- * task path, because `--tests` takes a test-name pattern, not a task.
- */
 const GRADLE_TEST_PATTERN =
   /^[A-Za-z0-9_$*]+(\.[A-Za-z0-9_$*]+)*(#[A-Za-z0-9_$*]+)?$/;
 
-/**
- * Validate and normalise the focus value.
- *
- * Returns `''` for "no focus", which every mode treats as its unfocused self.
- * Throws for anything that is not a safe single argv entry.
- */
 export function normalizeFocus(focus) {
   if (focus === undefined || focus === null || focus === '') return '';
   if (typeof focus !== 'string') {
     throw new Error(`focus must be a string, got ${typeof focus}`);
   }
-  // A newline would break the one-argument-per-line CLI encoding, and the other
-  // control characters have no legitimate use in a selector. Ordinary spaces are
-  // fine: they stay inside a single argv entry.
   if (hasControlCharacter(focus)) {
     throw new Error(
       `focus must not contain control characters (got ${JSON.stringify(focus)}); ` +
         'a focus is a single argv entry'
     );
   }
-  // A leading dash would be read as a flag by every underlying tool, which is
-  // how a focus could select work other than its own selector.
   if (focus.startsWith('-')) {
     throw new Error(
       `focus must not start with '-' (got ${JSON.stringify(focus)}); ` +
@@ -149,12 +70,6 @@ export function normalizeFocus(focus) {
   return focus;
 }
 
-/**
- * A value beginning with `-` would be read as a flag by the underlying tool
- * rather than as a selector, which is how a focus could select work other than
- * its own. Rejected for the extracted value as well as for the whole focus,
- * because `file:--coverage` starts with `f` but its value is a flag.
- */
 function rejectLeadingDash(value, mode) {
   if (value.startsWith('-')) {
     throw new Error(
@@ -171,12 +86,6 @@ function requireMatch(pattern, value, description) {
   return value;
 }
 
-/**
- * A Jest pattern (a positional file pattern, or a `--testNamePattern` value) is
- * a regular expression over test names and paths. Spaces are legitimate there,
- * and the global rules already reject a leading `-` and every control
- * character, so the only thing left to enforce is that a value exists.
- */
 function requireJestPattern(value, description) {
   rejectLeadingDash(value, description);
   if (value.length === 0) {
@@ -185,10 +94,6 @@ function requireJestPattern(value, description) {
   return value;
 }
 
-/**
- * Split a `kind:value` focus, rejecting a focus whose kind is wrong for the
- * mode that received it.
- */
 function splitKind(focus, allowedKinds, mode) {
   const separator = focus.indexOf(':');
   if (separator < 0) {
@@ -211,12 +116,6 @@ function splitKind(focus, allowedKinds, mode) {
   return { kind, value };
 }
 
-/**
- * Resolve a mode and an optional focus into the exact command to run.
- *
- * @returns {{mode: string, focus: string, kind: string, command: string[], summary: string}}
- * @throws on an unknown mode, or any focus that is not a narrowing of that mode.
- */
 export function resolveFocus({ mode, focus } = {}) {
   if (!DIAGNOSE_MODES.includes(mode)) {
     throw new Error(
@@ -230,7 +129,6 @@ export function resolveFocus({ mode, focus } = {}) {
   let command;
 
   switch (mode) {
-    // Gradle test-class / test-method targeting through `--tests`.
     case 'app-unit':
     case 'samsung-unit': {
       kind = 'gradle-test-pattern';
@@ -243,7 +141,6 @@ export function resolveFocus({ mode, focus } = {}) {
       break;
     }
 
-    // A finite allowlist of sub-checks this mode already owns.
     case 'android-static': {
       kind = 'allowlisted-subcheck';
       command = [...GRADLE_CONTINUE, 'androidStatic'];
@@ -259,7 +156,6 @@ export function resolveFocus({ mode, focus } = {}) {
       break;
     }
 
-    // A finite allowlist of build sub-targets this mode already owns.
     case 'android-build': {
       kind = 'allowlisted-subtarget';
       command = [...GRADLE_CONTINUE, 'androidBuild'];
@@ -275,9 +171,6 @@ export function resolveFocus({ mode, focus } = {}) {
       break;
     }
 
-    // The whole backend, narrowable to its own static or test responsibility,
-    // and from there to that responsibility's own child selector. A bare
-    // `static` / `test` is valid; a colon with nothing after it is not.
     case 'backend': {
       kind = 'sub-responsibility';
       command = npm('verify');
@@ -322,8 +215,6 @@ export function resolveFocus({ mode, focus } = {}) {
       throw new Error(`unhandled diagnose mode: ${mode}`);
   }
 
-  // No focus means the mode's whole self, whatever selector kind it otherwise
-  // uses, so report it that way rather than as a kind that was never applied.
   if (normalized === '') kind = 'full-mode';
 
   const summary =
@@ -335,13 +226,6 @@ export function resolveFocus({ mode, focus } = {}) {
 }
 
 
-/**
- * Validate one mode or a comma-separated set of modes.
- *
- * The grammar is deliberately small: exact mode names joined by commas, with
- * no whitespace, empty entries, unknown names or duplicates. Multi-mode
- * selection runs whole modes only, so a non-empty focus is rejected.
- */
 export function resolveModeSelection({ mode, focus } = {}) {
   if (typeof mode !== 'string' || mode.length === 0) {
     throw new Error('diagnose mode selection must be a non-empty string');
@@ -452,8 +336,6 @@ async function main() {
     }
 
     const resolved = resolveFocus({ mode, focus: requestedFocus });
-    // One argument per line. A focus value can never contain a newline, so the
-    // encoding is unambiguous, and every token stays a single argv entry.
     process.stdout.write(`${resolved.command.join('\n')}\n`);
   } catch (error) {
     console.error(`diagnose-focus: ${error.message}`);

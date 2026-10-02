@@ -75,9 +75,6 @@ class RemoteChannelTest {
 
     @Test
     fun everyCallerKeyHasAnInternalName() {
-        // The mapping is total: a caller key with no internal name would be a rejected command, not
-        // a
-        // silent no-op.
         RemoteKey.entries.forEach { key ->
             assertTrue("no internal name for $key", RemoteChannel.tapFrame(key).contains("KEY_"))
         }
@@ -102,8 +99,6 @@ class RemoteChannelTest {
 
     @Test
     fun parseEventContainsMalformedAndOversizedFrames() {
-        // Broken JSON, a non-object root, a missing event and over-limit input are all malformed
-        // frames: dropped, never thrown.
         assertNull(RemoteChannel.parseEvent("""{"event":"ms.channel.connect","data":{"""))
         assertNull(RemoteChannel.parseEvent("[1,2,3]"))
         assertNull(RemoteChannel.parseEvent("""{"data":{"token":"[fixture-token]"}}"""))
@@ -115,7 +110,6 @@ class RemoteChannelTest {
     fun parseEventIgnoresUnknownEventsRatherThanFailing() {
         val event = RemoteChannel.parseEvent("""{"event":"ms.something.else","data":{}}""")
         assertEquals("ms.something.else", event?.name)
-        // The session machine only acts on the four documented events.
         assertFalse(event?.name in SESSION_EVENTS)
         val numeric = RemoteChannel.parseEvent("""{"event":42}""")
         assertFalse(numeric?.name in SESSION_EVENTS)

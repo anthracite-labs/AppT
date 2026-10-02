@@ -102,7 +102,6 @@ internal class SsdpClient(
         } catch (ignored: SocketTimeoutException) {
             null
         } catch (denied: SecurityException) {
-            // Like open and send: a blocked local network is a scan failure, never a raw crash.
             throw ScanAbort(LanPolicy.failureFor(denied), denied)
         } catch (failed: IOException) {
             throw ScanAbort(LanPolicy.failureFor(failed), failed)

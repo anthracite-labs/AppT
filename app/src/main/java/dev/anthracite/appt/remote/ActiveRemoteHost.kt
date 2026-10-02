@@ -91,9 +91,6 @@ class ActiveRemoteHost(
         val held = mutableCurrent.value
         val retryingSameTelevision = held != null && held.tvId == tvId
         if (retryingSameTelevision && held.snapshot.state.isLive()) return
-        // A retry from a visible Remote keeps its owner so releasing that surface still starts
-        // grace. Entering a different television is an ownership handoff and must not carry the
-        // old surface's retain into the new session.
         closeSession(clearOwners = !retryingSameTelevision)
         val session = samsungTvs.open(tvId, scope)
         heldSession = session
@@ -118,13 +115,7 @@ class ActiveRemoteHost(
             held.session.confirmRepair()
             return
         }
-        // The retained NeedsRepair session is live by `isLive`, so `enter` alone would reuse it;
-        // close it first. Keeping the owners: the user is retrying the same visible television.
         closeSession(clearOwners = false)
-        // Forget must succeed before anything fresh begins: a Failed forget leaves the Samsung
-        // relationship in place, so pairing anew now would build a second relationship on top of
-        // an unreadable one (samsung-interface.md#forget: Failed means retry before treating the
-        // television as forgotten). The confirmed control simply stays available to try again.
         if (samsungTvs.forget(tvId) == ForgetResult.Forgotten) enter(tvId)
     }
 
@@ -166,8 +157,6 @@ class ActiveRemoteHost(
         observation?.cancel()
         observation =
             scope.launch {
-                // Once per session: a rotation or a re-attach collects the same `Ready` snapshot
-                // again and must not write the row twice.
                 var reachedReady = false
                 session.snapshot.collect { snapshot ->
                     mutableCurrent.value = ActiveRemoteSnapshot(tvId, session, snapshot)
@@ -179,12 +168,7 @@ class ActiveRemoteHost(
                         } catch (cancellation: CancellationException) {
                             throw cancellation
                         } catch (ignoredWriteFailure: IOException) {
-                            // A failed local write. Losing the profile row must not terminate
-                            // control of a live television, so it is contained here.
                         } catch (ignoredClosedStore: IllegalStateException) {
-                            // Room reports a store that has already gone away this way. Same
-                            // reasoning as above: metadata is recoverable, the session is not.
-                            // Local diagnostics arrives in S13.
                         }
                     }
                 }

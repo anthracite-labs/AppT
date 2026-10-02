@@ -1,9 +1,3 @@
-# CodeRabbit configuration for AppT (docs/architecture/release.md, Issue #56).
-#
-# Independent reasoning layer for pull request reviews and pre-merge checks.
-# Pre-merge checks begin in warning mode so their signal can be observed
-# before promotion to blocking/error.
-
 language: "en-US"
 
 reviews:

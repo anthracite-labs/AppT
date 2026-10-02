@@ -39,9 +39,6 @@ class SamsungModuleGuardTest {
 
     @Test
     fun samsungHasNoLogCalls() {
-        // No android.util.Log, no println/print, no System.out/err anywhere in samsung production
-        // code: diagnostics reach the caller only through the redacted report in S13. Frames, URLs
-        // and pairing secrets must be structurally unable to reach a captured log.
         val logging =
             Regex(
                 """\b(Log\.[ivwde]|println|printStackTrace|System\.(out|err)\b)|\bprint\(""",
@@ -53,9 +50,6 @@ class SamsungModuleGuardTest {
 
     @Test
     fun thePairingSecretStaysInsideTheSamsungModule() {
-        // The saved pairing secret, its store, and the samsung-private device record are internal
-        // implementation. No app production source names them: that is what keeps the pairing
-        // secret structurally unavailable to Room, DataStore, diagnostics and logs.
         val secretTypes =
             Regex(
                 """\b(PairingSecret|SamsungSecretStore|SamsungDeviceRecord|StoredSecret|SecretStoreException)\b"""

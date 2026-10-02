@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Regression tests for the project-state consistency contract."""
 
 from __future__ import annotations
 

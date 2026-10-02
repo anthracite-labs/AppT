@@ -77,8 +77,6 @@ internal object RemoteChannel {
     fun authority(television: ConfirmedTelevision): String {
         val host =
             if (':' in television.host && !television.host.startsWith("[")) {
-                // InetAddress.hostAddress returns an unbracketed IPv6 literal. URL authorities
-                // require brackets; encode a link-local scope marker if one is present.
                 "[${television.host.replace("%", "%25")}]"
             } else {
                 television.host
@@ -107,7 +105,6 @@ internal object RemoteChannel {
     /** The outbound frame for one key tap, in the documented `ms.remote.control` shape. */
     fun tapFrame(key: RemoteKey): String {
         val keyName = KEY_NAMES[key] ?: throw IllegalArgumentException("no internal name for $key")
-        // JsonObject.toString() is the compact form, so no serializer configuration is needed.
         return buildJsonObject {
                 put("method", JsonPrimitive(METHOD_REMOTE_CONTROL))
                 put(

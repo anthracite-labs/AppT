@@ -126,7 +126,6 @@ private fun remoteHaptic(enabled: Boolean, onHapticFeedback: () -> Unit): () -> 
     val view = LocalView.current
     return {
         if (enabled && view.isHapticFeedbackEnabled) {
-            // View.performHapticFeedback observes Android's system touch-feedback policy.
             view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
             onHapticFeedback()
         }

@@ -29,8 +29,6 @@ class OkHttpSessionTransportTest {
     private val loopback: InetAddress = InetAddress.getLoopbackAddress()
     private val loopbackHost: String = requireNotNull(loopback.hostAddress)
 
-    // connection.md#security-identity: "The module may accept one certificate as a candidate to
-    // speak the handshake. The candidate stays in memory."
     @Test
     fun theFirstCertificateIsAcceptedAsACandidateAndItsPinIsTheSpkiSha256() {
         val trustManager = SpkiTrustManager()
@@ -38,14 +36,10 @@ class OkHttpSessionTransportTest {
 
         trustManager.checkServerTrusted(arrayOf(certificate(TELEVISION_ONE)), AUTH_TYPE)
 
-        // The pin is asserted against a digest computed from the same DER with `openssl x509
-        // -pubkey | openssl pkey -pubin -outform DER | sha256sum`, so it pins the documented shape
-        // (SHA-256 of the SubjectPublicKeyInfo, lowercase hex) instead of echoing this code.
         assertEquals(TELEVISION_ONE_PIN, trustManager.candidate())
         assertTrue(trustManager.hasCheckedCertificate())
     }
 
-    // One socket presents one certificate; a re-handshake on it is not a second certificate.
     @Test
     fun theSameCertificateTwiceOnOneConnectionStaysAccepted() {
         val trustManager = SpkiTrustManager()
@@ -58,8 +52,6 @@ class OkHttpSessionTransportTest {
         assertEquals(TELEVISION_ONE_PIN, trustManager.candidate())
     }
 
-    // connection.md#security-identity: "A second, different certificate on that connection is
-    // rejected." This is the property that keeps the trust manager from being a trust-all one.
     @Test
     fun aSecondDifferentCertificateOnTheSameConnectionIsRejected() {
         val trustManager = SpkiTrustManager()
@@ -74,8 +66,6 @@ class OkHttpSessionTransportTest {
         assertEquals("the television presented a second certificate", rejected.message)
     }
 
-    // connection.md: leaving the pairing wait by close discards the candidate pin. The candidate is
-    // per socket, so a later socket starts with no pin and may accept a different television.
     @Test
     fun beginHandshakeDiscardsTheCandidateSoOneSocketsPinIsNeverAnothers() {
         val trustManager = SpkiTrustManager()
@@ -91,8 +81,6 @@ class OkHttpSessionTransportTest {
         assertEquals(TELEVISION_TWO_PIN, trustManager.candidate())
     }
 
-    // Expiry is enforced on every chain, so a lapsed certificate is not a candidate even though
-    // there is no saved pin to compare it against.
     @Test
     fun aLapsedCertificateIsNeverACandidate() {
         val trustManager = SpkiTrustManager()
@@ -117,8 +105,6 @@ class OkHttpSessionTransportTest {
         assertFalse(trustManager.hasCheckedCertificate())
     }
 
-    // connection.md#security-identity forbids a trust-all switch: AppT is the TLS client in every
-    // session it opens, and it advertises no issuer it would accept.
     @Test
     fun theTrustManagerIsNeverAServerAndAcceptsNoIssuers() {
         val trustManager = SpkiTrustManager()
@@ -130,8 +116,6 @@ class OkHttpSessionTransportTest {
         assertEquals(0, trustManager.getAcceptedIssuers().size)
     }
 
-    // Required mode: a saved pin admits only that identity, and nothing about a mismatch is
-    // recorded — this is the check that runs before any token-bearing byte can be written.
     @Test
     fun requiredModeAcceptsOnlyTheSavedIdentity() {
         val trustManager = SpkiTrustManager()
@@ -155,10 +139,6 @@ class OkHttpSessionTransportTest {
         assertNull(trustManager.candidate())
     }
 
-    // SessionTransport.connect: "Returns null when the socket cannot be opened at all...
-    // Containment is the adapter's job: nothing about a socket, TLS or parser failure crosses the
-    // seam as a thrown exception." The peer owns the adopted TLS port on loopback and drops every
-    // connection before a TLS handshake, which drives the real OkHttp stack down its failure path.
     @Test
     fun aTelevisionThatDropsTheTlsHandshakeOpensNoSessionAndNothingCrossesTheSeam() = runBlocking {
         ServerSocket(ConfirmedTelevision.TLS_REMOTE_PORT, 1, loopback).use { server ->
@@ -191,13 +171,6 @@ class OkHttpSessionTransportTest {
         const val AUTH_TYPE = "EC"
         val CONNECT_BOUND = 15.seconds
 
-        // Three self-signed loopback certificates, generated for this file only and never used on a
-        // network:
-        //   openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -keyout /dev/null
-        //   openssl ca -notext -startdate 20250101000000Z -enddate 20350101000000Z
-        // The private keys were discarded; only the certificates are here, as DER in Base64,
-        // because a certificate file extension is a forbidden tree entry (tools/secret-scan).
-        // LAPSED_TELEVISION is the same shape with its validity window in 2020.
         const val TELEVISION_ONE =
             "MIIBGDCBvwICEAEwCgYIKoZIzj0EAwIwFzEVMBMGA1UEAwwMYXBwdC10ZXN0LWNhMB4XDTI1MDEwMTAwMDAwMFoXDTM1MDEwMTAwMDAwMFowGTEXMBUGA1UEAwwOdGVsZXZpc2lvbi1vbmUwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAASObuUNq6tAg3z1fdIvtT8AvXUbg//zuaRP41pxPY/KMLwUsUD9KNFARCcCwVVhOP3L6dZDDJYQcO/tJ1wf7SkHMAoGCCqGSM49BAMCA0gAMEUCIQC7I6MevYt9CNcH9RcgpD/7NBXWakjARYyQCDgWtzBVfwIgVlWkgsNSxI94RdMu7tWJ3UVPuy/AgzbHUF8HweGTqoo="
         const val TELEVISION_ONE_PIN =

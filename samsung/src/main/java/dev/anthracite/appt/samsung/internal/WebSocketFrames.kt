@@ -80,7 +80,6 @@ internal object WebSocketFrames {
             val second = if (first < 0) -1 else input.read()
             if (first < 0 || second < 0) Inbound.End else readBody(input, first, second)
         } catch (_: IOException) {
-            // Header, length, and payload reads all fail this way on a reset socket.
             Inbound.End
         }
     }

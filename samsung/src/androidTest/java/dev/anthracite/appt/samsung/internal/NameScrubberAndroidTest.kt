@@ -19,21 +19,14 @@ import org.junit.runner.RunWith
 class NameScrubberAndroidTest {
     @Test
     fun theScrubberInitializesAndScrubsIdentifiersOnAndroid() {
-        // Ordinary names pass through untouched.
         assertEquals("Kitchen TV", NameScrubber.scrub("Kitchen TV"))
-        // A UUID, with the protocol prefix.
         assertEquals("TV", NameScrubber.scrub("TV uuid:7c9e6679-7425-40de-944b-e07fc1f90ae7"))
-        // IPv4 with a port; the leftover empty brackets are tidied away.
         assertEquals("TV", NameScrubber.scrub("TV (10.0.0.4:8001)"))
-        // A MAC address, in either separator.
         assertEquals("TV", NameScrubber.scrub("TV ab:cd:ef:01:02:03"))
         assertEquals("TV", NameScrubber.scrub("TV ab-cd-ef-01-02-03"))
-        // IPv6, including compression.
         assertEquals("TV", NameScrubber.scrub("TV fe80::1c9:26ff:fe34:8a5d"))
-        // A port attached to a word, and a spelled-out port.
         assertEquals("Kitchen", NameScrubber.scrub("Kitchen:8001"))
         assertEquals("Kitchen", NameScrubber.scrub("Kitchen port 8002"))
-        // A URL with whatever host and port it carries.
         assertEquals("TV", NameScrubber.scrub("TV http://10.0.0.4:8001/remote"))
     }
 }

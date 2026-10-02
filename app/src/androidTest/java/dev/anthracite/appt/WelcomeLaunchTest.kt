@@ -34,8 +34,6 @@ class WelcomeLaunchTest {
     @Test
     fun launchingTheAppOpensDirectlyToWelcome() {
         ActivityScenario.launch(MainActivity::class.java).use {
-            // The Welcome surface is the start destination, so these are
-            // present without any navigation having been performed.
             composeRule.onNodeWithTag(WelcomeTestTags.VALUE_PROPOSITION).assertIsDisplayed()
             composeRule.onNodeWithTag(WelcomeTestTags.REASSURANCE).assertIsDisplayed()
             composeRule.onNodeWithTag(WelcomeTestTags.PRIMARY_ACTION).assertIsDisplayed()

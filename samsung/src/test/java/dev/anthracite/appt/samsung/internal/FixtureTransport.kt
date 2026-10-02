@@ -63,7 +63,6 @@ internal class FixtureTransport(
                 if (candidate != null) emit(candidate)
                 else if (abort != null && atMs == abortAtMs) throw abort
             }
-            // The probes keep listening until the scan ends.
             awaitCancellation()
         } finally {
             probesRunning--

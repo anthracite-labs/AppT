@@ -1,12 +1,3 @@
-/**
- * Tests for the focused-diagnostic focus contract (Issue #88, human revision).
- *
- * Every `diagnose.yml` mode accepts an optional `focus`. These tests are what
- * makes that safe to expose: they prove that an empty focus reproduces the
- * mode's existing command exactly, that a valid focus narrows within the mode,
- * that anything else fails closed, and that a focus value can never become a
- * command, a flag, or a task the mode does not own.
- */
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
@@ -25,11 +16,6 @@ import {
 
 const MODULE = fileURLToPath(new URL('../diagnose-focus.mjs', import.meta.url));
 
-/**
- * The command each mode ran before `focus` existed, transcribed from
- * `diagnose.yml`. An empty focus must reproduce these exactly, so a focus can
- * only ever narrow a mode — never silently replace it.
- */
 const UNFOCUSED_COMMANDS = {
   'app-unit': [
     './gradlew',
@@ -62,10 +48,6 @@ const UNFOCUSED_COMMANDS = {
   backend: ['npm', 'run', 'verify', '--prefix', 'backend'],
 };
 
-/**
- * The invocation prefix each mode uses, independent of any focus. A focus may
- * change what is invoked; it may never change how.
- */
 const INVOCATION_PREFIX = {
   'app-unit': ['./gradlew', '--no-daemon', '--dependency-verification=strict', '--continue'],
   'samsung-unit': ['./gradlew', '--no-daemon', '--dependency-verification=strict', '--continue'],
@@ -74,11 +56,6 @@ const INVOCATION_PREFIX = {
   backend: ['npm', 'run'],
 };
 
-/**
- * The work each mode already owns. A focus may only ever select from here, so a
- * focused command naming anything outside this set is a widening, not a
- * narrowing — which is what the "cannot select unrelated tasks" rule means.
- */
 const OWNED_GRADLE_TASKS = {
   'app-unit': [':app:testDebugUnitTest'],
   'samsung-unit': [':samsung:test'],
@@ -99,7 +76,6 @@ const OWNED_NPM_SCRIPTS = {
   backend: ['verify', 'verify:static', 'verify:test', 'typecheck', 'lint', 'format:check', 'knip'],
 };
 
-/** Every task or script a focused command names must be one the mode owns. */
 function assertNarrowsOnly(mode, command) {
   const ownedTasks = OWNED_GRADLE_TASKS[mode];
   if (ownedTasks) {
@@ -121,7 +97,6 @@ function assertNarrowsOnly(mode, command) {
   }
 }
 
-/** Run the module exactly as the workflow does, and capture stdout and status. */
 function runCli(mode, focus) {
   const args = ['--mode', mode];
   if (focus !== undefined) args.push('--focus', focus);
@@ -193,8 +168,6 @@ describe('diagnostic mode selection', () => {
 describe('empty focus preserves the current command', () => {
   for (const mode of DIAGNOSE_MODES) {
     it(`${mode} with no focus runs exactly its existing command`, () => {
-      // Every spelling of "no focus" must agree, including the one the workflow
-      // produces when the input is left at its empty default.
       for (const focus of [undefined, '', null]) {
         const resolved = resolveFocus({ mode, focus });
         assert.deepEqual(
@@ -223,8 +196,6 @@ describe('empty focus preserves the current command', () => {
 
 describe('a valid focus narrows within its mode', () => {
   const cases = [
-    // Gradle test class / method patterns through `--tests`, appended to the
-    // mode's own test task.
     ['app-unit', 'com.example.FooTest', [':app:testDebugUnitTest', '--tests', 'com.example.FooTest']],
     ['app-unit', 'com.example.FooTest.testBar', [
       ':app:testDebugUnitTest',
@@ -238,30 +209,25 @@ describe('a valid focus narrows within its mode', () => {
       'dev.anthracite.appt.samsung.DiscoveryTest',
     ]],
 
-    // Allowlisted Android static sub-checks, as the tasks the domain owns.
     ...Object.entries(ANDROID_STATIC_SUBCHECKS).map(([focus, tasks]) => [
       'android-static',
       focus,
       tasks,
     ]),
 
-    // Allowlisted Android build sub-targets.
     ...Object.entries(ANDROID_BUILD_SUBTARGETS).map(([focus, tasks]) => [
       'android-build',
       focus,
       tasks,
     ]),
 
-    // The whole backend narrowing to its own responsibilities.
     ['backend', 'static', ['verify:static', '--prefix', 'backend']],
     ['backend', 'test', ['verify:test', '--prefix', 'backend']],
-    // Allowlisted backend static sub-checks, reached through the backend mode.
     ...Object.entries(BACKEND_STATIC_SUBCHECKS).map(([focus, script]) => [
       'backend',
       `static:${focus}`,
       [script, '--prefix', 'backend'],
     ]),
-    // Jest file and name targeting, through the mode's own npm script.
     ['backend', 'test:src/foo.test.ts', ['verify:test', '--prefix', 'backend', '--', 'src/foo.test.ts']],
     ['backend', 'test:handles a retry', ['verify:test', '--prefix', 'backend', '--', 'handles a retry']],
 
@@ -270,25 +236,18 @@ describe('a valid focus narrows within its mode', () => {
   for (const [mode, focus, expectedTail] of cases) {
     it(`${mode} focused on ${focus}`, () => {
       const resolved = resolveFocus({ mode, focus });
-      // The invocation prefix is untouched: a focus may change what is invoked,
-      // never how it is invoked.
       assert.deepEqual(
         resolved.command.slice(0, INVOCATION_PREFIX[mode].length),
         INVOCATION_PREFIX[mode],
         'a focus must not change how the mode is invoked'
       );
-      // Everything after that prefix is exactly the expected selector.
       assert.deepEqual(resolved.command.slice(INVOCATION_PREFIX[mode].length), expectedTail);
       assert.equal(resolved.focus, focus);
-      // And it selects only from work the mode already owns.
       assertNarrowsOnly(mode, resolved.command);
     });
   }
 
   it('a focus never adds a Gradle task the mode does not own', () => {
-    // The gradle-test modes narrow with `--tests`, which is a test-name filter.
-    // Even a value that names another task stays a filter, so it can select no
-    // task other than the mode's own.
     for (const task of ['androidStatic', 'clean', 'ciCheck', 'lint']) {
       const resolved = resolveFocus({ mode: 'app-unit', focus: task });
       const tasks = resolved.command.filter((token) => token.startsWith(':'));
@@ -296,8 +255,6 @@ describe('a valid focus narrows within its mode', () => {
       assert.deepEqual(resolved.command.slice(-2), ['--tests', task], task);
     }
 
-    // A task *path* is not even a valid test pattern, so it is refused outright
-    // rather than being passed through as a filter.
     for (const taskPath of [':app:assembleDebug', ':samsung:test', ':app:lintDebug']) {
       assert.throws(
         () => resolveFocus({ mode: 'app-unit', focus: taskPath }),
@@ -310,7 +267,6 @@ describe('a valid focus narrows within its mode', () => {
 
 describe('invalid and cross-mode focus fails closed', () => {
   const rejections = [
-    // A wrong shape for the mode.
     ['app-unit', 'name:Foo'],
     ['samsung-unit', 'class:x'],
     ['app-unit', 'lint && echo pwned'],
@@ -319,21 +275,17 @@ describe('invalid and cross-mode focus fails closed', () => {
     ['app-unit', 'Foo#'],
     ['app-unit', 'Foo bar'],
 
-    // A sub-responsibility the mode does not own — including one that belongs
-    // to a different mode, which is what "cross-mode" means here.
     ['android-static', 'typecheck'],
     ['android-static', 'knip'],
     ['android-static', 'nope'],
     ['android-build', 'lint'],
     ['android-build', 'nope'],
-    // A kind the mode does not accept.
     ['backend', 'lint'],
     ['backend', 'static:'],
     ['backend', 'test:'],
     ['backend', 'static:nope'],
     ['backend', 'test:--coverage'],
 
-    // A value that would be read as a flag rather than as a selector.
     ['app-unit', '--tests'],
     ['app-unit', '-x'],
     ['removed-backend-mode', '-x'],
@@ -342,8 +294,6 @@ describe('invalid and cross-mode focus fails closed', () => {
   for (const [mode, focus] of rejections) {
     it(`${mode} rejects ${JSON.stringify(focus)}`, () => {
       assert.throws(() => resolveFocus({ mode, focus }), Error, `${mode} / ${focus}`);
-      // The CLI fails before running anything, which is what the workflow's
-      // `set -e` relies on.
       const result = runCli(mode, focus);
       assert.equal(result.ok, false, `${mode} / ${focus} must fail`);
       assert.notEqual(result.status, 0);
@@ -380,9 +330,6 @@ describe('special characters stay data', () => {
 
   for (const value of hostile) {
     it(`${JSON.stringify(value)} is never a command`, () => {
-      // Either it is rejected outright, or it survives as exactly one argv
-      // entry. There is no third outcome in which it becomes a command, a flag
-      // or a second argument.
       let resolved;
       try {
         resolved = resolveFocus({ mode: 'app-unit', focus: value });
@@ -397,8 +344,6 @@ describe('special characters stay data', () => {
   }
 
   it('a shell metacharacter is refused as a Gradle test pattern', () => {
-    // `--tests` takes a test-name pattern, so anything that is not one is
-    // rejected before it can reach the command line at all.
     for (const value of ['Foo;rm -rf /', 'Foo$(whoami)', 'Foo`whoami`', 'Foo&&x', 'Foo|x']) {
       assert.throws(
         () => resolveFocus({ mode: 'app-unit', focus: value }),
@@ -409,8 +354,6 @@ describe('special characters stay data', () => {
   });
 
   it('a shell metacharacter survives as a single Jest pattern argument', () => {
-    // The Jest modes take a pattern, which is legitimately free-form, so the
-    // metacharacters have to survive — as exactly one argv entry.
     for (const value of ['src/foo$(whoami).test.ts', 'src/foo`id`.test.ts', 'src/a&&b.test.ts']) {
       const resolved = resolveFocus({ mode: 'backend', focus: `test:${value}` });
       assert.equal(resolved.command.at(-1), value, value);

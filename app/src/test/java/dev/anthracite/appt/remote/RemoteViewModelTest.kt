@@ -75,11 +75,6 @@ class RemoteViewModelTest {
         return host
     }
 
-    // `setFirstControlAchieved` is a suspending write: the ViewModel hands it to DataStore, which
-    // performs it on its own write actor and resumes the caller once it has landed. `settle` only
-    // drains virtual time, so the write is still in flight when it returns and a single read can
-    // not observe the flag. Collecting until the flag is true suspends until the write lands, which
-    // is how PreferenceStoreTest reads the same key.
     private suspend fun assertFirstControlAchieved(message: String) {
         assertTrue(message, store.firstControlAchieved.first { it })
     }

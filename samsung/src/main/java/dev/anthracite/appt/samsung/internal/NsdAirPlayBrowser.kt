@@ -25,7 +25,6 @@ internal class NsdAirPlayBrowser(private val nsd: NsdManager, private val networ
         val listener = DiscoveryCallbacks(onFound = { found.trySend(it) })
         start(listener)
         launch {
-            // Resolved one at a time: before API 34 the platform rejects concurrent resolves.
             for (service in found) {
                 val resolved = resolve(service) ?: continue
                 val host = hostOf(resolved)
@@ -50,8 +49,6 @@ internal class NsdAirPlayBrowser(private val nsd: NsdManager, private val networ
                 listener,
             )
         } else {
-            // Before API 33 the browse cannot be pinned to a network; it runs on the default one,
-            // which is the Wi-Fi/Ethernet network activeLan() already required.
             nsd.discoverServices(AirPlayTxt.SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
         }
     }
@@ -60,7 +57,6 @@ internal class NsdAirPlayBrowser(private val nsd: NsdManager, private val networ
         try {
             nsd.stopServiceDiscovery(listener)
         } catch (ignored: IllegalArgumentException) {
-            // The browse never started (onStartDiscoveryFailed); there is nothing to stop.
         }
     }
 
@@ -99,7 +95,6 @@ internal class NsdAirPlayBrowser(private val nsd: NsdManager, private val networ
             try {
                 nsd.stopServiceResolution(listener)
             } catch (ignored: IllegalArgumentException) {
-                // The resolution already finished; there is nothing left to withdraw.
             }
         }
     }
@@ -123,23 +118,18 @@ internal class NsdAirPlayBrowser(private val nsd: NsdManager, private val networ
         override fun onServiceFound(serviceInfo: NsdServiceInfo) = onFound(serviceInfo)
 
         override fun onServiceLost(serviceInfo: NsdServiceInfo) {
-            // A lost service needs no action: cards are only emitted after confirmation.
         }
 
         override fun onDiscoveryStarted(serviceType: String) {
-            // Nothing to do; results arrive through onServiceFound.
         }
 
         override fun onDiscoveryStopped(serviceType: String) {
-            // Stopped by awaitClose at the end of the scan.
         }
 
         override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-            // The AirPlay probe is one of three; SSDP still runs, so the scan continues.
         }
 
         override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-            // Nothing further to release.
         }
     }
 }

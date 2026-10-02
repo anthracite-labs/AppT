@@ -65,7 +65,6 @@ class PreferenceStore(private val store: DataStore<Preferences>) {
         try {
             store.edit { it[FIRST_CONTROL_ACHIEVED] = true }
         } catch (ignored: IOException) {
-            // A failed local milestone write cannot interrupt a live TV command.
         }
     }
 
@@ -83,8 +82,6 @@ class PreferenceStore(private val store: DataStore<Preferences>) {
         try {
             store.edit(change)
         } catch (ignored: IOException) {
-            // Preferences are best-effort local interaction state; a failed write is not a TV
-            // fault.
         }
     }
 

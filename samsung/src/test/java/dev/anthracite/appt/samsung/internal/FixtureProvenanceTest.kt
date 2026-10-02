@@ -16,8 +16,6 @@ import org.junit.Test
 class FixtureProvenanceTest {
     private val ipv4 = Regex("""\b(?:\d{1,3}\.){3}\d{1,3}\b""")
     private val mac = Regex("""\b[0-9A-Fa-f]{2}(?:[:-][0-9A-Fa-f]{2}){5}\b""")
-    // A raw token value is identifying, so it may not be committed. The approved placeholder
-    // [fixture-token] carries no television-specific value and is the only exception.
     private val token =
         Regex(""""token"\s*:\s*"(?!\[fixture-token\])|[?&]token=""", RegexOption.IGNORE_CASE)
     private val requiredProvenance =

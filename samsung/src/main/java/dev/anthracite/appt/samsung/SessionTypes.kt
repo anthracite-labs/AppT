@@ -1,20 +1,5 @@
 package dev.anthracite.appt.samsung
 
-// Caller-facing session, command and capability types, taken from the S03-relevant shapes in
-// docs/architecture/samsung-interface.md. No caller-facing type contains an address, MAC, token,
-// certificate, Wi-Fi name, key string, or raw payload.
-//
-// Caller-visible types arrive with the slice that makes them observable:
-//   * SessionState.Reconnecting arrives with supervised reconnect in S06.
-//   * TvCapabilities.keys and pointer/power flags support S05 live-evidence rendering; production
-//     pointer remains false until an accepted exact fixture establishes the wire behavior.
-// Text/apps
-//     become live with their later surfaces.
-//   * TvCommand.Tap is the adopted control channel. Pointer, text and app commands remain typed but
-//     unavailable until their accepted protocol behavior exists.
-//   * RepairReason.TokenRejected and IdentityChanged preserve S04's saved-identity handling.
-//   * RedactedDiagnosticReport is S05's bounded Samsung-local report; LaunchableApp/WakeResult
-//     remain with S12.
 
 /**
  * What the caller can observe about one live session.

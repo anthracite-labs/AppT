@@ -78,7 +78,6 @@ class BoundedCallbackTest {
                 withdraw
             }
         assertNull(outcome)
-        // Must not throw or resume anything: the wait is already over.
         deliver("late")
     }
 

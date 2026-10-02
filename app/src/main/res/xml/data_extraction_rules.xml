@@ -1,14 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Cloud backup and device transfer are both fully disabled.
-
-  docs/architecture/data.md and the S04 contract require that a television's
-  Local Pairing secret can never leave this phone, and docs/PRODUCT.md keeps
-  television and personalization data device-local. Excluding everything is the
-  fail-closed position: a future slice that wants a specific file backed up has
-  to add it deliberately and argue for it in review, rather than inheriting
-  backup by default.
--->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="root" />

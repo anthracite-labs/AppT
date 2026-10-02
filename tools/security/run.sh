@@ -1,37 +1,7 @@
 #!/usr/bin/env bash
-#
-# AppT repository-owned security entrypoint.
-#
-# Purpose (Issue #36): make the deterministic, repository-local security checks
-# reproducible from a developer machine with one command, and keep that logic
-# from drifting between CI and local runs.
-#
-# Scope boundary — what this script deliberately does NOT do:
-#
-#   * It does not orchestrate CodeQL. CodeQL SAST lifecycle semantics are
-#     owned by the repository's Advanced Setup workflow in
-#     `.github/workflows/codeql.yml`, rather than hidden behind a bespoke shell
-#     abstraction.
-#   * It makes no network calls of its own: no curl, no wget, no downloads, no
-#     registry access. (Gradle resolves dependencies the same way it does for any
-#     other build; that is Gradle's behaviour, not this script's.)
-#   * It requires no secrets and reads no credential, token or keystore.
-#   * It does not self-heal or regenerate any supply-chain artifact. A missing or
-#     drifted lockfile or verification entry fails the run rather than being
-#     rewritten, exactly as `.github/workflows/verify.yml` intends.
-#
-# Exit status: non-zero if any constituent check fails. The script fails closed
-# when a required tool is absent rather than silently skipping the check, so a
-# green run always means the checks actually executed.
-#
-# Usage: tools/security/run.sh [mode]     (see `tools/security/run.sh help`)
 
 set -euo pipefail
 
-# ---------------------------------------------------------------------------
-# Normalize to the repository root, so the script behaves identically no matter
-# where it is invoked from.
-# ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 SELF="${SCRIPT_DIR}/$(basename -- "${BASH_SOURCE[0]}")"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd -P)"
@@ -39,19 +9,6 @@ cd "$REPO_ROOT"
 
 MODE="${1:-all}"
 
-# The exact strict build used for CodeQL's manual Kotlin extraction, in one
-# place so the workflow and this script cannot drift apart. Keep this in sync
-# with the "Build Java and Kotlin targets" step of the `analyze` job in
-# .github/workflows/codeql.yml.
-#
-# --no-daemon, --no-build-cache, -Dorg.gradle.parallel=false and
-# -Pkotlin.compiler.execution.strategy=in-process are all extraction
-# requirements rather than build policy: gradle.properties enables both the
-# build cache and parallel execution for CI speed, and the Kotlin daemon is the
-# Kotlin plugin's default compile strategy. Any of the three lets compilation
-# happen outside the JVM CodeQL traces, and CodeQL then fails with "could not
-# process any code written in Java/Kotlin". Running the identical command here
-# means a green local `build` is real evidence about the extraction build.
 GRADLE_STRICT_FLAGS=(
   --no-daemon
   --no-build-cache
@@ -69,7 +26,6 @@ die() {
   exit 1
 }
 
-# Fail closed: a missing required tool is a failure, never a silent skip.
 require() {
   command -v "$1" >/dev/null 2>&1 ||
     die "required tool '$1' is not on PATH. Install it, or run a narrower mode (see: $SELF help)."
@@ -119,8 +75,6 @@ check_secrets() {
 
   log "Secret scan of the tracked tree${base:+ and the diff against $base}"
   if [[ -n $base ]]; then
-    # A missing base ref must fail loudly rather than silently narrow the scan;
-    # the scanner itself exits non-zero in that case.
     node tools/secret-scan/secret-scan.mjs --base "$base"
   else
     node tools/secret-scan/secret-scan.mjs
@@ -131,10 +85,6 @@ check_deps() {
   log "Gradle build-time tooling constraint floor (Issue #68)"
   require node
   node --test "tools/security/test/enforce-gradle-tooling-constraints.test.mjs"
-  # Repository-state check, so it runs against the committed tree exactly as
-  # the `repo-policy` domain does: every known build-time tooling advisory
-  # must be constrained at a Dependabot-mutable seam AND resolved at a patched version
-  # in gradle/verification-metadata.xml.
   info "node tools/security/enforce-gradle-tooling-constraints.mjs"
   node tools/security/enforce-gradle-tooling-constraints.mjs
 }
@@ -143,12 +93,6 @@ check_detekt() {
   log "detekt — Kotlin static analysis (production Kotlin in :app and :samsung)"
   require java
   [[ -x ./gradlew ]] || chmod +x ./gradlew
-  # Runs against the single repository-owned config/detekt/detekt.yml. There is
-  # no baseline file and no --auto-correct, so a finding fails the run.
-  #
-  # This deliberately runs only detekt under strict verification. It is a
-  # narrower repository-local check, not equivalent to all work owned by the
-  # `android-static` domain or the `ciCheck` umbrella.
   info "./gradlew ${GRADLE_STRICT_FLAGS[*]} detekt"
   ./gradlew "${GRADLE_STRICT_FLAGS[@]}" detekt
 }

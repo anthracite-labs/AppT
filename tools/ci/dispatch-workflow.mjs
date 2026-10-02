@@ -1,78 +1,10 @@
 #!/usr/bin/env node
-/**
- * AppT trusted agent-control dispatch bridge (Issue #88).
- *
- * `agent-control.yml` is the only privileged control path in this repository.
- * It translates a `ci:*` command label on a pull request into an ordinary
- * workflow dispatch. This module owns that translation so it is reviewable in
- * one file and provable without touching a real repository: every GitHub
- * interaction goes through an injectable `gh` runner, so the tests drive the
- * real control flow against a fake API.
- *
- * The provider contract this module exists to get right
- * ---------------------------------------------------
- * GitHub's Create Workflow Dispatch endpoint takes `ref` as *the git reference
- * for the workflow* — a **branch or tag name**. It is not a commit SHA. Passing
- * a SHA is rejected by the provider.
- *
- * That is inconvenient, because the whole point of the bridge is to verify the
- * exact pull-request head the command was issued against, and a branch name is
- * mutable: the branch can move between resolving the head and the dispatched
- * run starting.
- *
- * The resolution has two halves, and both are load-bearing.
- *
- *   1. The dispatch ref is the repository's **default branch**, not the pull
- *      request's head branch. GitHub runs the workflow *as that ref defines
- *      it*, so dispatching the head branch would let the pull request supply
- *      the workflow YAML and every local composite action it uses — including
- *      the assertion that is supposed to check the target. Dispatching the
- *      default branch means the workflow and its validation logic are trusted
- *      repository content that the pull request cannot rewrite.
- *
- *   2. The requested target travels as **inputs**: `target_ref` is the pull
- *      request's head branch name and `expected_sha` is the exact commit the
- *      command was issued against. The dispatched workflow resolves `target_ref`
- *      with trusted logic, requires it still to point at `expected_sha`, and only
- *      then checks that SHA out for Gradle and npm work.
- *
- * So the exact-PR-head guarantee survives, the validation logic is trusted, and
- * the pull-request-controlled code is executed only by a trusted workflow under
- * that workflow's own read-only permissions — exactly the trust level of an
- * ordinary `pull_request` run.
- *
- * `targetRef` is therefore **required**, and `ref` may never equal it. That is
- * deliberate: it makes the earlier design — dispatch the mutable branch and
- * load the assertion from that same branch — unrepresentable here rather than
- * merely discouraged.
- *
- * The privileged boundary is unchanged: this module never checks out or
- * executes pull-request-controlled code. It talks to the GitHub API and nothing
- * else.
- *
- * Fork pull requests cannot be dispatched this way at all: the provider
- * dispatches a ref that must exist in *this* repository, and a fork's head
- * branch does not. That is a hard failure, not a silent fallback.
- *
- * Deliberately zero dependencies: its provenance is the repository itself.
- *
- * Usage:
- *   node tools/ci/dispatch-workflow.mjs --repo owner/name --pr 123 --label ci:app-unit
- */
 
 import { spawn } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
 
 import { resolveFocus as resolveDiagnoseFocus } from './diagnose-focus.mjs';
 
-/**
- * The command-label allowlist. Only these labels do anything; anything else is
- * a hard failure with no API call, so an unrecognised label produces no run.
- *
- * Each entry names the workflow file and the `workflow_dispatch` mode to pass.
- * A label that dispatches `verify.yml` passes no mode: a dispatched `verify`
- * run is the full suite by design (there is no `mode` input on `verify`).
- */
 export const COMMAND_LABELS = {
   'ci:full': { workflow: 'verify.yml', mode: '' },
   'ci:app-unit': { workflow: 'diagnose.yml', mode: 'app-unit' },
@@ -82,20 +14,10 @@ export const COMMAND_LABELS = {
   'ci:backend': { workflow: 'diagnose.yml', mode: 'backend' },
 };
 
-/** Every allowlisted label, in a stable order for reporting and tests. */
 export const COMMAND_LABEL_NAMES = Object.freeze(Object.keys(COMMAND_LABELS));
 
-/**
- * A full 40-character lowercase hex commit SHA. Used to *reject* a SHA as a
- * dispatch ref, never to accept one.
- */
 const COMMIT_SHA = /^[0-9a-f]{40}$/;
 
-/**
- * Resolve a command label to the workflow and mode it dispatches.
- *
- * @throws if the label is not in the allowlist.
- */
 export function resolveDispatch(label) {
   const target = COMMAND_LABELS[label];
   if (!target) {
@@ -106,17 +28,6 @@ export function resolveDispatch(label) {
   return { ...target };
 }
 
-/**
- * Read the optional mode-bound focus marker from an untrusted pull-request
- * body. The marker is data only; this parser never turns it into a command.
- *
- * Exact form:
- *   <!-- appt-ci-focus app-unit: PairingToFirstControlFlowTest -->
- *
- * A marker for another mode is ignored. More than one matching marker is
- * ambiguous and fails closed. The selected value is subsequently validated by
- * the trusted diagnose-focus resolver before any workflow is dispatched.
- */
 export function resolvePullRequestFocus({ body, mode }) {
   if (!mode) return '';
 
@@ -143,19 +54,6 @@ export function resolvePullRequestFocus({ body, mode }) {
   return focus;
 }
 
-/**
- * Build the provider-valid dispatch request body.
- *
- * `ref` is the **trusted anchor**: the repository's default branch, whose
- * workflow content the dispatched run will execute. It is asserted not to be a
- * commit SHA (the provider would reject that) and not to be the target ref
- * (which is the defect this shape exists to prevent).
- *
- * `targetRef` is the pull request's head branch name and `expectedSha` the
- * exact commit the command was issued against. Both travel as inputs, because
- * `ref` cannot carry them: it names the workflow to run, not the code to
- * verify.
- */
 export function buildDispatchBody({ ref, targetRef, mode = '', focus = '', expectedSha }) {
   if (typeof ref !== 'string' || ref.length === 0) {
     throw new Error('buildDispatchBody: ref is required');
@@ -166,9 +64,6 @@ export function buildDispatchBody({ ref, targetRef, mode = '', focus = '', expec
         'Pass the resolved head SHA as expectedSha instead.'
     );
   }
-  // The trusted anchor must not be the target. Dispatching the pull request's
-  // own branch would let that branch supply the workflow and the assertion that
-  // is supposed to check it.
   if (typeof targetRef !== 'string' || targetRef.length === 0) {
     throw new Error(
       'buildDispatchBody: targetRef is required. The dispatch ref is the trusted ' +
@@ -205,17 +100,10 @@ export function buildDispatchBody({ ref, targetRef, mode = '', focus = '', expec
       ...(mode ? { mode } : {}),
       ...(focus ? { focus } : {}),
     },
-    // Ask the provider for the run details so the audit-trail comment can link
-    // the dispatched run without polling for it.
     return_run_details: true,
   };
 }
 
-/**
- * Resolve the repository's default branch — the trusted anchor a dispatch runs
- * from. Read from the provider rather than assumed, so a renamed default branch
- * cannot silently turn a trusted dispatch into an untrusted one.
- */
 export async function resolveDefaultBranch({ gh, repo }) {
   const body = await gh([`repos/${repo}`]);
   const branch = body?.default_branch;
@@ -225,10 +113,6 @@ export async function resolveDefaultBranch({ gh, repo }) {
   return branch;
 }
 
-/**
- * Read the pull-request head: its exact SHA, its branch name, and the
- * repository that branch lives in.
- */
 export async function resolvePullRequestHead({ gh, repo, prNumber }) {
   if (!Number.isInteger(prNumber)) {
     throw new Error('resolvePullRequestHead: prNumber must be an integer');
@@ -247,13 +131,6 @@ export async function resolvePullRequestHead({ gh, repo, prNumber }) {
   return { sha, ref, headRepo, body };
 }
 
-/**
- * Run the whole bridge: resolve the label, resolve the head, build a
- * provider-valid body, dispatch it, and report what was dispatched.
- *
- * Every GitHub call is `gh(args, stdin)`, so the sequence is testable against
- * a fake API. `stdin` is how the dispatch body reaches `gh api --input -`.
- */
 export async function dispatchCommand({
   label,
   gh,
@@ -265,16 +142,9 @@ export async function dispatchCommand({
 
   const head = await resolvePullRequestHead({ gh, repo, prNumber });
 
-  // A pull-request body is untrusted metadata. If it asks for a focus, select
-  // only the marker bound to this command's mode and validate that value with
-  // the same trusted resolver diagnose.yml uses. An invalid selector therefore
-  // fails before any workflow dispatch rather than becoming command text.
   const focus = mode ? resolvePullRequestFocus({ body: head.body, mode }) : '';
   if (mode) resolveDiagnoseFocus({ mode, focus });
 
-  // Trusted assertion logic resolves the target branch inside this repository.
-  // Require a known same-repository head, including when a deleted head repo
-  // is returned as null, rather than following a colliding local branch name.
   if (head.headRepo !== repo) {
     throw new Error(
       `pull request #${prNumber} heads from ${head.headRepo || '<unavailable repository>'}, not ${repo}. ` +
@@ -283,7 +153,6 @@ export async function dispatchCommand({
     );
   }
 
-  // The dispatch ref is the trusted anchor, never the branch being verified.
   const anchor = await resolveDefaultBranch({ gh, repo });
   if (anchor === head.ref) {
     throw new Error(
@@ -324,19 +193,13 @@ export async function dispatchCommand({
     workflow,
     mode,
     focus,
-    // The trusted anchor the workflow ran from...
     ref: anchor,
-    // ...and the target that workflow was asked to verify.
     targetRef: head.ref,
     expectedSha: head.sha,
     runUrl: typeof response === 'string' ? response : '',
   };
 }
 
-/**
- * Default GitHub CLI runner: `gh api <args>` with an optional stdin body,
- * returning parsed JSON, a bare `--jq` string, or null for an empty response.
- */
 export async function defaultGh(args, stdin = '') {
   return new Promise((resolve, reject) => {
     const child = spawn('gh', ['api', ...args], {
@@ -361,8 +224,6 @@ export async function defaultGh(args, stdin = '') {
       try {
         resolve(JSON.parse(text));
       } catch {
-        // A `--jq` projection can legitimately yield a bare string, which is
-        // not JSON.
         resolve(text);
       }
     });
@@ -431,7 +292,6 @@ async function main() {
       log: (message) => console.log(message),
     });
 
-    // Publish the outcome so the calling workflow can record the audit trail.
     const outputPath = process.env.GITHUB_OUTPUT;
     if (outputPath) {
       appendFileSync(

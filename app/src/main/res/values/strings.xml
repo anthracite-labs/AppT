@@ -1,29 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Welcome copy (docs/architecture/ui-ux.md#onboarding): core value proposition,
-  a short privacy/local-control reassurance, and one primary action.
-  Ordinary language only: no protocol vocabulary, no address, no port.
-
-  Local-network explanation and Discovery copy (S02, Issue #73) follow the same
-  rule: no protocol, discovery-mechanism, port or address vocabulary. A test
-  (ForbiddenVocabularyTest) enforces it for every localnetwork_ and discovery_
-  string.
-
-  Pairing and Remote copy (S03, Issue #79) follow it too, and add the
-  television-security vocabulary that may never appear: no port, no certificate,
-  no transport name, no token, no protocol generation. Pairing speaks in ordinary
-  language about allowing AppT on the television.
--->
 <resources>
     <string name="app_name">AppT</string>
 
     <string name="welcome_value_proposition">Your TV remote, on your phone</string>
     <string name="welcome_privacy_reassurance">AppT controls your television directly over your home network. Your televisions and your settings stay on this phone.</string>
     <string name="welcome_primary_action">Find my TV</string>
-    <!-- Decorative brand mark. Hidden from the semantics tree; carries no meaning. -->
     <string name="welcome_mascot_glyph" translatable="false">📺</string>
 
-    <!-- Local-network explanation (docs/architecture/discovery.md#permission-gate). -->
     <string name="localnetwork_title">Find your TV on your home network</string>
     <string name="localnetwork_explanation">To find and control your television, AppT needs to reach it over your home network. Make sure this phone is connected to the same Wi-Fi as your TV.</string>
     <string name="localnetwork_continue">Continue</string>
@@ -31,7 +14,6 @@
     <string name="localnetwork_retry">Try again</string>
     <string name="localnetwork_open_settings">Open settings</string>
 
-    <!-- Discovery (docs/architecture/presentation.md#discovery). -->
     <string name="discovery_title">Your televisions</string>
     <string name="discovery_status_scanning">Looking for televisions on your home network…</string>
     <string name="discovery_status_finished">Search finished</string>
@@ -47,12 +29,10 @@
     <string name="discovery_failed_denied">AppT can\'t reach your home network right now.</string>
     <string name="discovery_failed_other">Something went wrong while looking for televisions. Please scan again.</string>
     <string name="discovery_rescan">Scan again</string>
-    <!-- Status icons: a distinct shape per state, always shown beside the state text. -->
     <string name="discovery_status_glyph_ready" translatable="false">✓</string>
     <string name="discovery_status_glyph_needs_pairing" translatable="false">●</string>
     <string name="discovery_status_glyph_unsupported" translatable="false">⊘</string>
 
-    <!-- Pairing (docs/architecture/presentation.md#pairing). Ordinary language only. -->
     <string name="pairing_title">Setting up your television</string>
     <string name="pairing_connecting">Connecting to your television…</string>
     <string name="pairing_waiting">Approve AppT on %1$s. Look for the message on your television and choose Allow.</string>
@@ -73,7 +53,6 @@
     <string name="pairing_pair_again_cancel">Cancel</string>
     <string name="pairing_failed_identity_changed">This television no longer matches your saved connection. Pair again to continue.</string>
 
-    <!-- Remote (docs/architecture/presentation.md#remote). The S03 minimal control set. -->
     <string name="remote_tv_unnamed">Your television</string>
     <string name="remote_connecting">Connecting…</string>
     <string name="remote_waiting">Approve AppT on your television to continue</string>
@@ -106,7 +85,6 @@
     <string name="remote_use_directional">Use directional pad</string>
     <string name="remote_touchpad_hint">Touch and move to control</string>
 
-    <!-- S05 Settings: only functional Interaction and About sections are shown. -->
     <string name="settings_title">Settings</string>
     <string name="settings_interaction">Interaction</string>
     <string name="settings_haptics">Haptics</string>

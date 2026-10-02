@@ -115,7 +115,6 @@ class SamsungTvsSessionTest {
             .filter { (_, line) -> pattern.containsMatchIn(line) }
             .map { (at, _) -> at }
 
-    // --- first contact ---------------------------------------------------------------
 
     @Test
     fun firstContactPromptsForApprovalThenReachesReady() = runTest {
@@ -230,8 +229,6 @@ class SamsungTvsSessionTest {
         assertEquals(SessionState.NeedsRepair, session.snapshot.value.state)
         assertEquals(RepairReason.ApprovalDenied, session.snapshot.value.repairReason)
 
-        // `advanceUntilIdle` would run the approval wait out on the fresh attempt as well, so the
-        // retry is observed on the virtual clock instead.
         session.retryApproval()
         advanceTimeBy(10)
         runCurrent()
@@ -244,8 +241,6 @@ class SamsungTvsSessionTest {
 
     @Test
     fun anUnansweredApprovalTimesOutAndCanBeRetried() = runTest {
-        // The first attempt is never answered. The second one is, inside its own approval wait:
-        // each attempt replays its own script from the moment its socket opens.
         val transport =
             ScriptedSessionTransport(script(prompt()), script(prompt(), approved(10_000)))
         val session = LiveSession(television, transport, this, secrets)
@@ -253,7 +248,6 @@ class SamsungTvsSessionTest {
         advanceUntilIdle()
         assertEquals(SessionState.NeedsRepair, session.snapshot.value.state)
         assertEquals(RepairReason.ApprovalTimedOut, session.snapshot.value.repairReason)
-        // The unanswered prompt gives up the socket it was waiting on.
         assertEquals(listOf(true), transport.sockets.map { it.closed })
 
         session.retryApproval()
@@ -261,8 +255,6 @@ class SamsungTvsSessionTest {
         runCurrent()
         assertEquals(SessionState.AwaitingTvApproval, session.snapshot.value.state)
 
-        // The television answers this time, on the fresh attempt the retry started. Running the
-        // clock out is safe here: the answer cancels the approval wait before it expires.
         advanceUntilIdle()
         assertEquals(SessionState.Ready, session.snapshot.value.state)
         assertEquals("the retry costs exactly one socket", 2, transport.sockets.size)
@@ -278,8 +270,6 @@ class SamsungTvsSessionTest {
         advanceUntilIdle()
         assertEquals(SessionState.NeedsRepair, session.snapshot.value.state)
 
-        // The retry must not be swallowed by an attempt that is still collecting a socket nobody
-        // is using: the loop has to be free to start a fresh one.
         session.retryApproval()
         advanceTimeBy(10)
         runCurrent()
@@ -306,9 +296,6 @@ class SamsungTvsSessionTest {
         assertEquals(SessionState.NeedsRepair, session.snapshot.value.state)
         assertEquals(1, transport.sockets.size)
 
-        // Request the retry while the canceled collector is deliberately still in its finally
-        // block. The old implementation published Connecting here, which let that collector's
-        // onConnectionLost callback overwrite the retry with Unreachable.
         session.retryApproval()
         runCurrent()
         assertEquals(SessionState.NeedsRepair, session.snapshot.value.state)
@@ -356,7 +343,6 @@ class SamsungTvsSessionTest {
         assertEquals("nothing was written after close", emptyList<String>(), transport.sent)
     }
 
-    // --- containment -----------------------------------------------------------------
 
     @Test
     fun malformedFrameDoesNotEscapeSession() = runTest {
@@ -391,7 +377,6 @@ class SamsungTvsSessionTest {
         advanceUntilIdle()
     }
 
-    // --- the command path and the cloud ---------------------------------------------
 
     @Test
     fun cloudAbsenceDoesNotBlockCommand() = runTest {
@@ -431,8 +416,6 @@ class SamsungTvsSessionTest {
 
     @Test
     fun samsungGraphExcludesFirebase() {
-        // The Gradle guard resolves the real graph; this asserts the module's source never names a
-        // cloud, telemetry or entitlement participant at all.
         val forbidden =
             Regex(
                 """\b(firebase|gms|crashlytics|analytics|billing|entitlement|telemetry)\b""",
@@ -448,21 +431,14 @@ class SamsungTvsSessionTest {
         advanceUntilIdle()
         assertEquals(SessionState.Ready, session.snapshot.value.state)
 
-        // S04: a successful approval persists the pairing exactly once — the token and pin as one
-        // atomic secret write, beside the samsung-private device record.
         assertEquals(1, secrets.savedSecrets.size)
         assertEquals(1, secrets.savedDevices.size)
 
-        // The channel carried the encoded client name and no token on first contact.
         val url = RemoteChannel.remoteUrl(transport.connects.single())
         assertFalse("first contact sends no token", url.contains("token"))
-        // Nothing the session wrote carried the token back out.
         assertFalse(transport.sent.any { it.contains("fixture-token") })
-        // The caller-visible snapshot carries no credential of any kind.
         assertFalse(session.snapshot.value.toString().lowercase().contains("token"))
 
-        // The only path that ever persists a token or a pin is the typed secret store; no
-        // production source may smuggle one through Room, DataStore or shared preferences.
         val forbiddenStores = Regex("""\b(RoomDatabase|DataStore|SharedPreferences)\b""")
         val offenders = productionSources().flatMap { linesMatching(it, forbiddenStores) }
         assertEquals(emptyList<String>(), offenders)
@@ -471,7 +447,6 @@ class SamsungTvsSessionTest {
         advanceUntilIdle()
     }
 
-    // --- the seam and the private endpoint ------------------------------------------
 
     @Test
     fun aSelectedTvIdReachesThePrivateEndpointWithoutExposingIt() = runTest {

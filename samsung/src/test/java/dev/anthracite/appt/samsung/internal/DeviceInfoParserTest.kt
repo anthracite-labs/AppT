@@ -47,7 +47,6 @@ class DeviceInfoParserTest {
         assertEquals("", DeviceInfoParser.sanitizeName("   "))
         val long = "x".repeat(60)
         assertEquals(40, DeviceInfoParser.sanitizeName(long).length)
-        // Forty code points, never half a surrogate pair.
         val emoji = "\uD83D\uDCFA".repeat(45)
         val capped = DeviceInfoParser.sanitizeName(emoji)
         assertEquals(40, capped.codePointCount(0, capped.length))
@@ -105,7 +104,6 @@ class DeviceInfoParserTest {
 
     @Test
     fun identifiersAreRemovedBeforeTheCapSoNoFragmentRemains() {
-        // Capping first would leave "Big Living Room Television Set 192.0.2." on the card.
         assertEquals(
             "Big Living Room Television Set",
             DeviceInfoParser.sanitizeName("Big Living Room Television Set 192.0.2.200"),

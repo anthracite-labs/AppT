@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Validate internal consistency of the bounded project-state projection."""
 
 from __future__ import annotations
 
@@ -12,7 +11,6 @@ STATE_PATH = ROOT / ".project-ai" / "PROJECT_STATE.md"
 
 
 def section(text: str, heading: str) -> str:
-    """Return one level-two Markdown section body."""
     marker = f"## {heading}\n"
     start = text.find(marker)
     if start == -1:
@@ -23,17 +21,14 @@ def section(text: str, heading: str) -> str:
 
 
 def first_content_line(value: str) -> str:
-    """Return the first non-empty line from a section."""
     return next((line.strip() for line in value.splitlines() if line.strip()), "")
 
 
 def slice_refs(value: str) -> list[int]:
-    """Return Sxx references in textual order."""
     return [int(match) for match in re.findall(r"\bS(\d{2})\b", value)]
 
 
 def validate_project_state(text: str) -> list[str]:
-    """Return contradictions in the current project-state projection."""
     errors: list[str] = []
 
     try:
@@ -112,7 +107,6 @@ def validate_project_state(text: str) -> list[str]:
 
 
 def main() -> int:
-    """Validate the repository's current state projection."""
     text = STATE_PATH.read_text(encoding="utf-8")
     errors = validate_project_state(text)
 

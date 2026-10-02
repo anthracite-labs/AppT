@@ -1,19 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  :samsung declares no component: no activity, no service, no receiver, no
-  provider, and no permission UI (docs/architecture/modules.md).
-
-  S02 discovery declares exactly the install-time permissions its probes use
-  (docs/architecture/discovery.md#permission-gate), all on the
-  docs/architecture/release.md#manifest-allowlist:
-    INTERNET                     - SSDP search and the device-info read
-    ACCESS_NETWORK_STATE         - binding the scan to the active Wi-Fi/Ethernet network
-    ACCESS_WIFI_STATE            - Wi-Fi multicast lock state
-    CHANGE_WIFI_MULTICAST_STATE  - acquiring the multicast lock for one scan
-
-  Never declared here: NEARBY_WIFI_DEVICES (V1 probes do not require it),
-  ACCESS_LOCAL_NETWORK (not while targetSdk is 36), and any location permission.
--->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />

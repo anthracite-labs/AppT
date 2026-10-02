@@ -36,7 +36,6 @@ class WebSocketFramesTest {
         assertEquals((0x80 or 126).toByte(), encoded[1])
         assertEquals(0x01.toByte(), encoded[2])
         assertEquals(0x2C.toByte(), encoded[3])
-        // 2 header bytes + 2 extended-length bytes + 4 mask bytes + the payload.
         assertEquals(2 + 2 + 4 + payload.size, encoded.size)
     }
 

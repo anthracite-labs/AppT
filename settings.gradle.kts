@@ -1,10 +1,3 @@
-// Repository and module graph for AppT.
-//
-// docs/architecture/release.md#gradle owns these rules:
-//   * dependencyResolutionManagement.repositoriesMode = FAIL_ON_PROJECT_REPOS
-//   * repositories are google() and mavenCentral() only
-//   * the plugin portal appears only under pluginManagement
-//   * no JitPack and no ad-hoc Maven URLs
 
 pluginManagement {
     repositories {
@@ -30,9 +23,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "AppT"
 
-// Exactly two production Gradle modules (docs/architecture/modules.md#shape):
-//   :app     Android application
-//   :samsung Samsung control module
 include(":app")
 
 include(":samsung")

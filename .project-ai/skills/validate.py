@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Validate lifecycle skill structure and control-plane routing coverage."""
 
 from __future__ import annotations
 
@@ -46,7 +45,6 @@ YAML_PLAIN_FORBIDDEN_START = tuple("-?:,[]{}#&*!|>'\"%@")
 
 
 def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
-    """Parse the canonical two-field plain-scalar YAML frontmatter subset."""
     if not text.startswith(FRONTMATTER_OPEN):
         raise ValueError("frontmatter must start on line 1")
 
@@ -93,7 +91,6 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
 
 
 def heading_positions(body: str) -> dict[str, int]:
-    """Return level-two heading positions for canonical-order validation."""
     positions: dict[str, int] = {}
     for match in re.finditer(r"^##\s+(.+?)\s*$", body, re.MULTILINE):
         positions[match.group(1)] = match.start()
@@ -101,7 +98,6 @@ def heading_positions(body: str) -> dict[str, int]:
 
 
 def validate_skill(skill_dir: Path) -> list[str]:
-    """Return structural errors for one immediate skill directory."""
     errors: list[str] = []
     skill_file = skill_dir / "SKILL.md"
     if not skill_file.exists():
@@ -159,7 +155,6 @@ def validate_skill(skill_dir: Path) -> list[str]:
 
 
 def validate_routing_coverage(skill_names: set[str]) -> list[str]:
-    """Require every skill exactly once in the mandatory lifecycle routing table."""
     errors: list[str] = []
 
     if not ROUTING_OWNER.exists():
@@ -239,7 +234,6 @@ def validate_routing_coverage(skill_names: set[str]) -> list[str]:
 
 
 def main() -> int:
-    """Validate every immediate skill directory and return a process status."""
     skill_dirs = sorted(
         path
         for path in ROOT.iterdir()

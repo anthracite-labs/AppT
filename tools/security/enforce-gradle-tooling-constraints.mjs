@@ -1,61 +1,4 @@
 #!/usr/bin/env node
-/**
- * AppT Gradle build-time tooling constraint floor (Issue #68).
- *
- * The bug this guard locks down
- * -----------------------------
- * AppT's `Automatic Dependency Submission (Gradle)` workflow runs the Gradle
- * build, resolves the relevant Gradle graph including the *plugin/buildscript*
- * classpath, and submits that resolved snapshot to GitHub's dependency graph.
- * That snapshot therefore contains vulnerable transitive libraries that no
- * Gradle module declares, and the alerts raised from it are real.
- *
- * Dependabot's Gradle *updater* works from a separate and narrower view: it
- * parses the declared Gradle dependency files (`dependabot/gradle/file_parser.rb`
- * harvests literal `group:name:version` declarations from the build files, the
- * version catalog, the script plugins and the wrapper properties) and cannot
- * mutate an undeclared transitive coordinate merely because it appears in the
- * submitted snapshot. When a security alert targets one of those
- * undeclared-but-submitted coordinates, the updater cannot find it in
- * `dependency_snapshot.all_dependencies` and the security-update job dies with
- *
- *     dependency_not_found
- *     Job dependencies not found in the dependency snapshot: <coordinates>
- *
- * while the alert itself stays open. The alert is real, the red job is real,
- * and neither is fixed by dismissing anything.
- *
- * What the guard asserts
- * ----------------------
- * For every build-time tooling coordinate with a known advisory:
- *
- *  1. MUTABLE — it is declared as a literal `group:name:version` **in code**
- *     somewhere in the Gradle declaration surface Dependabot's Gradle file
- *     parser reads, so the coordinate exists in the updater's dependency
- *     snapshot and a future security update for it can produce a pull request
- *     instead of `dependency_not_found`. Comments are removed first, exactly as
- *     the parser does, so a commented-out declaration never counts.
- *  2. PATCHED — no version of it recorded in the committed supply-chain
- *     metadata (`gradle/verification-metadata.xml`) is below the first patched
- *     version of the advisory that applies to the previously resolved version.
- *
- * Check 1 alone would be satisfiable by a fake direct dependency, and check 2
- * alone would be satisfiable by a version bump nobody can maintain. Both
- * together are the actual invariant: the coordinate is remediated *and* owned
- * at a seam Dependabot can act on.
- *
- * The declaration seam is the root `buildscript { dependencies { constraints {
- * classpath(...) } } }` block in `build.gradle.kts`. Constraints are a floor in
- * Gradle conflict resolution, never a downgrade, so they stay correct when a
- * later plugin bump moves the same transitive further forward.
- *
- * Deliberately zero dependencies: its provenance is the repository itself and
- * its behaviour is reviewable in one file and covered by tests, matching
- * `tools/secret-scan/secret-scan.mjs`.
- *
- * Usage:
- *   node tools/security/enforce-gradle-tooling-constraints.mjs
- */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -63,10 +6,6 @@ import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-/**
- * Build-file basenames Dependabot's Gradle file parser accepts
- * (`Dependabot::Gradle::FileParser::SUPPORTED_BUILD_FILE_NAMES`).
- */
 const SUPPORTED_BUILD_FILE_NAMES = new Set([
   'build.gradle',
   'build.gradle.kts',
@@ -74,7 +13,6 @@ const SUPPORTED_BUILD_FILE_NAMES = new Set([
   'settings.gradle.kts',
 ]);
 
-/** Directories that never contain a declaration surface. */
 const IGNORED_DIRECTORIES = new Set([
   'node_modules',
   'build',
@@ -84,12 +22,6 @@ const IGNORED_DIRECTORIES = new Set([
   'coverage',
 ]);
 
-/**
- * Dependabot's `DEPENDENCY_DECLARATION_REGEX`, transcribed. It matches any
- * quoted `group:name:version` literal in a build file regardless of the
- * enclosing method name, which is precisely why a `classpath("g:a:v")`
- * constraint is visible to the Gradle updater.
- */
 const PART = String.raw`[^\s,@'":/\\]+`;
 const VERSION_PART = String.raw`[^\s,'":/\\]+`;
 const DEPENDENCY_DECLARATION_REGEX = new RegExp(
@@ -97,35 +29,9 @@ const DEPENDENCY_DECLARATION_REGEX = new RegExp(
   'g',
 );
 
-/**
- * Comment stripping, transcribed from `Dependabot::Gradle::FileParser#prepared_content`,
- * which removes both comment forms before the declaration scan runs. (The Ruby
- * block-comment delimiter is escaped below because the literal pair would close
- * this comment.)
- *
- *   prepared_content.gsub(%r{(?<=^|\s)//.*$}, "\n")
- *                   .gsub(%r{(?<=^|\s)/\*.*?\*\/}m, "")
- *
- * This matters for the guard's meaning, not just its tidiness. A commented-out
- * constraint looks like a declaration to a naive scan but is invisible to the
- * updater, so without this a `// classpath("org.jdom:jdom2:2.0.6.1")` would
- * satisfy the mutability check while the coordinate stayed unmutable and the
- * `dependency_not_found` failure stayed live.
- *
- * The `(?<=^|\s)` lookbehind is part of the transcription and is load-bearing:
- * it stops a `//` inside a string, such as the
- * `"https://repo1.maven.org/maven2"` in a repository URL, from being read as a
- * comment. Groovy and Kotlin both honour the same two forms, and the block form
- * closes at the first closing delimiter because the transcription is
- * non-greedy, exactly like Dependabot's.
- */
 const LINE_COMMENT_REGEX = /(?<=^|\s)\/\/[^\n]*/gm;
 const BLOCK_COMMENT_REGEX = /(?<=^|\s)\/\*[\s\S]*?\*\//g;
 
-/**
- * Removes Gradle comments from a declaration surface, so that only code can
- * satisfy the mutability check.
- */
 export function stripComments(surfaceText) {
   return String(surfaceText)
     .replace(LINE_COMMENT_REGEX, '')
@@ -136,18 +42,6 @@ const COMPONENT_REGEX = /<component\s+group="(?<group>[^"]+)"\s+name="(?<name>[^
 
 const APPLIED_SCRIPT_PLUGIN_REGEX = /apply\s*\(\s*from\s*=\s*rootProject\.file\s*\(\s*["'](?<path>[^"']+)["']\s*\)\s*\)/g;
 
-/**
- * Known build-time tooling advisories whose coordinate is not declared by any
- * AppT module and therefore has to be owned by a plugin-classpath constraint.
- *
- * `owner` records the declared Gradle plugin/tooling dependency that pulls the
- * coordinate, so a reviewer can see why the seam is the buildscript classpath
- * rather than `gradle/libs.versions.toml`.
- *
- * Evidence for each chain is the repository dependency graph itself
- * (`GET /repos/:owner/:repo/dependency-graph/sbom`), which records exactly
- * these `DEPENDS_ON` edges.
- */
 export const TOOLING_ADVISORY_CONSTRAINTS = [
   {
     coordinate: 'org.bitbucket.b_c:jose4j',
@@ -179,14 +73,6 @@ export const TOOLING_ADVISORY_CONSTRAINTS = [
   },
 ];
 
-/**
- * Maven/Gradle-ish version ordering, limited to the shapes this guard has to
- * compare: dot-separated numeric parts with an optional trailing qualifier
- * (`0.9.6`, `2.0.6.1`, `6.10.1.202505221210-r`, `1.86`).
- *
- * Returns a negative number when `a < b`, 0 when they order equal, and a
- * positive number when `a > b`.
- */
 export function compareVersions(a, b) {
   const left = tokenize(a);
   const right = tokenize(b);
@@ -202,7 +88,6 @@ export function compareVersions(a, b) {
   return 0;
 }
 
-/** Maven ordering ranks for the qualifiers that actually appear in this graph. */
 const QUALIFIER_RANKS = {
   dev: 0,
   a: 1,
@@ -238,7 +123,6 @@ function isNumeric(token) {
 }
 
 function compareTokens(a, b) {
-  // A missing trailing token reads as `0`, so `2.0.6.1` orders above `2.0.6`.
   if (a === undefined && b === undefined) {
     return 0;
   }
@@ -256,7 +140,6 @@ function compareTokens(a, b) {
     return Number(a) - Number(b);
   }
 
-  // Maven orders any release (numeric) token above a qualifier token.
   if (aNumeric !== bNumeric) {
     const numeric = aNumeric ? a : b;
     const sign = aNumeric ? 1 : -1;
@@ -266,7 +149,6 @@ function compareTokens(a, b) {
   const aRank = QUALIFIER_RANKS[a];
   const bRank = QUALIFIER_RANKS[b];
   if (aRank !== undefined || bRank !== undefined) {
-    // Unknown qualifiers order below the known release qualifiers.
     const left = aRank ?? -1;
     const right = bRank ?? -1;
     if (left !== right) {
@@ -280,14 +162,6 @@ function compareTokens(a, b) {
   return a < b ? -1 : 1;
 }
 
-/**
- * Collects the Gradle declaration surface Dependabot's Gradle file parser
- * reads: supported build files, script plugins applied from them, the version
- * catalog and the wrapper properties.
- *
- * Returns `{ files, text }` so diagnostics can name the file a coordinate was
- * (not) found in.
- */
 export function readDeclarationSurface(repoRoot = REPO_ROOT) {
   const files = [];
 
@@ -297,8 +171,6 @@ export function readDeclarationSurface(repoRoot = REPO_ROOT) {
     }
   }
 
-  // Script plugins (`apply(from = rootProject.file("..."))`) are parsed by
-  // Dependabot exactly like build files.
   for (const file of [...files]) {
     const content = readFileSync(file, 'utf8');
     for (const match of content.matchAll(APPLIED_SCRIPT_PLUGIN_REGEX)) {
@@ -341,13 +213,6 @@ function* walk(root, directory) {
   }
 }
 
-/**
- * Mirrors `Dependabot::Gradle::FileParser#shortform_buildfile_dependencies`:
- * after comments are removed, every literal `group:name:version` in the surface
- * becomes an entry of the updater's `dependency_snapshot.all_dependencies`.
- *
- * @returns {Map<string, Set<string>>} coordinate -> declared versions
- */
 export function declaredCoordinates(surfaceText) {
   const declared = new Map();
 
@@ -365,12 +230,6 @@ export function declaredCoordinates(surfaceText) {
   return declared;
 }
 
-/**
- * Reads the resolved component versions out of the committed Gradle
- * verification metadata, which records every artifact the build resolves.
- *
- * @returns {Map<string, Set<string>>} coordinate -> resolved versions
- */
 export function resolvedVersions(verificationMetadataXml) {
   const resolved = new Map();
 
@@ -385,13 +244,6 @@ export function resolvedVersions(verificationMetadataXml) {
   return resolved;
 }
 
-/**
- * @param {object} input
- * @param {string} input.declarationSurface concatenated Gradle declaration surface
- * @param {string} input.verificationMetadataXml committed verification metadata
- * @param {Array} [input.policy] advisory table (defaults to the exported one)
- * @returns {{passed: boolean, errors: Array, remediated: Array}}
- */
 export function evaluate({ declarationSurface, verificationMetadataXml, policy }) {
   const entries = policy ?? TOOLING_ADVISORY_CONSTRAINTS;
   const declared = declaredCoordinates(declarationSurface);
