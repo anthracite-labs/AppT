@@ -68,7 +68,7 @@ val reportDetektFindings =
                 .filter { it.isFile }
                 .forEach { report ->
                     filePattern.findAll(report.readText()).forEach { fileMatch ->
-                        val path = fileMatch.groupValues[1].toRelativeString(root)
+                        val path = File(fileMatch.groupValues[1]).relativeToOrSelf(root).path
                         errorPattern.findAll(fileMatch.groupValues[2]).forEach { finding ->
                             val line = finding.groupValues[1]
                             val column = finding.groupValues[2]
