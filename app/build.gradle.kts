@@ -281,6 +281,104 @@ tasks.register("formatProbe") {
     }
 }
 
+tasks.register("verifyReleaseEngineeringBoundaries") {
+    group = "verification"
+    description =
+        "Checks the release APK excludes the debug-only Engineering Verifier and its S05 latency " +
+            "run."
+    dependsOn("assembleRelease")
+    doLast {
+        val forbiddenMarkers =
+            listOf(
+                "DebugS05VerifierAction",
+                "DebugS05VerifierCommand",
+                "DebugS05VerifierDialog",
+                "DebugLatencyRun",
+                "DebugLatencyReport",
+                "DebugMeasuredCommand",
+                "DebugS05VerifierActivity",
+                "s05:physical-verifier",
+                "S05 physical verification",
+                "S05 physical verifier",
+                "Start verification",
+                "Warm-up Volume Up",
+                "Measure Volume Up",
+                "Unmeasured warm-up",
+                "Measured interactions:",
+                "Copy verification result",
+                "EngineeringVerifierEntry",
+                "EngineeringVerifierController",
+                "EngineeringTestTags",
+                "EngineeringScenarios",
+                "EngineeringEvidenceClass",
+                "EngineeringObservationSource",
+                "EngineeringReport",
+                "EngineeringLedger",
+                "AppT engineering verification",
+                "AppT engineering report",
+                "Exact candidate SHA unavailable",
+                "Requires a Ready television",
+                "Pending external",
+                "appt:engineering-entry",
+                "appt:engineering-surface",
+                "appt:engineering-record-",
+            )
+        val distributableSources = listOf(file("src/main"), file("src/release"))
+        val sourceLeaks =
+            distributableSources
+                .filter { it.exists() }
+                .flatMap { sourceRoot -> sourceRoot.walkTopDown().filter { it.isFile }.toList() }
+                .flatMap { source ->
+                    val contents = source.readText()
+                    forbiddenMarkers
+                        .filter { marker -> marker in contents }
+                        .map { marker -> "${source.relativeTo(projectDir)} contains '$marker'" }
+                }
+        if (sourceLeaks.isNotEmpty()) {
+            throw GradleException(
+                "Release source graph contains debug engineering verifier material:\n" +
+                    sourceLeaks.joinToString("\n")
+            )
+        }
+
+        val apkDirectory = layout.buildDirectory.dir("outputs/apk/release").get().asFile
+        val releaseApks =
+            apkDirectory.listFiles { candidate -> candidate.extension == "apk" }.orEmpty()
+        if (releaseApks.isEmpty()) {
+            throw GradleException(
+                "No release APK found under ${apkDirectory.relativeTo(projectDir)}."
+            )
+        }
+        releaseApks.forEach { apk ->
+            ZipFile(apk).use { archive ->
+                val inspectedEntries =
+                    archive.entries().asSequence().filter { entry ->
+                        !entry.isDirectory &&
+                            (entry.name == "AndroidManifest.xml" ||
+                                entry.name == "resources.arsc" ||
+                                (entry.name.startsWith("classes") && entry.name.endsWith(".dex")))
+                    }
+                inspectedEntries.forEach { entry ->
+                    val contents =
+                        archive.getInputStream(entry).use {
+                            it.readBytes().toString(Charsets.ISO_8859_1)
+                        }
+                    val leakedMarkers = forbiddenMarkers.filter { marker -> marker in contents }
+                    if (leakedMarkers.isNotEmpty()) {
+                        throw GradleException(
+                            "${apk.name}:${entry.name} contains debug-only engineering verifier " +
+                                "material: " + leakedMarkers.joinToString(", ")
+                        )
+                    }
+                }
+            }
+        }
+        logger.lifecycle(
+            "verifyReleaseEngineeringBoundaries: OK — release source graph and APK exclude the debug engineering verifier and its S05 latency run."
+        )
+    }
+}
+
 tasks.named("verifyReleaseEngineeringBoundaries") {
     dependsOn("formatProbe")
 }
