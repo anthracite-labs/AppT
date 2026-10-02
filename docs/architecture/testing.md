@@ -61,6 +61,8 @@ The verifier:
 
 The verifier is an engineering surface, not the customer Diagnostics product. It may reuse redaction helpers and the normal app/session path, but it does not broaden the production diagnostics schema or create a second session owner.
 
+The active S06–S17 implementation retires the Android instrumentation surface after equivalent JVM/verifier coverage exists: remove production-project `app/src/androidTest/**`, the instrumentation runner declaration, and instrumentation-only dependencies when they have no remaining accepted caller. Historical S04/S05 evidence remains in Git/Issue history; it does not require keeping an unused `androidTest` harness alive. Do not add new instrumentation tests for S06–S17.
+
 ## Fixtures
 
 Location: `samsung/src/test/resources/samsung/fixtures/<case-id>/`.
