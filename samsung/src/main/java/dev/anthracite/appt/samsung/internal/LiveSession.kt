@@ -110,7 +110,6 @@ internal class LiveSession(
                         record.copy(rejectedKeys = rejectedKeyEvidence.get()),
                     )
                 } catch (ignored: IOException) {
-                    // Negative evidence remains in the live snapshot; a later update retries.
                 }
             }
         }
@@ -157,9 +156,6 @@ internal class LiveSession(
             current.state == SessionState.NeedsRepair &&
                 (reason == RepairReason.ApprovalDenied || reason == RepairReason.ApprovalTimedOut)
         if (!retryable) return
-        // Queue the retry, but do not publish Connecting yet. The previous attempt may still be
-        // unwinding a canceled frame collector; sessionLoop publishes Connecting only after that
-        // attempt has fully closed, so stale connection-loss callbacks cannot overwrite the retry.
         retrySignals.trySend(Unit)
     }
 
@@ -172,8 +168,6 @@ internal class LiveSession(
         ) {
             return
         }
-        // connection.md: discard the saved secret first, then pair as new. Deletion failure keeps
-        // the state unchanged: AppT never pairs anew while old approval material remains.
         try {
             secrets.discardSecret(television.id)
         } catch (ignored: IOException) {
@@ -196,8 +190,6 @@ internal class LiveSession(
             if (mutableSnapshot.value.state == SessionState.Closed) return
             retrySignals.receive()
             if (mutableSnapshot.value.state == SessionState.Closed) return
-            // The old attempt is now fully cleaned up. Only the session loop starts the next
-            // attempt, so an old collector cannot overwrite this state with Unreachable.
             publish(SessionState.Connecting)
         }
     }
@@ -207,30 +199,21 @@ internal class LiveSession(
             publish(SessionState.Unsupported)
             return
         }
-        // connection.md#ordering-relative-to-secrets: read the secret first. Undecryptable saved
-        // material is SecretsUnavailable and stops: no connect, no token, no fallback.
         val saved =
             when (val stored = secrets.loadSecret(television.id)) {
                 is StoredSecret.Available -> stored.secret
                 StoredSecret.Unavailable -> {
-                    // NeedsRepair without a repair reason is the caller-facing SecretsUnavailable
-                    // surface: fail closed, no connect, no token, no fallback.
                     publish(SessionState.NeedsRepair, repairReason = null)
                     return
                 }
                 StoredSecret.Absent -> null
             }
-        // The plaintext identity is the protocol UUID (connection.md#security-identity). A
-        // television that now presents a different UUID than the saved one is not the television
-        // this phone paired, so it fails closed before any socket is opened.
         if (saved != null && !television.tls && savedUuidIdentityChanged()) {
             publish(SessionState.NeedsRepair, RepairReason.IdentityChanged)
             return
         }
         when (val result = transport.connect(television, saved)) {
             is ConnectionAttempt.Opened -> runConnection(result.connection, saved)
-            // The saved pin did not match this handshake. The token never reached the attempt, so
-            // there is nothing to retract: fail closed and ask the user to re-pair explicitly.
             ConnectionAttempt.IdentityMismatch ->
                 publish(SessionState.NeedsRepair, RepairReason.IdentityChanged)
             ConnectionAttempt.Unreachable -> publish(SessionState.Unreachable)
@@ -249,8 +232,6 @@ internal class LiveSession(
         resumedFrom = saved
         resumedWithTokenSent = saved?.token != null && television.tls && saved.pin != null
         try {
-            // The collection is a child of this attempt, so ending it ends the attempt and the
-            // loop is free to start a fresh one; the holder's close cancels it with the attempt.
             coroutineScope {
                 collecting = launch { collectFrames(connection) }
                 collecting?.join()
@@ -263,14 +244,11 @@ internal class LiveSession(
             approvalTimer?.cancel()
             resumedFrom = null
             resumedWithTokenSent = false
-            // The holder released the session; `close` already published `Closed`, and repeating
-            // it here keeps the state `Closed` when the cancellation lands after that publish.
             if (released.get()) publish(SessionState.Closed)
         }
     }
 
     private fun onFrame(frame: String) {
-        // Over-limit or malformed input is dropped here and the session continues.
         val event = RemoteChannel.parseEvent(frame) ?: return
         when (event.name) {
             RemoteChannel.EVENT_CONNECT -> onApproved(event.token)
@@ -292,8 +270,6 @@ internal class LiveSession(
     private fun onApproved(token: String?) {
         approvalTimer?.cancel()
         channelConnected = true
-        // A superseded generation may clean up after itself, but it may not publish Ready and may
-        // not persist stale pairing evidence (connection.md#evidence-and-race-handling-harvest).
         if (!generation.isActive()) return
         val saved = resumedFrom
         if (saved == null) {
@@ -301,28 +277,16 @@ internal class LiveSession(
             try {
                 persistPairing(token = token, pin = pin)
             } catch (ignored: IOException) {
-                // The session itself is alive, but the pairing could not be saved. Fail closed: the
-                // user sees that the saved connection needs pairing again, and nothing pretends a
-                // pairing exists (data.md#samsung-secret-record).
                 publish(SessionState.NeedsRepair, repairReason = null)
                 endUnansweredAttempt()
                 return
             }
         } else {
-            // On a resumed connection the saved identity already matched, so a token the
-            // television reissued replaces the stored one atomically. A replacement that cannot
-            // be stored leaves the old pairing in place: the stored token may be refused next
-            // time, which is TokenRejected, not a silent divergence between the file and the
-            // television.
             try {
                 if (token != null && token != saved.token) {
                     secrets.saveSecret(television.id, PairingSecret(token = token, pin = saved.pin))
                 }
             } catch (ignored: IOException) {
-                // The session itself is alive, but the replacement could not be stored. Fail
-                // closed explicitly: SecretsUnavailable, not a silent stay in Connecting — the
-                // stored token may be refused next time, and nothing pretends the rotation
-                // happened (data.md#samsung-secret-record).
                 publish(SessionState.NeedsRepair, repairReason = null)
                 endUnansweredAttempt()
                 return
@@ -361,8 +325,6 @@ internal class LiveSession(
 
     private fun onUnauthorized() {
         if (resumedWithTokenSent) {
-            // connection.md: unauthorized after a saved token was sent is TokenRejected. Stop.
-            // There is no automatic reconnect and no loop: a loop would re-prompt the television.
             publish(SessionState.NeedsRepair, RepairReason.TokenRejected)
             endUnansweredAttempt()
             return
@@ -389,7 +351,6 @@ internal class LiveSession(
         try {
             connection.frames.collect { frame -> onFrame(frame) }
         } finally {
-            // The television ended the socket, or the approval wait ended the attempt.
             onConnectionLost()
         }
     }
@@ -408,10 +369,8 @@ internal class LiveSession(
 
     private fun onConnectionLost() {
         when (mutableSnapshot.value.state) {
-            // The prompt ended without approval: the same recovery as a denial.
             SessionState.AwaitingTvApproval ->
                 publish(SessionState.NeedsRepair, RepairReason.ApprovalDenied)
-            // Already reported, or already released by the holder: neither is a connection loss.
             SessionState.NeedsRepair,
             SessionState.Closed -> Unit
             else -> publish(SessionState.Unreachable)

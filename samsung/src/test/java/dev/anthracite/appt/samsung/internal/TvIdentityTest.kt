@@ -38,7 +38,6 @@ class TvIdentityTest {
         val second = TvIdentity.mint()
         assertNotEquals(first, second)
         assertTrue(first.startsWith("local-"))
-        // A minted id is never mistaken for a television-supplied UUID.
         assertNull(TvIdentity.normalize(first))
     }
 }

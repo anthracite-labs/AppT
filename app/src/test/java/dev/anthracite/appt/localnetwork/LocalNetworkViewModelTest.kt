@@ -17,7 +17,6 @@ class LocalNetworkViewModelTest {
 
     private val gate = FakePermissionGate()
     private var settingsOpened = 0
-    // Created lazily, inside each test, after the rule has installed the Main dispatcher.
     private val viewModel by lazy {
         LocalNetworkViewModel(gate, AppSettingsLauncher { settingsOpened++ })
     }

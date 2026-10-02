@@ -52,7 +52,6 @@ class SavedPairingUiTest {
     private fun snapshot(state: SessionState, reason: RepairReason?) =
         SessionSnapshot(state, TvCapabilities(emptySet()), reason)
 
-    // --- the pure mappings ---------------------------------------------------------------
 
     @Test
     fun pairingMapsEachNeedsRepairReasonToItsOwnPresentation() {
@@ -105,7 +104,6 @@ class SavedPairingUiTest {
         )
     }
 
-    // --- the confirmed re-pair through the ViewModels --------------------------------------
 
     @Test
     fun pairAgainCallsConfirmRepairOnTheRetainedSession() = runTest {
@@ -157,7 +155,6 @@ class SavedPairingUiTest {
         val host = entered()
         val viewModel = PairingViewModel(livingRoom, host, TvProfiles(FakeTvProfileDao()) { 1L })
         val session = tvs.sessionFor(livingRoom)!!
-        // SecretsUnavailable publishes NeedsRepair with no repair reason; confirmRepair ignores it.
         session.publish(SessionState.NeedsRepair)
         settle()
 

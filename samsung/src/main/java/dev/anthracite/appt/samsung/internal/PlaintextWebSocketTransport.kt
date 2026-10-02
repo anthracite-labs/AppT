@@ -103,7 +103,6 @@ internal class PlaintextWebSocketTransport(
         val address = InetAddress.getByName(unbracketed(host))
         val boundMillis = connectTimeout.inWholeMilliseconds.toInt()
         socket.connect(InetSocketAddress(address, port), boundMillis)
-        // TCP accept is not enough: a silent peer would stall forever on the upgrade read.
         socket.soTimeout = boundMillis
         val key = websocketKey()
         val output = socket.getOutputStream()
@@ -190,7 +189,6 @@ internal class PlaintextWebSocketTransport(
                     }
                 }
             } catch (_: IOException) {
-                // A reset or closed stream is connection loss, not a crash.
             }
             inbound.close()
             socket.closeQuietly()
@@ -215,7 +213,6 @@ internal class PlaintextWebSocketTransport(
             try {
                 output.close()
             } catch (_: IOException) {
-                // Closing is how a stalled write is unblocked.
             }
             socket.closeQuietly()
         }
@@ -297,8 +294,6 @@ internal class PlaintextWebSocketTransport(
                                 "Accept: application/json\r\n" +
                                 "Connection: close\r\n" +
                                 "\r\n"
-                        // Write without closing the stream: closing a socket's output stream
-                        // closes the socket, and the response is still to be read.
                         val output = socket.getOutputStream()
                         output.write(request.encodeToByteArray())
                         output.flush()
@@ -378,7 +373,6 @@ private fun Socket.closeQuietly() {
     try {
         close()
     } catch (_: IOException) {
-        // Already closed, or the peer reset. The holder is releasing either way.
     }
 }
 

@@ -56,8 +56,6 @@ fun WelcomeScreen(onFindMyTv: () -> Unit, modifier: Modifier = Modifier) {
             modifier =
                 Modifier.fillMaxSize()
                     .safeDrawingPadding()
-                    // Scrolling is what keeps large font scales from clipping or
-                    // stranding the primary action off-screen.
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = SpaceTokens.lg, vertical = SpaceTokens.xl),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -83,9 +81,6 @@ fun WelcomeScreen(onFindMyTv: () -> Unit, modifier: Modifier = Modifier) {
                         .testTag(WelcomeTestTags.REASSURANCE),
             )
 
-            // The one primary action. Sizing comes from size.* tokens, never
-            // from a literal: 56dp for a primary control, which also satisfies
-            // the 48dp interactive floor.
             Button(
                 onClick = onFindMyTv,
                 modifier =
@@ -122,8 +117,6 @@ private fun WelcomeMascot(modifier: Modifier = Modifier) {
     val mascotAlpha by
         animateFloatAsState(
             targetValue = 1f,
-            // Timing comes from the motion token, resolved against the
-            // reduced-motion setting. No duration literal appears here.
             animationSpec = tween(durationMillis = motionDuration(MotionTokens.MASCOT_MILLIS)),
             label = "welcomeMascotFade",
         )

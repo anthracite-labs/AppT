@@ -167,7 +167,6 @@ class DiscoveryScreenTest {
             .onNodeWithTag(DiscoveryTestTags.LIST)
             .performScrollToNode(hasTestTag(DiscoveryTestTags.RESCAN))
 
-        // Two choosable cards and Scan again; the Unsupported card is not a control.
         assertEquals(
             2,
             composeRule

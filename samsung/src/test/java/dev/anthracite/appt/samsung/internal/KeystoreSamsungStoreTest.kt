@@ -55,7 +55,6 @@ class KeystoreSamsungStoreTest {
             cipher = cipher,
         )
 
-    // --- persistence -------------------------------------------------------------------
 
     @Test
     fun aSavedSecretSurvivesAProcessRestart() {
@@ -63,7 +62,6 @@ class KeystoreSamsungStoreTest {
         store.saveSecret(tvId, secret)
         store.saveDevice(tvId, record)
 
-        // A "new process": a fresh store instance over the same directories.
         val reopened = newStore()
         assertEquals(StoredSecret.Available(secret), reopened.loadSecret(tvId))
         assertEquals(record, reopened.loadDevice(tvId))
@@ -92,7 +90,6 @@ class KeystoreSamsungStoreTest {
         assertEquals(StoredSecret.Available(secret), newStore().loadSecret(mintedId))
     }
 
-    // --- envelope and atomicity ----------------------------------------------------------
 
     @Test
     fun theSecretFileIsEnvelopeSealedAndLeavesNoTemporaryFiles() {
@@ -109,7 +106,6 @@ class KeystoreSamsungStoreTest {
             String(bytes, Charsets.US_ASCII).contains("planted"),
         )
         assertTrue("a fresh IV every save", bytes.copyOfRange(5, 5 + 12).any { it != 0.toByte() })
-        // No temporary files remain beside the secret: the directory holds exactly it.
         val secretsDirectory = File(temporaryFolder.root, "samsung-secrets/v1")
         assertEquals(
             "no temporary files remain",
@@ -129,14 +125,11 @@ class KeystoreSamsungStoreTest {
         assertEquals(StoredSecret.Available(rotated), newStore().loadSecret(tvId))
     }
 
-    // --- unknown ids and keystore faults: fail closed, never a crash ------------------------
 
     @Test
     fun anUnknownIdReadsFailClosedInsteadOfThrowing() {
         val store = newStore()
         val unknown = TvId("not-a-stored-id")
-        // samsung-interface.md#open: an unknown id moves to Unreachable, which needs these reads
-        // to answer, not to throw. Writes keep the loud guard.
         assertEquals(StoredSecret.Absent, store.loadSecret(unknown))
         assertNull(store.loadDevice(unknown))
         store.forget(unknown)
@@ -154,7 +147,6 @@ class KeystoreSamsungStoreTest {
 
     @Test
     fun aKeystoreRuntimeFailureSurfacesAsTheStoreFailureType() {
-        // AndroidKeyStore signals keystore-side faults at runtime with ProviderException.
         val store = newStore(FailingKeystoreCipher(ProviderException("keystore fault")))
         assertThrows(SecretStoreException::class.java) { store.saveSecret(tvId, secret) }
     }
@@ -165,7 +157,6 @@ class KeystoreSamsungStoreTest {
         val blockedDevices = File(temporaryFolder.root, "blocked-devices")
         assertTrue(blockedSecrets.createNewFile())
         assertTrue(blockedDevices.createNewFile())
-        // A directory path occupied by a file cannot be created: the reads contain the failure.
         val store =
             KeystoreSamsungStore.forTesting(blockedSecrets, blockedDevices, LocalAesGcmCipher())
         assertEquals(StoredSecret.Unavailable, store.loadSecret(tvId))
@@ -180,7 +171,6 @@ class KeystoreSamsungStoreTest {
         assertEquals(StoredSecret.Unavailable, failing.loadSecret(tvId))
     }
 
-    // --- fail-closed decryption ------------------------------------------------------------
 
     @Test
     fun aCorruptSecretFileSurfacesUnavailableAndNeverResetsThePairing() {
@@ -191,10 +181,8 @@ class KeystoreSamsungStoreTest {
 
         val reopened = newStore()
         assertEquals(StoredSecret.Unavailable, reopened.loadSecret(tvId))
-        // Fail-closed, not fail-open: no invented empty pairing, and the device record survives.
         assertEquals(record, reopened.loadDevice(tvId))
 
-        // Forget is the only way out, and it removes both records.
         reopened.forget(tvId)
         assertEquals(StoredSecret.Absent, reopened.loadSecret(tvId))
         assertNull(reopened.loadDevice(tvId))
@@ -207,10 +195,10 @@ class KeystoreSamsungStoreTest {
 
         val file = secretFiles().single()
         val bytes = file.readBytes()
-        file.writeBytes(bytes.copyOf().also { it[4] = 9 }) // unknown version
+        file.writeBytes(bytes.copyOf().also { it[4] = 9 })
         assertEquals(StoredSecret.Unavailable, newStore().loadSecret(tvId))
 
-        file.writeBytes(bytes.copyOf().also { it[0] = 'X'.code.toByte() }) // unknown magic
+        file.writeBytes(bytes.copyOf().also { it[0] = 'X'.code.toByte() })
         assertEquals(StoredSecret.Unavailable, newStore().loadSecret(tvId))
     }
 
@@ -219,12 +207,10 @@ class KeystoreSamsungStoreTest {
         val store = newStore()
         store.saveSecret(tvId, secret)
 
-        // The same directories, but the Keystore can no longer decrypt (invalidated key).
         val reopened = newStore(LocalAesGcmCipher(keyId = "invalidated-keystore"))
         assertEquals(StoredSecret.Unavailable, reopened.loadSecret(tvId))
     }
 
-    // --- device record -----------------------------------------------------------------
 
     @Test
     fun theDeviceRecordCarriesNoTokenOrPinOnDisk() {
@@ -250,7 +236,6 @@ class KeystoreSamsungStoreTest {
         val store = newStore()
         store.saveDevice(tvId, record)
         val file = File(temporaryFolder.root, "samsung-device/v1/${tvId.value}.json")
-        // DeviceRecordJson writes compact JSON, so the rewrite targets the exact emitted form.
         file.writeText(file.readText().replace("\"version\":1", "\"version\":2"))
 
         assertNull(newStore().loadDevice(tvId))
@@ -264,13 +249,11 @@ class KeystoreSamsungStoreTest {
         file.writeText("{not json")
 
         assertNull(newStore().loadDevice(tvId))
-        // The next approval or discovery write recreates it; nothing wedges.
         val reopened = newStore()
         reopened.saveDevice(tvId, record)
         assertEquals(record, reopened.loadDevice(tvId))
     }
 
-    // --- forget -------------------------------------------------------------------------
 
     @Test
     fun forgetRemovesEverythingAndIsIdempotent() {
@@ -294,7 +277,6 @@ class KeystoreSamsungStoreTest {
     fun forgetNeverTouchesAnotherTelevision() {
         val other = TvId("aaaa1111-2222-4333-8444-555555555555")
         val store = newStore()
-        // Both televisions are completely remembered: secret and samsung-private device record.
         store.saveSecret(tvId, secret)
         store.saveDevice(tvId, record)
         store.saveSecret(other, secret)
@@ -305,7 +287,6 @@ class KeystoreSamsungStoreTest {
         assertEquals(setOf(other), store.rememberedIds())
     }
 
-    // --- captured log check ---------------------------------------------------------------
 
     @Test
     fun samsungStoreOperationsProduceNoCapturedLogOutput() {
@@ -338,7 +319,6 @@ class KeystoreSamsungStoreTest {
         assertFalse(captured.toString().contains("planted-pin-value"))
     }
 
-    // --- the local cipher double -----------------------------------------------------------
 
     @Test
     fun theLocalCipherRoundTripsIndependently() {

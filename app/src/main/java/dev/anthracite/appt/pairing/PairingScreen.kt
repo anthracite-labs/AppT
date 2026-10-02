@@ -102,7 +102,6 @@ private fun PairingBody(
             PairingPhase.Succeeded -> PairingSucceeded(television)
             is PairingPhase.Failed -> PairingFailed(phase.failure, onRetryApproval, onPairAgain)
         }
-        // Cancel is always available: leaving a pairing attempt must never be a trap.
         OutlinedButton(
             onClick = onCancel,
             modifier =
@@ -122,7 +121,6 @@ private fun PairingConnecting() {
         verticalArrangement = Arrangement.spacedBy(SpaceTokens.md),
         modifier = Modifier.testTag(PairingTestTags.CONNECTING),
     ) {
-        // Decorative: the status text beside it carries the meaning.
         CircularProgressIndicator(
             modifier = Modifier.size(SizeTokens.iconSmall).clearAndSetSemantics {},
             color = ColorTokens.brandAccent,
@@ -155,7 +153,6 @@ private fun PairingWaiting(television: String, recallHintVisible: Boolean) {
                 modifier = Modifier.testTag(PairingTestTags.RECALL_HINT),
             )
         }
-        // Decorative: the instruction above is the spoken prompt.
         CircularProgressIndicator(
             modifier = Modifier.size(SizeTokens.iconSmall).clearAndSetSemantics {},
             color = ColorTokens.brandAccent,
@@ -200,7 +197,6 @@ private fun PairingFailed(
                 Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                     .testTag(PairingTestTags.FAILURE_MESSAGE),
         )
-        // Only a denied or timed-out approval can be retried; the reason is already in the copy.
         if (failure == TvFailure.NeedsRepair || failure == TvFailure.TimedOut) {
             Button(
                 onClick = onRetryApproval,
@@ -212,10 +208,6 @@ private fun PairingFailed(
                 Text(text = stringResource(R.string.pairing_retry), style = TypeTokens.label)
             }
         }
-        // Saved material is never silently reset: pairing again is the user's explicit,
-        // confirmed act — the dialog says what is removed and what comes next — and it is the
-        // only repair this surface offers. Retry stays reserved for denied and timed-out
-        // approvals; SecretsUnavailable and the identity failures go through here, never Retry.
         if (failure == TvFailure.SecretsUnavailable || failure == TvFailure.IdentityChanged) {
             PairAgainRepairControl(onPairAgain = onPairAgain)
         }
@@ -239,7 +231,6 @@ private fun PairAgainRepairControl(onPairAgain: () -> Unit) {
         PairAgainConfirmationDialog(
             onDismiss = { confirming = false },
             onConfirm = {
-                // The dialog is dismissed first, so it never outlives the act it confirmed.
                 confirming = false
                 onPairAgain()
             },

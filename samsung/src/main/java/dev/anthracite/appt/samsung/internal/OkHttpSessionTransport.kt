@@ -72,8 +72,6 @@ internal class OkHttpSessionTransport(private val ioDispatcher: CoroutineContext
                 IdentityProbe.MATCHED -> Unit
             }
         }
-        // The token is only ever attached after the saved pin matched a live handshake with this
-        // host, or on first contact when there is no saved pin and no token.
         val token = saved?.token?.takeIf { requiredPin != null }
         return open(television, requiredPin, token)
     }
@@ -109,17 +107,12 @@ internal class OkHttpSessionTransport(private val ioDispatcher: CoroutineContext
         } catch (ignored: SavedIdentityMismatchException) {
             IdentityProbe.IDENTITY_CHANGED
         } catch (ignored: GeneralSecurityException) {
-            // Lapsed certificates and unusable chains are not the saved identity either.
             if (ignored.wasCausedBySavedIdentityMismatch()) {
                 IdentityProbe.IDENTITY_CHANGED
             } else {
                 IdentityProbe.FAILED
             }
         } catch (ignored: IOException) {
-            // Unreachable hosts and handshake transport failures are reachability, not identity.
-            // A TLS stack may wrap the trust manager's decision in its own handshake exception,
-            // so unwrap the cause chain before classifying: a changed identity is never reported
-            // as mere unreachability (connection.md#security-identity).
             if (ignored.wasCausedBySavedIdentityMismatch()) {
                 IdentityProbe.IDENTITY_CHANGED
             } else {
@@ -205,13 +198,10 @@ internal class OkHttpSessionTransport(private val ioDispatcher: CoroutineContext
                     inbound.close()
                 }
             }
-        // The URL carries the token only when the caller has already verified the saved pin against
-        // a live handshake (see [connect]); first contact attaches none.
         val request = Request.Builder().url(RemoteChannel.remoteUrl(television, token)).build()
         return try {
             client.newWebSocket(request, listener)
         } catch (ignored: IllegalArgumentException) {
-            // An unusable URL never reaches a socket. Contained here, not across the seam.
             opened.complete(false)
             null
         }
@@ -340,13 +330,10 @@ internal class SpkiTrustManager : X509TrustManager {
 
     override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
         val certificates = requireNotNull(chain) { "no peer certificate chain" }
-        // A pin is the identity decision, not a licence to accept an expired certificate.
         certificates.forEach { certificate -> certificate.checkValidity() }
         val pin = spkiSha256(certificates.first())
         val required = requiredPin.get()
         if (required != null) {
-            // The saved identity is the only acceptable one; a different SPKI fails closed before
-            // any token-bearing byte can be written to this connection.
             if (pin != required) throw SavedIdentityMismatchException()
         } else {
             val previous = candidatePin.getAndSet(pin)

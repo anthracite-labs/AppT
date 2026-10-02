@@ -69,13 +69,8 @@ class SamsungKeystoreContractTest {
             try {
                 generateKey(strongBox = true)
             } catch (strongBoxUnavailable: Exception) {
-                // The documented fallback: StrongBox where the device has it, plain TEE otherwise.
                 generateKey(strongBox = false)
             }
-            // SecretKey exposes no provider and the AndroidKeyStore key marker classes are not
-            // public SDK API. AndroidKeyStore backing is established by construction here — the
-            // key was loaded from the "AndroidKeyStore" KeyStore instance — and non-exportability
-            // is proven separately by theKeyIsNotExportable().
             val stored = key()
             assertEquals("AES", stored.algorithm)
 
@@ -142,7 +137,6 @@ class SamsungKeystoreContractTest {
                     decrypt.doFinal(sealed)
                     false
                 } catch (badTag: Exception) {
-                    // AEADBadTagException and provider equivalents: the sealed blob did not verify.
                     true
                 }
             assertTrue("a tampered blob must not decrypt", failed)

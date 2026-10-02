@@ -71,8 +71,6 @@ internal object DeviceRecordJson {
         if (version != null && version > SamsungDeviceRecord.DEVICE_RECORD_VERSION) return null
         return SamsungDeviceRecord(
             version = version ?: SamsungDeviceRecord.DEVICE_RECORD_VERSION,
-            // The lastAddress elvis above has already proven root non-null (a null root yields
-            // null through the safe call and returns), so the receiver is smart-cast here.
             uuid = root.textOrNull("uuid"),
             lastAddress = lastAddress,
             tls = root.boolean("tls") ?: false,
@@ -129,15 +127,11 @@ private constructor(
 
     override fun loadSecret(tvId: TvId): StoredSecret =
         synchronized(lock) {
-            // An id this store could never have written has no file: absent, not a crash
-            // (samsung-interface.md#open: an unknown id moves to Unreachable and sends no token).
             val name = existingStoredName(tvId) ?: return@synchronized StoredSecret.Absent
             val directory =
                 try {
                     ensureDirectory(secretsDir)
                 } catch (ignored: SecretStoreException) {
-                    // A store that cannot even present its directory has no readable secret:
-                    // fail closed inside the read-result contract, never out of the read.
                     return@synchronized StoredSecret.Unavailable
                 }
             val file = File(directory, name)
@@ -146,22 +140,16 @@ private constructor(
                 try {
                     file.readBytes()
                 } catch (ignored: IOException) {
-                    // An unreadable file is undecryptable as far as this caller can claim.
                     return@synchronized StoredSecret.Unavailable
                 }
             val secret =
                 try {
                     parseEnvelope(blob)?.let(cipher::decode)
                 } catch (ignored: GeneralSecurityException) {
-                    // Keystore key invalidated, device lock change, corrupt body: fail closed.
                     null
                 } catch (ignored: ProviderException) {
-                    // AndroidKeyStore signals keystore-side faults at runtime with
-                    // ProviderException (StrongBoxUnavailableException is one). Fail closed the
-                    // same as any other cipher failure: unavailable, never a fallback.
                     null
                 } catch (ignored: IOException) {
-                    // The cipher could not reach its backing Keystore: fail closed.
                     null
                 }
             secret?.let(StoredSecret::Available) ?: StoredSecret.Unavailable
@@ -173,9 +161,6 @@ private constructor(
                 try {
                     ENVELOPE_MAGIC + byteArrayOf(ENVELOPE_VERSION) + cipher.encode(secret)
                 } catch (e: GeneralSecurityException) {
-                    // A keystore-side encryption failure reaches the session as the store's own
-                    // failure type (an IOException), so the approval or token replacement fails
-                    // closed as SecretsUnavailable instead of crashing the session.
                     throw SecretStoreException("keystore encryption failed", e)
                 } catch (e: ProviderException) {
                     throw SecretStoreException("keystore encryption failed", e)
@@ -198,8 +183,6 @@ private constructor(
                 try {
                     ensureDirectory(devicesDir)
                 } catch (ignored: SecretStoreException) {
-                    // Same containment as the secret read: a store that cannot present its
-                    // directory reads as "no record", which discovery re-creates honestly.
                     return@synchronized null
                 }
             val file = File(directory, name + DEVICE_SUFFIX)
@@ -207,8 +190,6 @@ private constructor(
             try {
                 DeviceRecordJson.parse(file.readBytes().decodeToString())
             } catch (ignored: IOException) {
-                // data.md#corruption-recovery: a device record is re-created from the next
-                // discovery or device-info read; it is never worth failing a session over.
                 null
             }
         }
@@ -247,8 +228,6 @@ private constructor(
      * either the previous file or the new one, never a hybrid.
      */
     private fun atomicWrite(target: File, bytes: ByteArray) {
-        // The parent is fixed once: `File.parentFile` is nullable, and a store path this class
-        // builds always has one. Without it, fail closed rather than write anywhere else.
         val parent =
             target.parentFile
                 ?: throw SecretStoreException("no parent directory for ${target.name}")

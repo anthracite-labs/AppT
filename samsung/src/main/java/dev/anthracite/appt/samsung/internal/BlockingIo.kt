@@ -37,7 +37,6 @@ internal suspend fun <T> blockingIo(
     try {
         withContext(dispatcher) { block() }
     } catch (failed: IOException) {
-        // After cancellation, the failure is the closed socket: surface the cancellation instead.
         ensureActive()
         throw failed
     } finally {

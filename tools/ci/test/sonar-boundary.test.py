@@ -1,4 +1,3 @@
-"""Offline Sonar control/data-boundary proofs; no scanner, builds or secrets."""
 
 from copy import deepcopy
 import importlib.util
@@ -44,7 +43,6 @@ class SonarInputTests(unittest.TestCase):
         config = self.paths[0] / "sonar-project.properties"
         config.write_text(contents)
         (self.paths[0] / "evil-java").write_text("this is inert fixture data, not executed")
-        # Artifact-provided control filenames must not become scanner settings.
         (self.paths[1] / "sonar-project.properties").write_text(contents)
         INPUTS.validate_inputs(*self.paths)
         self.assertEqual(config.read_text(), contents)
@@ -154,9 +152,6 @@ class SonarWorkflowTests(unittest.TestCase):
         ):
             args = args.replace(expression, value)
         self.assertNotIn("${{", args, "no target-controlled expression may enter scanner options")
-        # The pinned action uses string-argv 0.3.2, NOT shell/shlex semantics:
-        # -Dkey="value" retains literal quote bytes. Restrict the workflow to
-        # whole-argument quotes, where both parsers agree (also for spaces).
         self.assertRegex(args, r'\A(?:\s*"-D[^"\\\n]+")+\s*\Z')
         options = shlex.split(args)
         properties = dict(option.removeprefix("-D").split("=", 1) for option in options)
@@ -223,7 +218,7 @@ class SonarWorkflowTests(unittest.TestCase):
         for key in ("sonar.sources", "sonar.tests", "sonar.java.binaries"):
             option = re.search(r'"-D' + re.escape(key) + r'=([^"\n]+)"', original)
             self.assertIsNotNone(option)
-            replacements = [""]  # Omitting the override would select anchor paths.
+            replacements = [""]
             for path in option[1].split(","):
                 replacements.append(option[0].replace(path, path.removeprefix("sonar-target/")))
             for replacement in replacements:
@@ -240,8 +235,6 @@ class SonarWorkflowTests(unittest.TestCase):
                     "sonar.coverage.jacoco.xmlReportPaths", "sonar.javascript.lcov.reportPaths"):
             option = re.search(r'"-D' + re.escape(key) + r'=([^"\n]+)"', original)
             self.assertIsNotNone(option)
-            # This is the old spelling. shlex alone would silently accept it,
-            # but string-argv passes literal quotes to Scanner CLI's Conf.java.
             candidate = deepcopy(self.workflow)
             candidate["jobs"]["quality-platform"]["steps"][-1]["with"]["args"] = (
                 original.replace(option[0], f'-D{key}="{option[1]}"')

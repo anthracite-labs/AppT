@@ -118,7 +118,6 @@ private fun Header(scan: ScanPhase) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (scan == ScanPhase.Scanning) {
-                    // Decorative: the status text beside it carries the meaning.
                     CircularProgressIndicator(
                         modifier = Modifier.size(SizeTokens.iconSmall).clearAndSetSemantics {},
                         color = ColorTokens.brandAccent,
@@ -151,7 +150,6 @@ private fun TvCard(card: TvCardUi, onPick: (TvId) -> Unit) {
     val statusText = stringResource(status.text)
     val interactive =
         if (card.state == CardState.Unsupported) {
-            // No control affordance on an Unsupported card: not clickable, no button.
             Modifier
         } else {
             Modifier.clickable(
@@ -234,7 +232,6 @@ private fun CardStatus(style: CardStatusStyle, text: String) {
             text = text,
             style = TypeTokens.label,
             color = ColorTokens.contentSecondary,
-            // Spoken once, as the card's state description, rather than twice.
             modifier = Modifier.testTag(DiscoveryTestTags.CARD_STATUS_LABEL).clearAndSetSemantics {},
         )
     }
@@ -258,7 +255,6 @@ private fun EmptyState(onRescan: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(SpaceTokens.md),
     ) {
-        // Brand mascot: decorative, hidden from the semantics tree.
         Text(
             text = stringResource(R.string.welcome_mascot_glyph),
             style = TypeTokens.display,

@@ -1,41 +1,4 @@
-// Repository guards — the executable privacy / supply-chain / module floor.
-//
-// Sources of truth:
-//   docs/architecture/release.md#pull-request-checks   CI check list and allowlist
-//   docs/architecture/diagnostics.md                   telemetry invariants and check names
-//   docs/architecture/modules.md#dependency-set-boundaries  module edges
-//
-// Accepted check names are preserved verbatim so the architecture and the
-// build speak the same language:
-//   noTelemetryDependency
-//   adIdAbsentFromManifest
-//
-// Issue #88 removed the duplicated work behind two of these names without
-// removing a guarantee:
-//   * `noTelemetryDependency` resolves :app only. Its :samsung instance was a
-//     strict subset of `samsungDependencyBoundary` on the same configuration.
-//   * `noCrashReportingInApp` is gone. It was a strict subset of
-//     `noTelemetryDependency` on :app's runtime graph.
-// See the notes at each site below.
-//
-// Manifest-derived guards (`adIdAbsentFromManifest`,
-// `manifestPermissionAllowlist`) are registered in `app/build.gradle.kts`,
-// because only there can they read AGP's MERGED_MANIFEST artifact. The
-// lifecycle tasks below aggregate them so every guard is invocable by its
-// accepted name from the repository root.
-//
-// Gradle 9 note (Issue #54): resolving a configuration that belongs to
-// ANOTHER project from inside a task's action is rejected by Gradle
-// ("Resolution of the configuration ... was attempted without an exclusive
-// lock"). Every graph-resolving guard therefore runs as a task INSIDE the
-// project that owns the graph, and the repository root only re-exposes it
-// under its accepted name via dependsOn — exactly the pattern the manifest
-// guards already used. Accepted names, descriptions, failure messages and
-// coverage are unchanged; only the project that executes the resolution moved.
 
-// ---------------------------------------------------------------------------
-// Forbidden-artifact vocabulary
-// ---------------------------------------------------------------------------
 
 /** Crash-reporting, analytics, advertising and attribution artifacts. */
 val telemetryArtifactPatterns: List<String> =
@@ -92,22 +55,7 @@ fun matches(artifactId: String, patterns: List<String>): Boolean {
     return patterns.any { lowered.contains(it) }
 }
 
-// ---------------------------------------------------------------------------
-// noTelemetryDependency
-// ---------------------------------------------------------------------------
 
-// Real resolution runs inside :app; the root task below only re-exposes it
-// under the accepted name.
-//
-// Issue #88 deduplication: this guard used to resolve :app AND :samsung. The
-// :samsung instance was a strict subset of `samsungDependencyBoundary` — same
-// configuration (`:samsung:debugRuntimeClasspath`), same vocabulary
-// (`samsungForbiddenArtifactPatterns` is `telemetryArtifactPatterns` plus the
-// Firebase/Play/billing families). Resolving the same graph twice to ask the
-// same question produced duplicate work and duplicate failure evidence without
-// adding a guarantee, so the :samsung instance is gone and the boundary guard
-// owns that question. The accepted check name, the :app coverage, the failure
-// message and the vocabulary are unchanged.
 val noTelemetryInstances =
     listOf(":app").map { path ->
         val target = project(path)
@@ -144,9 +92,6 @@ tasks.register("noTelemetryDependency") {
     dependsOn(noTelemetryInstances)
 }
 
-// ---------------------------------------------------------------------------
-// :app must contain no Firestore client
-// ---------------------------------------------------------------------------
 
 val noFirestoreClientInAppInstance =
     project(":app").tasks.register("noFirestoreClientInApp") {
@@ -174,21 +119,7 @@ tasks.register("noFirestoreClientInApp") {
     dependsOn(noFirestoreClientInAppInstance)
 }
 
-// ---------------------------------------------------------------------------
-// Issue #88 deduplication: the former `noCrashReportingInApp` guard was a
-// strict subset of `noTelemetryDependency` on :app — the same configuration
-// (`:app:debugRuntimeClasspath`) and a crash-reporting vocabulary that
-// `telemetryArtifactPatterns` already contains in full. It resolved the graph a
-// second time to ask a narrower version of a question another guard already
-// answers, so it is gone. The guarantee it carried ("V1 ships no crash-reporting
-// SDK", docs/architecture/diagnostics.md) is unchanged and still owned by
-// `noTelemetryDependency`, which fails on crashlytics, acra, bugsnag, sentry,
-// instabug and embrace plus every other telemetry family.
-// ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// :samsung dependency boundary
-// ---------------------------------------------------------------------------
 
 val samsungDependencyBoundaryInstance =
     project(":samsung").tasks.register("samsungDependencyBoundary") {
@@ -238,17 +169,7 @@ tasks.register("samsungDependencyBoundary") {
     dependsOn(samsungDependencyBoundaryInstance)
 }
 
-// ---------------------------------------------------------------------------
-// samsungGraphExcludesFirebase
-// ---------------------------------------------------------------------------
 
-// docs/architecture/testing.md#required-behavioral-contracts names this assertion
-// `samsungGraphExcludesFirebase`: "Gradle dependencies of :samsung exclude Firebase, Play
-// services, and every telemetry SDK." The proof is a resolution of :samsung's real production
-// graph, which `samsungDependencyBoundary` above already performs against exactly that forbidden
-// vocabulary. The accepted contract name is therefore re-exposed here instead of being duplicated
-// as a second, weaker declaration-level check: the assertion is unchanged, only its name is
-// invocable, and it runs inside `appTGuards` like every other accepted name.
 tasks.register("samsungGraphExcludesFirebase") {
     group = "verification"
     description =
@@ -257,9 +178,6 @@ tasks.register("samsungGraphExcludesFirebase") {
     dependsOn(samsungDependencyBoundaryInstance)
 }
 
-// ---------------------------------------------------------------------------
-// Source-level guards
-// ---------------------------------------------------------------------------
 
 fun productionKotlinSources(project: Project): List<File> {
     val main = project.file("src/main")
@@ -332,9 +250,6 @@ tasks.register("noSyncRecordInProductionSource") {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Version-catalog hygiene: no `+`, dynamic or snapshot versions
-// ---------------------------------------------------------------------------
 
 tasks.register("versionCatalogPinned") {
     group = "verification"
@@ -371,9 +286,6 @@ tasks.register("versionCatalogPinned") {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Aggregate: everything CI runs as the S01 guard floor
-// ---------------------------------------------------------------------------
 
 tasks.register("appTGuards") {
     group = "verification"
@@ -390,8 +302,6 @@ tasks.register("appTGuards") {
 }
 
 gradle.projectsEvaluated {
-    // Manifest guards live in :app (they read AGP's MERGED_MANIFEST artifact).
-    // Re-expose them under their accepted names at the repository root.
     listOf("adIdAbsentFromManifest", "manifestPermissionAllowlist").forEach { name ->
         val appTask = project(":app").tasks.findByName(name) ?: return@forEach
         tasks.register(name) {

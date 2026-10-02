@@ -123,7 +123,6 @@ class SamsungTvsDiscoveryTest {
             "a cancelled scan neither fails nor finishes",
             first.none { it is DiscoveryEvent.Failed || it == DiscoveryEvent.Finished },
         )
-        // The first scan released its lock before the second acquired one: one lock owner.
         assertEquals(
             listOf(FixtureTransport.ACQUIRE, FixtureTransport.RELEASE, FixtureTransport.ACQUIRE),
             transport.lockLog,
@@ -207,8 +206,6 @@ class SamsungTvsDiscoveryTest {
             ),
             events,
         )
-        // The RemoteControlReceiver and DIAL replies came from one host: one device-info read,
-        // on port 8001 of that host only.
         assertEquals(listOf(FixtureTransport.Request("[host-a]", 8001)), transport.outbound)
     }
 
@@ -231,7 +228,6 @@ class SamsungTvsDiscoveryTest {
         val transport = FixtureTransport(Fixture.load("soundbar-airplay"))
         val events = scan(transport)
         assertEquals(listOf(DiscoveryEvent.Finished), events)
-        // The non-Samsung AirPlay speaker is never contacted.
         assertEquals(listOf(FixtureTransport.Request("[host-b]", 8001)), transport.outbound)
     }
 
@@ -250,8 +246,6 @@ class SamsungTvsDiscoveryTest {
         val tv = events.found().single()
         assertEquals(ControlAvailability.Unsupported, tv.availability)
         assertEquals("Older TV", tv.name)
-        // The only traffic discovery produced is the device-info read. The transport has no
-        // operation that could carry a key, text or launch frame, or a token.
         assertEquals(listOf(FixtureTransport.Request("[host-a]", 8001)), transport.outbound)
     }
 
@@ -321,9 +315,6 @@ class SamsungTvsDiscoveryTest {
         val fixtures = Fixture.directories().map { it.name }
         fixtures.forEach { caseId ->
             val fixture = Fixture.load(caseId)
-            // The session-transport fixtures carry no discovery traffic, so this contract says
-            // nothing about them; SamsungTvsSessionTest covers those instead. Skipping them also
-            // keeps the discovery loader from being pointed at a trace shape it does not describe.
             if (fixture.probes.isEmpty() && fixture.deviceInfo.isEmpty()) return@forEach
             val transport = FixtureTransport(fixture)
             scan(transport)

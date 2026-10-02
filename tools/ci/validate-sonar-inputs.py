@@ -1,8 +1,3 @@
-"""Validate inert scan inputs before the secret-bearing Sonar action runs.
-
-This script is loaded from the dispatch anchor, never from the target checkout.
-It does not import, execute, or load scanner settings from target/artifact files.
-"""
 
 import argparse
 from pathlib import Path
@@ -18,7 +13,6 @@ KOVER_REPORTS = (
 
 
 def regular_tree(root):
-    """Reject symlinks and special files, including the root itself."""
     if not stat.S_ISDIR(root.lstat().st_mode):
         raise ValueError(f"Scan input must be a real directory: {root}")
     for path in root.rglob("*"):
@@ -28,8 +22,6 @@ def regular_tree(root):
 
 
 def validate_inputs(source, android, backend, work, home):
-    # Trusted workflow supplies separate checkout/download/scratch locations.
-    # Never resolve away an untrusted root symlink before checking its type.
     inputs = (source, android, backend)
     for path in inputs:
         regular_tree(path)
@@ -44,8 +36,6 @@ def validate_inputs(source, android, backend, work, home):
     if not any((android / report).is_file() and (android / report).stat().st_size > 0
                for report in KOVER_REPORTS):
         raise ValueError("Kover XML coverage is missing or empty")
-    # Pre-existing scanner state must not be trusted, including state supplied
-    # by target files/artifacts. Fresh hosted-runner directories only; no reuse.
     for path in (work, home):
         if path.exists() or path.is_symlink():
             raise ValueError(f"Sonar scanner state must start empty: {path}")

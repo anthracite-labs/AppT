@@ -75,7 +75,6 @@ class LoopbackSocketsTest {
             assertNull(DeviceInfoHttp().get(TestLan(), loopback, server.localPort))
             peer.join()
         }
-        // Nothing listening: refused, which is simply "no card".
         val closedPort = ServerSocket(0, 1, loopback).use { it.localPort }
         assertNull(DeviceInfoHttp().get(TestLan(), loopback, closedPort))
     }
@@ -83,14 +82,11 @@ class LoopbackSocketsTest {
     @Test
     fun cancellingADeviceInfoReadClosesTheSocketPromptly() = runBlocking {
         ServerSocket(0, 1, loopback).use { server ->
-            // Accepts and then never answers; the client's read timeout is far away.
             val accepted = CopyOnWriteArrayList<java.net.Socket>()
             val peer = thread { accepted += server.accept() }
             val client = DeviceInfoHttp(readTimeoutMillis = 60_000)
             val started = System.nanoTime()
             val job = launch { client.get(TestLan(), loopback, server.localPort) }
-            // Wait for the connection by suspending, never by blocking: runBlocking has one thread,
-            // and Thread.join() here would stop the launched client from ever connecting.
             withTimeout(5.seconds) { while (accepted.isEmpty()) delay(POLL_MILLIS) }
             job.cancel()
             withTimeout(2.seconds) { job.join() }
@@ -106,7 +102,6 @@ class LoopbackSocketsTest {
             val searches = CopyOnWriteArrayList<String>()
             responder.soTimeout = 5_000
             val peer = thread {
-                // Both searches arrive before any reply, so the client cannot stop early.
                 val received =
                     List(2) {
                         DatagramPacket(ByteArray(2048), 2048).also { packet ->
@@ -142,7 +137,6 @@ class LoopbackSocketsTest {
 
     @Test
     fun ssdpReceiveBlockedByThePlatformFailsAsLocalNetworkDenied() = runBlocking {
-        // Android can report a blocked local-network socket as a SecurityException on receive.
         val blocked =
             object : DatagramSocket(0, loopback) {
                 override fun receive(p: DatagramPacket): Unit =

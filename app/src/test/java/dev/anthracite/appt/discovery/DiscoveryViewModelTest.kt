@@ -246,14 +246,12 @@ class DiscoveryViewModelTest {
             advanceUntilIdle()
 
             assertEquals("one row per television", 1, dao.current().size)
-            // The second pick kept the row the first one wrote, timestamp and all.
             assertEquals(7L, dao.current().single().createdAt)
         }
 
     @Test
     fun restorationScansOnceThenStops() =
         runTest(mainRule.dispatcher) {
-            // After process death the restored Discovery route gets a new ViewModel.
             val restored = viewModel()
             runCurrent()
             tvs.latest.send(DiscoveryEvent.Finished)

@@ -14,7 +14,6 @@ class TokensTest {
 
     @Test
     fun `exposes the five S01 token categories`() {
-        // The categories S01's acceptance criteria name.
         assertTrue(AppTTokens.color === ColorTokens)
         assertTrue(AppTTokens.type === TypeTokens)
         assertTrue(AppTTokens.space === SpaceTokens)
@@ -49,7 +48,6 @@ class TokensTest {
     @Test
     fun `compact height shrinks a spacing step by exactly one`() {
         assertEquals(SpaceTokens.md, SpaceTokens.compactHeight(SpaceTokens.lg))
-        // The smallest step has nowhere to shrink to and stays put.
         assertEquals(SpaceTokens.none, SpaceTokens.compactHeight(SpaceTokens.none))
     }
 
@@ -104,8 +102,6 @@ class TokensTest {
 
     @Test
     fun `the surface outline meets the 3 to 1 non-text floor against both surfaces`() {
-        // Dark-first elevation is a subtle tone shift, so the outline is what
-        // carries the surface boundary at the non-text contrast floor.
         assertContrastAtLeast(3.0, ColorTokens.surfaceOutline, ColorTokens.surface)
         assertContrastAtLeast(3.0, ColorTokens.surfaceOutline, ColorTokens.surfaceElevated)
     }

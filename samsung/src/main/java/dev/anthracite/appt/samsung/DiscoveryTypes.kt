@@ -1,7 +1,5 @@
 package dev.anthracite.appt.samsung
 
-// Caller-facing types for discovery, verbatim from docs/architecture/samsung-interface.md.
-// No caller-facing type contains an address, MAC, token, certificate, Wi-Fi name, or raw payload.
 
 /**
  * Opaque television identity. Callers do not parse it for a MAC, an address, or a protocol

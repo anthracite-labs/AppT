@@ -1,17 +1,3 @@
-/**
- * Tests for the dispatch-target assertion's shell logic (Issue #88).
- *
- * `.github/actions/assert-dispatch-target` is the enforcement point that decides
- * whether a dispatched run verifies the commit the command was issued against,
- * so its behaviour has to be proven rather than assumed. Its `run:` block is
- * extracted from the action definition and executed for real, against a fake
- * `gh` on `PATH`, so every branch of the decision is exercised.
- *
- * The case that matters most is the one the CodeQL finding forced: a
- * `workflow_dispatch` input is settable by anyone who can dispatch, so an
- * arbitrary commit SHA must not be able to pass merely by naming a branch that
- * happens to resolve to it. It also has to be the head of an open pull request.
- */
 
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -31,11 +17,6 @@ const HEAD_SHA = '10525a115869dcf3e9d49cf2053c03d284200249';
 const OTHER_SHA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const HEAD_REF = 'arena/01a0e487-appt';
 
-/**
- * Pull the `run:` script out of the composite action. The action has exactly one
- * shell step, so the block is unambiguous; the indentation is stripped the same
- * way the workflow engine strips it.
- */
 function extractRunScript() {
   const action = readFileSync(ACTION, 'utf8');
   const marker = '      run: |\n';
@@ -58,11 +39,6 @@ function extractRunScript() {
 
 const RUN_SCRIPT = extractRunScript();
 
-/**
- * Build a sandbox with a fake `gh` that answers the two read-only calls the
- * assertion makes: resolving a ref to a commit, and listing open pull requests
- * by head ref.
- */
 function createSandbox({
   refSha = HEAD_SHA,
   openPulls = [{ number: 89, sha: HEAD_SHA }],
@@ -72,8 +48,6 @@ function createSandbox({
   const dir = mkdtempSync(join(tmpdir(), 'assert-dispatch-target-'));
   const log = join(dir, 'gh.log');
 
-  // The assertion calls `gh api <path> --jq <projection>`, so `$2` is the path
-  // and the fake answers the *projected* value, exactly as the real CLI would.
   const gh = `#!/usr/bin/env bash
 echo "$*" >> '${log}'
 case "$2" in
@@ -105,7 +79,6 @@ esac
   return { dir, log };
 }
 
-/** Run the assertion with the given inputs; return status, stdout and output. */
 function runAssertion(sandbox, { expectedSha, targetRef, actualSha, eventName = 'workflow_dispatch' }) {
   const outputFile = join(sandbox.dir, 'github-output');
   writeFileSync(outputFile, '');
@@ -130,7 +103,6 @@ function runAssertion(sandbox, { expectedSha, targetRef, actualSha, eventName = 
   return { stdout, output: readFileSync(outputFile, 'utf8') };
 }
 
-/** Run the assertion expecting a non-zero exit; return the captured stderr. */
 function runAssertionExpectingFailure(sandbox, inputs) {
   const outputFile = join(sandbox.dir, 'github-output');
   writeFileSync(outputFile, '');
@@ -159,7 +131,6 @@ function runAssertionExpectingFailure(sandbox, inputs) {
   throw new Error('the assertion unexpectedly succeeded');
 }
 
-/** Verify URL transport, not one encoder's choice for optional escapes. */
 function assertRequestTransport(calls, targetRef) {
   assert.equal(calls.length, 2);
   const endpoints = calls.map((call, index) => {
@@ -185,7 +156,6 @@ function assertRequestTransport(calls, targetRef) {
     ['head', `${OWNER}:${targetRef}`],
     ['state', 'open'],
   ]);
-  // Explicit regression guarantees for the original path/query delimiters.
   for (const [character, escaped] of [['#', '%23'], ['&', '%26']]) {
     if (!targetRef.includes(character)) continue;
     assert.ok(refUrl.pathname.includes(escaped));
@@ -266,7 +236,6 @@ describe('a bridge dispatch', () => {
     const result = runAssertion(sandbox, {
       expectedSha: HEAD_SHA,
       targetRef: HEAD_REF,
-      // The run's own commit is the default branch, not the target.
       actualSha: OTHER_SHA,
     });
     assert.match(result.stdout, /open pull request #89 resolving to/);
@@ -293,9 +262,6 @@ describe('a bridge dispatch', () => {
     assert.match(stderr, /Dispatch target unresolvable/);
   });
 
-  // The case the CodeQL finding forced into the open: a `workflow_dispatch` input
-  // is settable by anyone who can dispatch, so an arbitrary commit must not pass
-  // just because some branch resolves to it.
   it('refuses a commit that is not the head of any open pull request', () => {
     const sandbox = createSandbox({ refSha: HEAD_SHA, openPulls: [{ number: 89, sha: OTHER_SHA }] });
     const { stderr } = runAssertionExpectingFailure(sandbox, {
@@ -411,9 +377,6 @@ describe('a bridge dispatch', () => {
       targetRef: HEAD_REF,
       actualSha: OTHER_SHA,
     });
-    // The published value is the proven commit. It is deliberately the same
-    // string as the input here -- what matters is that it is only ever published
-    // after the checks above have passed.
     assert.equal(result.output.trim(), `sha=${HEAD_SHA}\npr-number=89`);
   });
 });

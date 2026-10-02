@@ -167,8 +167,6 @@ private fun NavGraphBuilder.s03Destinations(
             diagnostics = diagnostics,
             onOpenSettings = { navController.navigate(SettingsRoute) },
             onBack = {
-                // lifecycle.md: Back leaves the television immediately; grace is for a temporary
-                // loss of surface ownership, not an explicit navigation exit.
                 activeRemoteHost.close()
                 navController.popBackStack()
             },
@@ -185,7 +183,6 @@ private fun LocalNetworkDestination(
     val viewModel = viewModel { LocalNetworkViewModel(gate, appSettings) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val currentOnGranted by rememberUpdatedState(onGranted)
-    // presentation.md: "Granted advances automatically to Discovery".
     LaunchedEffect(state.phase) { if (state.phase == LocalNetworkPhase.Granted) currentOnGranted() }
     LocalNetworkScreen(
         state = state,
@@ -206,8 +203,6 @@ private fun DiscoveryDestination(
 ) {
     val viewModel = viewModel { DiscoveryViewModel(samsungTvs, gate, tvProfiles) }
     val activity = LocalActivity.current
-    // Scans run only while Discovery is in the foreground (discovery.md). A configuration change
-    // keeps the ViewModel and its scan, so it is not treated as leaving the foreground.
     LifecycleStartEffect(viewModel) {
         viewModel.onStarted()
         onStopOrDispose { if (activity?.isChangingConfigurations != true) viewModel.onStopped() }
@@ -216,16 +211,8 @@ private fun DiscoveryDestination(
     val gatePhase by gate.phase.collectAsStateWithLifecycle()
     val currentOnDenied by rememberUpdatedState(onDenied)
     val currentOnPicked by rememberUpdatedState(onPicked)
-    // A blocked local network returns to the explanation (discovery.md#permission-gate).
     LaunchedEffect(gatePhase) { if (gatePhase == LocalNetworkPhase.Denied) currentOnDenied() }
     DiscoveryScreen(state = state, onRescan = viewModel::onRescan, onPick = viewModel::onPick)
-    // The route, not the screen, enters the television and navigates: `onPick` writes the profile
-    // row first, and this runs once that row exists. Entering is the host's job, so one television
-    // is opened once and never a second time.
-    //
-    // The selection is collected rather than read as a key, and it is consumed once handled:
-    // Discovery stays on the back stack under Pairing and Remote, so returning to it would
-    // otherwise re-enter the television and navigate straight back out.
     LaunchedEffect(viewModel) {
         viewModel.selected.collect { selected ->
             selected?.let {
@@ -256,15 +243,10 @@ private fun PairingDestination(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val current by activeRemoteHost.current.collectAsStateWithLifecycle()
     val currentOnApproved by rememberUpdatedState(onApproved)
-    // lifecycle.md: interest is counted, not inferred from navigation. Holding an interest here is
-    // what makes a rotation a re-attach rather than a release, and what starts the 15-second grace
-    // when this is the last surface interested in the session.
     DisposableEffect(activeRemoteHost) {
         activeRemoteHost.retain(PAIRING)
         onDispose { activeRemoteHost.release(PAIRING) }
     }
-    // presentation.md: "Success transitions directly into Remote". The handoff happens once, when
-    // the session the host already holds becomes Ready.
     LaunchedEffect(current?.snapshot?.state) {
         if (current?.snapshot?.state == SessionState.Ready) currentOnApproved()
     }
@@ -311,7 +293,6 @@ private fun RemoteDestination(
             if (activity?.remoteVolumeKeyHandler === handler) activity.remoteVolumeKeyHandler = null
         }
     }
-    // The same interest Pairing held, taken over by the surface the session handed off to.
     DisposableEffect(activeRemoteHost) {
         activeRemoteHost.retain(REMOTE)
         onDispose { activeRemoteHost.release(REMOTE) }

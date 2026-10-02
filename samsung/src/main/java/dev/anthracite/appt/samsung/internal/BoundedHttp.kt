@@ -45,8 +45,6 @@ internal class DeviceInfoHttp(
         } catch (denied: SecurityException) {
             throw ScanAbort(LanPolicy.failureFor(denied), denied)
         } catch (failed: IOException) {
-            // A blocked local-network socket ends the scan once; anything else just means this
-            // candidate's device-info is unreadable, so it gets no card.
             val failure = LanPolicy.failureFor(failed)
             if (failure == TvFailure.LocalNetworkDenied) throw ScanAbort(failure, failed)
             null

@@ -75,14 +75,9 @@ internal class ScriptedSessionTransport(
         }
         if (connectDelayMs > 0) delay(connectDelayMs)
         if (refusesConnection) return ConnectionAttempt.Unreachable
-        // The token rides the URL only after the saved pin matched, and never on the plaintext
-        // channel — the same discipline [OkHttpSessionTransport] enforces on the wire.
         val token = saved?.token?.takeIf { requiredPin != null }
         attemptedUrls += RemoteChannel.remoteUrl(television, token)
         attemptedTokens += token != null
-        // A retry opens a fresh connection, and a television that refused to answer the first time
-        // is free to answer the second. The last script is reused once the list runs out, so the
-        // single-fixture case replays the same television behaviour on every attempt.
         val fixture = fixtures.getOrElse(sockets.size) { fixtures.last() }
         val connection =
             ScriptedSessionConnection(
@@ -123,13 +118,8 @@ internal class ScriptedSessionConnection(
                     is SessionEvent.Close -> return@flow
                 }
             }
-            // The script is exhausted and the television has not ended the session: the socket
-            // stays
-            // open, as a live one does, until the holder releases it.
             awaitCancellation()
         } finally {
-            // Tests can hold cancellation cleanup open to exercise races between an expired
-            // approval attempt and retryApproval().
             cancellationBarrier?.let { barrier -> withContext(NonCancellable) { barrier.await() } }
         }
     }

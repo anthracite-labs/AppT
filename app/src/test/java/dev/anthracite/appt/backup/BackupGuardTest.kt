@@ -24,7 +24,6 @@ class BackupGuardTest {
     @Test fun backupExcludesAllTvState() = assertBackupRules()
 
     private fun assertBackupRules() {
-        // The manifest opt-out is the primary control.
         val application = document(manifest).getElementsByTagName("application").item(0) as Element
         assertEquals(
             "allowBackup stays false",
@@ -42,8 +41,6 @@ class BackupGuardTest {
             application.getAttribute("android:fullBackupContent"),
         )
 
-        // Both rule sets exclude everything and include nothing: fail-closed for every path this
-        // app owns, which includes the samsung secret and device-record directories.
         val extraction = document(extractionRules)
         assertEquals(
             "data-extraction-rules is the root",
@@ -59,8 +56,6 @@ class BackupGuardTest {
         val transfer = extraction.getElementsByTagName("device-transfer").item(0) as Element
         assertEquals(EXCLUDED_DOMAINS, excludes(cloud))
         assertEquals(EXCLUDED_DOMAINS, excludes(transfer))
-        // The extraction surface never restricts an exclusion with a path attribute: an excluded
-        // domain stands for the whole of it, at any depth.
         extractionExcludes(extraction).forEach { rule ->
             assertTrue(
                 "the extraction rule for domain=${rule.getAttribute("domain")} must not carry a path",
@@ -85,7 +80,6 @@ class BackupGuardTest {
                 .map { it.getAttribute("domain") }
                 .toSet()
         assertEquals(EXCLUDED_DOMAINS, legacyExcludes)
-        // The legacy surface pins every exclusion to the root explicitly.
         legacyExcludes(legacy).forEach { rule ->
             assertEquals(
                 "the full-backup rule for domain=${rule.getAttribute("domain")} must exclude the root",

@@ -72,8 +72,6 @@ class PreferenceStoreTest {
 
     @Test
     fun aCorruptPreferencesFileReadsAsDefaults() = runTest {
-        // data.md#corruption-recovery: "a corrupt preferences file is replaced with defaults", and
-        // the user's television state in Room is unaffected. Nothing here may throw to the caller.
         val file = File(folder.newFolder(), PREFERENCES_FILE_NAME)
         file.writeBytes(ByteArray(32) { 0x7f })
         val store =

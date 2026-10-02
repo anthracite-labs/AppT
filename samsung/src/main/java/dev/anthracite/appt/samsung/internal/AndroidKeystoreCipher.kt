@@ -54,8 +54,6 @@ internal class AndroidKeystoreCipher(private val alias: String = KEYSTORE_ALIAS)
 
     private fun generateKey(keystore: KeyStore): SecretKey {
         if (keystore.containsAlias(alias)) {
-            // An alias entry that is not a usable SecretKey is a Keystore-level fault; surface
-            // it as unavailable rather than silently overwriting security material.
             throw SecretStoreException("keystore alias exists but is not a usable secret key")
         }
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
@@ -63,11 +61,7 @@ internal class AndroidKeystoreCipher(private val alias: String = KEYSTORE_ALIAS)
             generator.init(spec(strongBox = true))
             return generator.generateKey()
         } catch (ignored: StrongBoxUnavailableException) {
-            // data.md: StrongBox where available, otherwise TEE. The platform signals a missing
-            // security enclave with StrongBoxUnavailableException (a ProviderException subclass),
-            // so catching only InvalidAlgorithmParameterException never triggered this fallback.
         } catch (ignored: InvalidAlgorithmParameterException) {
-            // A spec this module's own builder produced cannot be the fault; fall back too.
         }
         generator.init(spec(strongBox = false))
         return generator.generateKey()
@@ -79,11 +73,6 @@ internal class AndroidKeystoreCipher(private val alias: String = KEYSTORE_ALIAS)
                 KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
             )
             .apply {
-                // minSdk 29 is past P, so the StrongBox API is always present and the SDK_INT
-                // guard lint flags as obsolete is dead code. Hardware availability is still
-                // runtime-negotiated: a device without StrongBox throws
-                // StrongBoxUnavailableException (a ProviderException) here and the TEE fallback
-                // generates the key — see the catches in [generateKey].
                 if (strongBox) {
                     setIsStrongBoxBacked(true)
                 }

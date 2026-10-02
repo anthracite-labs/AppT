@@ -30,11 +30,8 @@ class LocalNetworkPermissionGateTest {
 
     @Test
     fun v1ProbesDoNotRequestNearbyWifiDevices() {
-        // Nothing is requested at runtime for the V1 probes at target 36...
         assertEquals(emptyList<String>(), DiscoveryPermissions.runtimeRequestFor(36))
 
-        // ...and the installed app neither declares nor can request the permissions the V1
-        // probes must not use, while it does declare the four install-time ones they need.
         val packageInfo =
             context.packageManager.getPackageInfo(
                 context.packageName,

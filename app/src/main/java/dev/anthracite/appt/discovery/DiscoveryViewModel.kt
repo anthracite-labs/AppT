@@ -115,8 +115,6 @@ class DiscoveryViewModel(
             else current
         }
         viewModelScope.launch {
-            // The row is written before the session opens: remembering is the user's action, and
-            // the television is not opened for a card this phone has not recorded.
             tvProfiles.rememberSelected(card.tvId, card.label, tv.stableIdentity)
             mutableSelected.value = card.tvId
         }

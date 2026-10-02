@@ -1,10 +1,3 @@
-"""Structural check for provider-enforced cache isolation in trusted dispatches.
-
-The pinned actionlint schema does not know GitHub's workflow-level
-`cache-mode` key, so yamllint supplies PyYAML and this tiny check proves the
-actual parsed workflow has the required read-only default. There is no trusted
-cache-writer exception: PR-controlled code cannot publish provider caches.
-"""
 from pathlib import Path
 import yaml
 

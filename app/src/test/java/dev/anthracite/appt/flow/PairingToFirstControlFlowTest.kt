@@ -81,8 +81,6 @@ class PairingToFirstControlFlowTest {
             )
         )
     }
-    // Wired exactly as AppTApplication wires it: the host notices the transition to `Ready` and the
-    // profile row records when the television was last opened.
     private val host =
         ActiveRemoteHost(
             samsungTvs = tvs,
@@ -91,8 +89,6 @@ class PairingToFirstControlFlowTest {
         )
     private val livingRoom = TvId(FakeSamsungTvs.LIVING_ROOM_ID)
 
-    // Observe the suspending DataStore milestone on real IO, independently of the Compose test
-    // dispatcher used to drive the acceptance flow.
     private val observations = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val firstControlObserverStarted = AtomicBoolean(false)
     private val firstControlAchieved = AtomicBoolean(false)
@@ -138,24 +134,17 @@ class PairingToFirstControlFlowTest {
         composeRule.waitForIdle()
         composeRule.waitForIdle()
 
-        // The card selection wrote exactly one device-local profile row, named after the
-        // television.
         val row = dao.current().single()
         assertEquals(livingRoom.value, row.tvId)
         assertEquals("Living Room TV", row.friendlyName)
         assertEquals(NameSource.TV, row.nameSource)
         assertNull("a newly remembered television has never been opened", row.lastOpenedAt)
 
-        // Exactly one session: the television is opened once, and never a second time.
         assertEquals(listOf(livingRoom), tvs.openedIds)
         val session = tvs.sessionFor(livingRoom)!!
-        // A real session asks the television for approval once it has connected; the scripted one
-        // starts at `Connecting` and stays there until it is told, and Pairing renders the approval
-        // prompt only for `AwaitingTvApproval` (presentation.md#pairing).
         session.publish(SessionState.AwaitingTvApproval)
         composeRule.waitForIdle()
 
-        // Pairing is showing, and it is asking the user to allow AppT on the television.
         composeRule.onNodeWithTag(PairingTestTags.TITLE).assertExists()
         composeRule.onNodeWithTag(PairingTestTags.WAITING).assertExists()
 
@@ -163,7 +152,6 @@ class PairingToFirstControlFlowTest {
         session.ready(setOf(RemoteKey.VolumeUp, RemoteKey.VolumeDown))
         composeRule.waitForIdle()
 
-        // The same session handed off to Remote, which shows the volume control it was told about.
         composeRule.onNodeWithTag(RemoteTestTags.CONTROLS).assertExists()
         composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.VolumeUp)).assertExists()
         assertEquals(
@@ -188,7 +176,6 @@ class PairingToFirstControlFlowTest {
             }
 
             composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.VolumeUp)).performClick()
-            // Drain the click event; waitUntil below handles the external DataStore IO condition.
             composeRule.waitForIdle()
             composeRule.waitUntil(
                 conditionDescription = "first accepted command persisted",
