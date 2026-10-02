@@ -44,7 +44,7 @@ def validate_inputs(source, android, backend, work, home):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description="Validate inert scan inputs before Sonar analysis.")
     for name in ("source", "android", "backend", "work", "home"):
         parser.add_argument(f"--{name}", type=Path, required=True)
     args = parser.parse_args()
