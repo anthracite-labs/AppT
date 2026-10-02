@@ -240,9 +240,13 @@ class LiveSessionReconnectTest {
 
     @Test
     fun aSecondLossAfterRecoveryReconnectsAgain() = runTest {
+        // Socket one is the adopted connection that drops; socket two is the rediscovered address,
+        // which settles `Ready` and then drops as well; socket three is the recovery after that
+        // second loss. A fresh loss after a settled session starts a fresh bounded budget.
         val transport =
             ScriptedSessionTransport(
                 script(ends(20)),
+                script(connected(), ends(90)),
                 script(connected()),
                 refusalScript = listOf(false, true),
                 now = { testScheduler.currentTime },

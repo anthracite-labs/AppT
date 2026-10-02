@@ -5,6 +5,8 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import java.net.InetAddress
+import java.util.Collections
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.channels.Channel
@@ -22,10 +24,24 @@ internal class NsdAirPlayBrowser(private val nsd: NsdManager, private val networ
 
     fun samsungHosts(): Flow<Pair<InetAddress, Probe>> = callbackFlow {
         val found = Channel<NsdServiceInfo>(Channel.UNLIMITED)
-        val listener = DiscoveryCallbacks(onFound = { found.trySend(it) })
+        // A service the platform reports as lost before it is resolved is no longer a candidate:
+        // the next scan re-discovers whatever is still advertised.
+        val lost = Collections.synchronizedSet(mutableSetOf<String>())
+        // The platform decided the browse is over: there is nothing to stop and no more to queue.
+        val ended = AtomicBoolean(false)
+        val listener =
+            DiscoveryCallbacks(
+                onFound = { found.trySend(it) },
+                onServiceGone = { service -> service.serviceName?.let { lost += it } },
+                onEnded = {
+                    ended.set(true)
+                    found.close()
+                },
+            )
         start(listener)
         launch {
             for (service in found) {
+                if (lost.contains(service.serviceName)) continue
                 val resolved = resolve(service) ?: continue
                 val host = hostOf(resolved)
                 if (host != null && AirPlayTxt.identifiesSamsung(resolved.attributes)) {
@@ -35,7 +51,7 @@ internal class NsdAirPlayBrowser(private val nsd: NsdManager, private val networ
         }
         awaitClose {
             found.close()
-            stop(listener)
+            if (!ended.get()) stop(listener)
         }
     }
 
@@ -56,7 +72,7 @@ internal class NsdAirPlayBrowser(private val nsd: NsdManager, private val networ
     private fun stop(listener: NsdManager.DiscoveryListener) {
         try {
             nsd.stopServiceDiscovery(listener)
-        } catch (ignored: IllegalArgumentException) {}
+        } catch (expectedStopRace: IllegalArgumentException) {}
     }
 
     /**
@@ -111,18 +127,28 @@ internal class NsdAirPlayBrowser(private val nsd: NsdManager, private val networ
         val RESOLVE_TIMEOUT: Duration = 2.seconds
     }
 
-    private class DiscoveryCallbacks(private val onFound: (NsdServiceInfo) -> Unit) :
-        NsdManager.DiscoveryListener {
+    /**
+     * The platform's view of one browse. Every callback carries real information: a found service
+     * is queued for resolution, a lost one is withdrawn from that queue, and every way the browse
+     * can end (stopped, or failed to start or stop) ends the queue so the scan never waits on a
+     * browse the platform is no longer running.
+     */
+    private class DiscoveryCallbacks(
+        private val onFound: (NsdServiceInfo) -> Unit,
+        private val onServiceGone: (NsdServiceInfo) -> Unit,
+        private val onEnded: () -> Unit,
+    ) : NsdManager.DiscoveryListener {
         override fun onServiceFound(serviceInfo: NsdServiceInfo) = onFound(serviceInfo)
 
-        override fun onServiceLost(serviceInfo: NsdServiceInfo) {}
+        override fun onServiceLost(serviceInfo: NsdServiceInfo) = onServiceGone(serviceInfo)
 
-        override fun onDiscoveryStarted(serviceType: String) {}
+        /** The browse is confirmed running; candidates then arrive through [onServiceFound]. */
+        override fun onDiscoveryStarted(serviceType: String) = Unit
 
-        override fun onDiscoveryStopped(serviceType: String) {}
+        override fun onDiscoveryStopped(serviceType: String) = onEnded()
 
-        override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {}
+        override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) = onEnded()
 
-        override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
+        override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) = onEnded()
     }
 }

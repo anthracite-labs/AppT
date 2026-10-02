@@ -76,7 +76,11 @@ internal class LanSessionRediscovery(
         }
     }
 
-    /** Confirms one candidate host and returns it only when the saved UUID matches. */
+    /**
+     * Confirms one candidate host. It is this session's television only when the device-info
+     * document is a television whose UUID is exactly the identity the pairing saved and whose own
+     * reported address is the candidate the transport answered for.
+     */
     private suspend fun match(
         transport: DiscoveryTransport,
         lan: Lan,
@@ -84,23 +88,33 @@ internal class LanSessionRediscovery(
         uuid: String,
         candidate: Candidate,
     ): ConfirmedTelevision? {
-        val document =
-            DiscoveryScan.DEVICE_INFO_PORTS.firstNotNullOfOrNull { port ->
-                transport.deviceInfo(lan, candidate.host, port)
-            } ?: return null
-        val info = DeviceInfoParser.parse(document) ?: return null
-        if (!info.isTelevision || info.uuid != uuid) return null
-        if (info.reportedHost != null && info.reportedHost != candidate.host) return null
-        // Only the address (and the television-supplied name) may change here. The adopted
-        // channel, the security identity and every credential stay exactly as the pairing saved
-        // them: rediscovery may never move a session from its adopted channel to another one or
-        // relax the pin check (connection.md#security-identity).
-        return television.copy(
-            host = candidate.host,
-            uuid = info.uuid,
-            displayName = info.name.takeIf { it.isNotBlank() } ?: television.displayName,
-        )
+        val info = deviceInfo(transport, lan, candidate) ?: return null
+        val savedIdentity = info.isTelevision && info.uuid == uuid
+        val sameRoute = info.reportedHost == null || info.reportedHost == candidate.host
+        return if (savedIdentity && sameRoute) {
+            // Only the address (and the television-supplied name) may change here. The adopted
+            // channel, the security identity and every credential stay exactly as the pairing
+            // saved them: rediscovery may never move a session from its adopted channel to another
+            // one or relax the pin check (connection.md#security-identity).
+            television.copy(
+                host = candidate.host,
+                uuid = info.uuid,
+                displayName = info.name.takeIf { it.isNotBlank() } ?: television.displayName,
+            )
+        } else {
+            null
+        }
     }
+
+    /** The bounded device-info read for one candidate host, or null when nothing usable answers. */
+    private suspend fun deviceInfo(
+        transport: DiscoveryTransport,
+        lan: Lan,
+        candidate: Candidate,
+    ): DeviceInfo? =
+        DiscoveryScan.DEVICE_INFO_PORTS.firstNotNullOfOrNull { port ->
+            transport.deviceInfo(lan, candidate.host, port)
+        }?.let(DeviceInfoParser::parse)
 
     companion object {
         /** connection.md: one internal rediscovery, 5 seconds, saved UUID only. */

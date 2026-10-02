@@ -59,12 +59,14 @@ class SessionRediscoveryTest {
 
     @Test
     fun aDifferentUuidOnTheSameRouteIsNeverAccepted() = runTest {
-        // The television this session holds is not the one that answers: no match, no address.
-        val other = television(uuid = otherUuid)
+        // Two televisions answer on this route: the fixture's saved UUID at a new address and a
+        // different UUID at another address. Neither carries the identity this session saved, so
+        // the rediscovery adopts nothing rather than picking whichever television answered.
+        val sessionSavedUuid = "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0"
 
         assertNull(
             "a different UUID is not this session's television",
-            rediscovery().rediscover(other),
+            rediscovery().rediscover(television(uuid = sessionSavedUuid)),
         )
     }
 

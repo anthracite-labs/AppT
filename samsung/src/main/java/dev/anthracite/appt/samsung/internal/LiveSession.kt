@@ -274,26 +274,36 @@ internal class LiveSession(
             }
             attempts++
             runAttempt()
-            when (mutableSnapshot.value.state) {
-                SessionState.Closed -> return ReconnectOutcome.Closed
-                SessionState.NeedsRepair -> return ReconnectOutcome.NeedsUserAction
-                SessionState.Unsupported -> return ReconnectOutcome.Stopped
-                else -> {
-                    if (!rediscoverySpent) {
-                        rediscoverySpent = true
-                        rediscoverAddress()
-                    }
-                    if (reachedReadyThisAttempt) {
-                        attempts = 0
-                        backoff = FIRST_BACKOFF_MS
-                        rediscoverySpent = false
-                        budgetStartedAt = nowMillis()
-                    }
-                    backoff = minOf(backoff * 2, MAX_BACKOFF_MS)
-                }
+            terminalOutcomeForCurrentState()?.let { outcome -> return outcome }
+            if (!rediscoverySpent) {
+                rediscoverySpent = true
+                rediscoverAddress()
+            }
+            if (reachedReadyThisAttempt) {
+                // The attempt reached `Ready`, so this is a fresh loss with its own budget: the
+                // schedule restarts at its first step instead of inheriting the previous series.
+                attempts = 0
+                backoff = FIRST_BACKOFF_MS
+                rediscoverySpent = false
+                budgetStartedAt = nowMillis()
+            } else {
+                backoff = minOf(backoff * 2, MAX_BACKOFF_MS)
             }
         }
     }
+
+    /**
+     * The attempt states that end the reconnect budget, or null while it continues. `Ready` is the
+     * continuation case: the connection is live again and its collection keeps the loop suspended
+     * until the socket is lost once more.
+     */
+    private fun terminalOutcomeForCurrentState(): ReconnectOutcome? =
+        when (mutableSnapshot.value.state) {
+            SessionState.Closed -> ReconnectOutcome.Closed
+            SessionState.NeedsRepair -> ReconnectOutcome.NeedsUserAction
+            SessionState.Unsupported -> ReconnectOutcome.Stopped
+            else -> null
+        }
 
     /**
      * One internal rediscovery inside the current budget. A stale generation may not replace the
@@ -329,7 +339,7 @@ internal class LiveSession(
                 }
                 StoredSecret.Absent -> null
             }
-        if (saved != null && !television.tls && savedUuidIdentityChanged()) {
+        if (saved != null && !television.tls && savedUuidIdentityChanged(secrets, television)) {
             publish(SessionState.NeedsRepair, RepairReason.IdentityChanged)
             return
         }
@@ -339,13 +349,6 @@ internal class LiveSession(
                 publish(SessionState.NeedsRepair, RepairReason.IdentityChanged)
             ConnectionAttempt.Unreachable -> publish(SessionState.Reconnecting)
         }
-    }
-
-    /** The saved protocol UUID compared against the television's current one. */
-    private fun savedUuidIdentityChanged(): Boolean {
-        val savedUuid = secrets.loadDevice(television.id)?.uuid ?: return false
-        val presentUuid = television.uuid ?: return false
-        return savedUuid != presentUuid
     }
 
     private suspend fun runConnection(connection: SessionConnection, saved: PairingSecret?) {
@@ -396,10 +399,10 @@ internal class LiveSession(
         if (saved == null) {
             val pin = connectionPin
             try {
-                persistPairing(token = token, pin = pin)
+                persistPairing(secrets, television, token = token, pin = pin)
             } catch (ignored: IOException) {
                 publish(SessionState.NeedsRepair, repairReason = null)
-                endUnansweredAttempt()
+                collecting?.cancel()
                 return
             }
         } else {
@@ -409,7 +412,7 @@ internal class LiveSession(
                 }
             } catch (ignored: IOException) {
                 publish(SessionState.NeedsRepair, repairReason = null)
-                endUnansweredAttempt()
+                collecting?.cancel()
                 return
             }
         }
@@ -425,30 +428,10 @@ internal class LiveSession(
     private val connectionPin: String?
         get() = openConnection?.certificateIdentity?.takeIf { television.tls }
 
-    /**
-     * The approval write: the samsung-private device record first, then the token and pin as one
-     * atomic secret write (data.md#samsung-secret-record). A completed secret write therefore
-     * always has a device record beside it, so reopen and address continuity work.
-     */
-    private fun persistPairing(token: String?, pin: String?) {
-        secrets.saveDevice(
-            television.id,
-            SamsungDeviceRecord(
-                uuid = television.uuid,
-                lastAddress = television.host,
-                tls = television.tls,
-                adoptedChannel = television.adoptedChannel,
-                displayName = television.displayName,
-                stableIdentity = television.uuid != null,
-            ),
-        )
-        secrets.saveSecret(television.id, PairingSecret(token = token, pin = pin))
-    }
-
     private fun onUnauthorized() {
         if (resumedWithTokenSent) {
             publish(SessionState.NeedsRepair, RepairReason.TokenRejected)
-            endUnansweredAttempt()
+            collecting?.cancel()
             return
         }
         if (mutableSnapshot.value.state != SessionState.Connecting) return
@@ -459,7 +442,7 @@ internal class LiveSession(
     private fun onTimeOut() {
         if (mutableSnapshot.value.state == SessionState.AwaitingTvApproval) {
             publish(SessionState.NeedsRepair, RepairReason.ApprovalTimedOut)
-            endUnansweredAttempt()
+            collecting?.cancel()
         } else {
             onConnectionLost()
         }
@@ -475,18 +458,6 @@ internal class LiveSession(
         } finally {
             onConnectionLost()
         }
-    }
-
-    /**
-     * Ends an attempt whose approval prompt was never answered, or whose token was rejected.
-     *
-     * Without this the attempt keeps collecting the still-open socket, so `sessionLoop` never
-     * reaches `retrySignals.receive()` and `retryApproval`/`confirmRepair` have nothing to act on:
-     * the session would sit in `Connecting` with a socket nobody is using. Ending the collection is
-     * what lets the loop start a fresh attempt.
-     */
-    private fun endUnansweredAttempt() {
-        collecting?.cancel()
     }
 
     private fun onConnectionLost() {
@@ -506,7 +477,7 @@ internal class LiveSession(
                 delay(approvalWait)
                 if (mutableSnapshot.value.state == SessionState.AwaitingTvApproval) {
                     publish(SessionState.NeedsRepair, RepairReason.ApprovalTimedOut)
-                    endUnansweredAttempt()
+                    collecting?.cancel()
                 }
             }
     }
