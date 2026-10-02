@@ -174,6 +174,18 @@ JDK, Android SDK, or network egress is not by itself unavailability. Follow
 `.project-ai/routing/route.md`: probe, use or install disposable local tooling
 when safe, and escalate only the blocked operation.
 
+AppT has no Android instrumentation/connected-test acceptance route. Do not add
+`connectedAndroidTest`, a Gradle Managed Device, an instrumentation runner, or
+a per-slice device-test workflow to satisfy S06–S17. Deterministic Android
+behavior runs through JVM/Robolectric and the existing Android verification
+domains. Exact-device/lifecycle/physical evidence is collected in the single
+stock debug APK through the debug-only AppT Verification surface. When Arena
+cannot build that APK locally, use the existing `android-build` diagnostic
+(`ci:android-build` through the metadata bridge when direct dispatch is
+unavailable), install the exact-head artifact manually, and return the bounded
+in-app report. This physical/debug report is slice evidence; it does not replace
+terminal `verify / gate`.
+
 1. Probe `java -version`, `./gradlew --version`, and (when a download is
    required) reachability of `services.gradle.org`, `repo1.maven.org`, and
    `dl.google.com`.
