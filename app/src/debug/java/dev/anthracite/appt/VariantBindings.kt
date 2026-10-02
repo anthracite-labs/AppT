@@ -2,6 +2,8 @@ package dev.anthracite.appt
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import dev.anthracite.appt.engineering.EngineeringVerifierEntry
 import dev.anthracite.appt.remote.ActiveRemoteHost
 import dev.anthracite.appt.remote.ActiveRemoteSnapshot
 import dev.anthracite.appt.remote.DebugS05VerifierAction
@@ -20,6 +22,12 @@ internal object VariantSamsungTvsFactory {
 @Composable
 internal fun VariantRemoteAccessory(snapshot: ActiveRemoteSnapshot?, host: ActiveRemoteHost) {
     DebugS05VerifierAction(snapshot, host)
+}
+
+/** The single stock-debug Engineering Verifier entry, composed beside the graph on every route. */
+@Composable
+internal fun VariantEngineeringEntry(application: AppTApplication, modifier: Modifier = Modifier) {
+    EngineeringVerifierEntry(application = application, modifier = modifier)
 }
 
 /**

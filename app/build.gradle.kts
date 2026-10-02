@@ -235,9 +235,11 @@ tasks.register("manifestPermissionAllowlist") {
     dependsOn(tasks.withType<MergedManifestGuard>())
 }
 
-tasks.register("verifyReleaseS05Boundaries") {
+tasks.register("verifyReleaseEngineeringBoundaries") {
     group = "verification"
-    description = "Checks the release APK excludes the debug-only S05 physical verifier."
+    description =
+        "Checks the release APK excludes the debug-only Engineering Verifier and its S05 latency " +
+            "run."
     dependsOn("assembleRelease")
     doLast {
         val forbiddenMarkers =
@@ -258,6 +260,22 @@ tasks.register("verifyReleaseS05Boundaries") {
                 "Unmeasured warm-up",
                 "Measured interactions:",
                 "Copy verification result",
+                "EngineeringVerifierEntry",
+                "EngineeringVerifierController",
+                "EngineeringTestTags",
+                "EngineeringScenarios",
+                "EngineeringEvidenceClass",
+                "EngineeringObservationSource",
+                "EngineeringReport",
+                "EngineeringLedger",
+                "AppT engineering verification",
+                "AppT engineering report",
+                "Exact candidate SHA unavailable",
+                "Requires a Ready television",
+                "Pending external",
+                "appt:engineering-entry",
+                "appt:engineering-surface",
+                "appt:engineering-record-",
             )
         val distributableSources = listOf(file("src/main"), file("src/release"))
         val sourceLeaks =
@@ -272,7 +290,7 @@ tasks.register("verifyReleaseS05Boundaries") {
                 }
         if (sourceLeaks.isNotEmpty()) {
             throw GradleException(
-                "Release source graph contains debug S05 verifier material:\n" +
+                "Release source graph contains debug engineering verifier material:\n" +
                     sourceLeaks.joinToString("\n")
             )
         }
@@ -302,15 +320,15 @@ tasks.register("verifyReleaseS05Boundaries") {
                     val leakedMarkers = forbiddenMarkers.filter { marker -> marker in contents }
                     if (leakedMarkers.isNotEmpty()) {
                         throw GradleException(
-                            "${apk.name}:${entry.name} contains debug-only S05 material: " +
-                                leakedMarkers.joinToString(", ")
+                            "${apk.name}:${entry.name} contains debug-only engineering verifier " +
+                                "material: " + leakedMarkers.joinToString(", ")
                         )
                     }
                 }
             }
         }
         logger.lifecycle(
-            "verifyReleaseS05Boundaries: OK — release source graph and APK exclude the debug S05 physical verifier."
+            "verifyReleaseEngineeringBoundaries: OK — release source graph and APK exclude the debug engineering verifier and its S05 latency run."
         )
     }
 }

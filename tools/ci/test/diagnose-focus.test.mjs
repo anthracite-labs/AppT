@@ -68,7 +68,7 @@ const OWNED_GRADLE_TASKS = {
   ],
   'android-build': [
     ':app:assembleDebug',
-    ':app:verifyReleaseS05Boundaries',
+    ':app:verifyReleaseEngineeringBoundaries',
   ],
 };
 

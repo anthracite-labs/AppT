@@ -202,8 +202,9 @@ tasks.register("androidStatic") {
 
 tasks.register("androidBuild") {
     group = "verification"
-    description = "Android build: debug APK assembly and release S05 exclusion guard."
-    dependsOn(":app:assembleDebug", ":app:verifyReleaseS05Boundaries")
+    description =
+        "Android build: debug APK assembly and the release engineering-exclusion guard."
+    dependsOn(":app:assembleDebug", ":app:verifyReleaseEngineeringBoundaries")
 }
 
 tasks.register("androidUnit") {
