@@ -178,7 +178,7 @@ The cross-store invariant is: an app update either opens a supported state or ex
 ### Room schema migration
 
 - Every version bump ships an explicit `Migration`; destructive fallback is a test failure if present.
-- Migration tests run against the previous exported schema, in an instrumented or Robolectric test, using realistic rows that include a Chinese-language friendly name, an emoji name, a 40-character name, a null name, and a `PendingForget` row.
+- Migration tests run against the previous exported schema under Robolectric/JVM, using realistic rows that include a Chinese-language friendly name, an emoji name, a 40-character name, a null name, and a `PendingForget` row. Exact-device install-over-install migration evidence belongs to the stock-debug S16 verifier, not an instrumentation runner.
 - A migration that would drop a column holding a user-visible choice (name, favourite order) is rejected in review unless the product decision is explicit.
 
 ### DataStore migration
