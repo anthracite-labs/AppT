@@ -93,8 +93,72 @@ val reportDetektFindings =
         }
     }
 
+// TEMPORARY — Issue #145 S06–S17 program diagnostics.
+//
+// The hosted diagnostic jobs report only "There were failing tests" and do not expose the test
+// report artifact to the agent fixing them. Emit each failing test as a GitHub workflow command so
+// the failure annotation names the test, its assertion message and its first source frame. Remove
+// before the program candidate is verified.
+val reportTestFailures =
+    tasks.register("reportTestFailures") {
+        group = "verification"
+        description = "TEMPORARY: prints unit-test failures as GitHub workflow commands."
+        doLast {
+            val maxReported = 25
+            var reported = 0
+            val failurePattern =
+                Regex(
+                    "<testcase name=\"([^\"]*)\" classname=\"([^\"]*)\"[^>]*>\\s*" +
+                        "<failure message=\"([^\"]*)\"[^>]*>([^<]*)",
+                    RegexOption.DOT_MATCHES_ALL,
+                )
+            val framePattern = Regex("\\(([A-Za-z0-9_]+\\.kt):(\\d+)\\)")
+            fileTree(rootProject.projectDir) { include("*/build/test-results/**/*.xml") }
+                .files
+                .sorted()
+                .forEach { report ->
+                    val text =
+                        try {
+                            report.readText()
+                        } catch (unreadable: Exception) {
+                            println("::warning title=test reports::unreadable ${report.name}")
+                            return@forEach
+                        }
+                    failurePattern.findAll(text).forEach { failure ->
+                        val name = failure.groupValues[1]
+                        val klass = failure.groupValues[2]
+                        val message =
+                            failure.groupValues[3]
+                                .replace("&#10;", " ")
+                                .replace("&quot;", "'")
+                                .replace("&apos;", "'")
+                                .replace("&lt;", "<")
+                                .replace("&gt;", ">")
+                                .replace("&amp;", "&")
+                                .replace('\n', ' ')
+                        val frame = framePattern.find(failure.groupValues[4])?.value.orEmpty()
+                        reported++
+                        if (reported <= maxReported) {
+                            println(
+                                "::error title=$klass.$name::$message $frame (in " +
+                                    report.name +
+                                    ")"
+                            )
+                        }
+                    }
+                }
+            println(
+                "::notice title=test failures::$reported failing test(s); at most $maxReported are " +
+                    "emitted as annotations."
+            )
+        }
+    }
+
 subprojects {
     tasks.matching { it.name == "detekt" }.configureEach { finalizedBy(reportDetektFindings) }
+    tasks
+        .matching { it.name == "test" || it.name == "testDebugUnitTest" }
+        .configureEach { finalizedBy(reportTestFailures) }
 }
 
 allprojects { dependencyLocking { lockAllConfigurations() } }
