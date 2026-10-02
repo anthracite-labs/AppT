@@ -92,19 +92,22 @@ guards own AppT-specific privacy and module invariants. A tool is added only whe
 it owns a concern that no existing control owns.
 
 The live repository workflows are `.github/workflows/verify.yml`,
-`.github/workflows/diagnose.yml`, `.github/workflows/codeql.yml`, and
-`.github/workflows/agent-control.yml`. Historical `ci.yml` is retired; its
-GitHub Actions runs remain archival evidence, not an active baseline. This
-section describes the current verification topology.
+`.github/workflows/diagnose.yml`, `.github/workflows/codeql.yml`,
+`.github/workflows/maintenance.yml`, and `.github/workflows/agent-control.yml`.
+Historical `ci.yml` is retired; its GitHub Actions runs remain archival
+evidence, not an active baseline. This section describes the current
+verification topology.
 
 Issue #56 landed that topology on `main`; Issue #88 replaced its monolithic
 Android job with parallel failure domains, moved focused feedback into
-`diagnose.yml`, and added the agent-control bridge. (Issue #88 also added a
-manual Actions purge workflow, later retired: retention settings and ordinary
-GitHub administration cover the same need without repository-owned destructive
-plumbing.) Do not recreate deleted one-shot or legacy workflow YAML, and do not
-add per-slice diagnostic workflow files: focused diagnostics are permanent and
-live in `diagnose.yml`.
+`diagnose.yml`, and added the agent-control bridge. Issue #88 also introduced
+manual Actions maintenance; that workflow was later retired during simplification
+and has now been reintroduced as the permanent manual-only `maintenance.yml`
+owner for two bounded operations: aggressive repository comment maintenance
+through reviewable patches/PRs, and explicitly confirmed Actions run/cache purge.
+It is not a verification or diagnostic workflow. Do not recreate deleted one-shot
+or legacy workflow YAML, and do not add per-slice diagnostic workflow files:
+focused diagnostics are permanent and live in `diagnose.yml`.
 
 ### GitHub-owned controls
 
