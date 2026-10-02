@@ -1,10 +1,16 @@
 package dev.anthracite.appt.flow
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.anthracite.appt.AppSettingsLauncher
@@ -30,6 +36,7 @@ import dev.anthracite.appt.tokens.AppTTheme
 import dev.anthracite.appt.welcome.WelcomeTestTags
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -81,33 +88,63 @@ class PairingToFirstControlFlowTest {
             )
         )
     }
+    /** Counts every entry decision, so recreation can prove the gate is not re-evaluated. */
+    private val entryDecisions = AtomicInteger()
+
     private val host =
         ActiveRemoteHost(
             samsungTvs = tvs,
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+            entryAllowed = {
+                entryDecisions.incrementAndGet()
+                true
+            },
             onSessionReady = { tvId -> profiles.markOpened(tvId) },
         )
     private val livingRoom = TvId(FakeSamsungTvs.LIVING_ROOM_ID)
+
+    /** Replaces the Activity as the graph's lifecycle owner, to drive ON_STOP/ON_START. */
+    private class HostLifecycle : LifecycleOwner {
+        val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
+        override val lifecycle: Lifecycle
+            get() = registry
+    }
 
     private val observations = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val firstControlObserverStarted = AtomicBoolean(false)
     private val firstControlAchieved = AtomicBoolean(false)
 
-    private fun setGraph() {
+    /**
+     * @param lifecycleOwner replaces the Activity as the graph's owner, to drive ON_STOP/ON_START.
+     *   Each call builds a fresh composition over the same application-scoped objects, which is
+     *   what a recreated Activity does; route/`rememberSaveable` restoration is the platform's own
+     *   behavior and is verified on a device by the stock-debug Engineering Verifier.
+     */
+    private fun setGraph(lifecycleOwner: LifecycleOwner? = null) {
         composeRule.setContent {
-            val navController = rememberNavController()
-            AppTTheme {
-                AppTNavGraph(
-                    samsungTvs = tvs,
-                    permissionGate = gate,
-                    appSettings = AppSettingsLauncher {},
-                    activeRemoteHost = host,
-                    tvProfiles = profiles,
-                    preferenceStore = store,
-                    navController = navController,
+            val controller = rememberNavController()
+            val graph: @Composable () -> Unit = {
+                AppTTheme {
+                    AppTNavGraph(
+                        samsungTvs = tvs,
+                        permissionGate = gate,
+                        appSettings = AppSettingsLauncher {},
+                        activeRemoteHost = host,
+                        tvProfiles = profiles,
+                        preferenceStore = store,
+                        navController = controller,
+                    )
+                }
+            }
+            if (lifecycleOwner == null) graph()
+            else {
+                CompositionLocalProvider(
+                    LocalLifecycleOwner provides lifecycleOwner,
+                    content = graph,
                 )
             }
         }
+        composeRule.waitForIdle()
     }
 
     private fun openDiscovery() {
@@ -211,6 +248,94 @@ class PairingToFirstControlFlowTest {
         assertTrue("no profile row for an Unsupported television", dao.current().isEmpty())
         assertEquals("no session for an Unsupported television", emptyList<TvId>(), tvs.openedIds)
         composeRule.onNodeWithTag(DiscoveryTestTags.TITLE).assertExists()
+    }
+
+    @Test
+    fun backgroundReleasesRemote() {
+        val lifecycleOwner = HostLifecycle()
+        setGraph(lifecycleOwner)
+        openDiscovery()
+        tvs.latest.send(FakeSamsungTvs.found())
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Living Room TV").performClick()
+        composeRule.waitForIdle()
+        composeRule.waitForIdle()
+        val session = tvs.sessionFor(livingRoom)!!
+        session.ready(setOf(RemoteKey.VolumeUp, RemoteKey.VolumeDown))
+        composeRule.waitForIdle()
+        assertEquals(1, host.ownerCount)
+
+        // onStop is app backgrounding: the Remote retain is released into the grace window.
+        composeRule.runOnUiThread { lifecycleOwner.registry.currentState = Lifecycle.State.CREATED }
+        composeRule.waitForIdle()
+        assertEquals("onStop released the Remote retain", 0, host.ownerCount)
+        assertFalse("grace keeps the socket for the return", session.closed)
+
+        // Returning inside grace re-retains the same session: no second open, no gap.
+        composeRule.runOnUiThread { lifecycleOwner.registry.currentState = Lifecycle.State.RESUMED }
+        composeRule.waitForIdle()
+        assertEquals(1, host.ownerCount)
+        assertFalse(session.closed)
+        assertEquals(listOf(livingRoom), tvs.openedIds)
+        composeRule.onNodeWithTag(RemoteTestTags.CONTROLS).assertExists()
+    }
+
+    @Test
+    fun rotationKeepsSession() {
+        setGraph()
+        openDiscovery()
+        tvs.latest.send(FakeSamsungTvs.found())
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Living Room TV").performClick()
+        composeRule.waitForIdle()
+        composeRule.waitForIdle()
+        val session = tvs.sessionFor(livingRoom)!!
+        session.ready(setOf(RemoteKey.VolumeUp, RemoteKey.VolumeDown))
+        composeRule.waitForIdle()
+        val savedEntryDecisions = entryDecisions.get()
+        val scansBefore = tvs.discoverCalls
+
+        // A configuration change destroys and recreates the Activity: the composition is built
+        // again from scratch over the same application-scoped host, and the screen re-attaches to
+        // the session it already owns.
+        setGraph()
+
+        assertEquals("no second open across recreation", listOf(livingRoom), tvs.openedIds)
+        assertFalse("the retained session survives recreation", session.closed)
+        assertEquals(
+            "recreation does not re-evaluate the entry decision",
+            savedEntryDecisions,
+            entryDecisions.get(),
+        )
+        assertEquals("recreation does not rescan", scansBefore, tvs.discoverCalls)
+        assertEquals("no gate decision was made", 0, gate.deniedCalls)
+        assertEquals("no gate acknowledgement was made", 0, gate.acknowledgeCalls)
+        assertEquals(
+            "the host still holds the same television",
+            livingRoom,
+            host.current.value?.tvId,
+        )
+        assertEquals(
+            "and it is still the session the first Activity opened",
+            session,
+            host.current.value?.session,
+        )
+    }
+
+    @Test
+    fun `recreation is left to the platform`() {
+        val manifest = File("src/main/AndroidManifest.xml")
+        assertTrue("expected to run from the app module", manifest.isFile)
+        val declared = manifest.readText()
+        assertFalse(
+            "the app must not opt out of Activity recreation (lifecycle.md)",
+            declared.contains("configChanges"),
+        )
+        val activity = File("src/main/java/dev/anthracite/appt/MainActivity.kt").readText()
+        assertFalse(
+            "the Activity must not own the session",
+            activity.contains("ActiveRemoteHost") || activity.contains("RemoteSession"),
+        )
     }
 
     @Test

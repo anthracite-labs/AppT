@@ -119,6 +119,14 @@ class ActiveRemoteHost(
         if (samsungTvs.forget(tvId) == ForgetResult.Forgotten) enter(tvId)
     }
 
+    /**
+     * How many interests the host currently holds. A test seam: the lifecycle contract says a
+     * backgrounded screen released its retain and a recreated one re-retained, and this is the only
+     * way to observe that release/retain pair without waiting out the grace window.
+     */
+    internal val ownerCount: Int
+        get() = owners.size
+
     /** Takes an interest in the held session. Idempotent for the same [owner]. */
     fun retain(owner: Any) {
         owners += owner
@@ -190,12 +198,15 @@ class ActiveRemoteHost(
         /**
          * A state the host can still act on. `NeedsRepair` is live: the session object is usable
          * and `retryApproval` is how it recovers, so re-entering would throw away a recoverable
-         * attempt.
+         * attempt. `Reconnecting` is live for the same reason: the session is running its own
+         * bounded supervised reconnect and re-entering would restart the budget, which is exactly
+         * what a rotation or a quick return must not do.
          */
         fun SessionState.isLive(): Boolean =
             this == SessionState.Connecting ||
                 this == SessionState.AwaitingTvApproval ||
                 this == SessionState.Ready ||
+                this == SessionState.Reconnecting ||
                 this == SessionState.NeedsRepair
     }
 }

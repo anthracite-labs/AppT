@@ -33,7 +33,12 @@ internal fun interface SessionRediscovery {
 
     companion object {
         /** For sessions with no rediscovery wiring; a reconnect then stays on the saved address. */
-        val None = SessionRediscovery { null }
+        val None: SessionRediscovery =
+            object : SessionRediscovery {
+                override suspend fun rediscover(
+                    television: ConfirmedTelevision
+                ): ConfirmedTelevision? = null
+            }
     }
 }
 

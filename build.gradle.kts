@@ -63,6 +63,9 @@ val reportDetektFindings =
                     "<error line=\"(\\d+)\" column=\"(\\d+)\" severity=\"[^\"]*\" " +
                         "message=\"([^\"]*)\" source=\"([^\"]*)\""
                 )
+            // Enough findings to name the problem without flooding the annotation list.
+            val maxReported = 25
+            var reported = 0
             listOf("app", "samsung")
                 .map { File(root, "$it/build/reports/detekt/detekt.xml") }
                 .filter { it.isFile }
@@ -74,10 +77,19 @@ val reportDetektFindings =
                             val column = finding.groupValues[2]
                             val message = finding.groupValues[3].replace('\n', ' ')
                             val rule = finding.groupValues[4]
-                            println("::error file=$path,line=$line,col=$column::$message [$rule]")
+                            reported++
+                            if (reported <= maxReported) {
+                                println(
+                                    "::error file=$path,line=$line,col=$column::$message [$rule]"
+                                )
+                            }
                         }
                     }
                 }
+            println(
+                "::notice title=detekt findings::$reported finding(s) in the module reports; " +
+                    "at most $maxReported are emitted as annotations."
+            )
         }
     }
 
