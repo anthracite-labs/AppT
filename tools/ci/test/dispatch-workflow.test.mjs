@@ -627,4 +627,31 @@ describe('the earlier mutable-ref design cannot satisfy the contract', () => {
       );
     }
   });
+
+  it('diagnose feedback reports selected modes and the validated target identity', () => {
+    const workflow = readWorkflow('diagnose.yml');
+    const report = workflow.split('feedback-report:')[1] ?? '';
+
+    assert.ok(
+      report.includes('MODES: ${{ needs.select-modes.outputs.modes }}'),
+      'feedback report must receive the validated selected modes'
+    );
+    assert.ok(
+      report.includes('TARGET_SHA: ${{ inputs.expected_sha || github.sha }}'),
+      'bridge diagnostics must report the validated target SHA'
+    );
+    assert.ok(
+      report.includes('TARGET_REF: ${{ inputs.target_ref || github.ref }}'),
+      'bridge diagnostics must report the validated target ref'
+    );
+    assert.ok(
+      report.includes('echo "diagnose/${MODES}'),
+      'feedback status must use the selected modes variable'
+    );
+    assert.ok(
+      !report.includes('echo "diagnose/${MODE}'),
+      'feedback status must not reference an undefined singular MODE'
+    );
+  });
+
 });
