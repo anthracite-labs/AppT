@@ -166,15 +166,11 @@ class EngineeringEvidenceTest {
         assertTrue(EngineeringEvidenceFormat.decode("unknown.scenario\tDEVICE\tPASS").isEmpty())
         assertTrue(
             "a record may not claim a class the scenario does not have",
-            EngineeringEvidenceFormat
-                .decode("s06.activity-recreation\tPHYSICAL_TV\tPASS")
-                .isEmpty(),
+            EngineeringEvidenceFormat.decode("s06.activity-recreation\tPHYSICAL_TV\tPASS").isEmpty(),
         )
         assertTrue(
             "a record may not invent a result",
-            EngineeringEvidenceFormat
-                .decode("s06.activity-recreation\tDEVICE\tMAYBE")
-                .isEmpty(),
+            EngineeringEvidenceFormat.decode("s06.activity-recreation\tDEVICE\tMAYBE").isEmpty(),
         )
     }
 
@@ -189,11 +185,7 @@ class EngineeringEvidenceTest {
         assertEquals(
             EngineeringCheckpointStatus.PASS,
             ledger.statusOf(
-                listOf(
-                    EngineeringResult.PASS,
-                    EngineeringResult.PASS,
-                    EngineeringResult.PASS,
-                ),
+                listOf(EngineeringResult.PASS, EngineeringResult.PASS, EngineeringResult.PASS),
                 total = 3,
             ),
         )
@@ -252,10 +244,7 @@ class EngineeringEvidenceTest {
             observations = observations,
         )
 
-    private fun observation(
-        scenarioId: String,
-        result: EngineeringResult,
-    ): EngineeringObservation =
+    private fun observation(scenarioId: String, result: EngineeringResult): EngineeringObservation =
         EngineeringObservation(
             scenarioId = scenarioId,
             evidenceClass = EngineeringScenarios.scenario(scenarioId)!!.evidenceClass,

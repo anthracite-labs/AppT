@@ -122,10 +122,10 @@ class PairingToFirstControlFlowTest {
     private val firstControlAchieved = AtomicBoolean(false)
 
     /**
-     * The generation a fresh Activity composition is built on. Bumping it disposes the whole
-     * graph composition and builds a new one over the same application-scoped objects, which is
-     * what a recreated Activity does to the graph; the `NavHostController` remembered outside the
-     * key keeps the route, which is what the platform's own saved instance state restores.
+     * The generation a fresh Activity composition is built on. Bumping it disposes the whole graph
+     * composition and builds a new one over the same application-scoped objects, which is what a
+     * recreated Activity does to the graph; the `NavHostController` remembered outside the key
+     * keeps the route, which is what the platform's own saved instance state restores.
      *
      * The genuinely platform-driven recreation (a real Activity destroy/create on rotation) is
      * recorded by the stock-debug Engineering Verifier on the exact-head APK; this key is the
@@ -379,10 +379,7 @@ class PairingToFirstControlFlowTest {
         session.ready(setOf(RemoteKey.VolumeUp, RemoteKey.VolumeDown))
         composeRule.waitForIdle()
         // The saved identity was rejected on a later open: Remote shows the re-pair surface.
-        session.publish(
-            SessionState.NeedsRepair,
-            repairReason = RepairReason.TokenRejected,
-        )
+        session.publish(SessionState.NeedsRepair, repairReason = RepairReason.TokenRejected)
         composeRule.waitForIdle()
 
         // The route's television is named from the persisted profile, not from composition state.
@@ -473,9 +470,7 @@ class PairingToFirstControlFlowTest {
         )
     }
 
-    /**
-     * docs/architecture/lifecycle.md: socket loss is a quiet inline status, never a modal loop.
-     */
+    /** docs/architecture/lifecycle.md: socket loss is a quiet inline status, never a modal loop. */
     @Test
     fun networkLossShowsReconnectingNotDialog() {
         setGraph()

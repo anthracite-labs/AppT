@@ -285,8 +285,8 @@ internal object DebugS05ControllerRegistry {
     @Synchronized fun existing(session: RemoteSession): DebugS05Controller? = controllers[session]
 
     /** The folded-in latency observation for one session, or null when no run produced one. */
-    @Synchronized fun reportFor(session: RemoteSession): DebugLatencyReport? =
-        controllers[session]?.report
+    @Synchronized
+    fun reportFor(session: RemoteSession): DebugLatencyReport? = controllers[session]?.report
 }
 
 private fun copyReport(context: Context, report: DebugLatencyReport) {

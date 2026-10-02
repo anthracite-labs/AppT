@@ -34,8 +34,7 @@ internal enum class EngineeringResult(val label: String) {
 internal enum class EngineeringNote(val label: String) {
     OBSERVED_AS_DOCUMENTED("Observed as documented"),
     OBSERVED_DIFFERENTLY("Observed, not as documented"),
-    BLOCKED_ON_OWNER("Owner/provider action required"),
-    ;
+    BLOCKED_ON_OWNER("Owner/provider action required");
 
     companion object {
         /** The note a result carries; the record cannot say anything else. */
@@ -441,9 +440,7 @@ internal class EngineeringLedger {
 
     /** The per-checkpoint matrix derived from the recorded observations. */
     fun checkpointSummaries(): List<EngineeringCheckpointSummary> =
-        EngineeringScenarios.checkpoints.map { checkpoint ->
-            summarise(checkpoint, observations())
-        }
+        EngineeringScenarios.checkpoints.map { checkpoint -> summarise(checkpoint, observations()) }
 
     private fun summarise(
         checkpoint: String,
@@ -461,10 +458,7 @@ internal class EngineeringLedger {
     }
 
     /** A checkpoint is PASS only when every scenario passed; any failure outranks a gate. */
-    fun statusOf(
-        outcomes: List<EngineeringResult>,
-        total: Int,
-    ): EngineeringCheckpointStatus =
+    fun statusOf(outcomes: List<EngineeringResult>, total: Int): EngineeringCheckpointStatus =
         when {
             outcomes.any { it == EngineeringResult.FAIL } -> EngineeringCheckpointStatus.FAIL
             outcomes.any { it == EngineeringResult.PENDING_EXTERNAL } ->

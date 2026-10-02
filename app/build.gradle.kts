@@ -259,11 +259,22 @@ tasks.register("formatProbe") {
         val diff = git("diff", "--unified=3", "--", "*.kt")
         val files = git("diff", "--numstat", "--", "*.kt").lines().filter { it.isNotBlank() }
         val encoded = Base64.getEncoder().encodeToString(diff.toByteArray())
-        println("::warning title=fmt-count::" + files.size + " file(s) differ")
-        encoded.chunked(3000).take(6).forEachIndexed { index, chunk ->
+        println("::warning title=fmt-count::" + files.size + " kotlin file(s) differ")
+        encoded.chunked(3000).take(5).forEachIndexed { index, chunk ->
             println("::warning title=fmt-b64-" + index + "::" + chunk)
         }
-        logger.lifecycle("formatProbe: " + files.size + " file(s) differ")
+        val gradleFiles =
+            git("diff", "--numstat", "--", "*.gradle.kts", "*.kts").lines().filter { it.isNotBlank() }
+        println("::warning title=fmt-kts::" + gradleFiles.joinToString(" | ").take(400))
+        gradleFiles.firstOrNull()?.let { line ->
+            val path = line.split("\t").getOrNull(2) ?: return@let
+            git("diff", "--unified=0", "--", path)
+                .lineSequence()
+                .filter { it.startsWith("+") && !it.startsWith("+++") }
+                .take(3)
+                .forEach { added -> println("::warning title=fmt-kts+::" + added.take(150)) }
+        }
+        logger.lifecycle("formatProbe: " + files.size + " kotlin file(s) differ")
     }
 }
 

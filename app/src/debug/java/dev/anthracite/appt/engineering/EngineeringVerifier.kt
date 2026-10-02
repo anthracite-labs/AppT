@@ -136,10 +136,7 @@ internal class EngineeringVerifierController(private val application: AppTApplic
 internal fun EngineeringVerifierEntry(application: AppTApplication, modifier: Modifier = Modifier) {
     EngineeringObservationSource.ensureStarted(application.activeRemoteHost)
     var open by rememberSaveable { mutableStateOf(false) }
-    TextButton(
-        onClick = { open = true },
-        modifier = modifier.testTag(EngineeringTestTags.ENTRY),
-    ) {
+    TextButton(onClick = { open = true }, modifier = modifier.testTag(EngineeringTestTags.ENTRY)) {
         Text("Engineering")
     }
     if (open) EngineeringVerifierDialog(application, onDismiss = { open = false })

@@ -113,8 +113,9 @@ internal class LanSessionRediscovery(
         candidate: Candidate,
     ): DeviceInfo? =
         DiscoveryScan.DEVICE_INFO_PORTS.firstNotNullOfOrNull { port ->
-            transport.deviceInfo(lan, candidate.host, port)
-        }?.let(DeviceInfoParser::parse)
+                transport.deviceInfo(lan, candidate.host, port)
+            }
+            ?.let(DeviceInfoParser::parse)
 
     companion object {
         /** connection.md: one internal rediscovery, 5 seconds, saved UUID only. */

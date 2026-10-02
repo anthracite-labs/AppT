@@ -274,7 +274,9 @@ internal class LiveSession(
             }
             attempts++
             runAttempt()
-            terminalOutcomeForCurrentState()?.let { outcome -> return outcome }
+            terminalOutcomeForCurrentState()?.let { outcome ->
+                return outcome
+            }
             if (!rediscoverySpent) {
                 rediscoverySpent = true
                 rediscoverAddress()
