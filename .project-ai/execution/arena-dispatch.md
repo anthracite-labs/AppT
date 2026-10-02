@@ -90,7 +90,7 @@ A program Issue is Arena-ready only when all of the following are true:
 - dependencies between included slices are explicit;
 - implementation proceeds checkpoint-by-checkpoint in dependency order on one branch;
 - no downstream checkpoint may rely on behavior from a predecessor that has not reached the evidence level required to make that dependency safe;
-- a provider, physical-device, legal, licensing, or owner-admin gate may remain pending only when it is not required to safely implement the next checkpoint; pending evidence never counts as accepted evidence and must be satisfied before the final program candidate can be called accepted, merged, V1-ready, or production-promotable;
+- a provider, physical-device, legal, licensing, or owner-admin gate may remain pending only when it is not required to safely implement the next checkpoint; pending evidence never counts as accepted evidence, and each gate must be resolved at the milestone required by its canonical contract;
 - a material contract exception at any checkpoint stops the program and returns control rather than skipping, weakening, or silently deferring the blocked requirement;
 - the final PR completion report contains a per-slice checkpoint matrix covering reuse/provenance, implementation status, targeted verification, terminal verification, provider/physical evidence, deviations, and remaining human gates.
 
