@@ -1,0 +1,425 @@
+# Manual repository maintenance.
+#
+# Security model:
+#   * comment inspection and patch generation run with read-only repository access;
+#   * the third-party uncomment binary never runs in a job with repository write access;
+#   * patch application / PR creation runs separately with the minimum write permissions;
+#   * Actions purge jobs never check out or execute repository code.
+#
+# All comment operations are intentionally aggressive and repository-wide.
+
+name: maintenance
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Maintenance operation'
+        required: true
+        type: choice
+        options:
+          - comments-preview
+          - comments-check
+          - comments-change
+          - purge-runs
+          - purge-caches
+          - purge-all
+      confirm:
+        description: 'For purge operations, type PURGE'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: maintenance
+  cancel-in-progress: false
+
+env:
+  UNCOMMENT_VERSION: '3.10.2'
+  UNCOMMENT_LINUX_X64_SHA256: '54e3c8b0ea6b7f3177cd5f37412e9a6293274d4f2f0ff3f6b79c9e66f703f044'
+  GH_API_VERSION: '2022-11-28'
+
+jobs:
+  comments-read:
+    name: Comment maintenance — ${{ inputs.operation }}
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (inputs.operation == 'comments-preview' ||
+       inputs.operation == 'comments-check')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out main
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Install pinned uncomment binary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          tag="v${UNCOMMENT_VERSION}"
+          asset="uncomment-x86_64-unknown-linux-gnu.tar.gz"
+          work="${RUNNER_TEMP}/uncomment"
+          archive="${work}/${asset}"
+          bin_dir="${work}/bin"
+
+          mkdir -p "$work" "$bin_dir"
+
+          gh release download "$tag" \
+            --repo Goldziher/uncomment \
+            --dir "$work" \
+            --pattern "$asset"
+
+          printf '%s  %s\n' "$UNCOMMENT_LINUX_X64_SHA256" "$archive" | sha256sum -c -
+
+          tar -xzf "$archive" -C "$bin_dir"
+          chmod +x "${bin_dir}/uncomment"
+          echo "$bin_dir" >> "$GITHUB_PATH"
+
+          "${bin_dir}/uncomment" --version
+
+      - name: Preview aggressive repository-wide cleanup
+        if: inputs.operation == 'comments-preview'
+        run: |
+          set -euo pipefail
+          uncomment . \
+            --remove-todo \
+            --remove-fixme \
+            --remove-doc \
+            --no-default-ignores \
+            --no-gitignore \
+            --dry-run \
+            --diff \
+            | tee "${RUNNER_TEMP}/uncomment-preview.txt"
+
+      - name: Upload preview
+        if: inputs.operation == 'comments-preview'
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: uncomment-preview-${{ github.run_id }}
+          path: ${{ runner.temp }}/uncomment-preview.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Check aggressive repository-wide cleanup
+        if: inputs.operation == 'comments-check'
+        run: |
+          set -euo pipefail
+          uncomment . \
+            --remove-todo \
+            --remove-fixme \
+            --remove-doc \
+            --no-default-ignores \
+            --no-gitignore \
+            --check
+
+  comments-generate:
+    name: Comment maintenance — generate aggressive patch
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      inputs.operation == 'comments-change'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    outputs:
+      changed: ${{ steps.patch.outputs.changed }}
+
+    steps:
+      - name: Check out main
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Install pinned uncomment binary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          tag="v${UNCOMMENT_VERSION}"
+          asset="uncomment-x86_64-unknown-linux-gnu.tar.gz"
+          work="${RUNNER_TEMP}/uncomment"
+          archive="${work}/${asset}"
+          bin_dir="${work}/bin"
+
+          mkdir -p "$work" "$bin_dir"
+
+          gh release download "$tag" \
+            --repo Goldziher/uncomment \
+            --dir "$work" \
+            --pattern "$asset"
+
+          printf '%s  %s\n' "$UNCOMMENT_LINUX_X64_SHA256" "$archive" | sha256sum -c -
+
+          tar -xzf "$archive" -C "$bin_dir"
+          chmod +x "${bin_dir}/uncomment"
+          echo "$bin_dir" >> "$GITHUB_PATH"
+
+          "${bin_dir}/uncomment" --version
+
+      - name: Apply aggressive repository-wide cleanup
+        run: |
+          set -euo pipefail
+
+          uncomment . \
+            --remove-todo \
+            --remove-fixme \
+            --remove-doc \
+            --no-default-ignores \
+            --no-gitignore
+
+          git diff --check
+          git status --short
+
+      - name: Build reviewable patch
+        id: patch
+        run: |
+          set -euo pipefail
+
+          patch="${RUNNER_TEMP}/uncomment.patch"
+
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            : > "$patch"
+            echo "No comment-maintenance changes were produced."
+            exit 0
+          fi
+
+          git diff --binary --full-index > "$patch"
+          test -s "$patch"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload generated patch
+        if: steps.patch.outputs.changed == 'true'
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: uncomment-change-${{ github.run_id }}
+          path: ${{ runner.temp }}/uncomment.patch
+          if-no-files-found: error
+          retention-days: 7
+
+  comments-pr:
+    name: Comment maintenance — open draft PR
+    needs: comments-generate
+    if: >-
+      needs.comments-generate.result == 'success' &&
+      needs.comments-generate.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+
+    env:
+      MAINTENANCE_BRANCH: maintenance/uncomment-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Check out main
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download generated patch
+        # actions/download-artifact v7.0.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          name: uncomment-change-${{ github.run_id }}
+          path: ${{ runner.temp }}/uncomment-change
+
+      - name: Apply patch
+        run: |
+          set -euo pipefail
+
+          patch="${RUNNER_TEMP}/uncomment-change/uncomment.patch"
+          test -s "$patch"
+
+          git apply --index --check "$patch"
+          git apply --index "$patch"
+          git diff --cached --check
+          git status --short
+
+      - name: Commit, push branch, and create draft PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          git switch -c "$MAINTENANCE_BRANCH"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git commit -m "chore: aggressive repository comment cleanup"
+
+          gh auth setup-git
+          git push --set-upstream origin "$MAINTENANCE_BRANCH"
+
+          body="${RUNNER_TEMP}/maintenance-pr.md"
+          cat > "$body" <<EOF
+          ## Repository maintenance
+
+          This draft PR was generated by the manual `maintenance` workflow.
+
+          - operation: aggressive repository-wide comment cleanup
+          - tool: uncomment ${UNCOMMENT_VERSION}
+          - scope: repository root, including gitignored paths present in the checkout
+          - run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          - branch: `${MAINTENANCE_BRANCH}`
+
+          Aggressive mode removes TODO, FIXME, documentation comments, and the tool's
+          normal default-preserved comment patterns. The tool still preserves shebangs,
+          explicit `~keep` markers, and grammar-forced language directives.
+
+          Review the complete diff before accepting it. This workflow does not merge
+          the PR and does not replace terminal `verify / gate` verification.
+          EOF
+
+          pr_url="$(
+            gh pr create \
+              --base main \
+              --head "$MAINTENANCE_BRANCH" \
+              --title "chore: aggressive repository comment cleanup" \
+              --body-file "$body" \
+              --draft
+          )"
+
+          {
+            echo "### Comment-maintenance PR"
+            echo
+            echo "$pr_url"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  comments-noop:
+    name: Comment maintenance — no changes
+    needs: comments-generate
+    if: >-
+      always() &&
+      needs.comments-generate.result == 'success' &&
+      needs.comments-generate.outputs.changed == 'false'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Record no-op
+        run: |
+          {
+            echo "### Comment maintenance"
+            echo
+            echo "Aggressive repository-wide cleanup produced no changes."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  purge:
+    name: Actions maintenance — ${{ inputs.operation }}
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (inputs.operation == 'purge-runs' ||
+       inputs.operation == 'purge-caches' ||
+       inputs.operation == 'purge-all')
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+      contents: read
+
+    steps:
+      - name: Require destructive-operation confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+
+          if [ "$CONFIRM" != "PURGE" ]; then
+            echo "::error::Type PURGE in the confirmation input."
+            exit 1
+          fi
+
+      - name: Purge all Actions caches
+        if: >-
+          inputs.operation == 'purge-caches' ||
+          inputs.operation == 'purge-all'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t cache_ids < <(
+            gh api \
+              --paginate \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: ${GH_API_VERSION}" \
+              "/repos/${GITHUB_REPOSITORY}/actions/caches?per_page=100" \
+              --jq '.actions_caches[].id'
+          )
+
+          echo "Deleting ${#cache_ids[@]} Actions cache entries."
+
+          for cache_id in "${cache_ids[@]}"; do
+            echo "Deleting cache ${cache_id}"
+            gh api \
+              --silent \
+              --method DELETE \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: ${GH_API_VERSION}" \
+              "/repos/${GITHUB_REPOSITORY}/actions/caches/${cache_id}"
+          done
+
+      - name: Purge completed workflow runs
+        if: >-
+          inputs.operation == 'purge-runs' ||
+          inputs.operation == 'purge-all'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t run_ids < <(
+            gh api \
+              --paginate \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: ${GH_API_VERSION}" \
+              "/repos/${GITHUB_REPOSITORY}/actions/runs?per_page=100" \
+              --jq '.workflow_runs[] | select(.status == "completed") | .id'
+          )
+
+          echo "Deleting ${#run_ids[@]} completed workflow runs."
+
+          for run_id in "${run_ids[@]}"; do
+            if [ "$run_id" = "$GITHUB_RUN_ID" ]; then
+              echo "Skipping current maintenance run ${run_id}."
+              continue
+            fi
+
+            echo "Deleting workflow run ${run_id}"
+            gh api \
+              --silent \
+              --method DELETE \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: ${GH_API_VERSION}" \
+              "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}"
+          done
+
+      - name: Record purge result
+        run: |
+          {
+            echo "### Actions maintenance"
+            echo
+            echo "Completed operation: `${{ inputs.operation }}`."
+            echo
+            echo "The currently executing maintenance run remains until a later purge."
+          } >> "$GITHUB_STEP_SUMMARY"
