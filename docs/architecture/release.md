@@ -17,7 +17,7 @@ The accepted baseline is GitHub Actions, Gradle, Android App Bundle, Play App Si
 
 Runtime: Kotlin, Android Gradle Plugin, Compose BOM, Navigation Compose, kotlinx-serialization, Coroutines, Lifecycle, Hilt, Room, DataStore, OkHttp, WorkManager, Firebase BOM artifacts `firebase-auth` and `firebase-appcheck-playintegrity`, Play Billing, Play Integrity, Credential Manager.
 
-Test: JUnit, coroutines-test, Compose UI test, AndroidX test, Robolectric for DataStore and migration tests, Firebase emulator suite for backend functions, plus bounded debug-only slice diagnostics when physical-device evidence is genuinely required.
+Test: JUnit, coroutines-test, Compose UI tests under JVM/Robolectric, Robolectric for DataStore and Room migration tests, Firebase emulator suite for backend functions, plus the single stock-debug AppT Verification surface when Android-device or physical-Samsung evidence is required. There is no Android instrumentation runner, connected-test acceptance task, Gradle Managed Device, or second verification application in the V1 release architecture.
 
 Backend toolchain: TypeScript on the Cloud Functions 2nd gen Node.js LTS runtime, owned by `backend/`, with `npm` and a committed `package-lock.json` (`npm ci --prefix backend` in CI), ESLint and Prettier configuration in the same directory, and Jest plus `firebase-functions-test` for the unit and emulator tests described in [testing.md](testing.md). The backend is not a Gradle module and never enters the Android dependency graph; the only contract between the two is the HTTPS API in [account-entitlement.md](account-entitlement.md).
 
@@ -310,12 +310,13 @@ actionlint, zizmor, ShellCheck, shfmt, yamllint and markdownlint remain narrow
 repository specialists. None is re-hosted through MegaLinter or Super-Linter.
 
 AppT does not maintain a repository-owned Android benchmark/GMD performance
-pipeline. Performance acceptance is attached to the slice that owns the behavior:
-focused executable tests prove structural properties, and a bounded debug-only
-diagnostic records exact-device evidence when physical timing is genuinely
-load-bearing. Protocol fuzz/property tests, Firebase emulator integration and
-physical Samsung acceptance are added only when their corresponding
-implementation surfaces exist.
+pipeline or an Android instrumentation/connected-test acceptance pipeline.
+Performance and exact-device acceptance are attached to the slice that owns the
+behavior: focused executable tests prove structural properties, and the single
+stock-debug AppT Verification surface records exact-device evidence when Android
+lifecycle, rendering, timing, or physical Samsung behavior is genuinely
+load-bearing. Protocol fuzz/property tests and Firebase backend-emulator
+integration remain separate deterministic verification domains.
 
 Mutation testing is a later deep-verification concern, not a ceremonial PR gate.
 When enough non-trivial pure business/protocol logic exists to produce a useful
