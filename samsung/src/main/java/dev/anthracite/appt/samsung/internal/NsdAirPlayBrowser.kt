@@ -41,11 +41,12 @@ internal class NsdAirPlayBrowser(private val nsd: NsdManager, private val networ
         start(listener)
         launch {
             for (service in found) {
-                if (lost.contains(service.serviceName)) continue
-                val resolved = resolve(service) ?: continue
-                val host = hostOf(resolved)
-                if (host != null && AirPlayTxt.identifiesSamsung(resolved.attributes)) {
-                    send(host to Probe.AirPlaySamsung)
+                // A service the platform has already withdrawn is not a candidate any more, and a
+                // service that never resolves contributes nothing to this scan.
+                val candidate = if (lost.contains(service.serviceName)) null else resolve(service)
+                if (candidate != null && AirPlayTxt.identifiesSamsung(candidate.attributes)) {
+                    val host = hostOf(candidate)
+                    if (host != null) send(host to Probe.AirPlaySamsung)
                 }
             }
         }
