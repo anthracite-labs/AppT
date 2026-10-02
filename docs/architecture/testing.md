@@ -328,6 +328,6 @@ Columns: generation label assigned after the session, TLS or plaintext, token re
 
 Before a public production rollout, the matrix needs at least one passing row for the TLS token path covering pair, command, reconnect, and process-death resume, plus a recorded wake attempt (pass or honest failure). Further rows are added as televisions are available. They do not block the architecture map.
 
-The matrix is an internal release artifact. It is not the harvested public device-support page, and it is not an in-app adapter-health screen. Those remain research-only concepts and are not V1 product surfaces.
+The matrix is an internal release artifact. The stock-debug verifier may emit the row as engineering evidence, but no release/customer build contains an adapter-health or compatibility screen. A public device-support page remains out of V1.
 
 Do not write raw addresses, MACs, tokens, or account emails into the matrix. Model and firmware are allowed.
