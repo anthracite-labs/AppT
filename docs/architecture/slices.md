@@ -1,6 +1,6 @@
 # Implementation slice map
 
-Architecture output only. **Do not open implementation Issues from this file.** Accepted S01–S03 history comes from the earlier route; Issue #96 reconciled the future S04–S17 route against the full application lifecycle and evidence standard. ChatGPT compiles one authorized slice at a time into an Arena Issue, and each dispatch names this file, the slice, and that slice's architecture sources.
+Architecture output only. **Do not open implementation Issues from this file.** Accepted S01–S03 history comes from the earlier route; Issue #96 reconciled the future S04–S17 route against the full application lifecycle and evidence standard. By default, ChatGPT compiles one authorized slice at a time into an Arena Issue, and each dispatch names this file, the slice, and that slice's architecture sources. When the human owner explicitly authorizes contiguous program execution under `.project-ai/execution/arena-dispatch.md` §2A, one Arena Issue may instead carry a named ordered slice range; every included slice remains a distinct dependency/acceptance/verification checkpoint.
 
 Every slice is vertical: a user or tester can observe the outcome, and CI proves it, without waiting for a later slice to make the earlier one real. Security, privacy, accessibility, and reliability constraints appear in the slice where they first become real, not in a final cleanup slice.
 
@@ -65,7 +65,7 @@ flowchart TD
   s12 --> s17
 ```
 
-S07 may run in parallel with the control spine as soon as S01 lands, but accepted implementation remains one authorized slice at a time. S13's **recorder foundation** begins in S05; S13 itself owns the customer-facing diagnostics transaction. Public production promotion waits for S16, S17, and the two external gates.
+S07 may run in parallel with the control spine as soon as S01 lands. The default execution policy remains one authorized slice at a time; an explicitly human-approved contiguous program may package a named ordered range into one Issue/branch/PR under `.project-ai/execution/arena-dispatch.md` §2A without weakening the route's dependency or acceptance gates. S13's **recorder foundation** begins in S05; S13 itself owns the customer-facing diagnostics transaction. Public production promotion waits for S16, S17, and the two external gates.
 
 ## S01 — Walking skeleton and CI floor
 
