@@ -421,7 +421,7 @@ jobs:
           {
             echo "### Actions maintenance"
             echo
-            printf 'Completed operation: `%s`.\n' "$OPERATION"
+            printf 'Completed operation: %s.\n' "$OPERATION"
             echo
             echo "The currently executing maintenance run remains until a later purge."
           } >> "$GITHUB_STEP_SUMMARY"
