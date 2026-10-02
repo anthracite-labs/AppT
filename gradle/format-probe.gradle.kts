@@ -32,9 +32,9 @@ val formatProbeTask =
                     println("::warning title=fmt-b64-" + index + "::" + chunk)
                 }
             val gradleFiles =
-                git("diff", "--numstat", "--", "*.gradle.kts", "*.kts")
-                    .lines()
-                    .filter { it.isNotBlank() }
+                git("diff", "--numstat", "--", "*.gradle.kts", "*.kts").lines().filter {
+                    it.isNotBlank()
+                }
             println("::warning title=fmt-kts::" + gradleFiles.joinToString(" | ").take(400))
             gradleFiles.take(2).forEach { line ->
                 val path = line.split("\t").getOrNull(2) ?: return@forEach
