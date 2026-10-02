@@ -14,9 +14,9 @@ Implementation.
 
 ## Current Objective
 
-Keep the accepted S05 baseline stable and prepare the next explicitly authorized implementation slice from the accepted S01–S17 route. No implementation slice is currently active.
+Prepare S06 — Reconnect, lifecycle, and Activity recreation — as the next authorized implementation slice while keeping the accepted S05 baseline stable. No S06 Arena implementation is active yet.
 
-Success means accepted S05 product, verification, dependency-state, and diagnostic-selection behavior remains the repository baseline while the control plane does not start S06, S07, or later product work without a new explicit authorization.
+Success means the control plane compiles a bounded S06 contract from accepted architecture and reuse evidence without regressing S05 product, verification, dependency-state, or diagnostic-selection behavior.
 
 ## Accepted Decisions
 
@@ -34,11 +34,12 @@ Success means accepted S05 product, verification, dependency-state, and diagnost
 - Mandatory lifecycle skill routing and diagnose-before-fix gates are accepted through PR #84.
 - Bounded diagnostic breadth before correction is accepted through PR #106: inside the smallest affected domain, collect the practical independent failure set, group root causes, then correct coherently without weakening failure semantics.
 - Reuse-before-reimplement is accepted through PR #108 for new Arena-ready Issues and future material revisions: the control plane compiles an Implementation Reuse Plan from accepted AppT code plus distributed harvest evidence; Arena prefers approved `EXISTING APPT`, `ADAPT`, or `PORT` leverage before `NEW`, and `NEW` requires a concrete recorded reason.
-- S05 — Capability-driven Remote surface, Settings shell, and diagnostic recorder — is accepted through PR #118 under Issue #117 Contract Revision 5. The retired Baseline Profile, `:macrobenchmark`, hosted Gradle Managed Device, profile-handoff/regeneration, and `ci:device` paths are not part of the accepted repository architecture.
+- S05 is accepted through PR #118 under Issue #117 Contract Revision 5. The accepted slice includes the capability-driven Remote surface, Settings shell, bounded diagnostic recorder, and the retirement of Baseline Profile, `:macrobenchmark`, hosted Gradle Managed Device, profile-handoff/regeneration, and `ci:device` paths.
 - The S05 closeout owner decision accepted the already-recorded bounded physical Samsung evidence for final acceptance without rerunning the five-sample verifier on the final SHA. The final candidate `f2b007ab0f5c370375a657c96e36cfbbaeb32cb2` passed terminal repository verification and trusted `android-build` before PR #118 merged.
 - Selectable multi-mode diagnostics are accepted through PR #118: `diagnose.yml` accepts one existing mode or a validated comma-separated set of existing modes, runs selected named jobs concurrently, preserves single-mode focus semantics, and remains non-terminal.
 - Repository simplification is accepted through PR #136. Standard Gradle dependency locking and strict dependency verification remain active; the custom `dependencyLockCheck` wrapper, hosted `ci:dependency-state` regeneration route, warm-cache publisher/sanitizer, manual Actions purge workflow, and redundant backend diagnostic modes are retired. `docs/BUILD.md` owns the current dependency-refresh and verification routes.
-- S06 is the next authorized implementation slice. It is not yet active; implementation begins only from a bounded Arena-ready contract and explicit dispatch.
+- S06 is the next authorized implementation slice.
+- S06 is not yet active; implementation begins only from a bounded Arena-ready contract and explicit dispatch.
 - S07 may be dependency-ready in parallel with the control spine but is not active or authorized.
 - Provider facts marked `needs validation` must be confirmed when they first become implementation-relevant. Material external/protocol claims also carry explicit authority/implementation-evidence/AppT-decision provenance in their owning architecture documents.
 - Final AppT source-license selection and focused Samsung vendor-terms/legal review remain pre-public-release gates.
@@ -46,7 +47,7 @@ Success means accepted S05 product, verification, dependency-state, and diagnost
 
 ## Durable Blockers
 
-None at the project/contract level. No implementation slice is currently active.
+None for S06 dispatch.
 
 ## Latest Accepted Milestone
 
