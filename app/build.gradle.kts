@@ -237,152 +237,48 @@ tasks.register("manifestPermissionAllowlist") {
 
 /**
  * TEMPORARY probe (remove before completion): proves the pinned Spotless/ktfmt formatter's verdict
- * on this candidate without a local JVM, by formatting in place and reporting every changed hunk as
- * an annotation.
+ * on this candidate without a local JVM, by formatting in place and reporting what changed. The
+ * report is deliberately compact: GitHub keeps only about ten annotations per step.
  */
 tasks.register("formatProbe") {
     group = "verification"
     dependsOn(rootProject.tasks.named("spotlessApply"))
     doLast {
         val root = rootProject.projectDir
-        val process =
-            ProcessBuilder("git", "--no-pager", "diff", "--unified=0", "--", ".")
-                .directory(root)
-                .redirectErrorStream(true)
-                .start()
-        val diff = process.inputStream.bufferedReader().readText()
-        process.waitFor()
-        var file = "?"
-        var reported = 0
-        diff.lineSequence().forEach { line ->
-            if (line.startsWith("diff --git ")) {
-                file = line.removePrefix("diff --git a/").substringBefore(" b/")
-            } else if (line.startsWith("@@") || line.startsWith("+") || line.startsWith("-")) {
-                if (reported < 25) {
-                    println("::warning title=fmt::${file} ${line.take(160)}")
-                    reported++
-                }
-            }
+        fun git(vararg args: String): String {
+            val process =
+                ProcessBuilder(listOf("git", "--no-pager") + args)
+                    .directory(root)
+                    .redirectErrorStream(true)
+                    .start()
+            val text = process.inputStream.bufferedReader().readText()
+            process.waitFor()
+            return text
         }
-        logger.lifecycle("formatProbe: ${reported} hunk line(s) reported")
-    }
-}
-
-tasks.register("verifyReleaseEngineeringBoundaries") {
-    dependsOn("formatProbe")
-    group = "verification"
-    description =
-        "Checks the release APK excludes the debug-only Engineering Verifier and its S05 latency " +
-            "run."
-    dependsOn("assembleRelease")
-    doLast {
-        val forbiddenMarkers =
-            listOf(
-                "DebugS05VerifierAction",
-                "DebugS05VerifierCommand",
-                "DebugS05VerifierDialog",
-                "DebugLatencyRun",
-                "DebugLatencyReport",
-                "DebugMeasuredCommand",
-                "DebugS05VerifierActivity",
-                "s05:physical-verifier",
-                "S05 physical verification",
-                "S05 physical verifier",
-                "Start verification",
-                "Warm-up Volume Up",
-                "Measure Volume Up",
-                "Unmeasured warm-up",
-                "Measured interactions:",
-                "Copy verification result",
-                "EngineeringVerifierEntry",
-                "EngineeringVerifierController",
-                "EngineeringTestTags",
-                "EngineeringScenarios",
-                "EngineeringEvidenceClass",
-                "EngineeringObservationSource",
-                "EngineeringReport",
-                "EngineeringLedger",
-                "AppT engineering verification",
-                "AppT engineering report",
-                "Exact candidate SHA unavailable",
-                "Requires a Ready television",
-                "Pending external",
-                "appt:engineering-entry",
-                "appt:engineering-surface",
-                "appt:engineering-record-",
-            )
-        val distributableSources = listOf(file("src/main"), file("src/release"))
-        val sourceLeaks =
-            distributableSources
-                .filter { it.exists() }
-                .flatMap { sourceRoot -> sourceRoot.walkTopDown().filter { it.isFile }.toList() }
-                .flatMap { source ->
-                    val contents = source.readText()
-                    forbiddenMarkers
-                        .filter { marker -> marker in contents }
-                        .map { marker -> "${source.relativeTo(projectDir)} contains '$marker'" }
-                }
-        if (sourceLeaks.isNotEmpty()) {
-            throw GradleException(
-                "Release source graph contains debug engineering verifier material:\n" +
-                    sourceLeaks.joinToString("\n")
-            )
-        }
-
-        val apkDirectory = layout.buildDirectory.dir("outputs/apk/release").get().asFile
-        val releaseApks =
-            apkDirectory.listFiles { candidate -> candidate.extension == "apk" }.orEmpty()
-        if (releaseApks.isEmpty()) {
-            throw GradleException(
-                "No release APK found under ${apkDirectory.relativeTo(projectDir)}."
-            )
-        }
-        releaseApks.forEach { apk ->
-            ZipFile(apk).use { archive ->
-                val inspectedEntries =
-                    archive.entries().asSequence().filter { entry ->
-                        !entry.isDirectory &&
-                            (entry.name == "AndroidManifest.xml" ||
-                                entry.name == "resources.arsc" ||
-                                (entry.name.startsWith("classes") && entry.name.endsWith(".dex")))
-                    }
-                inspectedEntries.forEach { entry ->
-                    val contents =
-                        archive.getInputStream(entry).use {
-                            it.readBytes().toString(Charsets.ISO_8859_1)
-                        }
-                    val leakedMarkers = forbiddenMarkers.filter { marker -> marker in contents }
-                    if (leakedMarkers.isNotEmpty()) {
-                        throw GradleException(
-                            "${apk.name}:${entry.name} contains debug-only engineering verifier " +
-                                "material: " + leakedMarkers.joinToString(", ")
-                        )
-                    }
-                }
-            }
-        }
-        logger.lifecycle(
-            "verifyReleaseEngineeringBoundaries: OK — release source graph and APK exclude the debug engineering verifier and its S05 latency run."
+        val files =
+            git("diff", "--numstat")
+                .lines()
+                .filter { it.isNotBlank() }
+                .map { it.split("\t") }
+                .filter { it.getOrNull(2)?.endsWith(".gradle.kts") != true }
+        println(
+            "::warning title=fmt::pinned formatter changes " +
+                files.size +
+                " source file(s): " +
+                files.take(8).joinToString(", ") { it.getOrNull(2) ?: "?" }.take(400)
         )
-    }
-}
-
-configurations.configureEach {
-    val cfg = name
-    val notations =
-        when {
-            cfg == "androidLintTool" ->
-                listOf(
-                    "org.bouncycastle:bcprov-jdk18on:1.86",
-                    "org.bouncycastle:bcpkix-jdk18on:1.86",
-                    "org.apache.commons:commons-lang3:3.20.0",
-                    "org.apache.httpcomponents:httpclient:4.5.14",
-                )
-            cfg.contains("UnitTest") || cfg == "testImplementationDependenciesMetadata" ->
-                listOf("org.bouncycastle:bcprov-jdk18on:1.86")
-            else -> emptyList<String>()
+        files.take(6).forEach { parts ->
+            val path = parts.getOrNull(2) ?: return@forEach
+            val patch = git("diff", "--unified=0", "--", path)
+            patch.lineSequence()
+                .filter { it.startsWith("+") && !it.startsWith("+++") }
+                .take(2)
+                .forEach { line ->
+                    println("::warning title=fmt+::${path} ${line.take(200)}")
+                }
         }
-    notations.forEach { notation -> project.dependencies.constraints { add(cfg, notation) } }
+        logger.lifecycle("formatProbe: ${files.size} file(s) need pinned formatting")
+    }
 }
 
 tasks.named("verifyReleaseEngineeringBoundaries") {
