@@ -6,18 +6,35 @@ Test external behavior at the highest useful seam. The two primary seams are `Sa
 
 | Layer | Proves | Does not prove |
 |---|---|---|
-| JVM unit | ViewModel state, gate decisions, proof verification, time model, redactor, session machine through `SamsungTvsImpl` with fake transports | Real Keystore, real multicast, real Play |
+| JVM / Robolectric | ViewModel state, gate decisions, proof verification, time model, redactor, session machine through `SamsungTvsImpl` with fake transports, Room/DataStore migration, Compose state/semantics/layout contracts | Real television/provider behavior or exact-device Android lifecycle behavior |
 | Protocol contract | Fixture frames produce the specified snapshot and, inside `samsung` tests, the specified outbound frames | That every television generation works |
 | Backend function tests | Endpoint authorization, marker logic, purchase verification against a fake Play verifier, RTDN idempotency, retention rules, deny-all client access | Google's actual API behaviour |
-| Instrumented | Keystore round trip, backup exclusion, permission gate, Room migration, process-death restore, Credential Manager and Play Billing seams | Layout polish |
-| Compose | Critical flows against a fake `SamsungTvs` and fake licensing: first control, exemption, reconnect status, hidden dead controls, no address on cards, gate surfaces | Wire format |
-| Accessibility | Semantics, target sizes, scaled text, reduced motion, traversal order | Visual taste |
-| Performance | Focused code-path tests plus bounded debug-only slice diagnostics on the exact candidate when device timing matters | Product desirability or synthetic hosted-emulator timing |
-| Physical matrix | One real television per generation actually claimed | A predeclared year range |
+| Stock debug verifier | The exact debug APK exercises/guides Android lifecycle, network transitions, real Keystore, permissions, Credential Manager, physical Samsung behavior, accessibility walkthroughs, upgrade state, and other on-device evidence required by S06–S17 | Provider-console configuration, Play signing/production purchase truth, or human/legal decisions |
+| Compose | Critical flows under JVM/Robolectric against fake `SamsungTvs` and fake licensing: first control, exemption, reconnect status, hidden dead controls, no address on cards, gate surfaces | Wire format or exact-device rendering |
+| Accessibility | JVM/Robolectric semantics/layout contracts plus the stock-debug guided TalkBack, 200% font, rotation/window-size and screenshot walkthrough | Visual taste |
+| Performance | Focused code-path tests plus the stock-debug verifier on the exact candidate when device timing matters | Product desirability or synthetic hosted-emulator timing |
+| Physical matrix | One real television per generation actually claimed, recorded by the stock-debug verifier | A predeclared year range |
 
 `app` tests replace `SamsungModule` and the licensing seams with fakes. They assert on snapshots and results. They do not assert `KEY_*` or ports.
 
 `samsung` contract tests construct `SamsungTvsImpl` with a fake session transport that replays a fixture and records writes. Asserting outbound frames there is correct. Those tests are not on the `app` classpath.
+
+## One stock debug verification surface
+
+AppT has **no Android instrumentation acceptance tier** for the remaining V1 lifecycle. The production modules do not keep `src/androidTest/**` suites, an instrumentation runner, connected-test acceptance tasks, a Gradle Managed Device, or a second test/benchmark application.
+
+The only on-device engineering verifier is the normal stock debug APK produced by the existing trusted `android-build` route. Extend the existing S05 debug verifier into one **AppT Verification** surface under `app/src/debug/**`; do not create per-slice verifier apps, activities, modules, workflows, or APKs.
+
+The verifier is an engineering surface, not a V1 customer feature:
+
+- it is compiled only into the debug source graph and an executable release-exclusion guard proves that no verifier route, type, string, scenario driver, or entry point reaches internal/production release artifacts;
+- physical checks use the normal production `app -> samsung` path and the real production adapters. The verifier may observe bounded debug counters/events but may not own a second `RemoteSession`, call a second `SamsungTvs.open()`, bypass the licensing gate, or create a production fake-TV mode;
+- deterministic app/provider lifecycle scenarios that cannot be forced safely on a real provider may use debug-only scripted seam controls, and every such result is labelled `scripted`. A scripted result never substitutes for a required real Samsung, Play, Firebase, signing, or provider-console gate;
+- one exact-build report covers S06–S17 device evidence. It may contain the candidate SHA, app version/build type, phone model, Android/API version, non-sensitive environment label, relative timings, per-checkpoint PASS/FAIL/PENDING status, and the physical-matrix fields already allowed below. It must never contain an address, MAC, token, pin, certificate material, SSID, account email/uid/Username, purchase token, entered text, or arbitrary payload;
+- the report is local and explicit-copy/share only. There is no upload endpoint, analytics path, background exporter, or provider credential in the verifier;
+- provider-console, Play-signing, live production-purchase, source-license, and Samsung vendor-terms evidence remains owner/provider/human evidence. The verifier records those items only as `PENDING_EXTERNAL` or as a safe app-side observation; it never self-certifies them.
+
+This is the single physical/device evidence route for S06–S17. JVM/Robolectric, protocol, backend, repository-policy, security, and terminal CI checks remain separate because they prove deterministic code and supply-chain properties more cheaply and precisely than a phone walkthrough.
 
 ## Fake adapters
 
@@ -199,11 +216,11 @@ These names are the contract. Implementation may split them; it may not drop the
 
 ### Presentation and accessibility
 
-Instrumented Compose coverage on API 34+ enables the platform accessibility validator on the rendered routes. The Compose accessibility API requires AndroidComposeTestRule on API 34+ and does not run under Robolectric. It adds automated checks such as contrast, labeling, touch-target, and traversal issues where the platform can evaluate them; the explicit AppT contracts below remain required because they cover product semantics, responsive behavior, reduced motion, and gesture alternatives that a generic validator does not prove. The existing API 29 installed-app acceptance remains a separate compatibility signal.
+AppT does not use the platform instrumentation-only accessibility validator as an acceptance dependency. JVM/Robolectric Compose tests own semantics, labels, state, touch-target, scaling, reduced-motion and traversal contracts; the stock debug verifier owns the real-device TalkBack, 200% font-scale, contrast/screenshot and responsive-window walkthrough on the exact candidate.
 
 | Test | Assertion |
 |---|---|
-| `composeAccessibilityChecksPass` | API 34+ AndroidComposeTestRule coverage enables platform accessibility checks on every shipped route and reports no validator errors |
+| `accessibilityContractsPass` | JVM/Robolectric Compose coverage exercises the explicit accessibility contracts on every shipped route, and the exact-build debug-verifier walkthrough records the real-device TalkBack/rendering checks required by S14 |
 | `launchRoutingResolvesRemoteFirst` | With a remembered television and allowed access, launch resolves to `Remote` and no dashboard exists |
 | `gatedLaunchNeverOpensSession` | A blocked launch destination is Account or Entitlement and `SamsungTvs.open` is not called |
 | `remoteShowsNoLicensingPrompts` | No purchase, trial countdown, or account prompt composable appears on the Remote surface |
@@ -228,13 +245,13 @@ Instrumented Compose coverage on API 34+ enables the platform accessibility vali
 
 ## Whole-application lifecycle E2E
 
-Unit, fixture, Compose, instrumented, backend, performance, and physical tests remain necessary, but they do not by themselves prove that navigation, persistence, process recreation, account gating, billing reconciliation, and recovery compose into one usable application.
+JVM/fixture/Compose, backend, stock-debug, performance, provider, and physical evidence remain necessary, but they do not by themselves prove that navigation, persistence, process recreation, account gating, billing reconciliation, and recovery compose into one usable application.
 
 ### IMPLEMENTATION EVIDENCE
 
 [Home Assistant Android](https://github.com/home-assistant/android) at [`d120c7dc`](https://github.com/home-assistant/android/commit/d120c7dcd0683e163a2379883ba9299af071e1cb), Apache-2.0, is the complete-app reference for journey-level Android E2E. Its `.github/workflows/e2e.yml` drives `.maestro/onboarding.yaml` across emulators and captures device logs/artifacts on failure. Method: **BEHAVIORAL REFERENCE**.
 
-AppT does not require that exact runner as an architectural seam; S15 selects/locks the smallest project-owned runner that can produce the required evidence. The required evidence is runner-independent.
+AppT harvests the journey structure and failure-artifact discipline, not the emulator/Maestro runner. S15 executes the required journeys through the same stock debug verifier used by the other device checkpoints; there is no second E2E app, connected-test runner, or emulator acceptance pipeline.
 
 ### Required journeys
 
@@ -244,7 +261,7 @@ AppT does not require that exact runner as an architectural seam; S15 selects/lo
 4. **Purchase interruption:** start purchase → observe `PENDING` or background the process → transaction becomes `PURCHASED` while AppT is inactive → reopen → BillingClient reconnect/query → one authoritative grant.
 5. **Upgrade in place:** install source artifact with representative local TV/account/entitlement state → install candidate over it → migrate → launch → pairing/entitlement remain correct or fail through the documented recovery state.
 
-For a journey failure, retain at minimum: ordered step trace, screenshot at failure, accessibility/semantics hierarchy when available, device logcat for the AppT process, candidate SHA/build identity, and the fake/provider/physical environment used. These artifacts are diagnostics for the test run, not product analytics.
+For a journey failure, the debug verifier retains at minimum: ordered step trace, bounded typed checkpoint state, candidate SHA/build identity, and the scripted/provider/physical environment label. A tester may attach a screenshot when the failure is visual. No adb, instrumentation runner, or exported logcat is required. These artifacts are local engineering diagnostics, not product analytics.
 
 ### Cross-contract regression names
 
@@ -262,15 +279,15 @@ For a journey failure, retain at minimum: ordered step trace, screenshot at fail
 Physical evidence is staged where hardware uncertainty becomes load-bearing rather than postponed to release closure:
 
 - **S04 acceptance:** one real Samsung TLS-token path covers discovery → TV approval → command → app restart → token resume without re-prompt; the recorded row also confirms the persistent security identity used by the candidate or records the hardware limitation honestly.
-- **S06 acceptance:** on the same or another documented Samsung set, one real LAN drop/recovery and one process/Activity lifecycle walk prove that the fake transport did not hide a reconnect/lifecycle incompatibility.
-- **S12 acceptance:** one real wake attempt is recorded; failure is acceptable and becomes honest capability evidence.
-- **S17:** final release-candidate matrix consolidates the accepted physical evidence, repeats the critical TLS-token path on the release unit, and closes the external release gates.
+- **S06 acceptance:** on the same or another documented Samsung set, the stock-debug S06 verifier records one real LAN drop/recovery plus the guided process/Activity lifecycle walk and proves the fake transport did not hide a reconnect/lifecycle incompatibility.
+- **S12 acceptance:** the stock-debug verifier records one real wake attempt; failure is acceptable and becomes honest capability evidence.
+- **S17:** the stock-debug verifier emits the consolidated physical-matrix row and repeats the critical TLS-token path on the final candidate where the canonical release contract requires it; provider/human external gates remain separately recorded.
 
 The already accepted S03 implementation is not retroactively invalidated. The S04 physical checkpoint re-exercises S03's discovery/pair/first-command path before saved pairing can be accepted.
 
 ## Room migrations
 
-Once a second schema version exists, migrations run as instrumented or Robolectric tests against the previous exported schema. Destructive fallback is a test failure if it appears in production source.
+Once a second schema version exists, migrations run as Robolectric/JVM tests against the previous exported schema. Destructive fallback is a test failure if it appears in production source; upgrade-in-place behavior on a real phone is recorded by the stock-debug S16 verifier.
 
 ## Compose coverage
 
