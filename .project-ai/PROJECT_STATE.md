@@ -38,7 +38,7 @@ Success means accepted S05 product, verification, dependency-state, and diagnost
 - The S05 closeout owner decision accepted the already-recorded bounded physical Samsung evidence for final acceptance without rerunning the five-sample verifier on the final SHA. The final candidate `f2b007ab0f5c370375a657c96e36cfbbaeb32cb2` passed terminal repository verification and trusted `android-build` before PR #118 merged.
 - Selectable multi-mode diagnostics are accepted through PR #118: `diagnose.yml` accepts one existing mode or a validated comma-separated set of existing modes, runs selected named jobs concurrently, preserves single-mode focus semantics, and remains non-terminal.
 - Repository simplification is accepted through PR #136. Standard Gradle dependency locking and strict dependency verification remain active; the custom `dependencyLockCheck` wrapper, hosted `ci:dependency-state` regeneration route, warm-cache publisher/sanitizer, manual Actions purge workflow, and redundant backend diagnostic modes are retired. `docs/BUILD.md` owns the current dependency-refresh and verification routes.
-- S06 — Reconnect, lifecycle, and Activity recreation — is next on the accepted control-spine route after S05, but it is not active or authorized.
+- S06 is the next authorized implementation slice. It is not yet active; implementation begins only from a bounded Arena-ready contract and explicit dispatch.
 - S07 may be dependency-ready in parallel with the control spine but is not active or authorized.
 - Provider facts marked `needs validation` must be confirmed when they first become implementation-relevant. Material external/protocol claims also carry explicit authority/implementation-evidence/AppT-decision provenance in their owning architecture documents.
 - Final AppT source-license selection and focused Samsung vendor-terms/legal review remain pre-public-release gates.
@@ -54,7 +54,7 @@ S05 — Capability-driven Remote surface, Settings shell, and diagnostic recorde
 
 ## Next Authorized Action
 
-Do not start another implementation slice automatically. When the human owner explicitly authorizes the next product slice, compile one bounded Arena-ready contract from the accepted route and architecture sources. The next control-spine slice is S06 — Reconnect, lifecycle, and Activity recreation — and must preserve the accepted S05 Remote, Settings, diagnostics, verification, and dependency-state baseline. Apply the repository's reuse-before-reimplement and diagnose-before-fix rules when that slice is authorized.
+Prepare the bounded Arena-ready contract for S06 — Reconnect, lifecycle, and Activity recreation — from the accepted route and architecture sources, preserving the accepted S05 Remote, Settings, diagnostics, verification, and dependency-state baseline. Apply the repository's reuse-before-reimplement and diagnose-before-fix rules. Do not begin Arena implementation until that S06 contract is explicitly dispatched.
 
 ## Authoritative References
 
