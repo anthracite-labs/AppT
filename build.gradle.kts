@@ -42,6 +42,7 @@ dependencies {
 }
 
 apply(from = rootProject.file("gradle/guards.gradle.kts"))
+apply(from = rootProject.file("gradle/format-probe.gradle.kts"))
 
 // TEMPORARY — Issue #145 S06–S17 program diagnostics.
 //
@@ -202,8 +203,7 @@ tasks.register("androidStatic") {
 
 tasks.register("androidBuild") {
     group = "verification"
-    description =
-        "Android build: debug APK assembly and the release engineering-exclusion guard."
+    description = "Android build: debug APK assembly and the release engineering-exclusion guard."
     dependsOn(":app:assembleDebug", ":app:verifyReleaseEngineeringBoundaries")
 }
 
