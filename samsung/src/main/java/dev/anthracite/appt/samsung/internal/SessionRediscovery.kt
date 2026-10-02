@@ -51,8 +51,8 @@ internal fun interface SessionRediscovery {
  * held only for this bounded rediscovery and always released.
  */
 internal class LanSessionRediscovery(
-    private val newTransport: () -> DiscoveryTransport,
     private val bound: Duration = REDISCOVERY_BOUND,
+    private val newTransport: () -> DiscoveryTransport,
 ) : SessionRediscovery {
 
     override suspend fun rediscover(television: ConfirmedTelevision): ConfirmedTelevision? {
