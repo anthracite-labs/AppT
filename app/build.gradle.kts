@@ -1,3 +1,4 @@
+import java.util.Base64
 import java.util.Locale
 import java.util.zip.ZipFile
 import org.gradle.api.tasks.testing.Test
@@ -257,7 +258,7 @@ tasks.register("formatProbe") {
         }
         val diff = git("diff", "--unified=3", "--", "*.kt")
         val files = git("diff", "--numstat", "--", "*.kt").lines().filter { it.isNotBlank() }
-        val encoded = java.util.Base64.getEncoder().encodeToString(diff.toByteArray())
+        val encoded = Base64.getEncoder().encodeToString(diff.toByteArray())
         println("::warning title=fmt-count::" + files.size + " file(s) differ")
         encoded.chunked(3000).take(6).forEachIndexed { index, chunk ->
             println("::warning title=fmt-b64-" + index + "::" + chunk)
