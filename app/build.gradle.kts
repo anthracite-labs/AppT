@@ -266,13 +266,15 @@ tasks.register("formatProbe") {
         val gradleFiles =
             git("diff", "--numstat", "--", "*.gradle.kts", "*.kts").lines().filter { it.isNotBlank() }
         println("::warning title=fmt-kts::" + gradleFiles.joinToString(" | ").take(400))
-        gradleFiles.firstOrNull()?.let { line ->
-            val path = line.split("\t").getOrNull(2) ?: return@let
-            git("diff", "--unified=0", "--", path)
-                .lineSequence()
+        gradleFiles.take(2).forEach { line ->
+            val path = line.split("\t").getOrNull(2) ?: return@forEach
+            val patch = git("diff", "--unified=0", "--", path)
+            patch.lineSequence()
                 .filter { it.startsWith("+") && !it.startsWith("+++") }
-                .take(3)
-                .forEach { added -> println("::warning title=fmt-kts+::" + added.take(150)) }
+                .take(4)
+                .forEach { added ->
+                    println("::warning title=fmt-kts+::" + path + " " + added.trim().take(140))
+                }
         }
         logger.lifecycle("formatProbe: " + files.size + " kotlin file(s) differ")
     }
