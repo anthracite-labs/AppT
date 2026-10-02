@@ -235,7 +235,45 @@ tasks.register("manifestPermissionAllowlist") {
     dependsOn(tasks.withType<MergedManifestGuard>())
 }
 
+/**
+ * TEMPORARY probe (remove before completion): proves the pinned Spotless/ktfmt formatter's verdict
+ * on this candidate without a local JVM, by formatting in place and reporting every changed hunk as
+ * an annotation.
+ */
+tasks.register("formatProbe") {
+    group = "verification"
+    dependsOn(rootProject.tasks.named("spotlessApply"))
+    doLast {
+        val root = rootProject.projectDir
+        val process =
+            ProcessBuilder("git", "--no-pager", "diff", "--unified=0", "--", ".")
+                .directory(root)
+                .redirectErrorStream(true)
+                .start()
+        val diff = process.inputStream.bufferedReader().readText()
+        process.waitFor()
+        var file = "?"
+        var reported = 0
+        diff.lineSequence().forEach { line ->
+            if (line.startsWith("diff --git ")) {
+                file = line.removePrefix("diff --git a/").substringBefore(" b/")
+            } else if (line.startsWith("@@") || line.startsWith("+") || line.startsWith("-")) {
+                if (reported < 25) {
+                    println("::warning title=fmt::${file} ${line.take(160)}")
+                    reported++
+                }
+            }
+        }
+        logger.lifecycle("formatProbe: ${reported} hunk line(s) reported")
+    }
+}
+
+tasks.named("verifyReleaseEngineeringBoundaries") {
+    dependsOn("formatProbe")
+}
+
 tasks.register("verifyReleaseEngineeringBoundaries") {
+    dependsOn("formatProbe")
     group = "verification"
     description =
         "Checks the release APK excludes the debug-only Engineering Verifier and its S05 latency " +
