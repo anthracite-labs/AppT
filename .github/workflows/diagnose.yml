@@ -43,17 +43,13 @@ on:
     inputs:
       mode:
         description: >-
-          Focused diagnostic mode. Every mode is implementation feedback only
-          and does not satisfy verify / gate.
+          One diagnostic mode, or a comma-separated set of modes to run
+          concurrently. Valid modes: app-unit, samsung-unit, android-static,
+          android-build, backend. Every diagnostic is implementation feedback
+          only and does not satisfy verify / gate.
         required: true
         default: 'app-unit'
-        type: choice
-        options:
-          - app-unit
-          - samsung-unit
-          - android-static
-          - android-build
-          - backend
+        type: string
       expected_sha:
         description: >-
           Commit SHA the dispatched ref was expected to resolve to. Set by the
@@ -71,11 +67,11 @@ on:
         default: ''
       focus:
         description: >-
-          Optional narrowing within the selected mode. Leave empty to run the
-          whole mode. The accepted form depends on the mode: a Gradle test
-          class or method pattern for the unit modes, a named sub-check for the
-          static and build modes, and static:/test: selectors for the backend
-          mode. Anything else fails closed before any work runs.
+          Optional narrowing for a single selected mode. Leave empty to run the
+          whole mode. Multi-mode selections must leave focus empty and run each
+          selected mode whole. Single-mode focus syntax is unchanged: a Gradle
+          test class or method pattern for unit modes, a named sub-check for
+          static/build modes, and static:/test: selectors for backend.
         required: false
         default: ''
 
@@ -87,8 +83,9 @@ cache-mode: read
 permissions:
   contents: read
 
-# The focus is part of a run's identity, so two different foci on the same ref
-# and mode do not cancel each other.
+# The validated selection and focus are part of a run's identity. The raw input
+# is safe to use only as an opaque concurrency key; trusted selection validation
+# still happens before any target-controlled checkout or execution.
 concurrency:
   group: >-
     diagnose-${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode }}-${{ inputs.focus }}
@@ -100,11 +97,54 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # Validate the requested mode set on the dispatch anchor before any selected
+  # job checks out or executes target-controlled code.
+  # ---------------------------------------------------------------------------
+  select-modes:
+    name: Validate diagnostic selection
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      modes: ${{ steps.select.outputs.modes }}
+      selection_kind: ${{ steps.select.outputs.selection_kind }}
+      app_unit: ${{ steps.select.outputs.app_unit }}
+      samsung_unit: ${{ steps.select.outputs.samsung_unit }}
+      android_static: ${{ steps.select.outputs.android_static }}
+      android_build: ${{ steps.select.outputs.android_build }}
+      backend: ${{ steps.select.outputs.backend }}
+    steps:
+      - name: Check out the dispatch anchor
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.github/actions/setup-node # zizmor: ignore[self-repository] pinned actionlint 1.7.7 cannot parse GitHub's $/ self-repository form yet
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Validate selected diagnostic modes
+        id: select
+        env:
+          MODE_INPUT: ${{ inputs.mode }}
+          FOCUS: ${{ inputs.focus }}
+        run: |
+          set -euo pipefail
+          node tools/ci/diagnose-focus.mjs \
+            --mode "$MODE_INPUT" \
+            --focus "$FOCUS" \
+            --selection-output "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
   # app-unit — :app JVM/Robolectric tests only.
   # ---------------------------------------------------------------------------
   app-unit:
     name: app-unit
-    if: inputs.mode == 'app-unit'
+    needs: select-modes
+    if: needs.select-modes.outputs.app_unit == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -135,7 +175,7 @@ jobs:
 
       - name: Resolve the diagnostic focus
         env:
-          MODE: ${{ inputs.mode }}
+          MODE: app-unit
           FOCUS: ${{ inputs.focus }}
         run: |
           set -euo pipefail
@@ -189,7 +229,8 @@ jobs:
   # ---------------------------------------------------------------------------
   samsung-unit:
     name: samsung-unit
-    if: inputs.mode == 'samsung-unit'
+    needs: select-modes
+    if: needs.select-modes.outputs.samsung_unit == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -220,7 +261,7 @@ jobs:
 
       - name: Resolve the diagnostic focus
         env:
-          MODE: ${{ inputs.mode }}
+          MODE: samsung-unit
           FOCUS: ${{ inputs.focus }}
         run: |
           set -euo pipefail
@@ -269,7 +310,8 @@ jobs:
   # ---------------------------------------------------------------------------
   android-static:
     name: android-static
-    if: inputs.mode == 'android-static'
+    needs: select-modes
+    if: needs.select-modes.outputs.android_static == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -300,7 +342,7 @@ jobs:
 
       - name: Resolve the diagnostic focus
         env:
-          MODE: ${{ inputs.mode }}
+          MODE: android-static
           FOCUS: ${{ inputs.focus }}
         run: |
           set -euo pipefail
@@ -351,7 +393,8 @@ jobs:
   # ---------------------------------------------------------------------------
   android-build:
     name: android-build
-    if: inputs.mode == 'android-build'
+    needs: select-modes
+    if: needs.select-modes.outputs.android_build == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -382,7 +425,7 @@ jobs:
 
       - name: Resolve the diagnostic focus
         env:
-          MODE: ${{ inputs.mode }}
+          MODE: android-build
           FOCUS: ${{ inputs.focus }}
         run: |
           set -euo pipefail
@@ -431,7 +474,8 @@ jobs:
   # ---------------------------------------------------------------------------
   backend:
     name: backend
-    if: inputs.mode == 'backend'
+    needs: select-modes
+    if: needs.select-modes.outputs.backend == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -462,7 +506,7 @@ jobs:
 
       - name: Resolve the diagnostic focus
         env:
-          MODE: ${{ inputs.mode }}
+          MODE: backend
           FOCUS: ${{ inputs.focus }}
         run: |
           set -euo pipefail
@@ -500,6 +544,7 @@ jobs:
   feedback-report:
     name: Diagnostic report (not terminal verification)
     needs:
+      - select-modes
       - app-unit
       - samsung-unit
       - android-static
@@ -512,7 +557,7 @@ jobs:
     steps:
       - name: Record that this run is not terminal verification
         env:
-          MODE: ${{ inputs.mode }}
+          MODES: ${{ needs.select-modes.outputs.modes }}
           FOCUS: ${{ inputs.focus }}
           REPOSITORY: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
@@ -527,13 +572,13 @@ jobs:
           if [ -n "$FOCUS" ]; then
             effective_focus="$FOCUS"
           else
-            effective_focus="<none: full mode>"
+            effective_focus="<none: full selected modes>"
           fi
 
           {
-            echo "### diagnose: ${MODE}"
+            echo "### diagnose: ${MODES}"
             echo
-            echo "- mode: \`${MODE}\`"
+            echo "- modes: \`${MODES}\`"
             echo "- focus: \`${effective_focus}\`"
             echo "- commit: \`${SHA}\` (\`${REF}\`)"
             echo "- run: https://github.com/${REPOSITORY}/actions/runs/${RUN_ID}"

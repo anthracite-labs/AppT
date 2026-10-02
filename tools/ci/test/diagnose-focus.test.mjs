@@ -20,6 +20,7 @@ import {
   DIAGNOSE_MODES,
   normalizeFocus,
   resolveFocus,
+  resolveModeSelection,
 } from '../diagnose-focus.mjs';
 
 const MODULE = fileURLToPath(new URL('../diagnose-focus.mjs', import.meta.url));
@@ -133,6 +134,61 @@ function runCli(mode, focus) {
     return { ok: false, stderr: error.stderr ?? '', status: error.status };
   }
 }
+
+
+describe('diagnostic mode selection', () => {
+  it('keeps a single mode backward-compatible', () => {
+    const selected = resolveModeSelection({ mode: 'app-unit' });
+    assert.deepEqual(selected.modes, ['app-unit']);
+    assert.equal(selected.canonical, 'app-unit');
+    assert.equal(selected.kind, 'single');
+    assert.equal(selected.focus, '');
+  });
+
+  it('accepts an ordered set of independent existing modes', () => {
+    const selected = resolveModeSelection({
+      mode: 'app-unit,samsung-unit,android-static,backend',
+    });
+    assert.deepEqual(selected.modes, [
+      'app-unit',
+      'samsung-unit',
+      'android-static',
+      'backend',
+    ]);
+    assert.equal(selected.canonical, 'app-unit,samsung-unit,android-static,backend');
+    assert.equal(selected.kind, 'multi');
+    assert.equal(selected.focus, '');
+  });
+
+  it('rejects malformed, unknown and duplicate mode selections', () => {
+    for (const mode of [
+      '',
+      'app-unit,',
+      ',app-unit',
+      'app-unit,,backend',
+      'app-unit, backend',
+      'app-unit,unknown',
+      'app-unit,app-unit',
+    ]) {
+      assert.throws(() => resolveModeSelection({ mode }), Error, JSON.stringify(mode));
+    }
+  });
+
+  it('rejects focus for multi-mode but preserves focused single-mode validation', () => {
+    assert.throws(
+      () => resolveModeSelection({ mode: 'app-unit,backend', focus: 'FooTest' }),
+      /focus is only valid when exactly one diagnose mode is selected/
+    );
+    assert.equal(
+      resolveModeSelection({ mode: 'app-unit', focus: 'com.example.FooTest' }).focus,
+      'com.example.FooTest'
+    );
+    assert.throws(
+      () => resolveModeSelection({ mode: 'android-static', focus: 'backend' }),
+      /focus for android-static/
+    );
+  });
+});
 
 describe('empty focus preserves the current command', () => {
   for (const mode of DIAGNOSE_MODES) {

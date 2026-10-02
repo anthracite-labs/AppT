@@ -36,6 +36,8 @@
  *   node tools/ci/diagnose-focus.mjs --mode app-unit --focus com.example.FooTest
  */
 
+import { appendFileSync } from 'node:fs';
+
 /** Every diagnose mode, in the order `diagnose.yml` declares them. */
 export const DIAGNOSE_MODES = Object.freeze([
   'app-unit',
@@ -332,6 +334,61 @@ export function resolveFocus({ mode, focus } = {}) {
   return { mode, focus: normalized, kind, command, summary };
 }
 
+
+/**
+ * Validate one mode or a comma-separated set of modes.
+ *
+ * The grammar is deliberately small: exact mode names joined by commas, with
+ * no whitespace, empty entries, unknown names or duplicates. Multi-mode
+ * selection runs whole modes only, so a non-empty focus is rejected.
+ */
+export function resolveModeSelection({ mode, focus } = {}) {
+  if (typeof mode !== 'string' || mode.length === 0) {
+    throw new Error('diagnose mode selection must be a non-empty string');
+  }
+  if (/\s/.test(mode)) {
+    throw new Error(
+      `diagnose mode selection must not contain whitespace: ${JSON.stringify(mode)}`
+    );
+  }
+
+  const modes = mode.split(',');
+  if (modes.some((candidate) => candidate.length === 0)) {
+    throw new Error(
+      `diagnose mode selection contains an empty mode: ${JSON.stringify(mode)}`
+    );
+  }
+
+  const unknown = modes.filter((candidate) => !DIAGNOSE_MODES.includes(candidate));
+  if (unknown.length > 0) {
+    throw new Error(
+      `unknown diagnose mode(s): ${unknown.join(', ')}. Valid modes: ${DIAGNOSE_MODES.join(', ')}`
+    );
+  }
+
+  if (new Set(modes).size !== modes.length) {
+    throw new Error(
+      `diagnose mode selection contains duplicate modes: ${JSON.stringify(mode)}`
+    );
+  }
+
+  const normalizedFocus = normalizeFocus(focus);
+  if (modes.length > 1 && normalizedFocus !== '') {
+    throw new Error('focus is only valid when exactly one diagnose mode is selected');
+  }
+
+  if (modes.length === 1) {
+    resolveFocus({ mode: modes[0], focus: normalizedFocus });
+  }
+
+  return {
+    modes,
+    canonical: modes.join(','),
+    focus: normalizedFocus,
+    kind: modes.length === 1 ? 'single' : 'multi',
+  };
+}
+
 function parseArgs(argv) {
   const options = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -348,6 +405,9 @@ function parseArgs(argv) {
       case '--focus':
         options.focus = next();
         break;
+      case '--selection-output':
+        options.selectionOutput = next();
+        break;
       case '--help':
       case '-h':
         options.help = true;
@@ -363,20 +423,35 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
     console.log(
-      'Usage: node tools/ci/diagnose-focus.mjs --mode <mode> [--focus <focus>]\n' +
+      'Usage: node tools/ci/diagnose-focus.mjs --mode <mode[,mode...]> [--focus <focus>] ' +
+        '[--selection-output <path>]\n' +
         `Modes: ${DIAGNOSE_MODES.join(', ')}\n\n` +
-        'Prints the resolved command, one argument per line, on stdout. Exits\n' +
-        'non-zero — before running anything — if the focus does not narrow that\n' +
-        'mode.'
+        'Without --selection-output, prints one single-mode command argument per line.\n' +
+        'With --selection-output, validates the mode set and writes named GitHub outputs.\n' +
+        'Multi-mode selections reject focus and run each selected mode whole.'
     );
     return;
   }
 
   try {
-    const resolved = resolveFocus({
-      mode: options.mode ?? process.env.DIAGNOSE_MODE,
-      focus: options.focus ?? process.env.DIAGNOSE_FOCUS ?? '',
-    });
+    const mode = options.mode ?? process.env.DIAGNOSE_MODE;
+    const requestedFocus = options.focus ?? process.env.DIAGNOSE_FOCUS ?? '';
+
+    if (options.selectionOutput) {
+      const selection = resolveModeSelection({ mode, focus: requestedFocus });
+      const selected = new Set(selection.modes);
+      const outputLines = [
+        `modes=${selection.canonical}`,
+        `selection_kind=${selection.kind}`,
+        ...DIAGNOSE_MODES.map(
+          (candidate) => `${candidate.replaceAll('-', '_')}=${selected.has(candidate)}`
+        ),
+      ];
+      appendFileSync(options.selectionOutput, `${outputLines.join('\n')}\n`);
+      return;
+    }
+
+    const resolved = resolveFocus({ mode, focus: requestedFocus });
     // One argument per line. A focus value can never contain a newline, so the
     // encoding is unambiguous, and every token stays a single argv entry.
     process.stdout.write(`${resolved.command.join('\n')}\n`);
