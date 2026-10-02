@@ -50,7 +50,6 @@ class PlaintextWebSocketTransportTest {
             uuid = uuid,
         )
 
-
     @Test
     fun aResumedPlaintextPairingFailsClosedWhenTheFreshIdentityDiffers() = runBlocking {
         val transport =

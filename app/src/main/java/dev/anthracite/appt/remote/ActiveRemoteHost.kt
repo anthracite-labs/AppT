@@ -167,9 +167,8 @@ class ActiveRemoteHost(
                             onSessionReady(tvId)
                         } catch (cancellation: CancellationException) {
                             throw cancellation
-                        } catch (ignoredWriteFailure: IOException) {
-                        } catch (ignoredClosedStore: IllegalStateException) {
-                        }
+                        } catch (ignoredWriteFailure: IOException) {} catch (
+                            ignoredClosedStore: IllegalStateException) {}
                     }
                 }
             }

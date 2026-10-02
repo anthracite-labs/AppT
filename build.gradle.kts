@@ -1,4 +1,3 @@
-
 buildscript {
     repositories { mavenCentral() }
     dependencies {
@@ -44,6 +43,47 @@ dependencies {
 
 apply(from = rootProject.file("gradle/guards.gradle.kts"))
 
+// TEMPORARY — Issue #145 S06–S17 program diagnostics.
+//
+// detekt's own failure message carries only a finding count, and the hosted diagnostic jobs do not
+// expose the uploaded report artifacts to the agent that is fixing the findings. Emit each finding
+// as a GitHub workflow command so a failing static-analysis run names its findings in the run's
+// annotations. This changes no failure semantics: detekt still fails the run exactly as before.
+// Remove before the program candidate is verified.
+val reportDetektFindings =
+    tasks.register("reportDetektFindings") {
+        group = "verification"
+        description = "TEMPORARY: prints detekt findings as GitHub workflow commands."
+        doLast {
+            val root = rootProject.projectDir
+            val filePattern =
+                Regex("<file name=\"([^\"]+)\">(.*?)</file>", RegexOption.DOT_MATCHES_ALL)
+            val errorPattern =
+                Regex(
+                    "<error line=\"(\\d+)\" column=\"(\\d+)\" severity=\"[^\"]*\" " +
+                        "message=\"([^\"]*)\" source=\"([^\"]*)\""
+                )
+            listOf("app", "samsung")
+                .map { File(root, "$it/build/reports/detekt/detekt.xml") }
+                .filter { it.isFile }
+                .forEach { report ->
+                    filePattern.findAll(report.readText()).forEach { fileMatch ->
+                        val path = fileMatch.groupValues[1].toRelativeString(root)
+                        errorPattern.findAll(fileMatch.groupValues[2]).forEach { finding ->
+                            val line = finding.groupValues[1]
+                            val column = finding.groupValues[2]
+                            val message = finding.groupValues[3].replace('\n', ' ')
+                            val rule = finding.groupValues[4]
+                            println("::error file=$path,line=$line,col=$column::$message [$rule]")
+                        }
+                    }
+                }
+        }
+    }
+
+subprojects {
+    tasks.matching { it.name == "detekt" }.configureEach { finalizedBy(reportDetektFindings) }
+}
 
 allprojects { dependencyLocking { lockAllConfigurations() } }
 

@@ -57,7 +57,6 @@ class SamsungTvsSavedPairingTest {
     /** The SPKI the pairing was made under; the scripted television keeps presenting it. */
     private val savedPin = "aa".repeat(32)
 
-
     @Test
     fun tokenResumeSendsTheSavedTokenWithoutAnotherApprovalPrompt() = runTest {
         stageSavedPairing()
@@ -146,7 +145,6 @@ class SamsungTvsSavedPairingTest {
         advanceUntilIdle()
     }
 
-
     @Test
     fun identityMismatchDoesNotSendToken() = runTest {
         stageSavedPairing()
@@ -218,7 +216,6 @@ class SamsungTvsSavedPairingTest {
         advanceUntilIdle()
     }
 
-
     @Test
     fun unauthorizedWithTokenYieldsTokenRejectedAndNoLoop() = runTest {
         stageSavedPairing()
@@ -246,7 +243,6 @@ class SamsungTvsSavedPairingTest {
         session.close()
         advanceUntilIdle()
     }
-
 
     @Test
     fun approvalPersistsTheTokenAndPinAtomicallyWithTheDeviceRecord() = runTest {
@@ -299,7 +295,6 @@ class SamsungTvsSavedPairingTest {
         advanceUntilIdle()
     }
 
-
     @Test
     fun corruptSecretDoesNotResetPairing() = runTest {
         stageSavedPairing()
@@ -321,7 +316,6 @@ class SamsungTvsSavedPairingTest {
         session.close()
         advanceUntilIdle()
     }
-
 
     @Test
     fun confirmRepairDiscardsTheSecretThenPairsAsNew() = runTest {
@@ -409,7 +403,6 @@ class SamsungTvsSavedPairingTest {
         advanceUntilIdle()
     }
 
-
     @Test
     fun forgetRemovesSecretAndIsIdempotent() = runTest {
         stageSavedPairing()
@@ -431,7 +424,6 @@ class SamsungTvsSavedPairingTest {
         assertEquals(ForgetResult.Failed, tvs.forget(tvId))
         assertTrue("the relationship remains", secrets.loadSecret(tvId) != StoredSecret.Absent)
     }
-
 
     @Test
     fun supersededConnectCannotResurrectSession() = runTest {
@@ -501,7 +493,6 @@ class SamsungTvsSavedPairingTest {
         session.close()
         advanceUntilIdle()
     }
-
 
     @Test
     fun processDeathDoesNotForceRepair() = runTest {
@@ -573,7 +564,6 @@ class SamsungTvsSavedPairingTest {
         session.close()
         advanceUntilIdle()
     }
-
 
     private fun script(vararg events: SessionEvent): SessionFixture =
         SessionFixture("script", events.toList(), emptyList())

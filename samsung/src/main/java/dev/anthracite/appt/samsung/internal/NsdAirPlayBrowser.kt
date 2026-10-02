@@ -56,8 +56,7 @@ internal class NsdAirPlayBrowser(private val nsd: NsdManager, private val networ
     private fun stop(listener: NsdManager.DiscoveryListener) {
         try {
             nsd.stopServiceDiscovery(listener)
-        } catch (ignored: IllegalArgumentException) {
-        }
+        } catch (ignored: IllegalArgumentException) {}
     }
 
     /**
@@ -94,8 +93,7 @@ internal class NsdAirPlayBrowser(private val nsd: NsdManager, private val networ
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             try {
                 nsd.stopServiceResolution(listener)
-            } catch (ignored: IllegalArgumentException) {
-            }
+            } catch (ignored: IllegalArgumentException) {}
         }
     }
 
@@ -117,19 +115,14 @@ internal class NsdAirPlayBrowser(private val nsd: NsdManager, private val networ
         NsdManager.DiscoveryListener {
         override fun onServiceFound(serviceInfo: NsdServiceInfo) = onFound(serviceInfo)
 
-        override fun onServiceLost(serviceInfo: NsdServiceInfo) {
-        }
+        override fun onServiceLost(serviceInfo: NsdServiceInfo) {}
 
-        override fun onDiscoveryStarted(serviceType: String) {
-        }
+        override fun onDiscoveryStarted(serviceType: String) {}
 
-        override fun onDiscoveryStopped(serviceType: String) {
-        }
+        override fun onDiscoveryStopped(serviceType: String) {}
 
-        override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-        }
+        override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {}
 
-        override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-        }
+        override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
     }
 }

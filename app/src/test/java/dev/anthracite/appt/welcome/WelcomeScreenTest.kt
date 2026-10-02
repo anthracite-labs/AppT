@@ -89,7 +89,6 @@ class WelcomeScreenTest {
         }
     }
 
-
     @Test
     fun `shows the core value proposition`() {
         setWelcome()
@@ -135,7 +134,6 @@ class WelcomeScreenTest {
             horizontallyScrollable.size,
         )
     }
-
 
     @Test
     fun `the primary action has a click action and a TalkBack label`() {

@@ -55,7 +55,6 @@ class KeystoreSamsungStoreTest {
             cipher = cipher,
         )
 
-
     @Test
     fun aSavedSecretSurvivesAProcessRestart() {
         val store = newStore()
@@ -90,7 +89,6 @@ class KeystoreSamsungStoreTest {
         assertEquals(StoredSecret.Available(secret), newStore().loadSecret(mintedId))
     }
 
-
     @Test
     fun theSecretFileIsEnvelopeSealedAndLeavesNoTemporaryFiles() {
         val store = newStore()
@@ -124,7 +122,6 @@ class KeystoreSamsungStoreTest {
         assertEquals("no backup or temp litter", 1, secretFiles().size)
         assertEquals(StoredSecret.Available(rotated), newStore().loadSecret(tvId))
     }
-
 
     @Test
     fun anUnknownIdReadsFailClosedInsteadOfThrowing() {
@@ -171,7 +168,6 @@ class KeystoreSamsungStoreTest {
         assertEquals(StoredSecret.Unavailable, failing.loadSecret(tvId))
     }
 
-
     @Test
     fun aCorruptSecretFileSurfacesUnavailableAndNeverResetsThePairing() {
         val store = newStore()
@@ -210,7 +206,6 @@ class KeystoreSamsungStoreTest {
         val reopened = newStore(LocalAesGcmCipher(keyId = "invalidated-keystore"))
         assertEquals(StoredSecret.Unavailable, reopened.loadSecret(tvId))
     }
-
 
     @Test
     fun theDeviceRecordCarriesNoTokenOrPinOnDisk() {
@@ -254,7 +249,6 @@ class KeystoreSamsungStoreTest {
         assertEquals(record, reopened.loadDevice(tvId))
     }
 
-
     @Test
     fun forgetRemovesEverythingAndIsIdempotent() {
         val store = newStore()
@@ -287,7 +281,6 @@ class KeystoreSamsungStoreTest {
         assertEquals(setOf(other), store.rememberedIds())
     }
 
-
     @Test
     fun samsungStoreOperationsProduceNoCapturedLogOutput() {
         val stdout = System.out
@@ -318,7 +311,6 @@ class KeystoreSamsungStoreTest {
         assertFalse(captured.toString().contains("planted-token-value"))
         assertFalse(captured.toString().contains("planted-pin-value"))
     }
-
 
     @Test
     fun theLocalCipherRoundTripsIndependently() {

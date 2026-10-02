@@ -115,7 +115,6 @@ class SamsungTvsSessionTest {
             .filter { (_, line) -> pattern.containsMatchIn(line) }
             .map { (at, _) -> at }
 
-
     @Test
     fun firstContactPromptsForApprovalThenReachesReady() = runTest {
         val (session, transport) = session(SessionFixture.load("tls-approval-then-volume"))
@@ -343,7 +342,6 @@ class SamsungTvsSessionTest {
         assertEquals("nothing was written after close", emptyList<String>(), transport.sent)
     }
 
-
     @Test
     fun malformedFrameDoesNotEscapeSession() = runTest {
         val (session, transport) = session(SessionFixture.load("malformed-frame"))
@@ -376,7 +374,6 @@ class SamsungTvsSessionTest {
         session.close()
         advanceUntilIdle()
     }
-
 
     @Test
     fun cloudAbsenceDoesNotBlockCommand() = runTest {
@@ -446,7 +443,6 @@ class SamsungTvsSessionTest {
         session.close()
         advanceUntilIdle()
     }
-
 
     @Test
     fun aSelectedTvIdReachesThePrivateEndpointWithoutExposingIt() = runTest {

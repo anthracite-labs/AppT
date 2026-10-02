@@ -109,8 +109,7 @@ internal class LiveSession(
                         television.id,
                         record.copy(rejectedKeys = rejectedKeyEvidence.get()),
                     )
-                } catch (ignored: IOException) {
-                }
+                } catch (ignored: IOException) {}
             }
         }
         attempt = scope.launch { sessionLoop() }

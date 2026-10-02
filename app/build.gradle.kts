@@ -1,4 +1,3 @@
-
 import java.util.Locale
 import java.util.zip.ZipFile
 import org.gradle.api.tasks.testing.Test
@@ -38,9 +37,7 @@ android {
         buildConfigField("String", "APPT_BUILD_SHA", "\"$apptBuildSha\"")
     }
 
-    buildTypes {
-        release { isMinifyEnabled = false }
-    }
+    buildTypes { release { isMinifyEnabled = false } }
 
     buildFeatures {
         compose = true
@@ -52,11 +49,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    testOptions {
-        unitTests {
-            isIncludeAndroidResources = true
-        }
-    }
+    testOptions { unitTests { isIncludeAndroidResources = true } }
 
     lint {
         warningsAsErrors = true
@@ -131,7 +124,6 @@ dependencies {
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
 }
-
 
 val manifestPermissionAllowlist =
     setOf(

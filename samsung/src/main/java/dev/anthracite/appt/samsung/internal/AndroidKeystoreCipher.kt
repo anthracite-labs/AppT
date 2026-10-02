@@ -60,9 +60,8 @@ internal class AndroidKeystoreCipher(private val alias: String = KEYSTORE_ALIAS)
         try {
             generator.init(spec(strongBox = true))
             return generator.generateKey()
-        } catch (ignored: StrongBoxUnavailableException) {
-        } catch (ignored: InvalidAlgorithmParameterException) {
-        }
+        } catch (ignored: StrongBoxUnavailableException) {} catch (
+            ignored: InvalidAlgorithmParameterException) {}
         generator.init(spec(strongBox = false))
         return generator.generateKey()
     }

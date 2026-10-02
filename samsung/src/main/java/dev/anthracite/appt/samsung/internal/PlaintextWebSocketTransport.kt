@@ -188,8 +188,7 @@ internal class PlaintextWebSocketTransport(
                         is WebSocketFrames.Inbound.Frame -> onFrame(inboundFrame)
                     }
                 }
-            } catch (_: IOException) {
-            }
+            } catch (_: IOException) {}
             inbound.close()
             socket.closeQuietly()
         }
@@ -212,8 +211,7 @@ internal class PlaintextWebSocketTransport(
         private fun abortWrite() {
             try {
                 output.close()
-            } catch (_: IOException) {
-            }
+            } catch (_: IOException) {}
             socket.closeQuietly()
         }
 
@@ -372,8 +370,7 @@ internal class PlaintextWebSocketTransport(
 private fun Socket.closeQuietly() {
     try {
         close()
-    } catch (_: IOException) {
-    }
+    } catch (_: IOException) {}
 }
 
 private const val DEVICE_INFO_CONNECT_TIMEOUT_MILLIS = 5_000
