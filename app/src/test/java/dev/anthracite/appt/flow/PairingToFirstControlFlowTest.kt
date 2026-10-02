@@ -29,12 +29,13 @@ import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
 import dev.anthracite.appt.tokens.AppTTheme
 import dev.anthracite.appt.welcome.WelcomeTestTags
 import java.io.File
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -90,12 +91,10 @@ class PairingToFirstControlFlowTest {
         )
     private val livingRoom = TvId(FakeSamsungTvs.LIVING_ROOM_ID)
 
-    // `firstControlAchieved` is written by a suspending DataStore write that DataStore performs
-    // asynchronously and then resumes on this thread, so it is not readable the moment the command
-    // returns. Observing it from a collector on the main looper keeps the wait off the write's
-    // path: reading it from a `runBlocking` here would block the looper the write resumes on, and
-    // the read would wait for a write that can never finish.
-    private val observations = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    // Observe the suspending DataStore milestone on real IO, independently of the Compose test
+    // dispatcher used to drive the acceptance flow.
+    private val observations = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val firstControlObserverStarted = AtomicBoolean(false)
     private val firstControlAchieved = AtomicBoolean(false)
 
     private fun setGraph() {
@@ -125,19 +124,6 @@ class PairingToFirstControlFlowTest {
     @After
     fun stopObservations() {
         observations.cancel()
-    }
-
-    private fun awaitFirstControlAchieved(timeoutMillis: Long = 10_000L) {
-        observations.launch { store.firstControlAchieved.collect { firstControlAchieved.set(it) } }
-        // Neither `waitUntil` nor a `runBlocking` read can observe this flag: `waitUntil` sleeps
-        // the calling thread and only advances the Compose clock, and `runBlocking` blocks this
-        // thread outright, so in both cases the pending work on the main looper never runs. Idling
-        // the looper is what runs the write's resumption and the collector that reads it back.
-        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
-        while (!firstControlAchieved.get() && System.nanoTime() < deadline) {
-            composeRule.waitForIdle()
-        }
-        assertTrue("the first accepted command is recorded", firstControlAchieved.get())
     }
 
     @Test
@@ -186,11 +172,35 @@ class PairingToFirstControlFlowTest {
             dao.current().single().lastOpenedAt,
         )
 
-        composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.VolumeUp)).performClick()
-        composeRule.waitForIdle()
+        val firstControlObserver =
+            observations.launch {
+                store.firstControlAchieved
+                    .onEach { achieved -> if (!achieved) firstControlObserverStarted.set(true) }
+                    .first { it }
+                firstControlAchieved.set(true)
+            }
+        try {
+            composeRule.waitUntil(
+                conditionDescription = "first-control observer received its initial value",
+                timeoutMillis = 10_000L,
+            ) {
+                firstControlObserverStarted.get()
+            }
+
+            composeRule.onNodeWithTag(RemoteTestTags.key(RemoteKey.VolumeUp)).performClick()
+            // Drain the click event; waitUntil below handles the external DataStore IO condition.
+            composeRule.waitForIdle()
+            composeRule.waitUntil(
+                conditionDescription = "first accepted command persisted",
+                timeoutMillis = 10_000L,
+            ) {
+                firstControlAchieved.get()
+            }
+        } finally {
+            firstControlObserver.cancel()
+        }
 
         assertEquals(listOf(TvCommand.Tap(RemoteKey.VolumeUp)), session.commands)
-        awaitFirstControlAchieved()
         assertEquals("still one session after the command", listOf(livingRoom), tvs.openedIds)
         assertFalse("the session was not closed by the handoff", session.closed)
     }

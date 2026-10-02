@@ -258,7 +258,8 @@ job checks out explicitly first.
 
 Invoking diagnostics without clicking through the Actions UI:
 
-- an actor with Actions write permission dispatches `diagnose.yml` directly;
+- an actor with Actions write permission dispatches `diagnose.yml` directly,
+  selecting either one mode or a strict comma-separated set of modes;
 - an integration that can only mutate pull-request metadata adds one of the
   command labels (`ci:app-unit`, `ci:samsung-unit`, `ci:android-static`,
   `ci:android-build`, `ci:backend`, `ci:full`) to the pull request, and `agent-control.yml` resolves
@@ -406,32 +407,37 @@ observability/testing role. Temporary workflow YAML remains the last resort
 described above, after local tooling and the existing `diagnose.yml` modes
 cannot perform the needed diagnostic operation.
 
-### Focusing a diagnostic
+### Selecting and focusing diagnostics
 
-Every `diagnose.yml` mode accepts an optional `focus` input that narrows that
-mode without widening it:
+`diagnose.yml` accepts either one mode or a strict comma-separated set of
+existing modes. A validated multi-mode selection runs only those named jobs, and
+the selected jobs run concurrently:
 
 ```bash
-# the whole mode, unchanged
+# one whole mode, unchanged
 gh workflow run diagnose.yml -f mode=app-unit
 
-# narrowed inside the mode
+# several whole modes in one dispatch
+gh workflow run diagnose.yml -f mode=app-unit,samsung-unit,android-static
+
+# focus remains a single-mode feature
 gh workflow run diagnose.yml -f mode=app-unit -f focus=com.example.FooTest
 gh workflow run diagnose.yml -f mode=android-static -f focus=lint
 gh workflow run diagnose.yml -f mode=backend -f focus=test:package-identity
 ```
 
-`tools/ci/diagnose-focus.mjs` owns the per-mode grammar and returns the exact
-argv vector to run, so the value is data rather than command text. An empty
-`focus` reproduces the mode's existing command exactly; a non-empty one narrows
-only within the mode, through the underlying tool's native selector or a finite
-allowlist of sub-responsibilities the mode already owns. Anything else — a wrong
-shape, a foreign prefix, a sub-responsibility belonging to another mode, a
-leading `-`, a control character — fails closed before anything runs, and the run
-summary records the mode and the effective focus. The grammar and its selectors
-are proven by `tools/ci/test/diagnose-focus.test.mjs` against the pinned
-toolchain. A focused diagnostic is still non-terminal; full `verify` is
-unchanged.
+The selection grammar is exact mode names joined by commas. Unknown names,
+duplicates, whitespace, empty entries, and any non-empty `focus` paired with a
+multi-mode selection fail closed before target-controlled code executes. Existing
+single-mode focus behavior is unchanged.
+
+`tools/ci/diagnose-focus.mjs` owns both the mode-set validation and the per-mode
+focus grammar. For a single mode, an empty `focus` reproduces the existing
+command exactly; a non-empty one narrows only within that mode through the
+underlying tool's native selector or a finite allowlist of sub-responsibilities
+the mode already owns. The grammar and selectors are proven by
+`tools/ci/test/diagnose-focus.test.mjs`. Diagnostics remain non-terminal; full
+`verify` is unchanged.
 
 ## CodeQL static analysis
 

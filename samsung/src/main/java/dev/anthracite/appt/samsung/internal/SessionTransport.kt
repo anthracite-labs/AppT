@@ -53,6 +53,13 @@ internal sealed interface ConnectionAttempt {
     data object Unreachable : ConnectionAttempt
 }
 
+/** Result of a typed key write at the Samsung protocol boundary. */
+internal enum class CommandWriteResult {
+    Written,
+    LocalRefused,
+    TelevisionRejected,
+}
+
 /** One open socket. Held by the session for the lifetime of one connection attempt. */
 internal interface SessionConnection {
 
@@ -76,6 +83,14 @@ internal interface SessionConnection {
      * [dev.anthracite.appt.samsung.CommandResult.Rejected] instead of growing a burst.
      */
     suspend fun send(frame: String): Boolean
+
+    /**
+     * Sends a key command and reports only a protocol-specific television rejection when an
+     * accepted fixture-backed adapter can prove one. Existing production transports report local
+     * write success/refusal only; neither is television capability evidence.
+     */
+    suspend fun sendCommand(frame: String): CommandWriteResult =
+        if (send(frame)) CommandWriteResult.Written else CommandWriteResult.LocalRefused
 
     /** Releases the socket. */
     fun close()

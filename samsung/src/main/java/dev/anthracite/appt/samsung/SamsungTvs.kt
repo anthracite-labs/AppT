@@ -8,9 +8,9 @@ import kotlinx.coroutines.flow.Flow
  *
  * S02 realizes [discover] only. S03 adds the first live control session: [open] plus
  * [RemoteSession] and the command path. The canonical contract also lists `wake`, `forget`,
- * `rememberedIds` and `redactedDiagnostics`; each arrives, unchanged in shape, in the slice that
- * makes it observable (S04 secrets and `forget`, S12 wake). Declaring them now would force either a
- * stub that pretends to work or an exception path no caller is allowed to rely on.
+ * `rememberedIds` and `redactedDiagnostics`; each arrives in the slice that makes it observable:
+ * S04 secrets/forget, S05 bounded diagnostics, and S12 wake. These methods are live
+ * implementations, not placeholder stubs.
  *
  * Two adapters cross this seam: the production `SamsungTvsImpl` (internal to this module, created
  * through [SamsungModule]) and the scripted fake that `app` tests use.
@@ -77,4 +77,7 @@ interface SamsungTvs {
      * account or cloud concept (docs/architecture/data.md).
      */
     fun rememberedIds(): Set<TvId>
+
+    /** Already-redacted bounded local events; this API never returns identifiers or payloads. */
+    fun redactedDiagnostics(): RedactedDiagnosticReport
 }

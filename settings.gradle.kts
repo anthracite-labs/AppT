@@ -30,12 +30,9 @@ dependencyResolutionManagement {
 
 rootProject.name = "AppT"
 
-// Exactly three Gradle modules (docs/architecture/modules.md#shape):
-//   :app            production Android application
-//   :samsung        production Samsung control module
-//   :macrobenchmark test-only com.android.test module targeting :app
+// Exactly two production Gradle modules (docs/architecture/modules.md#shape):
+//   :app     Android application
+//   :samsung Samsung control module
 include(":app")
 
 include(":samsung")
-
-include(":macrobenchmark")

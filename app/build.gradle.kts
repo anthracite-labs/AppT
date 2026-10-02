@@ -14,6 +14,10 @@
 // KSP is the only annotation-processing path available (docs/BUILD.md).
 
 import java.util.Locale
+import java.util.zip.ZipFile
+import org.gradle.api.tasks.testing.Test
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import org.gradle.api.tasks.testing.logging.TestLogEvent
 
 plugins {
     alias(libs.plugins.android.application)
@@ -24,6 +28,19 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.detekt)
     alias(libs.plugins.kover)
+}
+
+// The trusted hosted android-build route sets this from the dispatch-target assertion output.
+// Local builds use an explicit sentinel; the physical verifier refuses to produce a report without
+// a full source SHA.
+val apptBuildSha =
+    providers
+        .environmentVariable("APPT_BUILD_SHA")
+        .orElse(providers.gradleProperty("apptBuildSha"))
+        .getOrElse("local")
+
+require(apptBuildSha == "local" || apptBuildSha.matches(Regex("[0-9a-f]{40}"))) {
+    "APPT_BUILD_SHA must be a full lowercase 40-character Git SHA or unset for a local build."
 }
 
 android {
@@ -42,6 +59,7 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "APPT_BUILD_SHA", "\"$apptBuildSha\"")
     }
 
     buildTypes {
@@ -52,9 +70,8 @@ android {
 
     buildFeatures {
         compose = true
-        // No BuildConfig fields are needed and none are generated, so no
-        // environment identifier can leak into a build in this slice.
-        buildConfig = false
+        // The debug-only physical verifier shows the exact SHA injected by the trusted build route.
+        buildConfig = true
     }
 
     compileOptions {
@@ -71,15 +88,6 @@ android {
             // out and measure the nodes the touch-target assertions read) is
             // set in app/src/test/resources/robolectric.properties.
             isIncludeAndroidResources = true
-        }
-        managedDevices {
-            localDevices {
-                create("pixel2api29") {
-                    device = "Pixel 2"
-                    apiLevel = 29
-                    systemImageSource = "aosp"
-                }
-            }
         }
     }
 
@@ -168,7 +176,6 @@ detekt {
 dependencies {
     // app -> samsung is the only production module edge (modules.md).
     implementation(project(":samsung"))
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -365,6 +372,88 @@ tasks.register("manifestPermissionAllowlist") {
     dependsOn(tasks.withType<MergedManifestGuard>())
 }
 
+// This release-artifact guard proves the debug-only S05 physical verifier does not leak into
+// the distributable variant.
+tasks.register("verifyReleaseS05Boundaries") {
+    group = "verification"
+    description = "Checks the release APK excludes the debug-only S05 physical verifier."
+    dependsOn("assembleRelease")
+    doLast {
+        val forbiddenMarkers =
+            listOf(
+                "DebugS05VerifierAction",
+                "DebugS05VerifierCommand",
+                "DebugS05VerifierDialog",
+                "DebugLatencyRun",
+                "DebugLatencyReport",
+                "DebugMeasuredCommand",
+                "DebugS05VerifierActivity",
+                "s05:physical-verifier",
+                "S05 physical verification",
+                "S05 physical verifier",
+                "Start verification",
+                "Warm-up Volume Up",
+                "Measure Volume Up",
+                "Unmeasured warm-up",
+                "Measured interactions:",
+                "Copy verification result",
+            )
+        val distributableSources = listOf(file("src/main"), file("src/release"))
+        val sourceLeaks =
+            distributableSources
+                .filter { it.exists() }
+                .flatMap { sourceRoot -> sourceRoot.walkTopDown().filter { it.isFile }.toList() }
+                .flatMap { source ->
+                    val contents = source.readText()
+                    forbiddenMarkers
+                        .filter { marker -> marker in contents }
+                        .map { marker -> "${source.relativeTo(projectDir)} contains '$marker'" }
+                }
+        if (sourceLeaks.isNotEmpty()) {
+            throw GradleException(
+                "Release source graph contains debug S05 verifier material:\n" +
+                    sourceLeaks.joinToString("\n")
+            )
+        }
+
+        val apkDirectory = layout.buildDirectory.dir("outputs/apk/release").get().asFile
+        val releaseApks =
+            apkDirectory.listFiles { candidate -> candidate.extension == "apk" }.orEmpty()
+        if (releaseApks.isEmpty()) {
+            throw GradleException(
+                "No release APK found under ${apkDirectory.relativeTo(projectDir)}."
+            )
+        }
+        releaseApks.forEach { apk ->
+            ZipFile(apk).use { archive ->
+                val inspectedEntries =
+                    archive.entries().asSequence().filter { entry ->
+                        !entry.isDirectory &&
+                            (entry.name == "AndroidManifest.xml" ||
+                                entry.name == "resources.arsc" ||
+                                (entry.name.startsWith("classes") && entry.name.endsWith(".dex")))
+                    }
+                inspectedEntries.forEach { entry ->
+                    val contents =
+                        archive.getInputStream(entry).use {
+                            it.readBytes().toString(Charsets.ISO_8859_1)
+                        }
+                    val leakedMarkers = forbiddenMarkers.filter { marker -> marker in contents }
+                    if (leakedMarkers.isNotEmpty()) {
+                        throw GradleException(
+                            "${apk.name}:${entry.name} contains debug-only S05 material: " +
+                                leakedMarkers.joinToString(", ")
+                        )
+                    }
+                }
+            }
+        }
+        logger.lifecycle(
+            "verifyReleaseS05Boundaries: OK — release source graph and APK exclude the debug S05 physical verifier."
+        )
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Issue #54 — narrow security constraints (never resolutionStrategy.force)
 // ---------------------------------------------------------------------------
@@ -397,4 +486,13 @@ configurations.configureEach {
             else -> emptyList<String>()
         }
     notations.forEach { notation -> project.dependencies.constraints { add(cfg, notation) } }
+}
+
+// Keep failed Robolectric/JUnit assertions actionable in the hosted diagnostic
+// path as well as in the uploaded XML reports.
+tasks.withType<Test>().configureEach {
+    testLogging {
+        events = setOf(TestLogEvent.FAILED)
+        exceptionFormat = TestExceptionFormat.FULL
+    }
 }

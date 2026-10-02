@@ -1,10 +1,14 @@
 package dev.anthracite.appt.remote
 
+import android.view.KeyEvent
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import dev.anthracite.appt.data.FakeTvProfileDao
 import dev.anthracite.appt.data.NameSource
 import dev.anthracite.appt.data.TvProfile
 import dev.anthracite.appt.data.TvProfiles
+import dev.anthracite.appt.diagnostics.AppDiagnosticName
+import dev.anthracite.appt.diagnostics.LocalDiagnostics
+import dev.anthracite.appt.preferences.NavigationMode
 import dev.anthracite.appt.preferences.PreferenceStore
 import dev.anthracite.appt.samsung.CommandResult
 import dev.anthracite.appt.samsung.RemoteKey
@@ -19,10 +23,11 @@ import dev.anthracite.appt.testing.settle
 import dev.anthracite.appt.testing.subscribeTo
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -56,7 +61,7 @@ class RemoteViewModelTest {
         val file = File(folder.newFolder(), PREFERENCES_FILE_NAME)
         PreferenceStore(
             PreferenceDataStoreFactory.create(
-                scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+                scope = CoroutineScope(SupervisorJob() + mainRule.dispatcher),
                 produceFile = { file },
             )
         )
@@ -105,7 +110,12 @@ class RemoteViewModelTest {
             settle()
 
             assertEquals(emptyList<RemoteKey>(), viewModel.state.value.keys)
-            assertEquals(ConnectionUi.WaitingForApproval, viewModel.state.value.connection)
+            assertEquals(
+                ConnectionUi.WaitingForApproval,
+                viewModel.state
+                    .first { it.connection == ConnectionUi.WaitingForApproval }
+                    .connection,
+            )
         }
 
     @Test
@@ -125,7 +135,10 @@ class RemoteViewModelTest {
             subscribeTo(viewModel.state)
             settle()
 
-            assertEquals("Living Room TV", viewModel.state.value.tvName)
+            assertEquals(
+                "Living Room TV",
+                viewModel.state.first { it.tvName == "Living Room TV" }.tvName,
+            )
         }
 
     @Test
@@ -208,6 +221,106 @@ class RemoteViewModelTest {
      * to open a real socket rather than re-reading the one that failed (connection.md: `Unreachable
      * → Connecting: caller opens again`).
      */
+    @Test
+    fun explicitRejectedKeyDisappearsButUnavailableDoesNotChangeCapabilities() =
+        runTest(mainRule.dispatcher) {
+            val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            subscribeTo(viewModel.state)
+            settle()
+            val session = tvs.sessionFor(livingRoom)!!
+            session.ready(setOf(RemoteKey.VolumeUp, RemoteKey.Home))
+            settle()
+
+            session.nextResult = CommandResult.Rejected(TvFailure.Rejected)
+            viewModel.onCommand(TvCommand.Tap(RemoteKey.VolumeUp))
+            settle()
+            assertEquals(listOf(RemoteKey.Home), viewModel.state.value.keys)
+
+            session.nextResult = CommandResult.Rejected(TvFailure.Unavailable)
+            viewModel.onCommand(TvCommand.Tap(RemoteKey.Home))
+            settle()
+            assertEquals(listOf(RemoteKey.Home), viewModel.state.value.keys)
+        }
+
+    @Test
+    fun navigationPreferenceFallsBackUntilPointerCapabilityIsPresent() =
+        runTest(mainRule.dispatcher) {
+            val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            subscribeTo(viewModel.state)
+            settle()
+            store.setNavigationMode(NavigationMode.Pointer)
+            val session = tvs.sessionFor(livingRoom)!!
+            session.ready(setOf(RemoteKey.Up), pointer = false)
+            settle()
+            assertEquals(NavigationMode.Directional, viewModel.state.value.navigationMode)
+
+            session.ready(setOf(RemoteKey.Up), pointer = true)
+            settle()
+            assertEquals(NavigationMode.Pointer, viewModel.state.value.navigationMode)
+        }
+
+    @Test
+    fun hardwareVolumeIsConsumedOnlyWithStartedPreferenceAndCapabilityEvidence() =
+        runTest(mainRule.dispatcher) {
+            val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store)
+            subscribeTo(viewModel.state)
+            settle()
+            val session = tvs.sessionFor(livingRoom)!!
+            session.ready(setOf(RemoteKey.VolumeUp))
+            session.nextResult = CommandResult.Accepted
+            settle()
+
+            assertTrue(viewModel.onHardwareVolumeKey(RemoteKey.VolumeUp, KeyEvent.ACTION_DOWN, 0))
+            assertTrue(viewModel.onHardwareVolumeKey(RemoteKey.VolumeUp, KeyEvent.ACTION_UP, 0))
+            assertTrue(viewModel.onHardwareVolumeKey(RemoteKey.VolumeUp, KeyEvent.ACTION_DOWN, 1))
+            settle()
+            assertEquals(listOf(TvCommand.Tap(RemoteKey.VolumeUp)), session.commands)
+
+            store.setVolumeButtonsControlTv(false)
+            settle()
+            assertFalse(viewModel.onHardwareVolumeKey(RemoteKey.VolumeUp, KeyEvent.ACTION_DOWN, 0))
+            store.setVolumeButtonsControlTv(true)
+            settle()
+            assertFalse(
+                viewModel.onHardwareVolumeKey(RemoteKey.VolumeDown, KeyEvent.ACTION_DOWN, 0)
+            )
+
+            session.publish(SessionState.Unreachable)
+            settle()
+            assertFalse(viewModel.onHardwareVolumeKey(RemoteKey.VolumeUp, KeyEvent.ACTION_DOWN, 0))
+        }
+
+    @Test
+    fun commandDoesNotAwaitDiagnosticsWhenTheBoundedQueueIsFull() =
+        runTest(mainRule.dispatcher) {
+            val diagnosticDispatcher = StandardTestDispatcher()
+            val diagnosticScope = CoroutineScope(SupervisorJob() + diagnosticDispatcher)
+            val diagnostics =
+                LocalDiagnostics(
+                    File(folder.newFolder(), LocalDiagnostics.DIAGNOSTICS_DIRECTORY),
+                    diagnosticScope,
+                    diagnosticDispatcher,
+                )
+            repeat(LocalDiagnostics.MAX_EVENTS) { index ->
+                assertTrue(
+                    diagnostics.recordApp(AppDiagnosticName.RemoteInteraction, index.toLong())
+                )
+            }
+            val viewModel = RemoteViewModel(livingRoom, entered(), profiles, store, diagnostics)
+            subscribeTo(viewModel.state)
+            settle()
+            val session = tvs.sessionFor(livingRoom)!!
+            session.ready(setOf(RemoteKey.VolumeUp))
+            session.nextResult = CommandResult.Accepted
+            settle()
+
+            viewModel.onCommand(TvCommand.Tap(RemoteKey.VolumeUp))
+            settle()
+
+            assertEquals(listOf(TvCommand.Tap(RemoteKey.VolumeUp)), session.commands)
+            diagnosticScope.cancel()
+        }
+
     @Test
     fun retryAfterUnavailableOpensANewSession() =
         runTest(mainRule.dispatcher) {

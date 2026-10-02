@@ -1,5 +1,6 @@
 package dev.anthracite.appt.samsung.internal
 
+import dev.anthracite.appt.samsung.RemoteKey
 import dev.anthracite.appt.samsung.TvId
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -67,6 +68,21 @@ class KeystoreSamsungStoreTest {
         assertEquals(StoredSecret.Available(secret), reopened.loadSecret(tvId))
         assertEquals(record, reopened.loadDevice(tvId))
         assertEquals(setOf(tvId), reopened.rememberedIds())
+    }
+
+    @Test
+    fun rejectedKeyEvidenceIsSamsungPrivateAndSurvivesDeviceRecordRebuild() {
+        val store = newStore()
+        store.saveDevice(tvId, record.copy(rejectedKeys = setOf(RemoteKey.VolumeUp)))
+
+        val rebuilt = newStore().loadDevice(tvId)
+
+        assertEquals(setOf(RemoteKey.VolumeUp), rebuilt?.rejectedKeys)
+        assertFalse(
+            "device record stores typed names, never protocol key strings",
+            DeviceRecordJson.encode(record.copy(rejectedKeys = setOf(RemoteKey.VolumeUp)))
+                .contains("KEY_"),
+        )
     }
 
     @Test

@@ -14,7 +14,7 @@ import kotlinx.serialization.json.put
  * Production is [KeystoreSamsungStore.AndroidKeystoreCipher]. The seam exists so the file,
  * atomicity, corruption and idempotence behavior of the store is provable on the JVM with a local
  * AES-GCM cipher, while the real Android Keystore round trip is proven by the instrumented test on
- * a managed device (docs/architecture/testing.md).
+ * Android (docs/architecture/testing.md).
  */
 internal interface SecretCipher {
     /**

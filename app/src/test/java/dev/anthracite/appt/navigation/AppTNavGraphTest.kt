@@ -31,6 +31,7 @@ import dev.anthracite.appt.samsung.DiscoveryEvent
 import dev.anthracite.appt.samsung.RemoteKey
 import dev.anthracite.appt.samsung.TvFailure
 import dev.anthracite.appt.samsung.TvId
+import dev.anthracite.appt.settings.SettingsTestTags
 import dev.anthracite.appt.testing.FakePermissionGate
 import dev.anthracite.appt.testing.FakeSamsungTvs
 import dev.anthracite.appt.testing.PREFERENCES_FILE_NAME
@@ -135,15 +136,16 @@ class AppTNavGraphTest {
         }
 
     @Test
-    fun `the graph holds Welcome, LocalNetwork, Discovery, Pairing and Remote and opens on Welcome`() {
+    fun `the graph holds the S05 Settings route and opens on Welcome`() {
         setGraph()
         val destinations = navController.graph.iterator().asSequence().toList()
-        assertEquals(5, destinations.size)
+        assertEquals(6, destinations.size)
         assertTrue(destinations.any { it.hasRoute<WelcomeRoute>() })
         assertTrue(destinations.any { it.hasRoute<LocalNetworkRoute>() })
         assertTrue(destinations.any { it.hasRoute<DiscoveryRoute>() })
         assertTrue(destinations.any { it.hasRoute<PairingRoute>() })
         assertTrue(destinations.any { it.hasRoute<RemoteRoute>() })
+        assertTrue(destinations.any { it.hasRoute<SettingsRoute>() })
         assertTrue(navController.graph.findStartDestination().hasRoute<WelcomeRoute>())
         composeRule.onNodeWithTag(WelcomeTestTags.VALUE_PROPOSITION).assertExists()
         composeRule.onNodeWithTag(WelcomeTestTags.PRIMARY_ACTION).assertExists()
@@ -308,6 +310,31 @@ class AppTNavGraphTest {
         )
         assertEquals(listOf("Welcome", "Discovery"), backStackRoutes())
         composeRule.onNodeWithTag(DiscoveryTestTags.TITLE).assertExists()
+    }
+
+    @Test
+    fun `Remote chrome reaches Settings and returns without reopening the session`() {
+        setGraph()
+        openDiscovery()
+        tvs.latest.send(FakeSamsungTvs.found())
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Living Room TV").performClick()
+        composeRule.waitForIdle()
+        val id = TvId(FakeSamsungTvs.LIVING_ROOM_ID)
+        val session = tvs.sessionFor(id)!!
+        session.ready(setOf(RemoteKey.VolumeUp))
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(RemoteTestTags.SETTINGS).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Interaction").assertExists()
+        composeRule.onNodeWithText("App version").assertExists()
+        composeRule.onNodeWithTag(SettingsTestTags.BACK).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(RemoteTestTags.TV_NAME).assertExists()
+        assertEquals(listOf(id), tvs.openedIds)
+        assertFalse(session.closed)
     }
 
     @Test

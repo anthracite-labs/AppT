@@ -35,6 +35,7 @@ internal class ScriptedSessionTransport(
     private val refusesConnection: Boolean = false,
     private val cancellationBarrier: CompletableDeferred<Unit>? = null,
 ) : SessionTransport {
+    var nextCommandWriteResult: CommandWriteResult = CommandWriteResult.Written
 
     /** Every frame the session wrote, in order. */
     val sent = mutableListOf<String>()
@@ -84,7 +85,17 @@ internal class ScriptedSessionTransport(
         // single-fixture case replays the same television behaviour on every attempt.
         val fixture = fixtures.getOrElse(sockets.size) { fixtures.last() }
         val connection =
-            ScriptedSessionConnection(fixture, certificateIdentity, sent, cancellationBarrier)
+            ScriptedSessionConnection(
+                fixture,
+                certificateIdentity,
+                sent,
+                cancellationBarrier,
+                commandResult = {
+                    nextCommandWriteResult.also {
+                        nextCommandWriteResult = CommandWriteResult.Written
+                    }
+                },
+            )
         sockets += connection
         return ConnectionAttempt.Opened(connection)
     }
@@ -95,6 +106,7 @@ internal class ScriptedSessionConnection(
     override val certificateIdentity: String?,
     private val sent: MutableList<String>,
     private val cancellationBarrier: CompletableDeferred<Unit>?,
+    private val commandResult: () -> CommandWriteResult,
 ) : SessionConnection {
 
     var closed = false
@@ -125,6 +137,11 @@ internal class ScriptedSessionConnection(
     override suspend fun send(frame: String): Boolean {
         sent += frame
         return true
+    }
+
+    override suspend fun sendCommand(frame: String): CommandWriteResult {
+        sent += frame
+        return commandResult()
     }
 
     override fun close() {

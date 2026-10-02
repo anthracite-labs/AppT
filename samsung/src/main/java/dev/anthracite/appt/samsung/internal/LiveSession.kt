@@ -11,9 +11,11 @@ import dev.anthracite.appt.samsung.TvCommand
 import dev.anthracite.appt.samsung.TvFailure
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -54,6 +56,8 @@ internal class LiveSession(
     private val secrets: SamsungSecretStore,
     private val generation: SessionGeneration = SessionGeneration.ALWAYS_CURRENT,
     private val approvalWait: Duration = APPROVAL_WAIT,
+    private val capabilityDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
+    private val diagnostics: SamsungDiagnosticRecorder = SamsungDiagnosticRecorder(),
 ) : RemoteSession {
 
     private val mutableSnapshot =
@@ -78,7 +82,14 @@ internal class LiveSession(
      * the standard remote keys (commands.md#evidence: `Ready` is the evidence the channel accepts
      * them).
      */
-    private var channelKeys: Set<RemoteKey> = emptySet()
+    private var channelConnected = false
+
+    /** Last explicit per-key negative evidence, kept Samsung-private and bounded by the enum. */
+    private val rejectedKeyEvidence =
+        AtomicReference(secrets.loadDevice(television.id)?.rejectedKeys.orEmpty())
+
+    /** A conflated signal makes the IO writer read the newest set without blocking dispatch. */
+    private val capabilityUpdates = Channel<Unit>(Channel.CONFLATED)
 
     /** The saved pairing this attempt resumed with, or null on first contact. */
     private var resumedFrom: PairingSecret? = null
@@ -90,21 +101,52 @@ internal class LiveSession(
     private var resumedWithTokenSent = false
 
     init {
+        scope.launch(capabilityDispatcher) {
+            while (capabilityUpdates.receiveCatching().isSuccess) {
+                val record = secrets.loadDevice(television.id) ?: continue
+                try {
+                    secrets.saveDevice(
+                        television.id,
+                        record.copy(rejectedKeys = rejectedKeyEvidence.get()),
+                    )
+                } catch (ignored: IOException) {
+                    // Negative evidence remains in the live snapshot; a later update retries.
+                }
+            }
+        }
         attempt = scope.launch { sessionLoop() }
     }
 
     override suspend fun command(command: TvCommand): CommandResult {
         val connection =
             (if (mutableSnapshot.value.state == SessionState.Ready) openConnection else null)
-                ?: return CommandResult.Rejected(TvFailure.Unavailable)
+                ?: run {
+                    diagnostics.commandUnavailable()
+                    return CommandResult.Rejected(TvFailure.Unavailable)
+                }
         val frame =
             when (command) {
                 is TvCommand.Tap -> RemoteChannel.tapFrame(command.key)
+                is TvCommand.PointerMove,
+                TvCommand.PointerClick -> {
+                    diagnostics.commandUnavailable()
+                    return CommandResult.Rejected(TvFailure.Unavailable)
+                }
             }
-        return if (connection.send(frame)) {
-            CommandResult.Accepted
-        } else {
-            CommandResult.Rejected(TvFailure.Unavailable)
+        return when (connection.sendCommand(frame)) {
+            CommandWriteResult.Written -> {
+                diagnostics.commandWritten()
+                CommandResult.Accepted
+            }
+            CommandWriteResult.LocalRefused -> {
+                diagnostics.commandUnavailable()
+                CommandResult.Rejected(TvFailure.Unavailable)
+            }
+            CommandWriteResult.TelevisionRejected -> {
+                diagnostics.commandRejected()
+                recordRejectedKey(command.key)
+                CommandResult.Rejected(TvFailure.Rejected)
+            }
         }
     }
 
@@ -144,6 +186,7 @@ internal class LiveSession(
         released.set(true)
         attempt?.cancel()
         approvalTimer?.cancel()
+        capabilityUpdates.close()
         publish(SessionState.Closed)
     }
 
@@ -248,7 +291,7 @@ internal class LiveSession(
      */
     private fun onApproved(token: String?) {
         approvalTimer?.cancel()
-        channelKeys = STANDARD_REMOTE_KEYS
+        channelConnected = true
         // A superseded generation may clean up after itself, but it may not publish Ready and may
         // not persist stale pairing evidence (connection.md#evidence-and-race-handling-harvest).
         if (!generation.isActive()) return
@@ -388,13 +431,30 @@ internal class LiveSession(
     }
 
     /**
+     * Applies only an explicit protocol-boundary television rejection, never a local send result or
+     * a missing visible TV action. A successful local socket write is not positive television
+     * evidence and therefore cannot erase this negative evidence. Persistence is offered to a
+     * conflated IO consumer so no file access blocks dispatch.
+     */
+    private fun recordRejectedKey(key: RemoteKey) {
+        val previous = rejectedKeyEvidence.getAndUpdate { it + key }
+        if (key in previous) return
+        capabilityUpdates.trySend(Unit)
+        publish(mutableSnapshot.value.state, mutableSnapshot.value.repairReason)
+    }
+
+    /**
      * The single publication point for session state. `NeedsRepair` with a null [repairReason] is
      * the caller-facing `SecretsUnavailable` surface: saved material exists but could not be used,
      * so pairing again is required. There is no plaintext fallback and no token transmission on
      * that path.
      */
     private fun publish(state: SessionState, repairReason: RepairReason? = null) {
-        mutableSnapshot.value = SessionSnapshot(state, TvCapabilities(channelKeys), repairReason)
+        val keys =
+            if (channelConnected) STANDARD_REMOTE_KEYS - rejectedKeyEvidence.get() else emptySet()
+        val snapshot = SessionSnapshot(state, TvCapabilities(keys), repairReason)
+        mutableSnapshot.value = snapshot
+        diagnostics.session(snapshot)
     }
 
     companion object {
@@ -403,8 +463,7 @@ internal class LiveSession(
 
         /**
          * commands.md#evidence: `Ready` on the adopted channel is the evidence that the standard
-         * remote keys are accepted. Per-key rejection tracking arrives with the slice that
-         * implements rejection; S03 has none to apply.
+         * remote keys are accepted, except keys removed by explicit per-key television rejection.
          */
         val STANDARD_REMOTE_KEYS: Set<RemoteKey> = RemoteKey.entries.toSet()
     }
