@@ -17,11 +17,11 @@ Dispatch only when:
 - scope and non-goals are bounded;
 - acceptance criteria are observable;
 - non-trivial production behavior has an explicit implementation reuse disposition compiled from current AppT code and owning harvest evidence;
-- the work can be expressed as one sensible reviewable implementation unit.
+- the work can be expressed as either one sensible reviewable implementation unit or an explicitly human-approved contiguous program contract under §2A.
 
 Use `../skills/implementation-planning/SKILL.md` when approved work needs decomposition, sequencing, risk-first proof, or a bounded Arena contract. Plan only to the depth required to make the Issue executable. Do not pre-implement the solution in prose.
 
-If the work cannot fit one sensible branch/PR, reconsider decomposition before dispatch rather than allowing Arena to invent project-level work decomposition.
+By default, if the work cannot fit one sensible branch/PR, reconsider decomposition before dispatch rather than allowing Arena to invent project-level work decomposition. The only exception is the explicit contiguous program mode in §2A, where the human intentionally authorizes one ordered multi-slice lifecycle program as one Issue, one branch, and one PR.
 
 ## 2. Canonical Arena Issue contract
 
@@ -76,6 +76,27 @@ Use project-owned commands and artifacts rather than inventing generic stack com
 ### Contract Exceptions
 
 State the categories of discovery that require Arena to stop and return control rather than silently changing the contract.
+
+### 2A. Contiguous program execution mode
+
+Contiguous program execution is an explicit exception to the default one-slice-at-a-time planning rule. Use it only when the human owner directly authorizes a named contiguous slice range as one lifecycle program.
+
+A program Issue is Arena-ready only when all of the following are true:
+
+- the authorized slice range is explicit and ordered by the accepted dependency graph;
+- the program has one coherent end-state objective;
+- the Issue names the canonical slice contracts instead of duplicating or weakening them;
+- every included slice retains its own scope, non-goals, constraints, acceptance criteria, verification obligations, reuse plan, provider evidence, physical evidence, and human gates;
+- dependencies between included slices are explicit;
+- implementation proceeds checkpoint-by-checkpoint in dependency order on one branch;
+- no downstream checkpoint may rely on behavior from a predecessor that has not reached the evidence level required to make that dependency safe;
+- a provider, physical-device, legal, licensing, or owner-admin gate may remain pending only when it is not required to safely implement the next checkpoint; pending evidence never counts as accepted evidence, and each gate must be resolved at the milestone required by its canonical contract;
+- a material contract exception at any checkpoint stops the program and returns control rather than skipping, weakening, or silently deferring the blocked requirement;
+- the final PR completion report contains a per-slice checkpoint matrix covering reuse/provenance, implementation status, targeted verification, terminal verification, provider/physical evidence, deviations, and remaining human gates.
+
+Under this mode, the single program Issue maps to one implementation branch and one pull request. Intermediate slice checkpoints are execution boundaries inside that branch/PR, not separate Issues or PRs, unless a later explicit contract revision exits program mode.
+
+Program mode changes execution packaging only. It does not collapse slice semantics, erase dependency edges, transfer human authority to Arena, waive external gates, or make pending evidence equivalent to acceptance.
 
 ### Arena-ready handoff
 
@@ -158,7 +179,7 @@ An implementation miss does not create a contract revision. It remains a correct
 
 ## 6. Branch and pull request boundary
 
-One Arena Issue maps to one Arena implementation branch and one pull request.
+One Arena Issue maps to one Arena implementation branch and one pull request. In ordinary mode that Issue contains one implementation slice/unit. In §2A contiguous program mode the Issue may contain the explicitly authorized ordered slice range, still on one branch and one pull request.
 
 Arena does not implement directly on `main`.
 

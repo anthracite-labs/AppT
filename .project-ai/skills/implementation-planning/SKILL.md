@@ -47,7 +47,7 @@ If the required provenance/disposition is missing or uncertain, resolve it befor
 
 ### 3. Decide whether the work fits one unit
 
-A unit should have:
+By default, a unit should have:
 
 - one coherent objective;
 - one sensible reviewable branch/PR;
@@ -55,7 +55,7 @@ A unit should have:
 - a valid end state;
 - no need for the implementer to invent project-level decomposition.
 
-Split larger work before dispatch.
+Split larger work before dispatch unless the human owner has explicitly authorized contiguous program execution under `../../execution/arena-dispatch.md` §2A. In that mode, treat the named ordered slice range as one program unit only when it has one coherent lifecycle end state, its dependency graph is explicit, and every included slice remains an internal checkpoint with its own acceptance and verification obligations.
 
 ### 4. Prefer vertical slices
 
@@ -113,7 +113,7 @@ Produce:
 - a bounded execution contract per unit;
 - intentionally deferred follow-up work.
 
-For Arena, one Issue maps to one branch and one PR.
+For Arena, one Issue maps to one branch and one PR. Under explicitly authorized contiguous program execution, that single Issue/branch/PR may contain multiple ordered slice checkpoints as defined by `../../execution/arena-dispatch.md` §2A.
 
 ## Boundaries
 
@@ -130,7 +130,7 @@ For Arena, one Issue maps to one branch and one PR.
 Before dispatch, confirm:
 
 - each unit has one coherent outcome;
-- each Arena unit fits one branch/PR;
+- each Arena unit fits one branch/PR, including an explicitly authorized contiguous program unit;
 - dependencies are explicit and genuine;
 - vertical slicing was preferred where appropriate;
 - material uncertainty appears early;
