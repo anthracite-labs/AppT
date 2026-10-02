@@ -8,6 +8,13 @@ Arena owns project implementation inside an approved contract.
 
 Human acceptance remains the final authority before merge.
 
+### Explicit owner-authorized direct implementation exception
+
+The human owner may explicitly authorize the ChatGPT control plane to perform bounded project implementation directly on an existing approved Issue branch / pull request. When that authorization is explicit in the current conversation, the control plane may edit and push only within the active Issue contract, use the same branch and PR, and run the same required lifecycle skills and verification routes that Arena would use.
+
+This exception is task-scoped. It does not authorize scope expansion, contract changes, self-acceptance, or merge. Human acceptance remains required before merge, and any contract exception still returns to the human/control plane decision boundary.
+
+
 ## 1. Dispatch eligibility
 
 Dispatch only when:
