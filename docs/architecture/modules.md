@@ -11,7 +11,7 @@ Two production Gradle modules. No benchmark/test-only application module; add an
 | `app` | production | Compose UI, navigation, permission explanation, account and licensing, Room, DataStore, entitlement cache, diagnostics, Hilt application graph | WebSocket payloads, discovery packets, pairing tokens, TLS pins, retry loops, protocol generation selection |
 | `samsung` | production | Discovery, identity correlation, pairing, security identity, session, reconnect, capability evidence, command translation, wake, secret storage | Permission dialogs, Firebase, account state, licensing, telemetry SDKs, layout |
 
-`app` depends on `samsung`. `samsung` does not depend on `app`. Test code stays with the module whose behavior it verifies; device-only slice diagnostics live in stock debug inputs and are excluded from release.
+`app` depends on `samsung`. `samsung` does not depend on `app`. Test code stays with the module whose behavior it verifies. There is exactly one on-device engineering verification surface: the stock `app` debug variant under `app/src/debug/**`. It is excluded from every release source graph. AppT keeps no Android instrumentation acceptance source set, instrumentation runner, connected-test application, benchmark application, or per-slice verifier APK.
 
 There is no `domain`, `data`, `usecase`, or `repository` Gradle module. Packages inside `app` are not a Clean Architecture stack. A universal TV **interface** is not created; ecosystem #2 is the trigger for that seam.
 
