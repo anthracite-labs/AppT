@@ -25,6 +25,8 @@ function createCustomTransformer(options) {
               code: res.code.slice(0, idx + prefix.length) + updatedB64,
             };
           } catch {
+            // A malformed inline source map is not a transform failure: fall
+            // through and return ts-jest's original output unchanged.
           }
         }
       }

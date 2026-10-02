@@ -1,4 +1,3 @@
-
 import java.util.Locale
 import java.util.zip.ZipFile
 import org.gradle.api.tasks.testing.Test
@@ -38,9 +37,7 @@ android {
         buildConfigField("String", "APPT_BUILD_SHA", "\"$apptBuildSha\"")
     }
 
-    buildTypes {
-        release { isMinifyEnabled = false }
-    }
+    buildTypes { release { isMinifyEnabled = false } }
 
     buildFeatures {
         compose = true
@@ -52,11 +49,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    testOptions {
-        unitTests {
-            isIncludeAndroidResources = true
-        }
-    }
+    testOptions { unitTests { isIncludeAndroidResources = true } }
 
     lint {
         warningsAsErrors = true
@@ -131,7 +124,6 @@ dependencies {
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
 }
-
 
 val manifestPermissionAllowlist =
     setOf(
@@ -243,9 +235,11 @@ tasks.register("manifestPermissionAllowlist") {
     dependsOn(tasks.withType<MergedManifestGuard>())
 }
 
-tasks.register("verifyReleaseS05Boundaries") {
+tasks.register("verifyReleaseEngineeringBoundaries") {
     group = "verification"
-    description = "Checks the release APK excludes the debug-only S05 physical verifier."
+    description =
+        "Checks the release APK excludes the debug-only Engineering Verifier and its S05 latency " +
+            "run."
     dependsOn("assembleRelease")
     doLast {
         val forbiddenMarkers =
@@ -266,6 +260,22 @@ tasks.register("verifyReleaseS05Boundaries") {
                 "Unmeasured warm-up",
                 "Measured interactions:",
                 "Copy verification result",
+                "EngineeringVerifierEntry",
+                "EngineeringVerifierController",
+                "EngineeringTestTags",
+                "EngineeringScenarios",
+                "EngineeringEvidenceClass",
+                "EngineeringObservationSource",
+                "EngineeringReport",
+                "EngineeringLedger",
+                "AppT engineering verification",
+                "AppT engineering report",
+                "Exact candidate SHA unavailable",
+                "Requires a Ready television",
+                "Pending external",
+                "appt:engineering-entry",
+                "appt:engineering-surface",
+                "appt:engineering-record-",
             )
         val distributableSources = listOf(file("src/main"), file("src/release"))
         val sourceLeaks =
@@ -280,7 +290,7 @@ tasks.register("verifyReleaseS05Boundaries") {
                 }
         if (sourceLeaks.isNotEmpty()) {
             throw GradleException(
-                "Release source graph contains debug S05 verifier material:\n" +
+                "Release source graph contains debug engineering verifier material:\n" +
                     sourceLeaks.joinToString("\n")
             )
         }
@@ -310,7 +320,8 @@ tasks.register("verifyReleaseS05Boundaries") {
                     val leakedMarkers = forbiddenMarkers.filter { marker -> marker in contents }
                     if (leakedMarkers.isNotEmpty()) {
                         throw GradleException(
-                            "${apk.name}:${entry.name} contains debug-only S05 material: " +
+                            "${apk.name}:${entry.name} contains debug-only engineering verifier " +
+                                "material: " +
                                 leakedMarkers.joinToString(", ")
                         )
                     }
@@ -318,27 +329,10 @@ tasks.register("verifyReleaseS05Boundaries") {
             }
         }
         logger.lifecycle(
-            "verifyReleaseS05Boundaries: OK — release source graph and APK exclude the debug S05 physical verifier."
+            "verifyReleaseEngineeringBoundaries: OK — release source graph and APK exclude the " +
+                "debug engineering verifier and its S05 latency run."
         )
     }
-}
-
-configurations.configureEach {
-    val cfg = name
-    val notations =
-        when {
-            cfg == "androidLintTool" ->
-                listOf(
-                    "org.bouncycastle:bcprov-jdk18on:1.86",
-                    "org.bouncycastle:bcpkix-jdk18on:1.86",
-                    "org.apache.commons:commons-lang3:3.20.0",
-                    "org.apache.httpcomponents:httpclient:4.5.14",
-                )
-            cfg.contains("UnitTest") || cfg == "testImplementationDependenciesMetadata" ->
-                listOf("org.bouncycastle:bcprov-jdk18on:1.86")
-            else -> emptyList<String>()
-        }
-    notations.forEach { notation -> project.dependencies.constraints { add(cfg, notation) } }
 }
 
 tasks.withType<Test>().configureEach {

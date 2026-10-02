@@ -1,0 +1,9 @@
+{
+  "caseId": "reconnect-backoff",
+  "captured": "2026-10-02",
+  "generation": "tizen-websocket-tls",
+  "sourceRole": "synthetic",
+  "source": "Authored for S06 (Issue #145) from the supervised-reconnect rules in docs/architecture/connection.md#supervised-reconnect: a settled session whose socket is lost enters Reconnecting, retries on the documented backoff, and stops at Unreachable when the budget ends. Not captured from a physical television.",
+  "redaction": "Contains no address, MAC, Wi-Fi name, certificate, serial, account or personal identifier. The approval token is the placeholder [fixture-token]; the test injects the saved token value it pre-staged. No host, port or URL appears in any frame.",
+  "notes": "One adopted TLS session that connects and then loses its socket. The scripted transport refuses every later connect, so the fixture proves the bounded reconnect schedule and the terminal Unreachable state without a network."
+}

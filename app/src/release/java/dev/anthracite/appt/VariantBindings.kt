@@ -2,6 +2,7 @@ package dev.anthracite.appt
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import dev.anthracite.appt.remote.ActiveRemoteHost
 import dev.anthracite.appt.remote.ActiveRemoteSnapshot
 import dev.anthracite.appt.samsung.SamsungModule
@@ -19,6 +20,13 @@ internal object VariantSamsungTvsFactory {
 internal fun VariantRemoteAccessory(
     @Suppress("UNUSED_PARAMETER") snapshot: ActiveRemoteSnapshot?,
     @Suppress("UNUSED_PARAMETER") host: ActiveRemoteHost,
+) = Unit
+
+/** No engineering verifier entry is compiled into the distributable release variant. */
+@Composable
+internal fun VariantEngineeringEntry(
+    @Suppress("UNUSED_PARAMETER") application: AppTApplication,
+    @Suppress("UNUSED_PARAMETER") modifier: Modifier = Modifier,
 ) = Unit
 
 /** The non-debug variant always preserves the ordinary RemoteViewModel dispatch path. */

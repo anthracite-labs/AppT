@@ -33,6 +33,19 @@ internal class ScriptedSessionTransport(
     private val presentedPin: String? = null,
     private val connectDelayMs: Long = 0,
     private val refusesConnection: Boolean = false,
+    /**
+     * Per-attempt refusal script, by zero-based attempt index. An entry that is absent falls back
+     * to [refusesConnection], so a test can let the first connect open and refuse every later one.
+     */
+    private val refusalScript: List<Boolean> = emptyList(),
+    /**
+     * Per-attempt presented SPKI script, by zero-based attempt index. An entry that is absent falls
+     * back to [presentedPin] and then to [certificateIdentity], so a test can prove that a *later*
+     * attempt met a different security identity than the one the pairing was saved under.
+     */
+    private val presentedPinScript: List<String?> = emptyList(),
+    /** The clock the tests assert the backoff schedule against; virtual time in `runTest`. */
+    private val now: () -> Long = { 0L },
     private val cancellationBarrier: CompletableDeferred<Unit>? = null,
 ) : SessionTransport {
     var nextCommandWriteResult: CommandWriteResult = CommandWriteResult.Written
@@ -45,6 +58,12 @@ internal class ScriptedSessionTransport(
 
     /** Every television this transport was asked to reach, in order. */
     val connects = mutableListOf<ConfirmedTelevision>()
+
+    /**
+     * The virtual time of every connect attempt, in order, so a reconnect test can assert the
+     * documented backoff schedule and the observed attempt count.
+     */
+    val attemptTimes = mutableListOf<Long>()
 
     /**
      * The URL of every connection attempt that got as far as opening a socket, in order. A token
@@ -65,16 +84,20 @@ internal class ScriptedSessionTransport(
         saved: PairingSecret?,
     ): ConnectionAttempt {
         connects += television
+        attemptTimes += now()
+        val attemptIndex = connects.size - 1
+        val refuse = refusalScript.getOrElse(attemptIndex) { refusesConnection }
         val requiredPin = saved?.pin?.takeIf { television.tls }
         if (requiredPin != null) {
-            val presented = presentedPin ?: certificateIdentity
+            val presented =
+                presentedPinScript.getOrElse(attemptIndex) { presentedPin } ?: certificateIdentity
             if (presented != requiredPin) {
                 identityMismatches++
                 return ConnectionAttempt.IdentityMismatch
             }
         }
         if (connectDelayMs > 0) delay(connectDelayMs)
-        if (refusesConnection) return ConnectionAttempt.Unreachable
+        if (refuse) return ConnectionAttempt.Unreachable
         val token = saved?.token?.takeIf { requiredPin != null }
         attemptedUrls += RemoteChannel.remoteUrl(television, token)
         attemptedTokens += token != null

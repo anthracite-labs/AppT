@@ -145,7 +145,7 @@ internal fun DebugS05VerifierCommand(
     controller.onNormalVolumeUp(command, host, tvId, session, scope)
 }
 
-private enum class DebugS05Phase {
+internal enum class DebugS05Phase {
     Inactive,
     AwaitingWarmup,
     AwaitingMeasurement,
@@ -156,7 +156,7 @@ private enum class DebugS05Phase {
 }
 
 /** Run state is debug-only and never retains a session; the actual owner stays ActiveRemoteHost. */
-private class DebugS05Controller {
+internal class DebugS05Controller {
     private val run = DebugLatencyRun()
     private val measuredCommand = DebugMeasuredCommand(SystemClock::elapsedRealtimeNanos)
 
@@ -275,7 +275,7 @@ private class DebugS05Controller {
 }
 
 /** Weak keys avoid creating a second session owner; controllers do not hold their session key. */
-private object DebugS05ControllerRegistry {
+internal object DebugS05ControllerRegistry {
     private val controllers = java.util.WeakHashMap<RemoteSession, DebugS05Controller>()
 
     @Synchronized
@@ -283,6 +283,10 @@ private object DebugS05ControllerRegistry {
         controllers.getOrPut(session) { DebugS05Controller() }
 
     @Synchronized fun existing(session: RemoteSession): DebugS05Controller? = controllers[session]
+
+    /** The folded-in latency observation for one session, or null when no run produced one. */
+    @Synchronized
+    fun reportFor(session: RemoteSession): DebugLatencyReport? = controllers[session]?.report
 }
 
 private fun copyReport(context: Context, report: DebugLatencyReport) {

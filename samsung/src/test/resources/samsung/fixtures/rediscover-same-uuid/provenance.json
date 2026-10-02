@@ -1,0 +1,9 @@
+{
+  "caseId": "rediscover-same-uuid",
+  "captured": "2026-10-02",
+  "generation": "tizen-websocket",
+  "sourceRole": "synthetic",
+  "source": "Authored for S06 (Issue #145) from the discovery probe rules in docs/architecture/discovery.md and the internal-rediscovery rule in connection.md: one bounded internal rediscovery of the saved UUID, no scan UI, no DiscoveryEvent.",
+  "redaction": "Contains no address, MAC, Wi-Fi name, token, serial or certificate. Hosts are placeholders such as [host-b]; address-like and identifying device-info fields are placeholders; UUIDs are randomly generated for this fixture.",
+  "notes": "Two televisions answer one bounded rediscovery: the saved UUID at a new address and a different UUID at another. Only the saved UUID may be accepted, and the rediscovery holds the shared multicast lock for its bound only."
+}

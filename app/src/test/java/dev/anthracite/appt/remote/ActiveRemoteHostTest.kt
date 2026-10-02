@@ -239,7 +239,7 @@ class ActiveRemoteHostTest {
     }
 
     @Test
-    fun theLastReleaseStartsGraceAndTheSessionSurvivesIt() = runTest {
+    fun graceClosesAfterFifteenSeconds() = runTest {
         val host = host()
         host.enter(livingRoom)
         settle()
@@ -275,6 +275,25 @@ class ActiveRemoteHostTest {
             tvs.sessionFor(livingRoom)!!.closed,
         )
         assertEquals(listOf(livingRoom), tvs.openedIds)
+    }
+
+    @Test
+    fun reconnectingSessionSurvivesReentryAndKeepsItsOwnRecovery() = runTest {
+        val host = host()
+        host.enter(livingRoom)
+        settle()
+        val session = tvs.sessionFor(livingRoom)!!
+        session.publish(SessionState.Reconnecting)
+        settle()
+
+        // Rotation or a quick return while the session is recovering must re-attach, not replace:
+        // a second `open` would restart the reconnect budget (lifecycle.md, connection.md).
+        host.enter(livingRoom)
+        settle()
+
+        assertEquals(listOf(livingRoom), tvs.openedIds)
+        assertFalse("the recovering session was not closed and replaced", session.closed)
+        assertEquals(SessionState.Reconnecting, host.current.value?.snapshot?.state)
     }
 
     @Test

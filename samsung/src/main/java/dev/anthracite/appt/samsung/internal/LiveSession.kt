@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -46,11 +47,14 @@ import kotlinx.coroutines.launch
  * * It never opens a second socket. `command` writes on the connection this attempt already holds.
  * * It never lets malformed or oversized television traffic escape. [RemoteChannel.parseEvent]
  *   contains it and the frame is dropped.
- * * It never reconnects automatically. Supervised reconnect is S06.
+ * * It reconnects only inside the bounded supervised reconnect window and only while the holder
+ *   keeps the session open: `Reconnecting` is quiet, never a dialog loop, and it stops at
+ *   `Unreachable` (connection.md#supervised-reconnect). A command issued while the session is not
+ *   `Ready` is rejected and nothing is queued for replay.
  * * It never touches a cloud participant.
  */
 internal class LiveSession(
-    private val television: ConfirmedTelevision,
+    television: ConfirmedTelevision,
     private val transport: SessionTransport,
     private val scope: CoroutineScope,
     private val secrets: SamsungSecretStore,
@@ -58,15 +62,36 @@ internal class LiveSession(
     private val approvalWait: Duration = APPROVAL_WAIT,
     private val capabilityDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
     private val diagnostics: SamsungDiagnosticRecorder = SamsungDiagnosticRecorder(),
+    /**
+     * One bounded internal rediscovery per reconnect budget (connection.md#supervised-reconnect).
+     */
+    private val rediscovery: SessionRediscovery = SessionRediscovery.None,
+    /**
+     * Televisions have no mutable state, so rediscovered evidence is recorded for the next open.
+     */
+    private val recordTelevision: (ConfirmedTelevision) -> Unit = {},
+    private val nowMillis: () -> Long = { System.nanoTime() / NANOS_PER_MILLI },
 ) : RemoteSession {
 
     private val mutableSnapshot =
         MutableStateFlow(SessionSnapshot(SessionState.Connecting, TvCapabilities(emptySet())))
     override val snapshot: StateFlow<SessionSnapshot> = mutableSnapshot.asStateFlow()
 
+    /**
+     * The confirmed evidence this session connects against. Rediscovery may replace the address
+     * inside one reconnect budget; the identity, the [TvId] and every credential stay as saved.
+     */
+    private var television: ConfirmedTelevision = television
+
     private var attempt: Job? = null
     private var openConnection: SessionConnection? = null
     private var approvalTimer: Job? = null
+
+    /**
+     * True when the current or most recent attempt reached `Ready`. A loss after a real `Ready`
+     * session starts a fresh reconnect budget instead of inheriting the previous one.
+     */
+    private var reachedReadyThisAttempt = false
 
     /** The in-flight frame collection, so an approval that goes unanswered can end it. */
     private var collecting: Job? = null
@@ -109,8 +134,7 @@ internal class LiveSession(
                         television.id,
                         record.copy(rejectedKeys = rejectedKeyEvidence.get()),
                     )
-                } catch (ignored: IOException) {
-                }
+                } catch (ignored: IOException) {}
             }
         }
         attempt = scope.launch { sessionLoop() }
@@ -184,17 +208,126 @@ internal class LiveSession(
         publish(SessionState.Closed)
     }
 
+    /**
+     * One attempt at a time. A settled `Ready` session that loses its socket, and a connect that
+     * fails, both enter the bounded supervised reconnect below; `NeedsRepair` waits for the user's
+     * explicit retry, and `Unreachable` stops all automatic work
+     * (connection.md#supervised-reconnect).
+     */
     private suspend fun sessionLoop() {
         while (true) {
             runAttempt()
-            if (mutableSnapshot.value.state == SessionState.Closed) return
+            when (mutableSnapshot.value.state) {
+                SessionState.Closed,
+                SessionState.Unsupported,
+                SessionState.Unreachable -> return
+                SessionState.Reconnecting -> {
+                    when (reconnectUntilSettled()) {
+                        ReconnectOutcome.Stopped,
+                        ReconnectOutcome.Closed -> return
+                        ReconnectOutcome.NeedsUserAction -> Unit
+                    }
+                }
+                else -> Unit
+            }
             retrySignals.receive()
             if (mutableSnapshot.value.state == SessionState.Closed) return
             publish(SessionState.Connecting)
         }
     }
 
+    /** Why the supervised reconnect window ended. */
+    private enum class ReconnectOutcome {
+        /** The budget ended: `Unreachable` is published and no further attempt is automatic. */
+        Stopped,
+
+        /** The holder released the session. */
+        Closed,
+
+        /** A saved-identity outcome needs the user (or `Unsupported` has nothing to retry). */
+        NeedsUserAction,
+    }
+
+    /**
+     * The bounded supervised reconnect (connection.md#supervised-reconnect): at most
+     * [RECONNECT_ATTEMPT_LIMIT] attempts inside [RECONNECT_BUDGET_MS], backoff 0.5s, 1s, 2s, 4s,
+     * then 8s, and **one** internal rediscovery of the saved UUID after the first failed attempt so
+     * an address change recovers without the user doing anything. The identity check still runs on
+     * every attempt, so a different television on a rediscovered address is `NeedsRepair` and
+     * receives no token.
+     */
+    private suspend fun reconnectUntilSettled(): ReconnectOutcome {
+        var attempts = 0
+        var backoff = FIRST_BACKOFF_MS
+        var rediscoverySpent = false
+        var budgetStartedAt = nowMillis()
+        while (true) {
+            val elapsed = nowMillis() - budgetStartedAt
+            if (attempts >= RECONNECT_ATTEMPT_LIMIT || elapsed >= RECONNECT_BUDGET_MS) {
+                publish(SessionState.Unreachable)
+                return ReconnectOutcome.Stopped
+            }
+            delay(minOf(backoff, (RECONNECT_BUDGET_MS - elapsed).coerceAtLeast(0)))
+            if (released.get()) {
+                publish(SessionState.Closed)
+                return ReconnectOutcome.Closed
+            }
+            attempts++
+            runAttempt()
+            terminalOutcomeForCurrentState()?.let { outcome ->
+                return outcome
+            }
+            if (!rediscoverySpent) {
+                rediscoverySpent = true
+                rediscoverAddress()
+            }
+            if (reachedReadyThisAttempt) {
+                // The attempt reached `Ready`, so this is a fresh loss with its own budget: the
+                // schedule restarts at its first step instead of inheriting the previous series.
+                attempts = 0
+                backoff = FIRST_BACKOFF_MS
+                rediscoverySpent = false
+                budgetStartedAt = nowMillis()
+            } else {
+                backoff = minOf(backoff * 2, MAX_BACKOFF_MS)
+            }
+        }
+    }
+
+    /**
+     * The attempt states that end the reconnect budget, or null while it continues. `Ready` is the
+     * continuation case: the connection is live again and its collection keeps the loop suspended
+     * until the socket is lost once more.
+     */
+    private fun terminalOutcomeForCurrentState(): ReconnectOutcome? =
+        when (mutableSnapshot.value.state) {
+            SessionState.Closed -> ReconnectOutcome.Closed
+            SessionState.NeedsRepair -> ReconnectOutcome.NeedsUserAction
+            SessionState.Unsupported -> ReconnectOutcome.Stopped
+            else -> null
+        }
+
+    /**
+     * One internal rediscovery inside the current budget. A stale generation may not replace the
+     * television evidence, and only the same saved UUID is ever accepted ([LanSessionRediscovery]).
+     */
+    private suspend fun rediscoverAddress() {
+        if (!generation.isActive()) return
+        val found =
+            try {
+                rediscovery.rediscover(television)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (ignored: Exception) {
+                null
+            }
+        if (found == null || !generation.isActive()) return
+        television = found
+        recordTelevision(found)
+    }
+
     private suspend fun runAttempt() {
+        reachedReadyThisAttempt = false
         if (!television.adoptedChannel) {
             publish(SessionState.Unsupported)
             return
@@ -208,7 +341,7 @@ internal class LiveSession(
                 }
                 StoredSecret.Absent -> null
             }
-        if (saved != null && !television.tls && savedUuidIdentityChanged()) {
+        if (saved != null && !television.tls && savedUuidIdentityChanged(secrets, television)) {
             publish(SessionState.NeedsRepair, RepairReason.IdentityChanged)
             return
         }
@@ -216,15 +349,8 @@ internal class LiveSession(
             is ConnectionAttempt.Opened -> runConnection(result.connection, saved)
             ConnectionAttempt.IdentityMismatch ->
                 publish(SessionState.NeedsRepair, RepairReason.IdentityChanged)
-            ConnectionAttempt.Unreachable -> publish(SessionState.Unreachable)
+            ConnectionAttempt.Unreachable -> publish(SessionState.Reconnecting)
         }
-    }
-
-    /** The saved protocol UUID compared against the television's current one. */
-    private fun savedUuidIdentityChanged(): Boolean {
-        val savedUuid = secrets.loadDevice(television.id)?.uuid ?: return false
-        val presentUuid = television.uuid ?: return false
-        return savedUuid != presentUuid
     }
 
     private suspend fun runConnection(connection: SessionConnection, saved: PairingSecret?) {
@@ -275,10 +401,10 @@ internal class LiveSession(
         if (saved == null) {
             val pin = connectionPin
             try {
-                persistPairing(token = token, pin = pin)
+                persistPairing(secrets, television, token = token, pin = pin)
             } catch (ignored: IOException) {
                 publish(SessionState.NeedsRepair, repairReason = null)
-                endUnansweredAttempt()
+                collecting?.cancel()
                 return
             }
         } else {
@@ -288,10 +414,11 @@ internal class LiveSession(
                 }
             } catch (ignored: IOException) {
                 publish(SessionState.NeedsRepair, repairReason = null)
-                endUnansweredAttempt()
+                collecting?.cancel()
                 return
             }
         }
+        reachedReadyThisAttempt = true
         publish(SessionState.Ready)
     }
 
@@ -303,30 +430,10 @@ internal class LiveSession(
     private val connectionPin: String?
         get() = openConnection?.certificateIdentity?.takeIf { television.tls }
 
-    /**
-     * The approval write: the samsung-private device record first, then the token and pin as one
-     * atomic secret write (data.md#samsung-secret-record). A completed secret write therefore
-     * always has a device record beside it, so reopen and address continuity work.
-     */
-    private fun persistPairing(token: String?, pin: String?) {
-        secrets.saveDevice(
-            television.id,
-            SamsungDeviceRecord(
-                uuid = television.uuid,
-                lastAddress = television.host,
-                tls = television.tls,
-                adoptedChannel = television.adoptedChannel,
-                displayName = television.displayName,
-                stableIdentity = television.uuid != null,
-            ),
-        )
-        secrets.saveSecret(television.id, PairingSecret(token = token, pin = pin))
-    }
-
     private fun onUnauthorized() {
         if (resumedWithTokenSent) {
             publish(SessionState.NeedsRepair, RepairReason.TokenRejected)
-            endUnansweredAttempt()
+            collecting?.cancel()
             return
         }
         if (mutableSnapshot.value.state != SessionState.Connecting) return
@@ -337,7 +444,7 @@ internal class LiveSession(
     private fun onTimeOut() {
         if (mutableSnapshot.value.state == SessionState.AwaitingTvApproval) {
             publish(SessionState.NeedsRepair, RepairReason.ApprovalTimedOut)
-            endUnansweredAttempt()
+            collecting?.cancel()
         } else {
             onConnectionLost()
         }
@@ -355,25 +462,13 @@ internal class LiveSession(
         }
     }
 
-    /**
-     * Ends an attempt whose approval prompt was never answered, or whose token was rejected.
-     *
-     * Without this the attempt keeps collecting the still-open socket, so `sessionLoop` never
-     * reaches `retrySignals.receive()` and `retryApproval`/`confirmRepair` have nothing to act on:
-     * the session would sit in `Connecting` with a socket nobody is using. Ending the collection is
-     * what lets the loop start a fresh attempt.
-     */
-    private fun endUnansweredAttempt() {
-        collecting?.cancel()
-    }
-
     private fun onConnectionLost() {
         when (mutableSnapshot.value.state) {
             SessionState.AwaitingTvApproval ->
                 publish(SessionState.NeedsRepair, RepairReason.ApprovalDenied)
             SessionState.NeedsRepair,
             SessionState.Closed -> Unit
-            else -> publish(SessionState.Unreachable)
+            else -> publish(SessionState.Reconnecting)
         }
     }
 
@@ -384,7 +479,7 @@ internal class LiveSession(
                 delay(approvalWait)
                 if (mutableSnapshot.value.state == SessionState.AwaitingTvApproval) {
                     publish(SessionState.NeedsRepair, RepairReason.ApprovalTimedOut)
-                    endUnansweredAttempt()
+                    collecting?.cancel()
                 }
             }
     }
@@ -419,6 +514,27 @@ internal class LiveSession(
     companion object {
         /** connection.md: the approval wait. */
         val APPROVAL_WAIT: Duration = 45.seconds
+
+        /** connection.md#supervised-reconnect: the first backoff step, in milliseconds. */
+        const val FIRST_BACKOFF_MS = 500L
+
+        /** connection.md#supervised-reconnect: the backoff cap, in milliseconds. */
+        const val MAX_BACKOFF_MS = 8_000L
+
+        /** connection.md#supervised-reconnect: 6 attempts or 45 seconds, whichever ends first. */
+        const val RECONNECT_ATTEMPT_LIMIT = 6
+        const val RECONNECT_BUDGET_MS = 45_000L
+
+        /**
+         * The documented backoff schedule. The test `reconnectBackoff` asserts this sequence is
+         * what the session actually waits, and that it fits inside [RECONNECT_BUDGET_MS].
+         */
+        val RECONNECT_SCHEDULE_MS: List<Long> =
+            generateSequence(FIRST_BACKOFF_MS) { minOf(it * 2, MAX_BACKOFF_MS) }
+                .take(RECONNECT_ATTEMPT_LIMIT)
+                .toList()
+
+        private const val NANOS_PER_MILLI = 1_000_000L
 
         /**
          * commands.md#evidence: `Ready` on the adopted channel is the evidence that the standard

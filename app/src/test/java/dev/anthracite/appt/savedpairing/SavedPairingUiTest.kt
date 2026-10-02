@@ -52,7 +52,6 @@ class SavedPairingUiTest {
     private fun snapshot(state: SessionState, reason: RepairReason?) =
         SessionSnapshot(state, TvCapabilities(emptySet()), reason)
 
-
     @Test
     fun pairingMapsEachNeedsRepairReasonToItsOwnPresentation() {
         val denied =
@@ -103,7 +102,6 @@ class SavedPairingUiTest {
             RemoteUiState.of("TV", snapshot(SessionState.NeedsRepair, null)).connection,
         )
     }
-
 
     @Test
     fun pairAgainCallsConfirmRepairOnTheRetainedSession() = runTest {

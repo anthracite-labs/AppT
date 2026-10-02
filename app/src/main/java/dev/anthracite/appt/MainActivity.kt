@@ -7,7 +7,13 @@ import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import dev.anthracite.appt.navigation.AppTNavGraph
 import dev.anthracite.appt.tokens.AppTTheme
 import dev.anthracite.appt.tokens.LocalMotionDurationScale
@@ -49,16 +55,22 @@ class MainActivity : ComponentActivity() {
                 LocalMotionDurationScale provides platformMotionDurationScale()
             ) {
                 AppTTheme {
-                    AppTNavGraph(
-                        samsungTvs = app.samsungTvs,
-                        permissionGate = app.permissionGate,
-                        appSettings = app.appSettings,
-                        activeRemoteHost = app.activeRemoteHost,
-                        tvProfiles = app.tvProfiles,
-                        preferenceStore = app.preferenceStore,
-                        appVersion = currentVersionName(),
-                        diagnostics = app.localDiagnostics,
-                    )
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        AppTNavGraph(
+                            samsungTvs = app.samsungTvs,
+                            permissionGate = app.permissionGate,
+                            appSettings = app.appSettings,
+                            activeRemoteHost = app.activeRemoteHost,
+                            tvProfiles = app.tvProfiles,
+                            preferenceStore = app.preferenceStore,
+                            appVersion = currentVersionName(),
+                            diagnostics = app.localDiagnostics,
+                        )
+                        VariantEngineeringEntry(
+                            application = app,
+                            modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
+                        )
+                    }
                 }
             }
         }

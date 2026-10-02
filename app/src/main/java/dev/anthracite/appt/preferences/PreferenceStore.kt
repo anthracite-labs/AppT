@@ -64,8 +64,7 @@ class PreferenceStore(private val store: DataStore<Preferences>) {
     suspend fun setFirstControlAchieved() {
         try {
             store.edit { it[FIRST_CONTROL_ACHIEVED] = true }
-        } catch (ignored: IOException) {
-        }
+        } catch (ignored: IOException) {}
     }
 
     suspend fun setHapticsEnabled(enabled: Boolean) = update { it[HAPTICS_ENABLED] = enabled }
@@ -81,8 +80,7 @@ class PreferenceStore(private val store: DataStore<Preferences>) {
     ) {
         try {
             store.edit(change)
-        } catch (ignored: IOException) {
-        }
+        } catch (ignored: IOException) {}
     }
 
     private companion object {

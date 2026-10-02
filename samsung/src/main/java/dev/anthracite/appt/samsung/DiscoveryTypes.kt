@@ -1,6 +1,5 @@
 package dev.anthracite.appt.samsung
 
-
 /**
  * Opaque television identity. Callers do not parse it for a MAC, an address, or a protocol
  * generation.

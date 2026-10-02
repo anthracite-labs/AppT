@@ -1,6 +1,5 @@
 package dev.anthracite.appt.samsung
 
-
 /**
  * What the caller can observe about one live session.
  *

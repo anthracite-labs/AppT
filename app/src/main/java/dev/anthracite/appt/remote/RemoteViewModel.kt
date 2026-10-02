@@ -77,9 +77,7 @@ class RemoteViewModel(
     private inline fun traceSafely(block: () -> Unit) {
         try {
             block()
-        } catch (_: RuntimeException) {
-        } catch (_: LinkageError) {
-        }
+        } catch (_: RuntimeException) {} catch (_: LinkageError) {}
     }
 
     private fun beginCommandTrace(cookie: Int) = traceSafely {

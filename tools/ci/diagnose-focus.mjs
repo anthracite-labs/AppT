@@ -27,7 +27,7 @@ export const ANDROID_STATIC_SUBCHECKS = Object.freeze({
 
 export const ANDROID_BUILD_SUBTARGETS = Object.freeze({
   app: [':app:assembleDebug'],
-  'release-guard': [':app:verifyReleaseS05Boundaries'],
+  'release-guard': [':app:verifyReleaseEngineeringBoundaries'],
 });
 
 export const BACKEND_STATIC_SUBCHECKS = Object.freeze({

@@ -1,5 +1,3 @@
-
-
 /** Crash-reporting, analytics, advertising and attribution artifacts. */
 val telemetryArtifactPatterns: List<String> =
     listOf(
@@ -55,7 +53,6 @@ fun matches(artifactId: String, patterns: List<String>): Boolean {
     return patterns.any { lowered.contains(it) }
 }
 
-
 val noTelemetryInstances =
     listOf(":app").map { path ->
         val target = project(path)
@@ -92,7 +89,6 @@ tasks.register("noTelemetryDependency") {
     dependsOn(noTelemetryInstances)
 }
 
-
 val noFirestoreClientInAppInstance =
     project(":app").tasks.register("noFirestoreClientInApp") {
         group = "verification"
@@ -118,8 +114,6 @@ tasks.register("noFirestoreClientInApp") {
     description = "Fails if a Firestore client artifact appears on :app's runtime graph."
     dependsOn(noFirestoreClientInAppInstance)
 }
-
-
 
 val samsungDependencyBoundaryInstance =
     project(":samsung").tasks.register("samsungDependencyBoundary") {
@@ -169,7 +163,6 @@ tasks.register("samsungDependencyBoundary") {
     dependsOn(samsungDependencyBoundaryInstance)
 }
 
-
 tasks.register("samsungGraphExcludesFirebase") {
     group = "verification"
     description =
@@ -177,7 +170,6 @@ tasks.register("samsungGraphExcludesFirebase") {
             "(docs/architecture/testing.md)."
     dependsOn(samsungDependencyBoundaryInstance)
 }
-
 
 fun productionKotlinSources(project: Project): List<File> {
     val main = project.file("src/main")
@@ -250,7 +242,6 @@ tasks.register("noSyncRecordInProductionSource") {
     }
 }
 
-
 tasks.register("versionCatalogPinned") {
     group = "verification"
     description = "Fails if the version catalog declares a dynamic, `+` or snapshot version."
@@ -285,7 +276,6 @@ tasks.register("versionCatalogPinned") {
         logger.lifecycle("versionCatalogPinned: OK — every declared version is exact.")
     }
 }
-
 
 tasks.register("appTGuards") {
     group = "verification"

@@ -4,7 +4,6 @@ import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -243,9 +242,15 @@ private fun PairingDestination(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val current by activeRemoteHost.current.collectAsStateWithLifecycle()
     val currentOnApproved by rememberUpdatedState(onApproved)
-    DisposableEffect(activeRemoteHost) {
+    val activity = LocalActivity.current
+    // The interest is app visibility, not composition identity (lifecycle.md): the retain holds
+    // while the destination is started, `onStop` releases it into the 15-second grace, and a
+    // configuration change is not a release at all.
+    LifecycleStartEffect(activeRemoteHost) {
         activeRemoteHost.retain(PAIRING)
-        onDispose { activeRemoteHost.release(PAIRING) }
+        onStopOrDispose {
+            if (activity?.isChangingConfigurations != true) activeRemoteHost.release(PAIRING)
+        }
     }
     LaunchedEffect(current?.snapshot?.state) {
         if (current?.snapshot?.state == SessionState.Ready) currentOnApproved()
@@ -278,7 +283,10 @@ private fun RemoteDestination(
     val commandScope = rememberCoroutineScope()
     val activeTvId = TvId(tvId)
     val activity = LocalActivity.current as? MainActivity
-    LifecycleStartEffect(viewModel, activity) {
+    // One lifecycle effect owns both the volume-key handler and the session interest: the retain
+    // holds while the screen is started, `onStop` releases it into the grace window, and a
+    // configuration change never looks like backgrounding (lifecycle.md#rotation-window-changes).
+    LifecycleStartEffect(viewModel, activity, activeRemoteHost) {
         val handler: (KeyEvent) -> Boolean = { event ->
             val key =
                 when (event.keyCode) {
@@ -289,13 +297,11 @@ private fun RemoteDestination(
             key?.let { viewModel.onHardwareVolumeKey(it, event.action, event.repeatCount) } ?: false
         }
         activity?.remoteVolumeKeyHandler = handler
+        activeRemoteHost.retain(REMOTE)
         onStopOrDispose {
             if (activity?.remoteVolumeKeyHandler === handler) activity.remoteVolumeKeyHandler = null
+            if (activity?.isChangingConfigurations != true) activeRemoteHost.release(REMOTE)
         }
-    }
-    DisposableEffect(activeRemoteHost) {
-        activeRemoteHost.retain(REMOTE)
-        onDispose { activeRemoteHost.release(REMOTE) }
     }
     RemoteScreen(
         state = state,

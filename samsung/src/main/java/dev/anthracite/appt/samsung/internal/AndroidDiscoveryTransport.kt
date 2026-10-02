@@ -42,11 +42,13 @@ internal class AndroidDiscoveryTransport(context: Context) : DiscoveryTransport 
         return kind?.let { AndroidLan(network, requiresMulticastLock = it == LanPolicy.Kind.WiFi) }
     }
 
-    override fun holdMulticastLock(): AutoCloseable {
-        val lock = wifi.createMulticastLock(MULTICAST_LOCK_TAG).apply { setReferenceCounted(false) }
-        lock.acquire()
-        return AutoCloseable { if (lock.isHeld) lock.release() }
-    }
+    /**
+     * discovery.md: scans and internal rediscovery share one lock owner inside the module. The lock
+     * is one process-wide instance held until the last holder releases it, so a rediscovery that
+     * overlaps a scan can never release the lock the scan is still using, and reference counting
+     * stays off because only this holder ever touches the lock.
+     */
+    override fun holdMulticastLock(): AutoCloseable = MulticastLock.acquire(wifi)
 
     override fun candidates(lan: Lan): Flow<Candidate> {
         val network = (lan as AndroidLan).network
@@ -72,6 +74,37 @@ internal class AndroidDiscoveryTransport(context: Context) : DiscoveryTransport 
         override fun bind(socket: DatagramSocket) = network.bindSocket(socket)
 
         override fun bind(socket: Socket) = network.bindSocket(socket)
+    }
+
+    /**
+     * The single multicast-lock owner. `AndroidDiscoveryTransport` instances are created per scan
+     * and per rediscovery, so the lock cannot live on an instance.
+     */
+    private object MulticastLock {
+        private var held: WifiManager.MulticastLock? = null
+        private var holders = 0
+
+        @Synchronized
+        fun acquire(wifi: WifiManager): AutoCloseable {
+            if (holders == 0) {
+                held =
+                    wifi.createMulticastLock(MULTICAST_LOCK_TAG).apply {
+                        setReferenceCounted(false)
+                        acquire()
+                    }
+            }
+            holders++
+            return AutoCloseable { release() }
+        }
+
+        @Synchronized
+        private fun release() {
+            holders = (holders - 1).coerceAtLeast(0)
+            if (holders == 0) {
+                held?.takeIf { it.isHeld }?.release()
+                held = null
+            }
+        }
     }
 
     private companion object {
