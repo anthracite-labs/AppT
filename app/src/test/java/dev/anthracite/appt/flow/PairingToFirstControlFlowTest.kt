@@ -2,10 +2,16 @@ package dev.anthracite.appt.flow
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -26,6 +32,7 @@ import dev.anthracite.appt.remote.ActiveRemoteHost
 import dev.anthracite.appt.remote.RemoteTestTags
 import dev.anthracite.appt.samsung.CommandResult
 import dev.anthracite.appt.samsung.RemoteKey
+import dev.anthracite.appt.samsung.RepairReason
 import dev.anthracite.appt.samsung.SessionState
 import dev.anthracite.appt.samsung.TvCommand
 import dev.anthracite.appt.samsung.TvId
@@ -115,35 +122,56 @@ class PairingToFirstControlFlowTest {
     private val firstControlAchieved = AtomicBoolean(false)
 
     /**
+     * The generation a fresh Activity composition is built on. Bumping it disposes the whole
+     * graph composition and builds a new one over the same application-scoped objects, which is
+     * what a recreated Activity does to the graph; the `NavHostController` remembered outside the
+     * key keeps the route, which is what the platform's own saved instance state restores.
+     *
+     * The genuinely platform-driven recreation (a real Activity destroy/create on rotation) is
+     * recorded by the stock-debug Engineering Verifier on the exact-head APK; this key is the
+     * deterministic JVM model of the same event.
+     */
+    private val recreationGeneration = mutableIntStateOf(0)
+
+    /**
      * @param lifecycleOwner replaces the Activity as the graph's owner, to drive ON_STOP/ON_START.
-     *   Each call builds a fresh composition over the same application-scoped objects, which is
-     *   what a recreated Activity does; route/`rememberSaveable` restoration is the platform's own
-     *   behavior and is verified on a device by the stock-debug Engineering Verifier.
      */
     private fun setGraph(lifecycleOwner: LifecycleOwner? = null) {
         composeRule.setContent {
             val controller = rememberNavController()
-            val graph: @Composable () -> Unit = {
-                AppTTheme {
-                    AppTNavGraph(
-                        samsungTvs = tvs,
-                        permissionGate = gate,
-                        appSettings = AppSettingsLauncher {},
-                        activeRemoteHost = host,
-                        tvProfiles = profiles,
-                        preferenceStore = store,
-                        navController = controller,
+            key(recreationGeneration.intValue) {
+                val graph: @Composable () -> Unit = {
+                    AppTTheme {
+                        AppTNavGraph(
+                            samsungTvs = tvs,
+                            permissionGate = gate,
+                            appSettings = AppSettingsLauncher {},
+                            activeRemoteHost = host,
+                            tvProfiles = profiles,
+                            preferenceStore = store,
+                            navController = controller,
+                        )
+                    }
+                }
+                if (lifecycleOwner == null) graph()
+                else {
+                    CompositionLocalProvider(
+                        LocalLifecycleOwner provides lifecycleOwner,
+                        content = graph,
                     )
                 }
             }
-            if (lifecycleOwner == null) graph()
-            else {
-                CompositionLocalProvider(
-                    LocalLifecycleOwner provides lifecycleOwner,
-                    content = graph,
-                )
-            }
         }
+        composeRule.waitForIdle()
+    }
+
+    /** The touchpad is offered once the persisted navigation mode reaches the screen. */
+    private fun touchpadShown(): Boolean =
+        composeRule.onAllNodesWithTag(RemoteTestTags.TOUCHPAD).fetchSemanticsNodes().isNotEmpty()
+
+    /** One configuration change: the Activity's composition is destroyed and built again. */
+    private fun recreateActivity() {
+        composeRule.runOnUiThread { recreationGeneration.intValue++ }
         composeRule.waitForIdle()
     }
 
@@ -294,11 +322,12 @@ class PairingToFirstControlFlowTest {
         composeRule.waitForIdle()
         val savedEntryDecisions = entryDecisions.get()
         val scansBefore = tvs.discoverCalls
+        assertEquals(1, host.ownerCount)
 
         // A configuration change destroys and recreates the Activity: the composition is built
         // again from scratch over the same application-scoped host, and the screen re-attaches to
         // the session it already owns.
-        setGraph()
+        recreateActivity()
 
         assertEquals("no second open across recreation", listOf(livingRoom), tvs.openedIds)
         assertFalse("the retained session survives recreation", session.closed)
@@ -310,6 +339,7 @@ class PairingToFirstControlFlowTest {
         assertEquals("recreation does not rescan", scansBefore, tvs.discoverCalls)
         assertEquals("no gate decision was made", 0, gate.deniedCalls)
         assertEquals("no gate acknowledgement was made", 0, gate.acknowledgeCalls)
+        assertEquals("the recreated screen re-retains the same session", 1, host.ownerCount)
         assertEquals(
             "the host still holds the same television",
             livingRoom,
@@ -322,6 +352,151 @@ class PairingToFirstControlFlowTest {
         )
     }
 
+    /**
+     * docs/architecture/lifecycle.md: the route and its `tvId` survive recreation, and the screen
+     * that comes back is the same one for the same session, behind its own explicit confirmation.
+     *
+     * The TvList scroll and rename-draft halves of the contract arrive with those surfaces in S09;
+     * the genuinely platform-driven recreation is recorded by the Engineering Verifier.
+     */
+    @Test
+    fun recreationRestoresRouteAndDrafts() {
+        setGraph()
+        openDiscovery()
+        tvs.latest.send(FakeSamsungTvs.found())
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Living Room TV").performClick()
+        composeRule.waitForIdle()
+        composeRule.waitForIdle()
+        val session = tvs.sessionFor(livingRoom)!!
+        session.ready(setOf(RemoteKey.VolumeUp, RemoteKey.VolumeDown))
+        composeRule.waitForIdle()
+        // The saved identity was rejected on a later open: Remote shows the re-pair surface.
+        session.publish(
+            SessionState.NeedsRepair,
+            repairReason = RepairReason.TokenRejected,
+        )
+        composeRule.waitForIdle()
+
+        // The route's television is named from the persisted profile, not from composition state.
+        composeRule.onNodeWithTag(RemoteTestTags.TV_NAME).assertTextEquals("Living Room TV")
+
+        recreateActivity()
+
+        assertEquals(
+            "the route and its tvId survive recreation",
+            livingRoom,
+            host.current.value?.tvId,
+        )
+        assertEquals("and it is still the same session", session, host.current.value?.session)
+        assertEquals("recreation does not re-open the television", 1, tvs.openedIds.size)
+        assertFalse("the session is untouched", session.closed)
+        composeRule.onNodeWithTag(RemoteTestTags.TV_NAME).assertTextEquals("Living Room TV")
+        // The saved-identity recovery surface is still the one for this session, behind its own
+        // explicit confirmation.
+        composeRule.onNodeWithTag(RemoteTestTags.RECOVERY).assertExists()
+        composeRule.onNodeWithText("Re-pair").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(RemoteTestTags.REPAIR_CONFIRM).assertExists()
+    }
+
+    /**
+     * docs/architecture/lifecycle.md: transient UI state resets on recreation while nothing else
+     * does. The touchpad's in-flight drag is the transient surface that exists at S06; S09's sheet
+     * and S11's edit mode extend this test when those surfaces land.
+     */
+    @Test
+    @Config(qualifiers = "w360dp-h1400dp")
+    fun recreationDropsTransientUiOnly() {
+        setGraph()
+        openDiscovery()
+        tvs.latest.send(FakeSamsungTvs.found())
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Living Room TV").performClick()
+        composeRule.waitForIdle()
+        composeRule.waitForIdle()
+        val session = tvs.sessionFor(livingRoom)!!
+        session.ready(setOf(RemoteKey.VolumeUp, RemoteKey.VolumeDown), pointer = true)
+        composeRule.waitForIdle()
+        val savedEntryDecisions = entryDecisions.get()
+
+        composeRule.onNodeWithTag(RemoteTestTags.NAVIGATION_MODE).performClick()
+        composeRule.waitUntil(
+            conditionDescription = "the touchpad is offered",
+            timeoutMillis = 10_000L,
+        ) {
+            touchpadShown()
+        }
+
+        composeRule.onNodeWithTag(RemoteTestTags.TOUCHPAD).performTouchInput {
+            down(center)
+            moveBy(Offset(60f, 0f))
+            moveBy(Offset(60f, 0f))
+            up()
+        }
+        composeRule.waitForIdle()
+        val pointerMoves = session.commands.filterIsInstance<TvCommand.PointerMove>()
+        assertTrue("an in-flight drag writes pointer moves", pointerMoves.isNotEmpty())
+        val commandsBefore = session.commands.toList()
+
+        // The configuration change drops the gesture with the composition that held it.
+        recreateActivity()
+
+        assertEquals("nothing is replayed across recreation", commandsBefore, session.commands)
+        assertFalse("the session survives", session.closed)
+        assertEquals("no second open across recreation", listOf(livingRoom), tvs.openedIds)
+        assertEquals(
+            "recreation does not re-evaluate the entry decision",
+            savedEntryDecisions,
+            entryDecisions.get(),
+        )
+        composeRule.onNodeWithTag(RemoteTestTags.TOUCHPAD).assertExists()
+
+        // The rebuilt pad carries no gesture state: a fresh drag is a fresh sequence.
+        composeRule.onNodeWithTag(RemoteTestTags.TOUCHPAD).performTouchInput {
+            down(center)
+            moveBy(Offset(0f, 60f))
+            moveBy(Offset(0f, 60f))
+            up()
+        }
+        composeRule.waitForIdle()
+        assertTrue(
+            "the touchpad still works after recreation",
+            session.commands.size > commandsBefore.size,
+        )
+    }
+
+    /**
+     * docs/architecture/lifecycle.md: socket loss is a quiet inline status, never a modal loop.
+     */
+    @Test
+    fun networkLossShowsReconnectingNotDialog() {
+        setGraph()
+        openDiscovery()
+        tvs.latest.send(FakeSamsungTvs.found())
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Living Room TV").performClick()
+        composeRule.waitForIdle()
+        composeRule.waitForIdle()
+        val session = tvs.sessionFor(livingRoom)!!
+        session.ready(setOf(RemoteKey.VolumeUp, RemoteKey.VolumeDown))
+        composeRule.waitForIdle()
+
+        session.publish(SessionState.Reconnecting)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(RemoteTestTags.STATUS).assertTextEquals("Reconnecting")
+        // A quiet inline status, not a modal: neither recovery surface may appear.
+        composeRule.onNodeWithTag(RemoteTestTags.REPAIR_CONFIRM).assertDoesNotExist()
+        composeRule.onNodeWithTag(RemoteTestTags.RETRY).assertDoesNotExist()
+    }
+
+    /** Source with KDoc and line comments removed, so the check reads code rather than prose. */
+    private fun codeOnly(source: String): String =
+        source
+            .replace(Regex("/\\*.*?\\*/", RegexOption.DOT_MATCHES_ALL), "")
+            .replace(Regex("//[^\n]*"), "")
+
     @Test
     fun `recreation is left to the platform`() {
         val manifest = File("src/main/AndroidManifest.xml")
@@ -331,7 +506,8 @@ class PairingToFirstControlFlowTest {
             "the app must not opt out of Activity recreation (lifecycle.md)",
             declared.contains("configChanges"),
         )
-        val activity = File("src/main/java/dev/anthracite/appt/MainActivity.kt").readText()
+        val activity =
+            codeOnly(File("src/main/java/dev/anthracite/appt/MainActivity.kt").readText())
         assertFalse(
             "the Activity must not own the session",
             activity.contains("ActiveRemoteHost") || activity.contains("RemoteSession"),
