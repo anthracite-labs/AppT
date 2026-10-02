@@ -43,7 +43,6 @@ dependencies {
 
 apply(from = rootProject.file("gradle/guards.gradle.kts"))
 
-apply(from = rootProject.file("gradle/format-probe.gradle.kts"))
 
 // TEMPORARY — Issue #145 S06–S17 program diagnostics.
 //
