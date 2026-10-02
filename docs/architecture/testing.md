@@ -47,6 +47,7 @@ The verifier is the canonical route for device-only S06â€“S17 evidence. No S06â€
 The verifier:
 
 - runs inside the exact-head stock debug APK produced by the trusted `android-build` diagnostic route;
+- has one debug-only engineering entry point reachable from any top-level app state, including Welcome/Account/Entitlement/Settings/Remote; checks that require a Ready television disable themselves until the normal app reaches that state;
 - uses the real production AppT code path by default, including the real Samsung adapter and the same navigation/session ownership as the app;
 - may use an explicitly selected **scripted debug adapter** only for scenarios whose accepted contract is synthetic/fake-provider behavior; the report must mark those observations `SCRIPTED`, never `PHYSICAL` or `PROVIDER`;
 - can guide and record Activity recreation, background/foreground, process restart/reopen, LAN loss/recovery, orientation/window changes, TalkBack/font-scale/reduced-motion walkthroughs, lifecycle journeys, and upgrade-before/after state;
