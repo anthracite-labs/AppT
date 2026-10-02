@@ -148,8 +148,9 @@ Use the highest useful seam and test external behavior rather than internal impl
 - Fake transports for connection, WebSocket, discovery, timeout, and failure scenarios.
 - Room migration/data tests.
 - Account/licensing tests for first-session exemption, seven-day expiry, offline paid entitlement, trial anti-abuse decisions, purchase restoration, and account deletion preserving local TV data.
-- Instrumented tests where Android behavior is materially involved, including Keystore, permissions, lifecycle, platform networking integration, Credential Manager, Play Billing, and Play Integrity integration seams.
-- Compose UI tests for critical user flows.
+- JVM/Robolectric tests for Android-dependent deterministic behavior, including storage/migrations, lifecycle state holders, Compose semantics/layout, Credential Manager/Billing seam logic, and failure handling.
+- One stock debug APK contains the only on-device engineering verification surface for S06–S17: real Android lifecycle/network/Keystore/accessibility/physical-Samsung evidence is guided and recorded in-app on the exact build. There is no Android instrumentation/connected-test acceptance tier or second verification app.
+- Compose UI tests for critical user flows under JVM/Robolectric.
 - A small physical Samsung-TV acceptance matrix before release.
 - The Samsung module interface is the primary high-value test surface. Its concrete shape is `docs/architecture/samsung-interface.md`.
 
