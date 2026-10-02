@@ -61,7 +61,7 @@ S05 — Capability-driven Remote surface, Settings shell, and diagnostic recorde
 
 ## Next Authorized Action
 
-Continue Issue #145 / PR #148 in Arena from the current branch under Contract Revision 2. First generalize the S05 debug verifier into the global stock-debug Engineering Verifier and replace future Android instrumentation coverage with JVM/verifier evidence, then execute S06 → S17 chronologically. Keep external provider/human gates explicitly pending until their canonical milestone; do not merge the program PR.
+Continue S06 through S17 on Issue #145 / PR #148 in Arena from the current branch under Contract Revision 2. First generalize the existing debug verifier into the global stock-debug Engineering Verifier and replace future Android instrumentation coverage with JVM/verifier evidence, then execute the remaining checkpoints chronologically. Keep external provider/human gates explicitly pending until their canonical milestone; do not merge the program PR.
 
 ## Authoritative References
 
