@@ -561,8 +561,8 @@ jobs:
           FOCUS: ${{ inputs.focus }}
           REPOSITORY: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
-          SHA: ${{ github.sha }}
-          REF: ${{ github.ref }}
+          TARGET_SHA: ${{ inputs.expected_sha || github.sha }}
+          TARGET_REF: ${{ inputs.target_ref || github.ref }}
         run: |
           set -euo pipefail
 
@@ -580,7 +580,7 @@ jobs:
             echo
             echo "- modes: \`${MODES}\`"
             echo "- focus: \`${effective_focus}\`"
-            echo "- commit: \`${SHA}\` (\`${REF}\`)"
+            echo "- commit: \`${TARGET_SHA}\` (\`${TARGET_REF}\`)"
             echo "- run: https://github.com/${REPOSITORY}/actions/runs/${RUN_ID}"
             echo
             echo "This dispatch is **implementation feedback only**. It is **not** terminal"
@@ -588,4 +588,4 @@ jobs:
             echo "Terminal verification of a finished candidate is a full run of"
             echo "\`verify\` (workflow \`verify\`, job \`gate\`)."
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "diagnose/${MODE} (focus: ${effective_focus}): implementation feedback only; not terminal verification."
+          echo "diagnose/${MODES} (focus: ${effective_focus}): implementation feedback only; not terminal verification."
