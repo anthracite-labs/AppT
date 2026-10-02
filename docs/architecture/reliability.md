@@ -11,7 +11,7 @@ Reference device class for all targets: a mid-tier 2023-or-later Android phone (
 
 ## Launch and setup
 
-Performance evidence follows the app-first verification model: focused executable tests prove structural/non-blocking properties, and a bounded debug-only slice diagnostic records exact-device timing only when a slice genuinely needs physical evidence. AppT does not maintain a separate benchmark application module or hosted-emulator performance pipeline.
+Performance evidence follows the app-first verification model: focused executable tests prove structural/non-blocking properties, and the single stock-debug AppT Verification surface records exact-device timing only when a slice genuinely needs physical evidence. AppT does not maintain a separate benchmark application, Android instrumentation tier, connected-test runner, or hosted-emulator performance pipeline.
 
 | Target | p50 | p95 | Notes | Verification |
 |---|---|---|---|---|
@@ -53,7 +53,7 @@ Performance evidence follows the app-first verification model: focused executabl
 |---|---|---|---|
 | Entitlement check at remote entry when a cached proof exists | ≤ 50 ms, no network on the decision path | Cached proof verification only | Unit test asserting no backend call on entry with a valid proof |
 | Online entitlement refresh | ≤ 3000 ms budget | Async; never blocks a session or a command | Fake backend with artificial delay |
-| Trial activation end-to-end (after sign-in) | ≤ 3000 ms p95 | Server-authoritative; a failure is a retryable surface, not a failed sign-in | Function test plus instrumented flow |
+| Trial activation end-to-end (after sign-in) | ≤ 3000 ms p95 | Server-authoritative; a failure is a retryable surface, not a failed sign-in | Function/backend test plus the stock-debug guided real-device flow |
 | Purchase verification end-to-end | ≤ 5000 ms p95 | Includes Google Play Developer API latency | Fake Play verifier in tests |
 | Backend outage effect on an active remote | none | Structural: no backend call on the command path | `cloudAbsenceDoesNotBlockCommand` |
 | Backend outage effect on a validated Lifetime Entitlement | none | No expiry, no periodic revalidation | `paidOfflineControlSurvivesOutage` |
