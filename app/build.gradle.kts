@@ -268,10 +268,6 @@ tasks.register("formatProbe") {
     }
 }
 
-tasks.named("verifyReleaseEngineeringBoundaries") {
-    dependsOn("formatProbe")
-}
-
 tasks.register("verifyReleaseEngineeringBoundaries") {
     dependsOn("formatProbe")
     group = "verification"
@@ -387,6 +383,10 @@ configurations.configureEach {
             else -> emptyList<String>()
         }
     notations.forEach { notation -> project.dependencies.constraints { add(cfg, notation) } }
+}
+
+tasks.named("verifyReleaseEngineeringBoundaries") {
+    dependsOn("formatProbe")
 }
 
 tasks.withType<Test>().configureEach {
