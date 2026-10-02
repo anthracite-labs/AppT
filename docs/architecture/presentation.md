@@ -341,9 +341,9 @@ Token categories are architecture. Roles and floor values are binding; final pix
 
 ## Accessibility contracts and verification hooks
 
-**AUTHORITATIVE:** Android's [Compose accessibility testing](https://developer.android.com/develop/ui/compose/accessibility/testing) documents automated accessibility checks through `AndroidComposeTestRule.enableAccessibilityChecks()`, including checks for labels, color contrast, touch target size, and traversal order. AppT's route-specific contracts below remain stricter where product behavior requires it.
+**AUTHORITATIVE:** Android's accessibility guidance defines the semantics, labels, state, touch-target, contrast, traversal and screen-reader behavior AppT must expose. AppT verifies those product contracts without depending on Android's instrumentation-only accessibility test runner.
 
-Contracts are binding for every shipped surface. Each has a verification hook so accessibility cannot be a final polish pass. API 34+ AndroidComposeTestRule coverage also enables the platform accessibility validator on rendered surfaces, including contrast, touch-target, labeling, and traversal checks; the provider API is not a Robolectric check. Those generic checks supplement rather than replace the explicit AppT contracts below.
+Contracts are binding for every shipped surface. JVM/Robolectric Compose tests verify the deterministic semantics/layout contracts, and the single stock-debug AppT Verification surface guides and records the exact-device TalkBack, 200% font-scale, contrast/screenshot, rotation, foldable and tablet-window walkthrough. There is no AndroidComposeTestRule or connected-test acceptance dependency.
 
 | Contract | Verification hook |
 |---|---|
