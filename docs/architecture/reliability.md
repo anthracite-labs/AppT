@@ -11,7 +11,7 @@ Reference device class for all targets: a mid-tier 2023-or-later Android phone (
 
 ## Launch and setup
 
-Performance evidence follows the app-first verification model: focused executable tests prove structural/non-blocking properties, and a bounded debug-only slice diagnostic records exact-device timing only when a slice genuinely needs physical evidence. AppT does not maintain a separate benchmark application module or hosted-emulator performance pipeline.
+Performance evidence follows the app-first verification model: focused executable tests prove structural/non-blocking properties, and the single stock-debug Engineering Verifier records exact-device timing only when a slice genuinely needs device evidence. AppT does not maintain Android instrumentation, a separate benchmark/E2E application module, or a hosted-emulator performance pipeline for S06–S17.
 
 | Target | p50 | p95 | Notes | Verification |
 |---|---|---|---|---|
@@ -44,8 +44,8 @@ Performance evidence follows the app-first verification model: focused executabl
 | Transient single-drop recovery rate on the same network | ≥ 90% within budget | Tune during implementation; reported per physical device | Physical matrix plus a scripted LAN flap run |
 | Address-change recovery without user action | ≥ 90% within budget | Internal rediscovery of the saved identity | `rediscoverSameUuid` |
 | Post-`Unreachable` user-initiated recovery | ≤ 5 s to `Reconnecting`, then normal budget | No hidden auto-retry loop | Lifecycle test |
-| Process-death reopen to usable Remote | 2000 ms | Includes routing and session open attempt | Lifecycle/process-recreation test plus physical release checkpoint when required |
-| First frame after rotation | ≤ 1 frame budget | No reconnect, no gate, no re-scan | `rotationKeepsSession` |
+| Process-death reopen to usable Remote | 2000 ms | Includes routing and session open attempt | JVM lifecycle contracts plus stock-debug Engineering Verifier process-kill/reopen walkthrough |
+| First frame after rotation | ≤ 1 frame budget | No reconnect, no gate, no re-scan | `rotationKeepsSession` contract plus stock-debug Engineering Verifier Activity-recreate timing |
 
 ## Entitlement and backend
 
@@ -53,7 +53,7 @@ Performance evidence follows the app-first verification model: focused executabl
 |---|---|---|---|
 | Entitlement check at remote entry when a cached proof exists | ≤ 50 ms, no network on the decision path | Cached proof verification only | Unit test asserting no backend call on entry with a valid proof |
 | Online entitlement refresh | ≤ 3000 ms budget | Async; never blocks a session or a command | Fake backend with artificial delay |
-| Trial activation end-to-end (after sign-in) | ≤ 3000 ms p95 | Server-authoritative; a failure is a retryable surface, not a failed sign-in | Function test plus instrumented flow |
+| Trial activation end-to-end (after sign-in) | ≤ 3000 ms p95 | Server-authoritative; a failure is a retryable surface, not a failed sign-in | Function test plus stock-debug Engineering Verifier real sign-in/trial flow |
 | Purchase verification end-to-end | ≤ 5000 ms p95 | Includes Google Play Developer API latency | Fake Play verifier in tests |
 | Backend outage effect on an active remote | none | Structural: no backend call on the command path | `cloudAbsenceDoesNotBlockCommand` |
 | Backend outage effect on a validated Lifetime Entitlement | none | No expiry, no periodic revalidation | `paidOfflineControlSurvivesOutage` |
@@ -63,12 +63,12 @@ Performance evidence follows the app-first verification model: focused executabl
 
 | Target | Value | Notes | Verification |
 |---|---|---|---|
-| Remote rendering | ≥ 95% of frames within the display frame budget | No benchmark/profile pipeline; investigate regressions with slice-owned debug diagnostics | Compose responsiveness tests plus bounded on-device diagnostics when needed |
-| Interaction jank | ≤ 1% of frames > 32 ms; no frame > 100 ms | Includes scroll of the More sheet | Bounded on-device diagnostic in the owning slice when this becomes acceptance-critical |
-| Idle memory (PSS, app in foreground on Welcome) | ≤ 140 MB | Tune during implementation | Memory profiler in CI-adjacent release check |
-| Active Remote memory (PSS) | ≤ 200 MB | One socket, one session, no cached frames | Memory profiler |
-| Background idle battery | ≤ 0.5% per hour | No wakelocks, no keepalive outside a retained session, no polling | Battery historian run on the reference device |
-| Active-session network energy | keepalive 20 s while retained only | Budget reported per physical device rather than promised | Battery historian |
+| Remote rendering | ≥ 95% of frames within the display frame budget | No benchmark/profile pipeline; investigate regressions with the stock-debug Engineering Verifier | Compose responsiveness tests plus verifier-owned bounded on-device diagnostics when needed |
+| Interaction jank | ≤ 1% of frames > 32 ms; no frame > 100 ms | Includes scroll of the More sheet | Stock-debug Engineering Verifier frame diagnostic when this becomes acceptance-critical |
+| Idle memory (PSS, app in foreground on Welcome) | ≤ 140 MB | Tune during implementation | Stock-debug Engineering Verifier bounded process-memory readout |
+| Active Remote memory (PSS) | ≤ 200 MB | One socket, one session, no cached frames | Stock-debug Engineering Verifier bounded process-memory readout |
+| Background idle battery | ≤ 0.5% per hour | No wakelocks, no keepalive outside a retained session, no polling; coarse device battery readings are engineering evidence, not a public claim | Stock-debug Engineering Verifier guided start/end battery + elapsed-time observation on the reference device |
+| Active-session network energy | keepalive 20 s while retained only | Budget reported per physical device rather than promised | Structural keepalive test plus stock-debug Engineering Verifier session-duration/network observation |
 | Apk size contribution of the Firebase/Play stack | recorded per release, non-blocking | A large jump is a review trigger | Release artifact report |
 
 `command` and the socket read loop allocate nothing in steady state beyond the command itself, and never perform disk I/O, diagnostic recording, or share-sheet work. A diagnostic offer is a non-suspending queue operation, and the rolling file is written on its own dispatcher.
@@ -87,6 +87,6 @@ Performance evidence follows the app-first verification model: focused executabl
 ## Regression policy
 
 - AppT does not maintain committed Baseline Profiles or a repository-owned Macrobenchmark/GMD pipeline.
-- When a slice makes a device-timing target acceptance-critical, its bounded debug diagnostic records the exact candidate and the regression is investigated before acceptance.
+- When S06–S17 makes a device-timing target acceptance-critical, the single stock-debug Engineering Verifier records the exact candidate and the regression is investigated before acceptance.
 - Physical matrix rows record reconnect, wake, and resume outcomes per television, including honest failures.
 - Performance work never changes a product decision in [ui-ux.md](ui-ux.md) or a security control in [security.md](security.md). If a budget conflicts with a control, the control wins and the budget is renegotiated.

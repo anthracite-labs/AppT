@@ -22,6 +22,18 @@ An uncaught-crash marker may be recorded locally only if the crash path can do s
 
 Validated: 2026-09-28.
 
+## Engineering Verifier boundary
+
+The S06–S17 stock-debug Engineering Verifier is separate from the customer Diagnostics product in this file.
+
+It may reuse the same redaction primitives and may read already-redacted AppT/Samsung diagnostic events, but it is compiled only in debug, stores only bounded engineering evidence, and has no automatic upload path. It may record exact build SHA, Android model/API, verifier scenario id, evidence class, typed pass/fail/pending outcomes, elapsed timings, bounded memory/frame/battery observations, and human/device walkthrough completion.
+
+It must not add TV address, MAC, token, pin, certificate, purchase token, account email, free-form command/text payload, or other forbidden identifiers to its local report. A copied/shared verifier report is an explicit engineering action and does not change the customer export schema.
+
+The verifier cannot assert provider-console facts, perform production promotion, approve a source licence, or approve Samsung vendor terms. Those remain external evidence owned by their release gates.
+
+The release/internal distributable graph must exclude the verifier completely; [release.md](release.md) owns that guard.
+
 ## Ownership
 
 | Piece | Owner | On the command path | Default |

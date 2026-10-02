@@ -17,7 +17,7 @@ The accepted baseline is GitHub Actions, Gradle, Android App Bundle, Play App Si
 
 Runtime: Kotlin, Android Gradle Plugin, Compose BOM, Navigation Compose, kotlinx-serialization, Coroutines, Lifecycle, Hilt, Room, DataStore, OkHttp, WorkManager, Firebase BOM artifacts `firebase-auth` and `firebase-appcheck-playintegrity`, Play Billing, Play Integrity, Credential Manager.
 
-Test: JUnit, coroutines-test, Compose UI test, AndroidX test, Robolectric for DataStore and migration tests, Firebase emulator suite for backend functions, plus bounded debug-only slice diagnostics when physical-device evidence is genuinely required.
+Test: JUnit, coroutines-test, JVM/Compose UI tests, Robolectric for Android-facing state/DataStore/migrations, Firebase emulator suite for backend functions, plus the single stock-debug Engineering Verifier for all S06–S17 device-side evidence. No S06–S17 acceptance gate requires Android instrumentation, connected tests, an emulator, adb, or a hosted device runner.
 
 Backend toolchain: TypeScript on the Cloud Functions 2nd gen Node.js LTS runtime, owned by `backend/`, with `npm` and a committed `package-lock.json` (`npm ci --prefix backend` in CI), ESLint and Prettier configuration in the same directory, and Jest plus `firebase-functions-test` for the unit and emulator tests described in [testing.md](testing.md). The backend is not a Gradle module and never enters the Android dependency graph; the only contract between the two is the HTTPS API in [account-entitlement.md](account-entitlement.md).
 
@@ -309,19 +309,27 @@ two checks: it is exposed once as the `android-format` domain and the root
 actionlint, zizmor, ShellCheck, shfmt, yamllint and markdownlint remain narrow
 repository specialists. None is re-hosted through MegaLinter or Super-Linter.
 
-AppT does not maintain a repository-owned Android benchmark/GMD performance
-pipeline. Performance acceptance is attached to the slice that owns the behavior:
-focused executable tests prove structural properties, and a bounded debug-only
-diagnostic records exact-device evidence when physical timing is genuinely
-load-bearing. Protocol fuzz/property tests, Firebase emulator integration and
-physical Samsung acceptance are added only when their corresponding
-implementation surfaces exist.
+AppT does not maintain a repository-owned Android instrumentation, benchmark/GMD,
+or emulator-based E2E pipeline for S06–S17. Device-side acceptance is attached to
+the slice that owns the behavior: focused executable tests prove structural
+properties, and the one stock-debug Engineering Verifier records exact-device
+evidence when physical/device behavior is load-bearing. Protocol fuzz/property
+tests, Firebase emulator backend integration, and physical Samsung acceptance are
+added only when their corresponding implementation surfaces exist.
 
 Mutation testing is a later deep-verification concern, not a ceremonial PR gate.
 When enough non-trivial pure business/protocol logic exists to produce a useful
 mutation score, `deep.yml` may add a reviewed mutation-testing owner (for
 example StrykerJS for backend logic). Do not create mutation infrastructure over
 a skeleton merely to report an impressive empty score.
+
+### Stock-debug Engineering Verifier release boundary
+
+The Engineering Verifier is compiled only into the stock debug source set and is the sole S06–S17 device-evidence surface. It may reuse production app/session code and debug-only scripted adapters, but it is never a distributable product feature.
+
+The release boundary must prove that internal/production distributable artifacts contain no verifier route, entry point, scenario/controller/report type, verifier copy, debug adapter selector, or verifier evidence file. The accepted S05 release-exclusion guard is expanded into this general Engineering Verifier guard rather than duplicated per slice.
+
+The trusted `android-build` diagnostic remains the delivery route for the exact-head debug APK used by the human/device verifier. Release/internal artifact construction, signing, Play upload, provider deployment, and production purchase drills remain separate release/provider operations; the verifier does not receive those credentials and cannot self-approve them.
 
 ### Agent-authored change assurance
 
