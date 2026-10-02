@@ -322,6 +322,9 @@ class PairingToFirstControlFlowTest {
         composeRule.waitForIdle()
         val savedEntryDecisions = entryDecisions.get()
         val scansBefore = tvs.discoverCalls
+        // The one acknowledgement is the user's Continue on the local-network explanation.
+        assertEquals("the user acknowledged the gate exactly once", 1, gate.acknowledgeCalls)
+        val acknowledgementsBefore = gate.acknowledgeCalls
         assertEquals(1, host.ownerCount)
 
         // A configuration change destroys and recreates the Activity: the composition is built
@@ -338,7 +341,11 @@ class PairingToFirstControlFlowTest {
         )
         assertEquals("recreation does not rescan", scansBefore, tvs.discoverCalls)
         assertEquals("no gate decision was made", 0, gate.deniedCalls)
-        assertEquals("no gate acknowledgement was made", 0, gate.acknowledgeCalls)
+        assertEquals(
+            "recreation adds no gate acknowledgement to the user's",
+            acknowledgementsBefore,
+            gate.acknowledgeCalls,
+        )
         assertEquals("the recreated screen re-retains the same session", 1, host.ownerCount)
         assertEquals(
             "the host still holds the same television",
