@@ -14,9 +14,9 @@ Implementation.
 
 ## Current Objective
 
-Complete S05 — Capability-driven Remote surface, Settings shell, and diagnostic recorder — under the accepted Issue #117 Contract Revision 5 on the existing implementation PR #118.
+Keep the accepted S05 baseline stable and prepare the next explicitly authorized implementation slice from the accepted S01–S17 route. No implementation slice is currently active.
 
-Success means S05 makes the accepted phone-native Remote, Settings, accessibility, performance, and bounded local-diagnostics foundation real while preserving S04's accepted saved-pairing, fail-closed identity, and safe-forget boundaries, then closes on normal repository verification plus the slice-owned physical verifier evidence.
+Success means accepted S05 product, verification, dependency-state, and diagnostic-selection behavior remains the repository baseline while the control plane does not start S06, S07, or later product work without a new explicit authorization.
 
 ## Accepted Decisions
 
@@ -34,27 +34,27 @@ Success means S05 makes the accepted phone-native Remote, Settings, accessibilit
 - Mandatory lifecycle skill routing and diagnose-before-fix gates are accepted through PR #84.
 - Bounded diagnostic breadth before correction is accepted through PR #106: inside the smallest affected domain, collect the practical independent failure set, group root causes, then correct coherently without weakening failure semantics.
 - Reuse-before-reimplement is accepted through PR #108 for new Arena-ready Issues and future material revisions: the control plane compiles an Implementation Reuse Plan from accepted AppT code plus distributed harvest evidence; Arena prefers approved `EXISTING APPT`, `ADAPT`, or `PORT` leverage before `NEW`, and `NEW` requires a concrete recorded reason.
-- S05 is the next authorized implementation slice.
-- S05 is currently active under Issue #117. Contract Revision 5 is the current accepted contract revision. It retires Baseline Profile, `:macrobenchmark`, hosted Gradle Managed Device, profile-handoff/regeneration, and `ci:device` requirements in favor of ordinary AppT verification plus bounded debug slice diagnostics and physical evidence where the behavior genuinely requires hardware.
+- S05 — Capability-driven Remote surface, Settings shell, and diagnostic recorder — is accepted through PR #118 under Issue #117 Contract Revision 5. The retired Baseline Profile, `:macrobenchmark`, hosted Gradle Managed Device, profile-handoff/regeneration, and `ci:device` paths are not part of the accepted repository architecture.
+- The S05 closeout owner decision accepted the already-recorded bounded physical Samsung evidence for final acceptance without rerunning the five-sample verifier on the final SHA. The final candidate `f2b007ab0f5c370375a657c96e36cfbbaeb32cb2` passed terminal repository verification and trusted `android-build` before PR #118 merged.
+- Selectable multi-mode diagnostics are accepted through PR #118: `diagnose.yml` accepts one existing mode or a validated comma-separated set of existing modes, runs selected named jobs concurrently, preserves single-mode focus semantics, and remains non-terminal.
 - Repository simplification is accepted through PR #136. Standard Gradle dependency locking and strict dependency verification remain active; the custom `dependencyLockCheck` wrapper, hosted `ci:dependency-state` regeneration route, warm-cache publisher/sanitizer, manual Actions purge workflow, and redundant backend diagnostic modes are retired. `docs/BUILD.md` owns the current dependency-refresh and verification routes.
-- S07 may be dependency-ready but is not active or authorized.
+- S06 — Reconnect, lifecycle, and Activity recreation — is next on the accepted control-spine route after S05, but it is not active or authorized.
+- S07 may be dependency-ready in parallel with the control spine but is not active or authorized.
 - Provider facts marked `needs validation` must be confirmed when they first become implementation-relevant. Material external/protocol claims also carry explicit authority/implementation-evidence/AppT-decision provenance in their owning architecture documents.
 - Final AppT source-license selection and focused Samsung vendor-terms/legal review remain pre-public-release gates.
 - Project commands and execution-environment facts are owned by `docs/BUILD.md`, project configuration, and `.github/workflows/verify.yml`.
 
 ## Durable Blockers
 
-None at the project/contract level. S05 still requires reconciliation of PR #118 with current `main`, the remaining Revision 5 benchmark/device/profile purge, normal exact-head repository verification, an exact-head debug APK, and final physical verifier evidence.
+None at the project/contract level. No implementation slice is currently active.
 
 ## Latest Accepted Milestone
 
-S04 — Saved pairing, fail-closed identity, and the safe forget primitive — accepted through PR #105.
+S05 — Capability-driven Remote surface, Settings shell, and diagnostic recorder — accepted through PR #118, merged to `main` as `bd0474acccb3e30ff2592dee73b01205fc847e4d`.
 
 ## Next Authorized Action
 
-Continue Issue #117 / PR #118 on the existing Arena branch under Contract Revision 5. Reconcile current `main` into PR #118 first, preserving the accepted repository simplification. Remove the retired `:macrobenchmark` module, Baseline Profile tooling/configuration, benchmark-only synthetic app variants/fixtures, managed-device build definitions, and resulting stale dependency/catalog/verification/docs state from the implementation candidate; do not repair or recreate the retired benchmark/device harness.
-
-Preserve the stock-debug S05 physical verifier, its release-exclusion guard, ordinary app/Samsung tests, and S04 safety boundaries. If the purge genuinely changes dependency resolution, regenerate only the affected standard lock state with the current procedure in `docs/BUILD.md` (`./gradlew resolveAndLockAll --write-locks`) and update strict verification metadata only when the reviewed dependency graph requires it. Use the current focused diagnostic modes for implementation feedback, then run normal exact-head terminal verification and the current `android-build` diagnostic to produce the exact-head debug APK. Finish with the bounded five-sample physical verifier on that exact final candidate and human acceptance. Keep PR #118 Draft / NOT VERIFIED until those gates are satisfied.
+Do not start another implementation slice automatically. When the human owner explicitly authorizes the next product slice, compile one bounded Arena-ready contract from the accepted route and architecture sources. The next control-spine slice is S06 — Reconnect, lifecycle, and Activity recreation — and must preserve the accepted S05 Remote, Settings, diagnostics, verification, and dependency-state baseline. Apply the repository's reuse-before-reimplement and diagnose-before-fix rules when that slice is authorized.
 
 ## Authoritative References
 
