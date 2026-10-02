@@ -50,6 +50,12 @@ internal class SamsungTvsImpl(
     private val confirmed: ConfirmedTelevisions = ConfirmedTelevisions(),
     private val secrets: SamsungSecretStore,
     private val diagnostics: SamsungDiagnosticRecorder = SamsungDiagnosticRecorder(),
+    /**
+     * One bounded internal rediscovery per reconnect budget (connection.md#supervised-reconnect).
+     * Production wires the LAN probes through the same [DiscoveryTransport] the scan uses; tests
+     * script it.
+     */
+    private val rediscovery: SessionRediscovery = SessionRediscovery.None,
     private val newSession:
         ((ConfirmedTelevision, CoroutineScope, SessionGeneration) -> RemoteSession)? =
         null,
@@ -86,6 +92,8 @@ internal class SamsungTvsImpl(
                 secrets,
                 generation,
                 diagnostics = diagnostics,
+                rediscovery = rediscovery,
+                recordTelevision = { confirmed.record(it) },
             )
     }
 
@@ -131,6 +139,7 @@ internal class SamsungTvsImpl(
                 newScan = { DiscoveryScan(AndroidDiscoveryTransport(context), confirmed, secrets) },
                 confirmed = confirmed,
                 secrets = secrets,
+                rediscovery = LanSessionRediscovery { AndroidDiscoveryTransport(context) },
             )
         }
     }

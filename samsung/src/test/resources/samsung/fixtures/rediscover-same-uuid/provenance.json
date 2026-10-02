@@ -1,0 +1,9 @@
+{
+  "caseId": "rediscover-same-uuid",
+  "captured": "2026-10-02",
+  "generation": "tizen-websocket",
+  "sourceRole": "synthetic",
+  "source": "Authored for S06 (Issue #145) from the internal-rediscovery rule in docs/architecture/connection.md#supervised-reconnect: one bounded rediscovery of the saved UUID, never the caller-facing scan. Not captured from a physical television.",
+  "redaction": "Contains no address, MAC, Wi-Fi name, token, serial or certificate. Hosts are placeholders such as [host-b]; address-like and identifying device-info fields are replaced with bracketed placeholders; UUIDs are randomly generated for this fixture.",
+  "notes": "The saved television is rediscovered at a new address while a second television with a different UUID answers the same probes. Rediscovery may accept only the saved UUID, so the second television is never a match."
+}
