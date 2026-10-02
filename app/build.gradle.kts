@@ -236,9 +236,9 @@ tasks.register("manifestPermissionAllowlist") {
 }
 
 /**
- * TEMPORARY probe (remove before completion): proves the pinned Spotless/ktfmt formatter's verdict
- * on this candidate without a local JVM, by formatting in place and reporting what changed. The
- * report is deliberately compact: GitHub keeps only about ten annotations per step.
+ * TEMPORARY probe (remove before completion): applies the pinned Spotless/ktfmt formatter in this
+ * run and reports its complete unified diff as base64 chunks, so the exact canonical content can be
+ * applied here without a local JVM. GitHub keeps about ten annotations per step.
  */
 tasks.register("formatProbe") {
     group = "verification"
@@ -255,29 +255,14 @@ tasks.register("formatProbe") {
             process.waitFor()
             return text
         }
-        val files =
-            git("diff", "--numstat")
-                .lines()
-                .filter { it.isNotBlank() }
-                .map { it.split("\t") }
-                .filter { it.getOrNull(2)?.endsWith(".gradle.kts") != true }
-        println(
-            "::warning title=fmt::pinned formatter changes " +
-                files.size +
-                " source file(s): " +
-                files.take(8).joinToString(", ") { it.getOrNull(2) ?: "?" }.take(400)
-        )
-        files.take(6).forEach { parts ->
-            val path = parts.getOrNull(2) ?: return@forEach
-            val patch = git("diff", "--unified=0", "--", path)
-            patch.lineSequence()
-                .filter { it.startsWith("+") && !it.startsWith("+++") }
-                .take(2)
-                .forEach { line ->
-                    println("::warning title=fmt+::${path} ${line.take(200)}")
-                }
+        val diff = git("diff", "--unified=3", "--", "*.kt")
+        val files = git("diff", "--numstat", "--", "*.kt").lines().filter { it.isNotBlank() }
+        val encoded = java.util.Base64.getEncoder().encodeToString(diff.toByteArray())
+        println("::warning title=fmt-count::" + files.size + " file(s) differ")
+        encoded.chunked(3000).take(6).forEachIndexed { index, chunk ->
+            println("::warning title=fmt-b64-" + index + "::" + chunk)
         }
-        logger.lifecycle("formatProbe: ${files.size} file(s) need pinned formatting")
+        logger.lifecycle("formatProbe: " + files.size + " file(s) differ")
     }
 }
 
@@ -374,7 +359,8 @@ tasks.register("verifyReleaseEngineeringBoundaries") {
             }
         }
         logger.lifecycle(
-            "verifyReleaseEngineeringBoundaries: OK — release source graph and APK exclude the debug engineering verifier and its S05 latency run."
+            "verifyReleaseEngineeringBoundaries: OK — release source graph and APK exclude the " +
+                "debug engineering verifier and its S05 latency run."
         )
     }
 }
