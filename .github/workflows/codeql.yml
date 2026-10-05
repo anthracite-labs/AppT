@@ -101,7 +101,7 @@ jobs:
         # gradle/actions/setup-gradle v6.3.0 — no gradle-version input: the
         # committed wrapper (with its pinned distributionSha256Sum) is the
         # version authority, as everywhere else in this repository.
-        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
         with:
           cache-disabled: true
 
